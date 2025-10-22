@@ -1,0 +1,14 @@
+{
+  "buildCommand": "next build",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/sync/subscriptions",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/sync/subscribers", 
+      "schedule": "*/15 * * * *"
+    }
+  ]
+} 
