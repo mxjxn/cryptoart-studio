@@ -25,10 +25,6 @@ This Turborepo monorepo includes the following packages and applications:
 - **`@repo/eslint-config`**: ESLint configurations for the monorepo
 - **`@repo/typescript-config`**: TypeScript configurations used throughout
 
-### Data
-
-- **`data/`**: Sample datasets including `muse-oct-21.csv` for testing and development
-
 ## 🛠️ Tech Stack
 
 - **Framework**: Next.js 14 with App Router
@@ -142,7 +138,6 @@ cryptoart-studio/
 │   ├── ui/                      # Shared UI components
 │   ├── eslint-config/           # ESLint configurations
 │   └── typescript-config/       # TypeScript configurations
-├── data/                        # Sample datasets
 └── README.md
 ```
 
