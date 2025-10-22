@@ -1,135 +1,192 @@
-# Turborepo starter
+# CryptoArt Studio 🎨
 
-This Turborepo starter is maintained by the Turborepo core team.
+A comprehensive monorepo for building and managing crypto art projects with Farcaster integration, built with Next.js and TypeScript.
 
-## Using this example
+## 🚀 What's Inside
 
-Run the following command:
+This Turborepo monorepo includes the following packages and applications:
 
-```sh
-npx create-turbo@latest
+### Applications
+
+- **`cryptoart-studio-app`**: Main Next.js application with Farcaster Mini App integration
+  - Built with Next.js 14, TypeScript, and Tailwind CSS
+  - Farcaster authentication and wallet integration
+  - Dashboard for managing crypto art projects
+  - API routes for subscriptions, notifications, and user management
+  - Support for both Ethereum and Solana wallets
+
+### Packages
+
+- **`@repo/cache`**: Hypersub caching utilities for efficient data management
+- **`@repo/db`**: Database package with Drizzle ORM
+  - Database schema and migrations
+  - Client setup for database operations
+- **`@repo/ui`**: Shared React component library
+- **`@repo/eslint-config`**: ESLint configurations for the monorepo
+- **`@repo/typescript-config`**: TypeScript configurations used throughout
+
+### Data
+
+- **`data/`**: Sample datasets including `muse-oct-21.csv` for testing and development
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Database**: Drizzle ORM
+- **Authentication**: Farcaster integration
+- **Wallets**: Ethereum & Solana support
+- **Monorepo**: Turborepo
+- **Package Manager**: pnpm
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js >= 18
+- pnpm (recommended package manager)
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone git@github.com:mxjxn/cryptoart-studio.git
+cd cryptoart-studio
 ```
 
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+2. Install dependencies:
+```bash
+pnpm install
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+3. Set up environment variables:
+```bash
+# Copy environment template
+cp apps/cryptoart-studio-app/.env.example apps/cryptoart-studio-app/.env.local
+# Edit the .env.local file with your configuration
 ```
 
-### Develop
+### Development
 
-To develop all apps and packages, run the following command:
+To start the development server for all applications:
 
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
+```bash
+# With global turbo installed (recommended)
 turbo dev
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
+# Without global turbo
 pnpm exec turbo dev
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+To develop a specific application:
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+```bash
+# Develop only the main app
+turbo dev --filter=cryptoart-studio-app
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+# Develop only the docs
+turbo dev --filter=docs
 ```
 
-### Remote Caching
+### Building
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+To build all applications and packages:
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+```bash
+turbo build
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+To build a specific package:
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+```bash
+turbo build --filter=cryptoart-studio-app
 ```
 
-## Useful Links
+## 📱 Features
 
-Learn more about the power of Turborepo:
+### Farcaster Integration
+- Mini App support for Farcaster ecosystem
+- Wallet authentication and signing
+- User profile management
+- Social features integration
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+### Multi-Chain Support
+- Ethereum wallet integration
+- Solana wallet support
+- Cross-chain transaction capabilities
+
+### Dashboard
+- Project management interface
+- Subscription tracking
+- User analytics
+- Notification system
+
+### API Endpoints
+- Authentication (`/api/auth/*`)
+- User management (`/api/users`)
+- Subscription handling (`/api/sync/*`)
+- Webhook support (`/api/webhook`)
+
+## 🏗️ Project Structure
+
+```
+cryptoart-studio/
+├── apps/
+│   ├── cryptoart-studio-app/    # Main Next.js application
+│   ├── docs/                    # Documentation site
+│   └── web/                     # Additional web app
+├── packages/
+│   ├── cache/                   # Caching utilities
+│   ├── db/                      # Database package
+│   ├── ui/                      # Shared UI components
+│   ├── eslint-config/           # ESLint configurations
+│   └── typescript-config/       # TypeScript configurations
+├── data/                        # Sample datasets
+└── README.md
+```
+
+## 🔧 Scripts
+
+- `pnpm dev` - Start development servers
+- `pnpm build` - Build all packages
+- `pnpm lint` - Lint all packages
+- `pnpm format` - Format code with Prettier
+- `pnpm check-types` - Type check all packages
+
+## 🚀 Deployment
+
+The main application is configured for deployment on Vercel:
+
+```bash
+cd apps/cryptoart-studio-app
+npm run deploy:vercel
+```
+
+## 📚 Documentation
+
+- [Farcaster Mini Apps Guide](https://docs.neynar.com/docs/create-farcaster-miniapp-in-60s)
+- [Turborepo Documentation](https://turbo.build/repo/docs)
+- [Next.js Documentation](https://nextjs.org/docs)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](apps/cryptoart-studio-app/LICENSE) file for details.
+
+## 🔗 Links
+
+- [GitHub Repository](https://github.com/mxjxn/cryptoart-studio)
+- [Neynar Documentation](https://docs.neynar.com/)
+- [Farcaster Protocol](https://farcaster.xyz/)
+
+---
+
+Built with ❤️ using Next.js, TypeScript, and the Farcaster ecosystem.
