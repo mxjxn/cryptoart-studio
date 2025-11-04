@@ -1,6 +1,6 @@
 # Cryptoart Monorepo
 
-A monorepo containing all projects for the Cryptoart auction house platform on Farcaster.
+A monorepo containing all projects related to the Cryptoart channel on farcaster.
 
 ## Overview
 
