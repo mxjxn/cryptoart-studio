@@ -4,9 +4,9 @@ A monorepo containing all projects for the Cryptoart auction house platform on F
 
 ## Overview
 
-This monorepo contains four main projects that work together to provide a complete NFT auction house experience:
+This monorepo contains several projects that work together:
 
-1. **Auctionhouse App** - Next.js Farcaster Mini App frontend
+1. **Cryptoart Studio App** - Next.js Farcaster Mini App for creator tools
 2. **Backend** - Event indexer for blockchain events
 3. **Creator Core** - ERC721/ERC1155 NFT framework with extensions
 4. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
@@ -16,8 +16,8 @@ This monorepo contains four main projects that work together to provide a comple
 ```
 cryptoart-monorepo/
 ├── apps/
-│   ├── auctionhouse/          # Next.js Farcaster Mini App
-│   └── backend/               # Event indexer for Base network
+│   ├── cryptoart-studio-app/  # Next.js Farcaster Mini App
+│   └── backend/                # Event indexer for Base network
 ├── packages/
 │   ├── creator-core/          # ERC721/ERC1155 NFT framework
 │   └── auctionhouse-contracts/ # Solidity auction house contracts
@@ -52,9 +52,9 @@ npm run dev
 
 ### Apps
 
-#### Auctionhouse (`apps/auctionhouse/`)
+#### Cryptoart Studio App (`apps/cryptoart-studio-app/`)
 
-Next.js Farcaster Mini App for browsing and interacting with NFT auctions.
+Next.js Farcaster Mini App for creator tools, subscription management, and community analytics.
 
 **Tech Stack:**
 - Next.js 15
@@ -66,11 +66,11 @@ Next.js Farcaster Mini App for browsing and interacting with NFT auctions.
 
 **Getting Started:**
 ```bash
-cd apps/auctionhouse
+cd apps/cryptoart-studio-app
 npm run dev
 ```
 
-**Documentation:** See `apps/auctionhouse/README.md`
+**Documentation:** See `apps/cryptoart-studio-app/README.md` and `apps/cryptoart-studio-app/DEVELOPER_GUIDE.md`
 
 #### Backend (`apps/backend/`)
 
@@ -156,7 +156,7 @@ You can work on individual projects directly:
 
 ```bash
 # Frontend development
-cd apps/auctionhouse
+cd apps/cryptoart-studio-app
 npm run dev
 
 # Backend development
