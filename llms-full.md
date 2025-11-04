@@ -1,10 +1,10 @@
 # Cryptoart Monorepo - Complete Technical Documentation
 
 > **Note**: This document consolidates all technical documentation from the monorepo projects. For project-specific documentation, see the individual project directories:
-> - Creator Core: `packages/creator-core/`
+> - Creator Core: `packages/creator-core-contracts/`
 > - Auctionhouse Contracts: `packages/auctionhouse-contracts/`
 > - Backend: `apps/backend/`
-> - Auctionhouse App: `apps/auctionhouse/`
+> - Cryptoart Studio App: `apps/cryptoart-studio-app/`
 
 ---
 
@@ -22,10 +22,9 @@
    - [Overview](#backend-overview)
    - [Implementation Guide](#backend-implementation)
    - [Technical Notes](#backend-technical-notes)
-4. [Auctionhouse App](#auctionhouse-app)
-   - [Overview](#auctionhouse-app-overview)
-   - [Development Guide](#auctionhouse-app-development)
-   - [Farcaster Mini App Checklist](#farcaster-miniapp-checklist)
+4. [Cryptoart Studio App](#cryptoart-studio-app)
+   - [Overview](#cryptoart-studio-app-overview)
+   - [Development Guide](#cryptoart-studio-app-development)
 
 ---
 
@@ -33,7 +32,7 @@
 
 ## Creator Core Overview
 
-**Source**: `packages/creator-core/README.md`
+**Source**: `packages/creator-core-contracts/README.md`
 
 The Manifold Creator Core contracts provide creators with the ability to deploy an ERC721/ERC1155 NFT smart contract with basic minting functionality, on-chain royalties and permissioning. Additionally, they provide a framework for extending the functionality of the smart contract by installing extension applications.
 
@@ -76,7 +75,7 @@ Example applications: [creator-core-extensions-solidity](https://github.com/mani
 
 ## Creator Core Architecture
 
-**Source**: `packages/creator-core/ARCHITECTURE.md`
+**Source**: `packages/creator-core-contracts/ARCHITECTURE.md`
 
 ### System Overview
 
@@ -239,7 +238,7 @@ interface IERC721CreatorMintPermissions {
 
 ## Creator Core Deployment
 
-**Source**: `packages/creator-core/DEPLOYMENT_GUIDE.md`
+**Source**: `packages/creator-core-contracts/DEPLOYMENT_GUIDE.md`
 
 ### Deployment Methods
 
@@ -368,7 +367,7 @@ await contract.blacklistExtension(extensionAddress);
 
 ## Creator Core Quick Reference
 
-**Source**: `packages/creator-core/QUICK_REFERENCE.md`
+**Source**: `packages/creator-core-contracts/QUICK_REFERENCE.md`
 
 ### Contract Addresses & ABIs
 
@@ -626,13 +625,13 @@ The indexer scans blocks and processes events:
 
 ---
 
-# Auctionhouse App
+# Cryptoart Studio App
 
-## Auctionhouse App Overview
+## Cryptoart Studio App Overview
 
-**Source**: `apps/auctionhouse/README.md`
+**Source**: `apps/cryptoart-studio-app/README.md`
 
-A Farcaster Mini App built with Next.js + TypeScript + React for the cryptoart auction house.
+A Farcaster Mini App built with Next.js + TypeScript + React for the cryptoart platform. This is the main frontend application for managing subscriptions, airdrops, and channel data.
 
 ### Tech Stack
 
@@ -657,7 +656,7 @@ npm run deploy:vercel
 
 ---
 
-## Auctionhouse App Development
+## Cryptoart Studio App Development
 
 ### Scripts
 
@@ -674,70 +673,7 @@ The app requires various environment variables for:
 - Neynar API keys
 - Blockchain RPC endpoints
 - NextAuth configuration
-
----
-
-## Farcaster Mini App Checklist
-
-**Source**: `apps/auctionhouse/prompts/agent-checklist.mdx`
-
-This checklist helps AI agents troubleshoot Farcaster Mini Apps.
-
-### Common LLM Pitfalls
-
-- **DO NOT** reference Frames v1 syntax or fields like `fc:frame:image`, `fc:frame:button`
-- **DO NOT** invent manifest fields not in the official schema
-- **DO NOT** mix Frame and Mini App terminology (Mini Apps are not Frames)
-- **DO NOT** use outdated examples from before 2024
-- **DO NOT** use `fc:frame` meta tag for new implementations
-- **ALWAYS** verify fields against the official SDK schema at `@farcaster/miniapp-sdk`
-- **ALWAYS** use the official documentation at miniapps.farcaster.xyz
-- **ALWAYS** check that examples use `miniapp` or `frame` (not `frames`) in manifest
-- **ALWAYS** use `fc:miniapp` meta tag for new Mini Apps (not `fc:frame`)
-
-### Check 1: Manifest Configuration
-
-Verify manifest accessibility:
-```bash
-curl -s https://{domain}/.well-known/farcaster.json
-```
-
-Expected output includes:
-- `accountAssociation` object with header, payload, signature
-- `frame` object with version, name, iconUrl, homeUrl
-
-### Check 2: Embed Metadata
-
-Verify embed tags on entry points:
-```bash
-curl -s https://{domain}/{path} | grep -E 'fc:miniapp|fc:frame'
-```
-
-Expected:
-```html
-<meta name="fc:miniapp" content='{"version":"1","imageUrl":"...","button":{...}}' />
-```
-
-### Check 3: Preview and Runtime
-
-Test in preview tool:
-```
-https://farcaster.xyz/~/developers/mini-apps/preview?url={encoded-mini-app-url}
-```
-
-Common issues:
-- App not loading: Ensure `sdk.actions.ready()` is called
-- Tunnel URLs not working: Open tunnel URL directly in browser first
-
-### Quick Reference
-
-| Check | Command | Success Indicator |
-|-------|---------|-------------------|
-| Manifest exists | `curl -s {domain}/.well-known/farcaster.json` | HTTP 200, valid JSON |
-| Manifest signed | Decode `payload`, check domain | Domain matches hosting |
-| Embed present | `curl -s {url} \| grep fc:miniapp` | Meta tag found |
-| Preview works | Open preview tool URL | App loads, no errors |
-| App ready | Check console logs | `ready()` called |
+- Database connection (PostgreSQL)
 
 ---
 
@@ -745,8 +681,10 @@ Common issues:
 
 For detailed documentation, see the original source files:
 
-- **Creator Core**: `packages/creator-core/README.md`, `ARCHITECTURE.md`, `DEPLOYMENT_GUIDE.md`, `QUICK_REFERENCE.md`
+- **Creator Core**: `packages/creator-core-contracts/README.md`, `ARCHITECTURE.md`, `DEPLOYMENT_GUIDE.md`, `QUICK_REFERENCE.md`
 - **Auctionhouse Contracts**: `packages/auctionhouse-contracts/README.md`
 - **Backend**: `apps/backend/guide.md`, `config.js`, `index.js`
-- **Auctionhouse App**: `apps/auctionhouse/README.md`, `apps/auctionhouse/prompts/agent-checklist.mdx`
+- **Cryptoart Studio App**: `apps/cryptoart-studio-app/README.md`
+
+For information about additional packages (cache, db, eslint-config, typescript-config, ui), see `PACKAGES.md`.
 
