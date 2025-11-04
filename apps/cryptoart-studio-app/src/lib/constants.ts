@@ -120,8 +120,7 @@ export const ANALYTICS_ENABLED: boolean = false;
  * If the host does not support all chains listed here, it will not render the mini app.
  * If empty or undefined, the mini app will be rendered regardless of chain support.
  *
- * Supported chains: eip155:1, eip155:137, eip155:42161, eip155:10, eip155:8453,
- * solana:mainnet, solana:devnet
+ * Supported chains: eip155:1, eip155:137, eip155:42161, eip155:10, eip155:8453
  */
 export const APP_REQUIRED_CHAINS: string[] = [];
 

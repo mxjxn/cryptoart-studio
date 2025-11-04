@@ -4,6 +4,7 @@ import { createServer } from 'net';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Load environment variables
 dotenv.config({ path: '.env.local' });
@@ -17,7 +18,7 @@ let isCleaningUp = false;
 
 // Parse command line arguments for port
 const args = process.argv.slice(2);
-let port = 3000; // default port
+let port = 3001; // default port for cryptoart-studio-app
 
 // Look for --port=XXXX, --port XXXX, -p=XXXX, or -p XXXX
 args.forEach((arg, index) => {
@@ -145,7 +146,10 @@ async function startDev() {
   }
   
   // Start next dev with appropriate configuration
-  const nextBin = path.normalize(path.join(projectRoot, 'node_modules', '.bin', 'next'));
+  // In pnpm workspaces, binaries are hoisted to the root node_modules
+  const localNextBin = path.normalize(path.join(projectRoot, 'node_modules', '.bin', 'next'));
+  const rootNextBin = path.normalize(path.join(projectRoot, '..', '..', 'node_modules', '.bin', 'next'));
+  const nextBin = fs.existsSync(localNextBin) ? localNextBin : rootNextBin;
 
   nextDev = spawn(nextBin, ['dev', '-p', port.toString()], {
     stdio: 'inherit',
