@@ -1,10 +1,8 @@
 # Cryptoart Monorepo
 
-A monorepo containing all projects for the Cryptoart auction house platform on Farcaster.
+A monorepo containing all projects related to the Cryptoart channel on farcaster.
 
 ## Overview
-
-This monorepo contains four main projects that work together to provide a complete NFT auction house experience:
 
 1. **Auctionhouse App** - Next.js Farcaster Mini App frontend
 2. **Backend** - Event indexer for blockchain events
