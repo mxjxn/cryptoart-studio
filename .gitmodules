@@ -1,0 +1,9 @@
+[submodule "packages/auctionhouse-contracts"]
+	path = packages/auctionhouse-contracts
+	url = git@github.com:mxjxn/auctionhouse-contracts.git
+[submodule "auctionhouse-indexer"]
+	path = auctionhouse-indexer
+	url = git@github.com:mxjxn/auctionhouse-backend.git
+[submodule "packages/creator-core-contracts"]
+	path = packages/creator-core-contracts
+	url = git@github.com:mxjxn/creator-core-solidity.git
