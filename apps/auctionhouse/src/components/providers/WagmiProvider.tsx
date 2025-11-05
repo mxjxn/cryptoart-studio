@@ -44,7 +44,7 @@ function useCoinbaseWalletAutoConnect() {
 export const config = createConfig({
   chains: [base, optimism, mainnet, degen, unichain, celo],
   transports: {
-    [base.id]: http(),
+    [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
     [optimism.id]: http(),
     [mainnet.id]: http(),
     [degen.id]: http(),

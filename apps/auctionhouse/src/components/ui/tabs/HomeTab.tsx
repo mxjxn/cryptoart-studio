@@ -1,24 +1,26 @@
-"use client";
-
 /**
- * HomeTab component displays the main landing content for the mini app.
- * 
- * This is the default tab that users see when they first open the mini app.
- * It provides a simple welcome message and placeholder content that can be
- * customized for specific use cases.
- * 
- * @example
- * ```tsx
- * <HomeTab />
- * ```
+ * HomeTab component - displays active auctions
  */
+
+'use client';
+
+import { AuctionList } from '~/components/auctions/AuctionList';
+import { AuctionListingChecker } from '~/components/auctions/AuctionListingChecker';
+
+// For MVP, we'll check a range of listing IDs
+// In production, this would come from the backend indexer API
+const LISTING_ID_RANGE = Array.from({ length: 20 }, (_, i) => i + 1);
+
 export function HomeTab() {
   return (
-    <div className="flex items-center justify-center h-[calc(100vh-200px)] px-6">
-      <div className="text-center w-full max-w-md mx-auto">
-        <p className="text-lg mb-2">Put your content here!</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Powered by Neynar 🪐</p>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Active Auctions</h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          Browse and bid on available NFT auctions
+        </p>
       </div>
+      <AuctionListingChecker listingIds={LISTING_ID_RANGE} />
     </div>
   );
-} 
+}
