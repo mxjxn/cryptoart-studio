@@ -142,30 +142,43 @@ const ownership = await checkMultipleContractOwnership(
 
 ## Environment Configuration
 
-### Required Environment Variables
+**📚 See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for complete documentation.**
+
+### Quick Reference
+
+The app uses **two database systems**:
+
+1. **PostgreSQL** (`@repo/db`) - Persistent data & caching
+   - NFT collections, airdrops, auction listings
+   - Hypersub subscription/subscriber caching
+   - Requires: `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`
+
+2. **Redis/KV** (`@upstash/redis`) - Session & notifications
+   - Farcaster notification tokens
+   - Optional: Falls back to in-memory if not configured
+   - Requires: `KV_REST_API_URL`, `KV_REST_API_TOKEN`
+
+### Minimum Required Variables
 
 ```bash
-# Neynar Configuration
+# Neynar (Required)
 NEYNAR_API_KEY=your_neynar_api_key
 NEYNAR_CLIENT_ID=your_neynar_client_id
 
-# App Configuration
+# App (Required)
 NEXT_PUBLIC_URL=http://localhost:3000
-USE_TUNNEL=false
 
-# Database
+# PostgreSQL (Required for Studio features)
 POSTGRES_URL=postgresql://...
 POSTGRES_PRISMA_URL=postgresql://...
 POSTGRES_URL_NON_POOLING=postgresql://...
 
-# Blockchain
+# Blockchain (Required for Studio)
 ALCHEMY_API_KEY=your_alchemy_api_key
 CRYPTOART_HYPERSUB_CONTRACT=0x...
-AIRDROP_WALLET_PRIVATE_KEY=0x...
-
-# Development
-DEV_BYPASS_MEMBERSHIP=true  # Optional: bypass membership validation
 ```
+
+See `ENVIRONMENT_SETUP.md` for complete list and setup instructions.
 
 ## Development Workflow
 

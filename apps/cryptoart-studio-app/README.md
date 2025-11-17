@@ -27,29 +27,44 @@ npm run dev
 
 ## Environment Setup
 
-Create a `.env.local` file in the project root with the following configuration:
+**📚 See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for complete documentation.**
+
+### Quick Start
+
+Create a `.env.local` file in the project root:
 
 ```bash
-# Neynar API Configuration
+# Required
 NEYNAR_API_KEY=your_neynar_api_key_here
 NEYNAR_CLIENT_ID=your_neynar_client_id_here
-
-# Next.js Configuration
 NEXT_PUBLIC_URL=http://localhost:3000
 
-# Tunneling Configuration for Farcaster Testing
-# Set to 'true' to enable localtunnel for testing on mobile devices
-USE_TUNNEL=false
-
-# Optional: Database Configuration (if using database features)
+# PostgreSQL (Required for Studio features)
 POSTGRES_URL=postgresql://username:password@host:port/database
 POSTGRES_PRISMA_URL=postgresql://username:password@host:port/database
 POSTGRES_URL_NON_POOLING=postgresql://username:password@host:port/database
 
-# Optional: Creator Tools APIs (if using creator tools features)
+# Blockchain & NFTs (Required for Studio)
 ALCHEMY_API_KEY=your_alchemy_api_key_here
 CRYPTOART_HYPERSUB_CONTRACT=0x...
+
+# Optional: Redis/KV (falls back to in-memory)
+KV_REST_API_URL=https://your-redis-instance.upstash.io
+KV_REST_API_TOKEN=your_upstash_redis_token
+
+# Optional: Development
+USE_TUNNEL=false
+DEV_BYPASS_MEMBERSHIP=true
+CRON_SECRET=your-secure-random-string
+PINATA_JWT=your_pinata_jwt_token
 AIRDROP_WALLET_PRIVATE_KEY=0x...
+```
+
+**After setting up PostgreSQL, run migrations:**
+```bash
+cd packages/db
+pnpm install
+pnpm run db:push
 ```
 
 ## Testing with Farcaster

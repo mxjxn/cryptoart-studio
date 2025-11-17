@@ -1,84 +1,130 @@
-# PostgreSQL Caching Setup
+# Database Architecture
 
-This document explains how to set up PostgreSQL caching for the Hypersub dashboard.
+This document explains the database systems used in the CryptoArt Studio App.
+
+## Current Focus: Basics Only
+
+The app is currently focused on **basics only**:
+- **Creator Core**: NFT collections and mints
+- **Auctionhouse**: Listings and bids (tracked by backend indexer)
+
+Subscription caching and other advanced features are commented out and will be implemented later.
+
+---
+
+## Database System
+
+### PostgreSQL (`@repo/db`) - Primary Database
+**Package**: `packages/db`  
+**ORM**: Drizzle ORM  
+**Purpose**: Persistent data storage
+
+**What it stores:**
+- NFT collections and minting history (Creator Core - Studio App)
+- Auction listings and bids (Auctionhouse - Backend Indexer)
+
+**Active Tables:**
+- `nft_collections` - Deployed NFT contracts
+- `collection_mints` - NFT minting history
+- `auction_listings` - Marketplace listings (from backend indexer)
+- `auction_bids` - Auction bid history (from backend indexer)
+
+**Commented Out (Future):**
+- Subscription/subscriber cache tables
+- Clanker tokens
+- Airdrop tables
+
+---
+
+## Backend Indexer Integration
+
+The backend (`apps/backend`) actively uses the database to track auctionhouse events:
+
+### Events Tracked
+- `CreateListing` → Stored in `auction_listings`
+- `BidEvent` → Stored in `auction_bids`
+- `ModifyListing` → Updates `auction_listings`
+- `CancelListing` → Updates `auction_listings`
+- `FinalizeListing` → Updates `auction_listings`
+
+### Storage Functions (`apps/backend/storage.js`)
+- `upsertListing()` - Store/update listings
+- `insertBid()` - Record bids
+- `updateListingStatus()` - Update listing state
+
+---
 
 ## Environment Variables
 
-Add these environment variables to your `.env` file and Vercel deployment:
+See `ENVIRONMENT_SETUP.md` for complete environment variable documentation.
 
-### Required Variables
+### Required for Database
 
 ```bash
 # PostgreSQL Database Connection
 POSTGRES_URL="postgres://username:password@host:port/database"
 POSTGRES_PRISMA_URL="postgres://username:password@host:port/database"
 POSTGRES_URL_NON_POOLING="postgres://username:password@host:port/database"
-
-# Existing Neynar API Key
-NEYNAR_API_KEY="your-neynar-api-key"
-
-# Cron Job Security (optional but recommended)
-CRON_SECRET="your-secure-random-string"
 ```
 
-### Database Setup
+---
 
-1. **Create a PostgreSQL database** (Vercel Postgres, Supabase, Railway, etc.)
-2. **Run the initial migration**:
+## Database Setup Instructions
+
+### PostgreSQL Setup
+
+1. **Create a PostgreSQL Database**
+   - **Vercel**: Go to your project → Storage → Create Database → Postgres
+   - **Supabase**: Create new project → Copy connection string
+   - **Railway**: Create new service → PostgreSQL → Copy connection string
+   - **Neon**: Create new project → Copy connection string
+
+2. **Run Database Migrations**
    ```bash
    cd packages/db
+   pnpm install
    pnpm run db:push
    ```
+   This creates all necessary tables:
+   - `nft_collections` - Deployed NFT contracts (Creator Core - Studio App)
+   - `collection_mints` - NFT minting history (Creator Core - Studio App)
+   - `auction_listings` - Marketplace auction listings (Auctionhouse - Backend Indexer)
+   - `auction_bids` - Auction bid history (Auctionhouse - Backend Indexer)
+   
+   **Note**: Subscription cache, subscriber cache, clanker tokens, and airdrop tables are commented out and will be added when implementing those features.
 
-### Vercel Setup
+3. **Verify Tables Created**
+   ```bash
+   pnpm run db:studio
+   # Opens Drizzle Studio at http://localhost:4983
+   ```
 
-1. **Add environment variables** in Vercel dashboard
-2. **Deploy the app** - cron jobs will be automatically configured
-3. **Verify cron jobs** are running in Vercel Functions tab
+---
 
-## Cache Behavior
+## What Each Database Stores
 
-### Subscriptions Cache
-- **TTL**: 1 hour
-- **Storage**: Full subscription metadata in JSONB
-- **Invalidation**: On webhook events, manual refresh
+### PostgreSQL Tables
 
-### Subscribers Cache  
-- **TTL**: 15 minutes
-- **Storage**: Filtered subscriber data per contract
-- **Invalidation**: On webhook events, automatic cleanup
+**Active Tables (Focus on Basics):**
 
-### Background Jobs
-- **Subscriptions**: Cleanup every hour (`0 * * * *`)
-- **Subscribers**: Cleanup every 15 minutes (`*/15 * * * *`)
+| Table | Purpose | Used By |
+|-------|---------|---------|
+| `nft_collections` | Track deployed NFT contracts (Creator Core) | Studio App |
+| `collection_mints` | Track NFT mints (Creator Core) | Studio App |
+| `auction_listings` | Track marketplace listings (Auctionhouse) | Backend Indexer |
+| `auction_bids` | Track auction bids (Auctionhouse) | Backend Indexer |
 
-## Performance Impact
+**Commented Out (Future Use):**
+- `subscriptions_cache` - Will be used when implementing subscription features
+- `subscribers_cache` - Will be used when implementing subscription features
+- `clanker_tokens` - Not implemented yet
+- Airdrop tables - Will be used in subscriptions section
 
-- **95% reduction** in Neynar API calls for repeat requests
-- **Sub-100ms** response times for cached data
-- **Handles 2000+ subscribers** efficiently in PostgreSQL JSONB
-- **Automatic cleanup** prevents database bloat
+---
 
-## Monitoring
+## Related Documentation
 
-Check Vercel Functions logs for:
-- Cache hit/miss rates
-- Background job execution
-- Error handling and fallbacks
-
-## Troubleshooting
-
-### Cache Not Working
-1. Verify `POSTGRES_URL` is set correctly
-2. Check database connection in Vercel logs
-3. Ensure migration ran successfully
-
-### Slow Performance
-1. Check database indexes are created
-2. Monitor cache hit rates in logs
-3. Verify background cleanup is running
-
-### Data Staleness
-1. Check webhook invalidation is working
-2. Verify cron jobs are executing
-3. Consider reducing TTL if needed
+- **Database Usage**: `DATABASE_USAGE.md`
+- **Environment Setup**: `ENVIRONMENT_SETUP.md`
+- **Schema Definition**: `packages/db/src/schema.ts`
+- **Backend Indexer**: `apps/backend/README.md`
