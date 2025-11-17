@@ -20,7 +20,44 @@ import { useMiniApp } from "@neynar/react";
  * ```
  */
 export function ContextTab() {
-  const { context } = useMiniApp();
+  let context;
+  let error: Error | null = null;
+
+  try {
+    const miniApp = useMiniApp();
+    context = miniApp.context;
+  } catch (err) {
+    error = err instanceof Error ? err : new Error('Failed to get mini app context');
+  }
+
+  if (error) {
+    return (
+      <div className="mx-6">
+        <h2 className="text-lg font-semibold mb-2">Context</h2>
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-red-800 dark:text-red-200 mb-2">
+            Error loading context: {error.message}
+          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            Please open this mini app in Farcaster to view context information.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!context) {
+    return (
+      <div className="mx-6">
+        <h2 className="text-lg font-semibold mb-2">Context</h2>
+        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+          <p className="text-yellow-800 dark:text-yellow-200">
+            No context available. Please open this mini app in Farcaster.
+          </p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="mx-6">
