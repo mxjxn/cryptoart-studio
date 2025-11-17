@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { subscriptionsCache, subscribersCache, airdropLists, listRecipients, airdropHistory, nftCollections, collectionMints, clankerTokens } from './schema';
+import { nftCollections, collectionMints } from './schema';
 
 // Database client singleton
 let db: ReturnType<typeof drizzle> | null = null;
@@ -20,15 +20,12 @@ export function getDatabase() {
 
 // Export schema for use in other packages
 export { 
-  subscriptionsCache, 
-  subscribersCache, 
-  airdropLists, 
-  listRecipients, 
-  airdropHistory, 
+  // subscriptionsCache, subscribersCache - commented out, focusing on basics
+  // airdropLists, listRecipients, airdropHistory - commented out, will be used later
+  // clankerTokens - commented out, not implemented yet
   nftCollections, 
   collectionMints, 
-  clankerTokens,
   auctionListings,
   auctionBids,
 } from './schema';
-export type { SubscriptionCacheData, SubscriberCacheData } from './schema';
+// export type { SubscriptionCacheData, SubscriberCacheData } from './schema'; // Commented out with cache tables
