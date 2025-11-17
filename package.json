@@ -15,6 +15,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "check-types": "turbo run check-types"
   },
+  "dependencies": {
+    "@lssvm/abis": "git+https://github.com/mxjxn/such-lssvm.git#main"
+  },
   "devDependencies": {
     "prettier": "^3.6.2",
     "turbo": "^2.5.8",
@@ -31,4 +34,3 @@
     }
   }
 }
-
