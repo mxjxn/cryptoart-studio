@@ -27,6 +27,8 @@ export {
   airdropHistory, 
   nftCollections, 
   collectionMints, 
-  clankerTokens 
+  clankerTokens,
+  auctionListings,
+  auctionBids,
 } from './schema';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';

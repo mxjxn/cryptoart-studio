@@ -7,52 +7,83 @@ import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
 import { useEffect, useState } from "react";
 import { useConnect, useAccount } from "wagmi";
 import React from "react";
+import { useIsMiniApp } from "~/hooks/useIsMiniApp";
 
-// Custom hook for Coinbase Wallet detection and auto-connection
-function useCoinbaseWalletAutoConnect() {
-  const [isCoinbaseWallet, setIsCoinbaseWallet] = useState(false);
+/**
+ * Intelligent wallet auto-connection hook.
+ * Detects context (mini-app vs web3) and auto-connects appropriately.
+ */
+function useIntelligentWalletAutoConnect() {
+  const isMiniApp = useIsMiniApp();
   const { connect, connectors } = useConnect();
   const { isConnected } = useAccount();
+  const [hasAttemptedAutoConnect, setHasAttemptedAutoConnect] = useState(false);
 
   useEffect(() => {
-    // Check if we're running in Coinbase Wallet
-    const checkCoinbaseWallet = () => {
-      const isInCoinbaseWallet = window.ethereum?.isCoinbaseWallet || 
+    // Don't auto-connect if already connected or already attempted
+    if (isConnected || hasAttemptedAutoConnect) {
+      return;
+    }
+
+    // In mini-app context: try Farcaster Frame connector first
+    if (isMiniApp && connectors.length > 0) {
+      const farcasterConnector = connectors.find(
+        (c) => c.id === "farcasterFrame" || c.name === "Farcaster Frame"
+      );
+      if (farcasterConnector) {
+        console.log("Auto-connecting with Farcaster Frame connector (mini-app context)");
+        connect({ connector: farcasterConnector });
+        setHasAttemptedAutoConnect(true);
+        return;
+      }
+    }
+
+    // In regular web3 context: try Coinbase Wallet if available
+    if (!isMiniApp && typeof window !== "undefined") {
+      const isInCoinbaseWallet = 
+        window.ethereum?.isCoinbaseWallet || 
         window.ethereum?.isCoinbaseWalletExtension ||
         window.ethereum?.isCoinbaseWalletBrowser;
-      setIsCoinbaseWallet(!!isInCoinbaseWallet);
-    };
-    
-    checkCoinbaseWallet();
-    window.addEventListener('ethereum#initialized', checkCoinbaseWallet);
-    
-    return () => {
-      window.removeEventListener('ethereum#initialized', checkCoinbaseWallet);
-    };
-  }, []);
+      
+      if (isInCoinbaseWallet) {
+        const coinbaseConnector = connectors.find(
+          (c) => c.id === "coinbaseWallet" || c.name === "Coinbase Wallet"
+        );
+        if (coinbaseConnector) {
+          console.log("Auto-connecting with Coinbase Wallet (web3 context)");
+          connect({ connector: coinbaseConnector });
+          setHasAttemptedAutoConnect(true);
+          return;
+        }
+      }
 
-  useEffect(() => {
-    // Auto-connect if in Coinbase Wallet and not already connected
-    if (isCoinbaseWallet && !isConnected) {
-      connect({ connector: connectors[1] }); // Coinbase Wallet connector
+      // Try MetaMask if available
+      if (window.ethereum?.isMetaMask) {
+        const metaMaskConnector = connectors.find(
+          (c) => c.id === "metaMask" || c.name === "MetaMask"
+        );
+        if (metaMaskConnector) {
+          console.log("Auto-connecting with MetaMask (web3 context)");
+          connect({ connector: metaMaskConnector });
+          setHasAttemptedAutoConnect(true);
+          return;
+        }
+      }
     }
-  }, [isCoinbaseWallet, isConnected, connect, connectors]);
-
-  return isCoinbaseWallet;
+  }, [isMiniApp, isConnected, hasAttemptedAutoConnect, connect, connectors]);
 }
 
-export const config = createConfig({
-  chains: [base, optimism, mainnet, degen, unichain, celo],
-  transports: {
-    [base.id]: http(),
-    [optimism.id]: http(),
-    [mainnet.id]: http(),
-    [degen.id]: http(),
-    [unichain.id]: http(),
-    [celo.id]: http(),
-  },
-  connectors: [
+/**
+ * Creates wagmi config with intelligent connector selection.
+ * In mini-app context: prioritizes Farcaster Frame connector
+ * In regular web3 context: uses standard wallet connectors
+ */
+function createWagmiConfig() {
+  const connectors = [
+    // Farcaster Frame connector (works in mini-apps)
+    // In regular web3, this will gracefully fail and fall back to other connectors
     farcasterFrame(),
+    // Standard web3 connectors (work in both contexts)
     coinbaseWallet({
       appName: APP_NAME,
       appLogoUrl: APP_ICON_URL,
@@ -64,14 +95,29 @@ export const config = createConfig({
         url: APP_URL,
       },
     }),
-  ],
-});
+  ];
+
+  return createConfig({
+    chains: [base, optimism, mainnet, degen, unichain, celo],
+    transports: {
+      [base.id]: http(),
+      [optimism.id]: http(),
+      [mainnet.id]: http(),
+      [degen.id]: http(),
+      [unichain.id]: http(),
+      [celo.id]: http(),
+    },
+    connectors,
+  });
+}
+
+export const config = createWagmiConfig();
 
 const queryClient = new QueryClient();
 
-// Wrapper component that provides Coinbase Wallet auto-connection
-function CoinbaseWalletAutoConnect({ children }: { children: React.ReactNode }) {
-  useCoinbaseWalletAutoConnect();
+// Wrapper component that provides intelligent wallet auto-connection
+function IntelligentWalletAutoConnect({ children }: { children: React.ReactNode }) {
+  useIntelligentWalletAutoConnect();
   return <>{children}</>;
 }
 
@@ -79,9 +125,9 @@ export default function Provider({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <CoinbaseWalletAutoConnect>
+        <IntelligentWalletAutoConnect>
           {children}
-        </CoinbaseWalletAutoConnect>
+        </IntelligentWalletAutoConnect>
       </QueryClientProvider>
     </WagmiProvider>
   );

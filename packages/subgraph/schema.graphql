@@ -1,0 +1,152 @@
+type CreatorCore @entity {
+  id: ID! # Contract address
+  type: String! # "ERC721" or "ERC1155"
+  name: String
+  symbol: String
+  isUpgradeable: Boolean!
+  owner: Bytes!
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+  
+  # Relationships
+  tokens: [Token!]! @derivedFrom(field: "creatorCore")
+  extensions: [Extension!]! @derivedFrom(field: "creatorCore")
+  mintEvents: [MintEvent!]! @derivedFrom(field: "creatorCore")
+  transferEvents: [TransferEvent!]! @derivedFrom(field: "creatorCore")
+  royaltyUpdates: [RoyaltyUpdate!]! @derivedFrom(field: "creatorCore")
+}
+
+type Extension @entity {
+  id: ID! # Extension address
+  creatorCore: CreatorCore!
+  baseURI: String
+  baseURIIdentical: Boolean!
+  registeredAt: BigInt!
+  registeredAtBlock: BigInt!
+  unregisteredAt: BigInt
+  isBlacklisted: Boolean!
+  
+  # Relationships
+  tokens: [Token!]! @derivedFrom(field: "extension")
+  mintEvents: [MintEvent!]! @derivedFrom(field: "extension")
+}
+
+type Token @entity {
+  id: ID! # {contractAddress}-{tokenId}
+  tokenId: BigInt!
+  creatorCore: CreatorCore!
+  extension: Extension
+  tokenURI: String
+  totalSupply: BigInt # For ERC1155
+  
+  # Metadata
+  mintedAt: BigInt!
+  mintedAtBlock: BigInt!
+  mintedBy: Bytes! # Address that minted (admin or extension)
+  
+  # Current state
+  currentOwner: Bytes
+  burnTimestamp: BigInt
+  
+  # Relationships
+  transfers: [TransferEvent!]! @derivedFrom(field: "token")
+  mintEvent: MintEvent @derivedFrom(field: "token")
+  royaltyUpdates: [RoyaltyUpdate!]! @derivedFrom(field: "token")
+}
+
+type MintEvent @entity {
+  id: ID! # Transaction hash + log index
+  creatorCore: CreatorCore!
+  extension: Extension
+  token: Token!
+  to: Bytes!
+  tokenId: BigInt!
+  amount: BigInt! # For ERC1155, 1 for ERC721
+  tokenURI: String
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  logIndex: BigInt!
+}
+
+type TransferEvent @entity {
+  id: ID! # Transaction hash + log index
+  creatorCore: CreatorCore!
+  token: Token!
+  from: Bytes!
+  to: Bytes!
+  tokenId: BigInt!
+  amount: BigInt! # For ERC1155, 1 for ERC721
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  logIndex: BigInt!
+}
+
+type RoyaltyUpdate @entity {
+  id: ID! # Transaction hash + log index
+  creatorCore: CreatorCore!
+  token: Token # null for default royalties
+  extension: Extension # null if not extension-specific
+  receivers: [Bytes!]!
+  basisPoints: [BigInt!]!
+  isDefault: Boolean!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Auctionhouse entities
+type Listing @entity {
+  id: ID! # Listing ID
+  listingId: BigInt!
+  marketplace: Bytes! # Marketplace contract address
+  seller: Bytes!
+  tokenAddress: Bytes!
+  tokenId: BigInt
+  tokenSpec: String! # "ERC721" or "ERC1155"
+  listingType: String! # "INDIVIDUAL_AUCTION", "FIXED_PRICE", "DYNAMIC_PRICE"
+  initialAmount: BigInt!
+  totalAvailable: BigInt!
+  totalPerSale: BigInt!
+  startTime: BigInt!
+  endTime: BigInt!
+  lazy: Boolean!
+  
+  # State
+  status: String! # "ACTIVE", "FINALIZED", "CANCELLED"
+  totalSold: BigInt!
+  currentPrice: BigInt
+  
+  # Relationships
+  purchases: [Purchase!]! @derivedFrom(field: "listing")
+  bids: [Bid!]! @derivedFrom(field: "listing")
+  
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+  finalizedAt: BigInt
+}
+
+type Purchase @entity {
+  id: ID! # Transaction hash + log index
+  listing: Listing!
+  buyer: Bytes!
+  amount: BigInt!
+  quantity: BigInt!
+  tokenId: BigInt
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type Bid @entity {
+  id: ID! # Transaction hash + log index
+  listing: Listing!
+  bidder: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  isWinning: Boolean!
+}
+

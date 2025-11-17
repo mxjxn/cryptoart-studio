@@ -1,13 +1,17 @@
 {
   "name": "auction-house-indexer",
   "version": "1.0.0",
-  "description": "Indexer for the auction house contract on Base network",
+  "description": "Indexer and API for the auction house contract on Base network",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "api": "node api.js",
+    "dev": "node --watch index.js"
   },
   "dependencies": {
     "ethers": "^6.9.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   }
 }

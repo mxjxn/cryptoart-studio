@@ -1,24 +1,52 @@
-"use client";
-
 /**
- * HomeTab component displays the main landing content for the mini app.
- * 
- * This is the default tab that users see when they first open the mini app.
- * It provides a simple welcome message and placeholder content that can be
- * customized for specific use cases.
- * 
- * @example
- * ```tsx
- * <HomeTab />
- * ```
+ * HomeTab component - displays active auctions from API
  */
+
+'use client';
+
+import { AuctionList } from '~/components/auctions/AuctionList';
+import { useActiveAuctions } from '~/hooks/useApi';
+
 export function HomeTab() {
-  return (
-    <div className="flex items-center justify-center h-[calc(100vh-200px)] px-6">
-      <div className="text-center w-full max-w-md mx-auto">
-        <p className="text-lg mb-2">Put your content here!</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Powered by Neynar 🪐</p>
+  const { listings, loading, error } = useActiveAuctions();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="spinner h-8 w-8 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading auctions...</p>
+        </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-lg text-red-600 dark:text-red-400 mb-2">
+            Error loading auctions
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {error.message}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const listingIds = listings.map((l) => l.listingId);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Active Auctions</h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          Browse and bid on available NFT auctions
+        </p>
+      </div>
+      <AuctionList listingIds={listingIds} />
     </div>
   );
-} 
+}
