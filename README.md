@@ -241,12 +241,13 @@ forge test
 
 ## Contract Addresses
 
-### Mainnet (Base)
+For a complete list of all contract addresses across all networks, see **[CONTRACT_ADDRESSES.md](./CONTRACT_ADDRESSES.md)**.
 
-- **Auctionhouse Contract**: `0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9`
-- **LSSVM Router**: `0x4352c72114C4b9c4e1F8C96347F2165EECaDeb5C`
-- **LSSVM Factory**: `0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e`
-- **Network**: Base Mainnet (Chain ID: 8453)
+This includes:
+- Auctionhouse contracts
+- LSSVM contracts (Router, Factory, Bonding Curves)
+- Creator Core contract deployments
+- Manifold extension contracts
 
 ## Contributing
 
