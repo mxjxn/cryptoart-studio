@@ -19,14 +19,14 @@ export function Providers({
   children: React.ReactNode;
 }) {
   return (
-    <WagmiProvider>
-      <MiniAppProvider
-        analyticsEnabled={ANALYTICS_ENABLED}
-        backButtonEnabled={true}
-        returnUrl={RETURN_URL}
-      >
+    <MiniAppProvider
+      analyticsEnabled={ANALYTICS_ENABLED}
+      backButtonEnabled={true}
+      returnUrl={RETURN_URL}
+    >
+      <WagmiProvider>
         {children}
-      </MiniAppProvider>
-    </WagmiProvider>
+      </WagmiProvider>
+    </MiniAppProvider>
   );
 }

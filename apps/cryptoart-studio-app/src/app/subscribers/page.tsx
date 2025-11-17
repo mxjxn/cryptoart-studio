@@ -126,7 +126,8 @@ export default function SubscribersScreen() {
     if (context?.user?.fid) {
       fetchSubscribers(0, true);
     }
-  }, [context?.user?.fid, searchTerm, sortBy, sortOrder, fetchSubscribers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context?.user?.fid, searchTerm, sortBy, sortOrder]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);

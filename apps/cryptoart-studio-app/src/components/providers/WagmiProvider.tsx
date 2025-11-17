@@ -4,42 +4,63 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/miniapp-wagmi-connector";
 import { coinbaseWallet, metaMask } from 'wagmi/connectors';
 import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useConnect, useAccount } from "wagmi";
 import React from "react";
-import { useIsMiniApp } from "~/hooks/useIsMiniApp";
 
 /**
  * Intelligent wallet auto-connection hook.
  * Detects context (mini-app vs web3) and auto-connects appropriately.
+ * 
+ * Note: This hook should only be called inside components that are
+ * wrapped by both WagmiProvider and MiniAppProvider.
  */
 function useIntelligentWalletAutoConnect() {
-  const isMiniApp = useIsMiniApp();
   const { connect, connectors } = useConnect();
   const { isConnected } = useAccount();
-  const [hasAttemptedAutoConnect, setHasAttemptedAutoConnect] = useState(false);
+  const hasAttemptedRef = useRef(false);
+  const connectorsRef = useRef<string[]>([]);
+
+  // Track connector IDs to prevent re-running on array reference changes
+  const connectorIds = connectors.map(c => c.id || c.name).join(',');
 
   useEffect(() => {
     // Don't auto-connect if already connected or already attempted
-    if (isConnected || hasAttemptedAutoConnect) {
+    if (isConnected || hasAttemptedRef.current) {
       return;
     }
 
+    // Don't run if connectors haven't changed
+    if (connectorIds === connectorsRef.current.join(',')) {
+      return;
+    }
+
+    connectorsRef.current = connectors.map(c => c.id || c.name);
+
+    // Check if we're in a mini-app context by checking window properties
+    // This avoids calling useIsMiniApp here (which requires MiniAppProvider)
+    const isInMiniApp = typeof window !== "undefined" && (
+      !!(window as any).farcaster ||
+      !!(window.ethereum as any)?.isFarcaster ||
+      !!(window.ethereum as any)?.isFarcasterFrame ||
+      window.location.href.includes("farcaster")
+    );
+
     // In mini-app context: try Farcaster Frame connector first
-    if (isMiniApp && connectors.length > 0) {
+    if (isInMiniApp && connectors.length > 0) {
       const farcasterConnector = connectors.find(
         (c) => c.id === "farcasterFrame" || c.name === "Farcaster Frame"
       );
-      if (farcasterConnector) {
+      if (farcasterConnector && !hasAttemptedRef.current) {
         console.log("Auto-connecting with Farcaster Frame connector (mini-app context)");
+        hasAttemptedRef.current = true;
         connect({ connector: farcasterConnector });
-        setHasAttemptedAutoConnect(true);
         return;
       }
     }
 
     // In regular web3 context: try Coinbase Wallet if available
-    if (!isMiniApp && typeof window !== "undefined") {
+    if (!isInMiniApp && typeof window !== "undefined" && !hasAttemptedRef.current) {
       const isInCoinbaseWallet = 
         window.ethereum?.isCoinbaseWallet || 
         window.ethereum?.isCoinbaseWalletExtension ||
@@ -51,8 +72,8 @@ function useIntelligentWalletAutoConnect() {
         );
         if (coinbaseConnector) {
           console.log("Auto-connecting with Coinbase Wallet (web3 context)");
+          hasAttemptedRef.current = true;
           connect({ connector: coinbaseConnector });
-          setHasAttemptedAutoConnect(true);
           return;
         }
       }
@@ -64,13 +85,13 @@ function useIntelligentWalletAutoConnect() {
         );
         if (metaMaskConnector) {
           console.log("Auto-connecting with MetaMask (web3 context)");
+          hasAttemptedRef.current = true;
           connect({ connector: metaMaskConnector });
-          setHasAttemptedAutoConnect(true);
           return;
         }
       }
     }
-  }, [isMiniApp, isConnected, hasAttemptedAutoConnect, connect, connectors]);
+  }, [isConnected, connectorIds, connect]);
 }
 
 /**
@@ -116,10 +137,13 @@ export const config = createWagmiConfig();
 const queryClient = new QueryClient();
 
 // Wrapper component that provides intelligent wallet auto-connection
-function IntelligentWalletAutoConnect({ children }: { children: React.ReactNode }) {
+// This must be a separate component to ensure hooks are called in the right order
+const IntelligentWalletAutoConnect = React.memo(({ children }: { children: React.ReactNode }) => {
   useIntelligentWalletAutoConnect();
   return <>{children}</>;
-}
+});
+
+IntelligentWalletAutoConnect.displayName = "IntelligentWalletAutoConnect";
 
 export default function Provider({ children }: { children: React.ReactNode }) {
   return (
