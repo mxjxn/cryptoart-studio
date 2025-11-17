@@ -10,7 +10,6 @@ import {
   setUserNotificationDetails,
 } from "~/lib/kv";
 import { sendMiniAppNotification } from "~/lib/notifs";
-import { hypersubCache } from '@repo/cache';
 
 export async function POST(request: NextRequest) {
   // If Neynar is enabled, we don't need to handle webhooks here
@@ -88,23 +87,8 @@ export async function POST(request: NextRequest) {
       break;
   }
 
-  // Cache invalidation for Hypersub data
-  // Note: In a real implementation, you'd want to listen for specific
-  // Neynar webhook events related to subscription changes
-  try {
-    console.log(`Invalidating cache for FID ${fid} due to webhook event: ${event.event}`);
-    
-    // Invalidate subscription cache
-    await hypersubCache.invalidateSubscriptions(fid);
-    
-    // Invalidate all subscriber cache entries for this user
-    await hypersubCache.invalidateSubscribers(fid);
-    
-    console.log(`Cache invalidated successfully for FID ${fid}`);
-  } catch (cacheError) {
-    console.error('Failed to invalidate cache:', cacheError);
-    // Don't fail the webhook if cache invalidation fails
-  }
+  // NOTE: Cache invalidation removed - focusing on basics (Creator Core & Auctionhouse)
+  // Cache invalidation will be re-implemented when subscription features are added
 
   return Response.json({ success: true });
 }

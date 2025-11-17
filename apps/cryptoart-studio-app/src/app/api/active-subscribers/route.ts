@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hypersubCache } from '@repo/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,18 +21,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to get from cache first (if contractAddress is provided)
-    if (contractAddress) {
-      const cachedSubscribers = await hypersubCache.getSubscribers(fidNumber, contractAddress);
-      
-      if (cachedSubscribers) {
-        console.log(`Returning cached subscribers for FID ${fid}, contract ${contractAddress} (${cachedSubscribers.length} subscribers)`);
-        return NextResponse.json({ subscribers: cachedSubscribers });
-      }
-    }
-
-    // Cache miss - fetch from Neynar API
-    console.log(`Cache miss for FID ${fid}${contractAddress ? `, contract ${contractAddress}` : ''}, fetching from Neynar API`);
+    // Fetch directly from Neynar API (no caching - focusing on basics)
+    console.log(`Fetching subscribers for FID ${fid}${contractAddress ? `, contract ${contractAddress}` : ''} from Neynar API`);
 
     const apiKey = process.env.NEYNAR_API_KEY;
     if (!apiKey) {
@@ -62,9 +51,6 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
     
-    console.log('Raw API response - total subscribers:', data.subscribers?.length || 0);
-    console.log('Contract address filter:', contractAddress);
-    
     // Filter subscribers by contract address if provided
     let filteredSubscribers = data.subscribers || [];
     if (contractAddress) {
@@ -73,26 +59,6 @@ export async function GET(request: NextRequest) {
         subscriber.subscribed_to?.some((sub: any) => sub.contract_address === contractAddress)
       );
       console.log(`Filtered from ${beforeFilter} to ${filteredSubscribers.length} subscribers`);
-      
-      // Log sample subscriber data structure for debugging
-      if (filteredSubscribers.length > 0) {
-        console.log('Sample filtered subscriber:', {
-          fid: filteredSubscribers[0].user.fid,
-          username: filteredSubscribers[0].user.username,
-          subscribed_to: filteredSubscribers[0].subscribed_to
-        });
-      }
-
-      // Cache the filtered data for this specific contract
-      if (filteredSubscribers.length > 0) {
-        try {
-          await hypersubCache.setSubscribers(fidNumber, contractAddress, filteredSubscribers);
-          console.log(`Cached ${filteredSubscribers.length} subscribers for FID ${fid}, contract ${contractAddress}`);
-        } catch (cacheError) {
-          console.error('Failed to cache subscribers:', cacheError);
-          // Don't fail the request if caching fails
-        }
-      }
     }
 
     return NextResponse.json({ subscribers: filteredSubscribers });

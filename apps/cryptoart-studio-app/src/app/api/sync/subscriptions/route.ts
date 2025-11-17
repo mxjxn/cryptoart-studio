@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hypersubCache } from '@repo/cache';
+
+// NOTE: Subscription cache cleanup removed - focusing on basics (Creator Core & Auctionhouse)
+// This endpoint will be re-implemented when subscription features are added
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,17 +11,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('Starting background sync for subscriptions...');
-
-    // For now, we'll implement a simple cleanup of expired entries
-    // In a full implementation, you'd want to track "active" users and refresh their data
-    await hypersubCache.cleanupExpiredEntries();
-
-    console.log('Background sync for subscriptions completed');
-
+    // No-op for now - subscription cache is not used
     return NextResponse.json({ 
       success: true, 
-      message: 'Subscription cache cleanup completed',
+      message: 'Subscription sync endpoint disabled (focusing on basics)',
       timestamp: new Date().toISOString()
     });
   } catch (error) {

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hypersubCache } from '@repo/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,16 +20,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to get from cache first
-    const cachedSubscriptions = await hypersubCache.getSubscriptions(fidNumber);
-    
-    if (cachedSubscriptions) {
-      console.log(`Returning cached subscriptions for FID ${fid} (${cachedSubscriptions.length} subscriptions)`);
-      return NextResponse.json({ subscriptions: cachedSubscriptions });
-    }
-
-    // Cache miss - fetch from Neynar API
-    console.log(`Cache miss for FID ${fid}, fetching from Neynar API`);
+    // Fetch directly from Neynar API (no caching - focusing on basics)
+    console.log(`Fetching subscriptions for FID ${fid} from Neynar API`);
     
     const apiKey = process.env.NEYNAR_API_KEY;
     if (!apiKey) {
@@ -49,9 +40,6 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    console.log('Making request to:', url);
-    console.log('With headers:', options.headers);
-
     const response = await fetch(url, options);
 
     if (!response.ok) {
@@ -62,17 +50,6 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
     const subscriptions = data.subscriptions_created || [];
-
-    // Cache the fresh data
-    if (subscriptions.length > 0) {
-      try {
-        await hypersubCache.setSubscriptions(fidNumber, subscriptions);
-        console.log(`Cached ${subscriptions.length} subscriptions for FID ${fid}`);
-      } catch (cacheError) {
-        console.error('Failed to cache subscriptions:', cacheError);
-        // Don't fail the request if caching fails
-      }
-    }
 
     return NextResponse.json({ subscriptions });
   } catch (error) {
