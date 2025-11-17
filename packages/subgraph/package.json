@@ -1,0 +1,23 @@
+{
+  "name": "@cryptoart/subgraph",
+  "version": "0.1.0",
+  "description": "Subgraph for Creator Core and Auctionhouse contracts",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/",
+    "deploy:alchemy": "graph deploy --node https://api.studio.thegraph.com/deploy/ --ipfs https://ipfs.network.thegraph.com",
+    "create-local": "graph create --node http://localhost:8020/ cryptoart-local",
+    "remove-local": "graph remove --node http://localhost:8020/ cryptoart-local",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 cryptoart-local",
+    "test": "graph test"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "^0.60.0",
+    "@graphprotocol/graph-ts": "^0.32.0"
+  },
+  "devDependencies": {
+    "matchstick-as": "^0.5.0"
+  }
+}
+

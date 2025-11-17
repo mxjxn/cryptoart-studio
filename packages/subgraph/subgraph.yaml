@@ -1,0 +1,144 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+dataSources:
+  # Creator Core ERC721 contracts
+  - kind: ethereum/contract
+    name: ERC721Creator
+    network: base
+    source:
+      address: "{{ERC721_CREATOR_ADDRESS}}"
+      abi: ERC721Creator
+      startBlock: {{ERC721_CREATOR_START_BLOCK}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - CreatorCore
+        - Token
+        - MintEvent
+        - TransferEvent
+        - Extension
+        - RoyaltyUpdate
+      abis:
+        - name: ERC721Creator
+          file: ./abis/ERC721Creator.json
+        - name: IERC721
+          file: ./abis/IERC721.json
+        - name: ICreatorCore
+          file: ./abis/ICreatorCore.json
+      eventHandlers:
+        - event: ExtensionRegistered(indexed address,indexed address)
+          handler: handleExtensionRegistered
+        - event: ExtensionUnregistered(indexed address,indexed address)
+          handler: handleExtensionUnregistered
+        - event: ExtensionBlacklisted(indexed address,indexed address)
+          handler: handleExtensionBlacklisted
+        - event: RoyaltiesUpdated(indexed uint256,address[],uint256[])
+          handler: handleRoyaltiesUpdated
+        - event: DefaultRoyaltiesUpdated(address[],uint256[])
+          handler: handleDefaultRoyaltiesUpdated
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+      file: ./src/creator-core.ts
+
+  # Creator Core ERC1155 contracts
+  - kind: ethereum/contract
+    name: ERC1155Creator
+    network: base
+    source:
+      address: "{{ERC1155_CREATOR_ADDRESS}}"
+      abi: ERC1155Creator
+      startBlock: {{ERC1155_CREATOR_START_BLOCK}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - CreatorCore
+        - Token
+        - MintEvent
+        - TransferEvent
+        - Extension
+        - RoyaltyUpdate
+      abis:
+        - name: ERC1155Creator
+          file: ./abis/ERC1155Creator.json
+        - name: IERC1155
+          file: ./abis/IERC1155.json
+        - name: ICreatorCore
+          file: ./abis/ICreatorCore.json
+      eventHandlers:
+        - event: ExtensionRegistered(indexed address,indexed address)
+          handler: handleExtensionRegistered
+        - event: ExtensionUnregistered(indexed address,indexed address)
+          handler: handleExtensionUnregistered
+        - event: ExtensionBlacklisted(indexed address,indexed address)
+          handler: handleExtensionBlacklisted
+        - event: RoyaltiesUpdated(indexed uint256,address[],uint256[])
+          handler: handleRoyaltiesUpdated
+        - event: DefaultRoyaltiesUpdated(address[],uint256[])
+          handler: handleDefaultRoyaltiesUpdated
+        - event: TransferSingle(address,indexed address,indexed address,indexed uint256,uint256)
+          handler: handleTransferSingle
+        - event: TransferBatch(address,indexed address,indexed address,uint256[],uint256[])
+          handler: handleTransferBatch
+      file: ./src/creator-core.ts
+
+  # Auctionhouse Marketplace
+  - kind: ethereum/contract
+    name: MarketplaceUpgradeable
+    network: base
+    source:
+      address: "{{MARKETPLACE_ADDRESS}}"
+      abi: MarketplaceUpgradeable
+      startBlock: {{MARKETPLACE_START_BLOCK}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Listing
+        - Purchase
+        - Bid
+      abis:
+        - name: MarketplaceUpgradeable
+          file: ./abis/MarketplaceUpgradeable.json
+        - name: IMarketplaceCore
+          file: ./abis/IMarketplaceCore.json
+      eventHandlers:
+        - event: ListingCreated(indexed uint40,indexed address)
+          handler: handleListingCreated
+        - event: Purchase(indexed uint40,indexed address,uint256,uint256)
+          handler: handlePurchase
+        - event: BidPlaced(indexed uint40,indexed address,uint256)
+          handler: handleBidPlaced
+        - event: ListingFinalized(indexed uint40)
+          handler: handleListingFinalized
+      file: ./src/auctionhouse.ts
+
+templates:
+  # Template for dynamically tracking new Creator Core contracts
+  - kind: ethereum/contract
+    name: ERC721CreatorTemplate
+    network: base
+    source:
+      abi: ERC721Creator
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - CreatorCore
+        - Token
+        - MintEvent
+        - TransferEvent
+      abis:
+        - name: ERC721Creator
+          file: ./abis/ERC721Creator.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+      file: ./src/creator-core.ts
+
