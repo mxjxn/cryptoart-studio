@@ -13,6 +13,30 @@ This monorepo contains several projects that work together:
 5. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
 6. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
 
+## Related Projects
+
+### LSSVM Development Suite (`such-lssvm`)
+
+The [LSSVM Development Suite](https://github.com/mxjxn/such-lssvm) is a separate Turborepo monorepo that provides:
+
+- **LSSVM Protocol Contracts** - Solidity contracts for NFT liquidity pools (sudoswap v2)
+- **LSSVM Miniapp** - Farcaster miniapp for interacting with pools
+- **LSSVM Subgraph** - Graph Protocol subgraph for indexing pool events
+- **LSSVM ABIs Package** - Shared ABIs and types (`@lssvm/abis`)
+
+**Integration:**
+- The `cryptoart-monorepo` uses `@lssvm/abis` as a git dependency for LSSVM contract interactions
+- The `unified-indexer` package bridges LSSVM pools and Auctionhouse listings
+- See [LSSVM_INTEGRATION.md](./LSSVM_INTEGRATION.md) for detailed integration guide
+
+**Why Separate?**
+- Different scope: LSSVM is a protocol suite, cryptoart-monorepo is channel-specific apps
+- Different deployment cycles and maintenance needs
+- LSSVM has its own documentation site and can be used independently
+- Cross-repo integration via git dependencies and unified indexer works well
+
+**Repository:** [github.com/mxjxn/such-lssvm](https://github.com/mxjxn/such-lssvm)
+
 ## Project Structure
 
 ```
@@ -311,8 +335,14 @@ See individual project directories for license information.
 
 ## Related Links
 
+### External Documentation
 - [Manifold Creator Core Documentation](https://docs.manifold.xyz/v/manifold-for-developers/manifold-creator-architecture/overview)
 - [Farcaster Mini Apps Documentation](https://docs.neynar.com/docs/create-farcaster-miniapp-in-60s)
 - [Foundry Documentation](https://book.getfoundry.sh/)
 - [Turborepo Documentation](https://turbo.build/repo/docs)
+
+### Related Repositories
+- **[LSSVM Development Suite](https://github.com/mxjxn/such-lssvm)** - Protocol contracts, miniapp, and subgraph for NFT liquidity pools
+  - Documentation: [mxjxn.github.io/such-lssvm](https://mxjxn.github.io/such-lssvm/)
+  - Integration Guide: [LSSVM_INTEGRATION.md](./LSSVM_INTEGRATION.md)
 
