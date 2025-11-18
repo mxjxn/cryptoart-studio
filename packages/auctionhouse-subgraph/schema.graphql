@@ -1,0 +1,166 @@
+type Listing @entity(immutable: false) {
+  id: ID! # listingId
+  listingId: BigInt!
+  marketplace: Bytes! # marketplace contract address
+  seller: Bytes!
+  
+  # Token details
+  tokenAddress: Bytes!
+  tokenId: BigInt
+  tokenSpec: Int! # 0 = NONE, 1 = ERC721, 2 = ERC1155
+  lazy: Boolean!
+  
+  # Listing details
+  listingType: Int! # 0 = INVALID, 1 = INDIVIDUAL_AUCTION, 2 = FIXED_PRICE, 3 = DYNAMIC_PRICE, 4 = OFFERS_ONLY
+  initialAmount: BigInt!
+  totalAvailable: Int!
+  totalPerSale: Int!
+  totalSold: Int!
+  
+  # Timing
+  startTime: BigInt!
+  endTime: BigInt!
+  
+  # Auction settings
+  extensionInterval: Int!
+  minIncrementBPS: Int!
+  
+  # Payment
+  erc20: Bytes # payment token address (zero address for ETH)
+  identityVerifier: Bytes
+  
+  # Fees
+  marketplaceBPS: Int!
+  referrerBPS: Int!
+  deliverBPS: Int!
+  deliverFixed: BigInt!
+  
+  # Status
+  status: String! # ACTIVE, CANCELLED, FINALIZED
+  hasBid: Boolean!
+  finalized: Boolean!
+  
+  # Related entities
+  purchases: [Purchase!]! @derivedFrom(field: "listing")
+  bids: [Bid!]! @derivedFrom(field: "listing")
+  offers: [Offer!]! @derivedFrom(field: "listing")
+  
+  # Timestamps
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+  updatedAt: BigInt!
+  updatedAtBlock: BigInt!
+}
+
+type Purchase @entity(immutable: true) {
+  id: ID! # transaction hash + log index
+  listing: Listing!
+  listingId: BigInt!
+  referrer: Bytes
+  buyer: Bytes!
+  count: Int!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type Bid @entity(immutable: true) {
+  id: ID! # transaction hash + log index
+  listing: Listing!
+  listingId: BigInt!
+  referrer: Bytes
+  bidder: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type Offer @entity(immutable: false) {
+  id: ID! # transaction hash + log index
+  listing: Listing!
+  listingId: BigInt!
+  referrer: Bytes
+  offerer: Bytes!
+  amount: BigInt!
+  status: String! # PENDING, ACCEPTED, RESCINDED
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  acceptedAt: BigInt
+  rescindedAt: BigInt
+}
+
+type Escrow @entity(immutable: true) {
+  id: ID! # transaction hash + log index
+  receiver: Bytes!
+  erc20: Bytes! # payment token address
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Creator Core entities
+
+type Collection @entity(immutable: false) {
+  id: ID! # contract address
+  address: Bytes!
+  name: String
+  symbol: String
+  totalSupply: BigInt!
+  
+  # Extensions
+  extensions: [Extension!]! @derivedFrom(field: "collection")
+  
+  # Royalties
+  defaultRoyalties: [Royalty!]! @derivedFrom(field: "collection")
+  tokenRoyalties: [TokenRoyalty!]! @derivedFrom(field: "collection")
+  
+  # Tokens
+  tokens: [Token!]! @derivedFrom(field: "collection")
+  
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+}
+
+type Extension @entity(immutable: false) {
+  id: ID! # collection address + extension address
+  collection: Collection!
+  address: Bytes!
+  baseURI: String
+  baseURIIdentical: Boolean!
+  registeredAt: BigInt!
+  registeredAtBlock: BigInt!
+  unregisteredAt: BigInt
+  blacklisted: Boolean!
+  blacklistedAt: BigInt
+}
+
+type Royalty @entity(immutable: false) {
+  id: ID! # collection address + receiver address
+  collection: Collection!
+  receiver: Bytes!
+  basisPoints: Int!
+}
+
+type TokenRoyalty @entity(immutable: false) {
+  id: ID! # collection address + tokenId + receiver address
+  collection: Collection!
+  tokenId: BigInt!
+  receiver: Bytes!
+  basisPoints: Int!
+}
+
+type Token @entity(immutable: false) {
+  id: ID! # collection address + tokenId
+  collection: Collection!
+  tokenId: BigInt!
+  tokenURI: String
+  extension: Bytes # extension that minted this token
+  mintedAt: BigInt!
+  mintedAtBlock: BigInt!
+  minter: Bytes!
+}
+

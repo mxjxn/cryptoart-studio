@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDatabase, nftCollections } from "@repo/db";
+import { eq } from "drizzle-orm";
+
+export async function GET(request: NextRequest) {
+  try {
+    const db = getDatabase();
+    const collections = await db.select().from(nftCollections);
+
+    return NextResponse.json({
+      success: true,
+      collections: collections.map((c) => ({
+        id: c.id,
+        address: c.contractAddress,
+        name: c.name,
+        symbol: c.symbol,
+        contractType: c.contractType,
+        chainId: c.chain,
+        salesMethod: c.metadata && typeof c.metadata === 'object' && 'salesMethod' in c.metadata 
+          ? (c.metadata as any).salesMethod 
+          : null,
+        createdAt: c.deployedAt.toISOString(),
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching collections:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch collections" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { address, name, symbol, contractType, chainId, creatorFid, deployTxHash, metadata, salesMethod } = body;
+
+    if (!address || !contractType || !chainId || !name || !symbol) {
+      return NextResponse.json(
+        { success: false, error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    const db = getDatabase();
+    
+    // Merge salesMethod into metadata if provided
+    const collectionMetadata = {
+      ...(metadata || {}),
+      ...(salesMethod ? { salesMethod } : {}),
+    };
+
+    const [collection] = await db
+      .insert(nftCollections)
+      .values({
+        creatorFid: creatorFid || 0, // TODO: Get from auth context
+        contractAddress: address.toLowerCase(),
+        name: name,
+        symbol: symbol,
+        contractType: contractType,
+        chain: chainId,
+        deployTxHash: deployTxHash || null,
+        metadata: Object.keys(collectionMetadata).length > 0 ? collectionMetadata : null,
+        status: "active",
+      })
+      .returning();
+
+    return NextResponse.json({
+      success: true,
+      collection: {
+        id: collection.id,
+        address: collection.contractAddress,
+        name: collection.name,
+        symbol: collection.symbol,
+        contractType: collection.contractType,
+        chainId: collection.chain,
+        salesMethod: collection.metadata && typeof collection.metadata === 'object' && 'salesMethod' in collection.metadata 
+          ? (collection.metadata as any).salesMethod 
+          : null,
+        createdAt: collection.deployedAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error creating collection:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to create collection" },
+      { status: 500 }
+    );
+  }
+}
+

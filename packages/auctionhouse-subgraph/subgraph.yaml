@@ -1,0 +1,160 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  # Marketplace contract - main contract
+  # Note: Using MarketplaceLib ABI because library events are emitted from this contract
+  - kind: ethereum
+    name: MarketplaceCore
+    network: base
+    source:
+      address: "0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9"
+      abi: MarketplaceLib
+      startBlock: 30437036 # First block with marketplace activity
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Listing
+        - Purchase
+        - Bid
+        - Offer
+      abis:
+        - name: MarketplaceCore
+          file: ./abis/MarketplaceCore.json
+        - name: MarketplaceLib
+          file: ./abis/MarketplaceLib.json
+        - name: SettlementLib
+          file: ./abis/SettlementLib.json
+      eventHandlers:
+        # Library events from MarketplaceLib (emitted from marketplace contract address)
+        - event: CreateListing(indexed uint40,uint16,uint16,uint8,uint24,uint24,uint48,uint48,uint256,uint16,uint16,address,address)
+          handler: handleCreateListing
+        - event: CreateListingTokenDetails(indexed uint40,uint256,address,uint8,bool)
+          handler: handleCreateListingTokenDetails
+        - event: CreateListingFees(indexed uint40,uint16,uint240)
+          handler: handleCreateListingFees
+        - event: PurchaseEvent(indexed uint40,address,address,uint24,uint256)
+          handler: handlePurchaseEvent
+        - event: BidEvent(indexed uint40,address,address,uint256)
+          handler: handleBidEvent
+        - event: OfferEvent(indexed uint40,address,address,uint256)
+          handler: handleOfferEvent
+        - event: RescindOfferEvent(indexed uint40,address,uint256)
+          handler: handleRescindOfferEvent
+        - event: AcceptOfferEvent(indexed uint40,address,uint256)
+          handler: handleAcceptOfferEvent
+        - event: ModifyListing(indexed uint40,uint256,uint48,uint48)
+          handler: handleModifyListing
+        - event: CancelListing(indexed uint40,address,uint16)
+          handler: handleCancelListing
+        - event: FinalizeListing(indexed uint40)
+          handler: handleFinalizeListing
+      file: ./src/auctionhouse.ts
+
+  # SettlementLib events - separate dataSource for library events
+  - kind: ethereum
+    name: SettlementLib
+    network: base
+    source:
+      address: "0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9"
+      abi: SettlementLib
+      startBlock: 30437036 # First block with marketplace activity
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Escrow
+      abis:
+        - name: MarketplaceCore
+          file: ./abis/MarketplaceCore.json
+        - name: MarketplaceLib
+          file: ./abis/MarketplaceLib.json
+        - name: SettlementLib
+          file: ./abis/SettlementLib.json
+      eventHandlers:
+        - event: Escrow(indexed address,address,uint256)
+          handler: handleEscrow
+      file: ./src/auctionhouse.ts
+
+  # Creator Core contracts - template for dynamic contract indexing
+  - kind: ethereum
+    name: CreatorCore
+    network: base
+    source:
+      abi: CreatorCore
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Collection
+        - Extension
+        - Royalty
+        - TokenRoyalty
+        - Token
+      abis:
+        - name: CreatorCore
+          file: ./abis/CreatorCore.json
+        - name: ERC721Creator
+          file: ./abis/ERC721Creator.json
+        - name: ERC1155Creator
+          file: ./abis/ERC1155Creator.json
+      eventHandlers:
+        - event: ExtensionRegistered(indexed address,indexed address)
+          handler: handleExtensionRegistered
+        - event: ExtensionUnregistered(indexed address,indexed address)
+          handler: handleExtensionUnregistered
+        - event: ExtensionBlacklisted(indexed address,indexed address)
+          handler: handleExtensionBlacklisted
+        - event: RoyaltiesUpdated(indexed uint256,address[],uint256[])
+          handler: handleRoyaltiesUpdated
+        - event: DefaultRoyaltiesUpdated(address[],uint256[])
+          handler: handleDefaultRoyaltiesUpdated
+        - event: ExtensionRoyaltiesUpdated(indexed address,address[],uint256[])
+          handler: handleExtensionRoyaltiesUpdated
+      file: ./src/creator-core.ts
+
+templates:
+  # Template for indexing individual Creator Core contracts
+  - kind: ethereum
+    name: CreatorCoreContract
+    network: base
+    source:
+      abi: CreatorCore
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Collection
+        - Extension
+        - Royalty
+        - TokenRoyalty
+        - Token
+      abis:
+        - name: CreatorCore
+          file: ./abis/CreatorCore.json
+        - name: ERC721Creator
+          file: ./abis/ERC721Creator.json
+        - name: ERC1155Creator
+          file: ./abis/ERC1155Creator.json
+      eventHandlers:
+        - event: ExtensionRegistered(indexed address,indexed address)
+          handler: handleExtensionRegistered
+        - event: ExtensionUnregistered(indexed address,indexed address)
+          handler: handleExtensionUnregistered
+        - event: ExtensionBlacklisted(indexed address,indexed address)
+          handler: handleExtensionBlacklisted
+        - event: RoyaltiesUpdated(indexed uint256,address[],uint256[])
+          handler: handleRoyaltiesUpdated
+        - event: DefaultRoyaltiesUpdated(address[],uint256[])
+          handler: handleDefaultRoyaltiesUpdated
+        - event: ExtensionRoyaltiesUpdated(indexed address,address[],uint256[])
+          handler: handleExtensionRoyaltiesUpdated
+      file: ./src/creator-core.ts
+
