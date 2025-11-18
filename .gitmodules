@@ -7,3 +7,6 @@
 [submodule "packages/creator-core-contracts"]
 	path = packages/creator-core-contracts
 	url = git@github.com:mxjxn/creator-core-solidity.git
+[submodule "apps/such-gallery"]
+	path = apps/such-gallery
+	url = https://github.com/mxjxn/such-gallery.git
