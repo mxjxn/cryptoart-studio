@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, text, timestamp, jsonb, index, unique } from 'drizzle-orm/pg-core';
 
 // Subscriptions cache table
 export const subscriptionsCache = pgTable('subscriptions_cache', {
@@ -176,3 +176,87 @@ export const clankerTokens = pgTable('clanker_tokens', {
   tokenAddressIdx: index('clanker_tokens_token_address_idx').on(table.tokenAddress),
   statusIdx: index('clanker_tokens_status_idx').on(table.status),
 }));
+
+// Such Gallery tables
+
+// Users - minimal user data (FID primary, optional wallet)
+export const suchGalleryUsers = pgTable('such_gallery_users', {
+  fid: integer('fid').primaryKey(),
+  ethAddress: text('eth_address'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  ethAddressIdx: index('such_gallery_users_eth_address_idx').on(table.ethAddress),
+}));
+
+// Curated collections - user-created curation lists
+export const curatedCollections = pgTable('curated_collections', {
+  id: serial('id').primaryKey(),
+  curatorFid: integer('curator_fid').notNull().references(() => suchGalleryUsers.fid),
+  title: text('title').notNull(),
+  slug: text('slug').notNull(),
+  isPublished: boolean('is_published').default(false).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  curatorFidIdx: index('curated_collections_curator_fid_idx').on(table.curatorFid),
+  curatorSlugIdx: index('curated_collections_curator_slug_idx').on(table.curatorFid, table.slug),
+}));
+
+// Curated collection NFTs - links NFTs to collections with curator metadata
+export const curatedCollectionNfts = pgTable('curated_collection_nfts', {
+  curatedCollectionId: integer('curated_collection_id').notNull().references(() => curatedCollections.id, { onDelete: 'cascade' }),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: text('token_id').notNull(),
+  curatorComment: text('curator_comment'),
+  showDescription: boolean('show_description').default(true).notNull(),
+  showAttributes: boolean('show_attributes').default(false).notNull(),
+  addedAt: timestamp('added_at').defaultNow().notNull(),
+}, (table) => ({
+  pk: unique('curated_collection_nfts_pk').on(table.curatedCollectionId, table.contractAddress, table.tokenId),
+  collectionIdx: index('curated_collection_nfts_collection_idx').on(table.curatedCollectionId),
+  contractTokenIdx: index('curated_collection_nfts_contract_token_idx').on(table.contractAddress, table.tokenId),
+}));
+
+// NFT metadata cache - cached NFT metadata with manual refresh
+export const nftMetadataCache = pgTable('nft_metadata_cache', {
+  id: serial('id').primaryKey(),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: text('token_id').notNull(),
+  name: text('name'),
+  description: text('description'),
+  imageURI: text('image_uri'),
+  animationURI: text('animation_uri'),
+  attributes: jsonb('attributes'),
+  tokenURI: text('token_uri'),
+  metadataSource: text('metadata_source').notNull(), // 'alchemy' | 'ipfs' | 'contract'
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  refreshedAt: timestamp('refreshed_at'),
+}, (table) => ({
+  contractTokenIdx: index('nft_metadata_cache_contract_token_idx').on(table.contractAddress, table.tokenId),
+  uniqueContractToken: unique('nft_metadata_cache_unique_contract_token_idx').on(table.contractAddress, table.tokenId),
+}));
+
+// Quote casts - track quote-casts for collections/NFTs (for referral tracking)
+export const quoteCasts = pgTable('quote_casts', {
+  id: serial('id').primaryKey(),
+  curatorFid: integer('curator_fid').notNull().references(() => suchGalleryUsers.fid),
+  castHash: text('cast_hash').notNull(),
+  targetType: text('target_type').notNull(), // 'collection' | 'nft'
+  targetCollectionId: integer('target_collection_id').references(() => curatedCollections.id),
+  targetContractAddress: text('target_contract_address'),
+  targetTokenId: text('target_token_id'),
+  referralAddress: text('referral_address').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  curatorFidIdx: index('quote_casts_curator_fid_idx').on(table.curatorFid),
+  castHashIdx: index('quote_casts_cast_hash_idx').on(table.castHash),
+  targetCollectionIdx: index('quote_casts_target_collection_idx').on(table.targetCollectionId),
+  targetNftIdx: index('quote_casts_target_nft_idx').on(table.targetContractAddress, table.targetTokenId),
+}));
+
+// Admin users - admin FIDs for metadata refresh permissions
+export const adminUsers = pgTable('admin_users', {
+  fid: integer('fid').primaryKey(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
