@@ -8,9 +8,10 @@ This monorepo contains several projects that work together:
 
 1. **Cryptoart Studio App** - Next.js Farcaster Mini App for creator tools
 2. **Auctionhouse App** - Next.js Farcaster Mini App for auctionhouse functionality
-3. **Backend** - Event indexer for blockchain events
-4. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
-5. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
+3. **Such Gallery** - Next.js Farcaster Mini App for NFT curation and gallery
+4. **Backend** - Event indexer for blockchain events
+5. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
+6. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
 
 ## Project Structure
 
@@ -19,10 +20,12 @@ cryptoart-monorepo/
 ├── apps/
 │   ├── cryptoart-studio-app/  # Next.js Farcaster Mini App for creator tools
 │   ├── auctionhouse/          # Next.js Farcaster Mini App for auctionhouse
+│   ├── such-gallery/          # Next.js Farcaster Mini App for NFT curation
 │   └── backend/                # Event indexer for Base network
 ├── packages/
 │   ├── creator-core-contracts/ # ERC721/ERC1155 NFT framework
 │   ├── auctionhouse-contracts/ # Solidity auction house contracts
+│   ├── auctionhouse-subgraph/  # The Graph subgraph for auctionhouse events
 │   ├── unified-indexer/         # Unified indexer for LSSVM pools and auctions
 │   ├── cache/                  # Hypersub caching layer
 │   ├── db/                     # Database layer with Drizzle ORM
@@ -101,6 +104,35 @@ pnpm run dev
 
 **Documentation:** See `apps/auctionhouse/README.md`
 
+#### Such Gallery (`apps/such-gallery/`)
+
+Next.js Farcaster Mini App for NFT curation. Artists can submit their art, anyone can curate collections with quote-cast integration for referral fees.
+
+**Tech Stack:**
+- Next.js 15
+- TypeScript
+- React 18
+- Tailwind CSS
+- Drizzle ORM + PostgreSQL
+- Alchemy API for NFT metadata
+- Farcaster Mini App SDK
+
+**Features:**
+- Create and manage curated collections
+- Quote-cast collections/NFTs with referral tracking
+- NFT metadata caching with manual refresh
+- Integration with LSSVM pools and Auctionhouse listings
+
+**Getting Started:**
+```bash
+cd apps/such-gallery
+pnpm run dev
+```
+
+**Documentation:** See `apps/such-gallery/README.md`
+
+⚠️ **Note:** This app is newly modernized and has not been fully tested yet.
+
 #### Backend (`apps/backend/`)
 
 Event indexer that listens to blockchain events from the auction house contract and stores them for faster client-side retrieval.
@@ -155,6 +187,18 @@ forge build
 forge test
 ```
 
+#### Auctionhouse Subgraph (`packages/auctionhouse-subgraph/`)
+
+The Graph subgraph for indexing Creator Core and Auctionhouse events on Base Mainnet. Indexes marketplace listings, purchases, bids, offers, and collection data.
+
+**Features:**
+- Marketplace event indexing (listings, purchases, bids, offers)
+- Creator Core collection and token indexing
+- Library event support (MarketplaceLib, SettlementLib)
+- Real-time event linking and entity relationships
+
+**Documentation:** See `packages/auctionhouse-subgraph/README.md`
+
 #### Unified Indexer (`packages/unified-indexer/`)
 
 Unified indexer package for querying both LSSVM pools and auctionhouse listings. Provides a single interface to fetch sales data for NFT collections.
@@ -171,7 +215,7 @@ Unified indexer package for querying both LSSVM pools and auctionhouse listings.
 The monorepo also includes several shared packages:
 
 - **`packages/cache/`** - Hypersub caching layer
-- **`packages/db/`** - Database layer with Drizzle ORM
+- **`packages/db/`** - Database layer with Drizzle ORM (includes such-gallery schema)
 - **`packages/eslint-config/`** - Shared ESLint configuration
 - **`packages/typescript-config/`** - Shared TypeScript configuration
 - **`packages/ui/`** - Shared UI component library
@@ -213,6 +257,10 @@ pnpm run dev
 
 # Auctionhouse app development
 cd apps/auctionhouse
+pnpm run dev
+
+# Such Gallery app development
+cd apps/such-gallery
 pnpm run dev
 
 # Backend development
