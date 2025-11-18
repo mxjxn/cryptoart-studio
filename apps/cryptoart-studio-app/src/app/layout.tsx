@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import '~/app/globals.css';
 import { Providers } from '~/app/providers';
 import { APP_NAME, APP_DESCRIPTION } from '~/lib/constants';
+import { ErrorHandler } from '~/components/ErrorHandler';
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -17,9 +18,11 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body style={{ background: 'var(--color-background-gradient)' }}>
-        <Providers>
-          {children}
-        </Providers>
+        <ErrorHandler>
+          <Providers>
+            {children}
+          </Providers>
+        </ErrorHandler>
       </body>
     </html>
   );

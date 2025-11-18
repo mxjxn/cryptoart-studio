@@ -101,14 +101,31 @@ export function useQuickAuth(): UseQuickAuthReturn {
    * This runs automatically when the hook is first used
    */
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
+
     const checkExistingAuthentication = async () => {
       try {
         // Attempt to retrieve existing token from QuickAuth SDK
-        const { token } = await sdk.quickAuth.getToken();
+        // Don't use Promise.race here as it can cause premature timeouts
+        // The SDK call itself should handle timeouts internally
+        let token: string | null = null;
+        try {
+          const result = await sdk.quickAuth.getToken();
+          token = result.token || null;
+        } catch (sdkError) {
+          // SDK error - likely no token available
+          console.debug('QuickAuth SDK getToken error (this is normal if not authenticated):', sdkError);
+          token = null;
+        }
+
+        if (!isMounted) return;
 
         if (token) {
           // Validate the token with our server-side API
           const validatedUserSession = await validateTokenWithServer(token);
+
+          if (!isMounted) return;
 
           if (validatedUserSession) {
             // Token is valid, set authenticated state
@@ -123,13 +140,29 @@ export function useQuickAuth(): UseQuickAuthReturn {
           setStatus('unauthenticated');
         }
       } catch (error) {
+        if (!isMounted) return;
         console.error('Error checking existing authentication:', error);
         setStatus('unauthenticated');
       }
     };
 
+    // Set a fallback timeout in case the check never completes
+    // Increased to 10 seconds to allow for slower network conditions
+    timeoutId = setTimeout(() => {
+      if (isMounted) {
+        // Use a ref or check current status before setting
+        // For now, just set a longer timeout and let the async function complete
+        console.warn('QuickAuth check taking longer than expected...');
+      }
+    }, 10000); // 10 second timeout - just for logging, won't force unauthenticated
+
     checkExistingAuthentication();
-  }, []);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, []); // Only run once on mount
 
   /**
    * Initiates the QuickAuth sign-in process

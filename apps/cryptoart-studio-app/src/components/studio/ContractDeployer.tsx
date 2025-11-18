@@ -1,52 +1,124 @@
 "use client";
 
-import { useState } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { FileCode, Loader2, CheckCircle2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import { useAccount, useChainId } from "wagmi";
+import { deployContract } from "wagmi/actions";
+import { config } from "~/components/providers/WagmiProvider";
+import { baseSepolia } from "wagmi/chains";
+import { FileCode, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { type SalesMethod } from "@cryptoart/unified-indexer";
 import { SalesMethodSelector } from "./SalesMethodSelector";
+import { useMiniApp } from "@neynar/react";
 
 type ContractType = "ERC721" | "ERC1155" | "ERC6551";
 
 export function ContractDeployer() {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { context } = useMiniApp();
   const [contractType, setContractType] = useState<ContractType>("ERC721");
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [isUpgradeable, setIsUpgradeable] = useState(false);
   const [salesMethod, setSalesMethod] = useState<SalesMethod>("both");
   const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
+  const [deploymentError, setDeploymentError] = useState<string | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
 
-  // TODO: Add actual contract ABIs and deployment logic
-  // This is a placeholder structure
-  const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  // Get explorer URL based on chain
+  const explorerUrl = useMemo(() => {
+    if (!deployedAddress) return '';
+    if (chainId === baseSepolia.id) {
+      return `https://sepolia.basescan.org/address/${deployedAddress}`;
+    }
+    // Base Mainnet or other chains
+    return `https://basescan.org/address/${deployedAddress}`;
+  }, [chainId, deployedAddress]);
+
+  const isTestnet = chainId === baseSepolia.id;
 
   const handleDeploy = async () => {
-    if (!isConnected || !name || !symbol) {
+    if (!isConnected || !name || !symbol || !address) {
       return;
     }
 
-    // TODO: Implement actual contract deployment
-    // This would use the contract factory and deploy
-    console.log("Deploying contract:", { 
-      contractType, 
-      name, 
-      symbol, 
-      isUpgradeable,
-      salesMethod 
-    });
-    
-    // Placeholder - actual implementation would:
-    // 1. Get contract bytecode and ABI
-    // 2. Deploy via writeContract or direct deployment
-    // 3. Wait for confirmation
-    // 4. Save deployment info including salesMethod
+    setIsDeploying(true);
+    setDeploymentError(null);
+
+    try {
+      // Skip ERC6551 for now (not implemented)
+      if (contractType === "ERC6551") {
+        throw new Error("ERC6551 deployment not yet implemented");
+      }
+
+      // Get contract bytecode and ABI from API
+      const response = await fetch(
+        `/api/studio/deploy?type=${contractType}&upgradeable=${isUpgradeable}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get contract bytecode");
+      }
+
+      const { bytecode, abi } = await response.json();
+
+      if (!bytecode || !abi) {
+        throw new Error("Invalid contract artifact: missing bytecode or ABI");
+      }
+
+      // Deploy the contract
+      // For non-upgradeable: constructor takes (name, symbol)
+      // For upgradeable: we'd need to deploy implementation + proxy (more complex)
+      if (isUpgradeable) {
+        throw new Error("Upgradeable deployment not yet implemented. Please use non-upgradeable for now.");
+      }
+
+      const contractAddress = await deployContract(config, {
+        abi,
+        bytecode: bytecode as `0x${string}`,
+        args: [name, symbol],
+      });
+
+      setDeployedAddress(contractAddress);
+
+      // Save to database
+      const creatorFid = context?.user?.fid || 0;
+      const saveResponse = await fetch("/api/studio/contracts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          address: contractAddress,
+          name,
+          symbol,
+          contractType,
+          chainId,
+          creatorFid,
+          salesMethod,
+          metadata: {
+            salesMethod,
+            isUpgradeable,
+          },
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        console.error("Failed to save contract to database:", await saveResponse.text());
+        // Don't throw - contract is deployed, just failed to save metadata
+      }
+    } catch (err) {
+      console.error("Deployment error:", err);
+      setDeploymentError(
+        err instanceof Error ? err.message : "Failed to deploy contract"
+      );
+    } finally {
+      setIsDeploying(false);
+    }
   };
 
-  if (isSuccess && deployedAddress) {
+  if (deployedAddress) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="text-center">
@@ -65,18 +137,18 @@ export function ContractDeployer() {
           </div>
           <div className="flex gap-3 justify-center">
             <a
-              href={`https://basescan.org/address/${deployedAddress}`}
+              href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
             >
-              View on Basescan
+              View on {isTestnet ? "Sepolia Basescan" : "Basescan"}
             </a>
             <a
-              href={`/studio/contracts`}
+              href={`/studio`}
               className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-300"
             >
-              View All Contracts
+              Back to Studio
             </a>
           </div>
         </div>
@@ -91,6 +163,36 @@ export function ContractDeployer() {
           <p className="text-sm text-yellow-800">
             Please connect your wallet to deploy a contract.
           </p>
+        </div>
+      )}
+
+      {isConnected && (
+        <div className={`border rounded-lg p-4 ${
+          isTestnet 
+            ? "bg-blue-50 border-blue-200" 
+            : "bg-orange-50 border-orange-200"
+        }`}>
+          <div className="flex items-start">
+            <AlertTriangle className={`h-5 w-5 mr-2 mt-0.5 ${
+              isTestnet ? "text-blue-600" : "text-orange-600"
+            }`} />
+            <div>
+              <p className={`text-sm font-medium ${
+                isTestnet ? "text-blue-800" : "text-orange-800"
+              }`}>
+                {isTestnet 
+                  ? "Deploying on Base Sepolia Testnet" 
+                  : "⚠️ You are on Mainnet - Deploying costs real ETH"}
+              </p>
+              <p className={`text-xs mt-1 ${
+                isTestnet ? "text-blue-600" : "text-orange-600"
+              }`}>
+                {isTestnet
+                  ? "Chain ID: 84532 - Safe for testing"
+                  : "Chain ID: " + chainId + " - Real funds at risk"}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -178,23 +280,23 @@ export function ContractDeployer() {
           </div>
         </div>
 
-        {error && (
+        {deploymentError && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm text-red-800">
-              Error: {error.message || "Failed to deploy contract"}
+              Error: {deploymentError}
             </p>
           </div>
         )}
 
         <button
           onClick={handleDeploy}
-          disabled={!isConnected || !name || !symbol || isPending || isConfirming}
+          disabled={!isConnected || !name || !symbol || isDeploying}
           className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {isPending || isConfirming ? (
+          {isDeploying ? (
             <>
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              {isPending ? "Deploying..." : "Confirming..."}
+              Deploying...
             </>
           ) : (
             <>

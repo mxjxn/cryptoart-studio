@@ -5,6 +5,8 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagm
 import { parseEther } from "viem";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { CONTRACT_ADDRESSES } from "@cryptoart/unified-indexer";
+import { TestNFTCollectionDeployer } from "./TestNFTCollectionDeployer";
+import { TestTokenDeployer } from "./TestTokenDeployer";
 
 // TODO: Import LSSVM ABIs from @lssvm/abis once package is available
 // For now, using placeholder ABI structure
@@ -93,7 +95,22 @@ export function CreatePoolForm({ nftContract, onSuccess }: CreatePoolFormProps) 
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Create LSSVM Pool</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">Create LSSVM Pool</h3>
+        <div className="flex gap-2">
+          <TestNFTCollectionDeployer
+            onDeployed={(address) => {
+              // Optionally update the nftContract if it's editable
+              console.log("Test collection deployed at:", address);
+            }}
+          />
+          <TestTokenDeployer
+            onDeployed={(address) => {
+              console.log("Test token deployed at:", address);
+            }}
+          />
+        </div>
+      </div>
       
       {!isConnected && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">

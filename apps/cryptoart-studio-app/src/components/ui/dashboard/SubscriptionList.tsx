@@ -59,24 +59,33 @@ export function SubscriptionList({ fid }: SubscriptionListProps) {
   } = useQuery({
     queryKey: ['subscriptions', fid],
     queryFn: async () => {
-      const response = await fetch(`/api/active-subscriptions?fid=${fid}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch subscriptions');
-      }
-      const data = await response.json();
-      
-      // Log the response structure for debugging
-      console.log('API response:', data);
-      
-      // Ensure the response has the expected structure
-      if (!data || typeof data !== 'object') {
-        console.warn('Unexpected API response structure:', data);
+      try {
+        const response = await fetch(`/api/active-subscriptions?fid=${fid}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to fetch subscriptions: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        // Log the response structure for debugging
+        console.log('API response:', data);
+        
+        // Ensure the response has the expected structure
+        if (!data || typeof data !== 'object') {
+          console.warn('Unexpected API response structure:', data);
+          return { subscriptions: [] };
+        }
+        
+        return data;
+      } catch (err) {
+        console.error('Error fetching subscriptions:', err);
+        // Return empty array on error to prevent infinite loops
         return { subscriptions: [] };
       }
-      
-      return data;
     },
-    enabled: !!fid,
+    enabled: !!fid && fid > 0,
+    retry: false, // Don't retry on error to prevent loops
+    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Fetch subscribers for a specific subscription

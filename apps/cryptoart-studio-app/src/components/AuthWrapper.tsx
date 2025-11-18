@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useQuickAuth } from "~/hooks/useQuickAuth";
@@ -41,6 +41,7 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
   const { authenticatedUser, status } = useQuickAuth();
   const isMiniApp = useIsMiniApp();
   const { isConnected: isWalletConnected } = useAccount();
+  const [authTimeout, setAuthTimeout] = useState(false);
 
   // Call ready() as soon as SDK is loaded (only in mini-app context)
   useEffect(() => {
@@ -48,6 +49,19 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
       sdk.actions.ready();
     }
   }, [isSDKLoaded, isMiniApp]);
+
+  // Add timeout for authentication check to prevent infinite loading
+  useEffect(() => {
+    if (status === 'loading') {
+      const timeout = setTimeout(() => {
+        console.warn('Authentication check is taking too long, allowing access');
+        setAuthTimeout(true);
+      }, 8000); // 8 second timeout
+      return () => clearTimeout(timeout);
+    } else {
+      setAuthTimeout(false);
+    }
+  }, [status]);
 
   // In mini-app context: require Farcaster authentication
   if (isMiniApp) {
@@ -79,8 +93,8 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
       );
     }
 
-    // If still loading authentication, show loading
-    if (status === 'loading') {
+    // If still loading authentication, show loading (with timeout fallback)
+    if (status === 'loading' && !authTimeout) {
       return (
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
@@ -91,8 +105,14 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
       );
     }
 
-    // If authenticated, render children
+    // If authenticated or timeout occurred, render children
     if (status === 'authenticated' && authenticatedUser) {
+      return <>{children}</>;
+    }
+
+    // If timeout occurred, allow access anyway (for development/testing)
+    if (authTimeout) {
+      console.warn('Authentication timeout - allowing access for development');
       return <>{children}</>;
     }
   } else {

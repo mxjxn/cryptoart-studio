@@ -108,6 +108,8 @@ For projects that have made minimal changes to the quickstart template, deploy t
 npm run deploy:vercel
 ```
 
+**For complete deployment instructions**, including environment variable setup and database configuration, see the [main deployment guide](../../DEPLOYMENT.md#cryptoart-studio-app).
+
 ## Building for Production
 
 To create a production build, run:

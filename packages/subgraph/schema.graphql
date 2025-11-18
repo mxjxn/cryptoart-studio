@@ -1,6 +1,6 @@
 type CreatorCore @entity {
   id: ID! # Contract address
-  type: String! # "ERC721" or "ERC1155"
+  type: String! # "ERC721", "ERC1155", or "ERC6551"
   name: String
   symbol: String
   isUpgradeable: Boolean!

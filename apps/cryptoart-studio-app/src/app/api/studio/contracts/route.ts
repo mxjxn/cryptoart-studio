@@ -1,25 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, nftCollections } from "@repo/db";
+import { getDatabase, creatorCoreContracts } from "@repo/db";
 import { eq } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
-    const collections = await db.select().from(nftCollections);
+    const { searchParams } = new URL(request.url);
+    const creatorFid = searchParams.get("creatorFid");
+
+    let query = db.select().from(creatorCoreContracts);
+
+    // Filter by creator FID if provided
+    if (creatorFid) {
+      query = query.where(eq(creatorCoreContracts.creatorFid, parseInt(creatorFid)));
+    }
+
+    const contracts = await query;
 
     return NextResponse.json({
       success: true,
-      collections: collections.map((c) => ({
+      collections: contracts.map((c) => ({
         id: c.id,
         address: c.contractAddress,
         name: c.name,
         symbol: c.symbol,
         contractType: c.contractType,
-        chainId: c.chain,
-        salesMethod: c.metadata && typeof c.metadata === 'object' && 'salesMethod' in c.metadata 
-          ? (c.metadata as any).salesMethod 
-          : null,
-        createdAt: c.deployedAt.toISOString(),
+        chainId: c.chainId,
+        isUpgradeable: c.isUpgradeable,
+        metadata: c.metadata,
+        createdAt: c.deployedAt?.toISOString() || null,
       })),
     });
   } catch (error) {

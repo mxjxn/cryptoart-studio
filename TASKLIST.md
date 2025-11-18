@@ -1,303 +1,179 @@
-# Cryptoart Studio Integration Tasklist
+# Cryptoart Monorepo Tasklist
 
-This document tracks tasks for integrating LSSVM pool functionality with the cryptoart-studio monorepo, enabling creators to choose between "sell via pool" (LSSVM) and "sell via auction" (Auctionhouse) when creating collections.
+This document tracks tasks, in-progress work, and items needing testing across the cryptoart-monorepo.
 
-## 🔴 High Priority
+## 🔴 High Priority - Testing Required
 
-### Cross-Repo Dependency Setup
+### Creator Core Indexer & Database Schema
 
-- [ ] **Add `@lssvm/abis` dependency to cryptoart-monorepo**
-  - [ ] Update `package.json` root to include:
-    ```json
-    {
-      "dependencies": {
-        "@lssvm/abis": "workspace:git+https://github.com/mxjxn/such-lssvm.git#main:packages/lssvm-abis"
-      }
-    }
-    ```
-  - [ ] Run `pnpm install` to fetch the package
-  - [ ] Verify package resolves correctly
-  - [ ] Test importing ABIs in a test file
+- [ ] **Database Migration - Creator Core Tables**
+  - [ ] Run `cd packages/db && pnpm run db:push` to create new tables
+  - [ ] Verify `creator_core_contracts` table created
+  - [ ] Verify `creator_core_tokens` table created
+  - [ ] Verify `creator_core_transfers` table created
+  - [ ] Verify `creator_core_extensions` table created
+  - [ ] Test inserting sample contract data
+  - [ ] Test querying indexed data
 
-### Environment Variables & Configuration
+- [ ] **Database Migration - SuchGallery Table Renames**
+  - [ ] Run migration to rename `curated_collections` → `curated_galleries`
+  - [ ] Run migration to rename `curated_collection_nfts` → `curated_gallery_nfts`
+  - [ ] Update `target_collection_id` → `target_gallery_id` in `quote_casts` table
+  - [ ] Verify all foreign key constraints updated
+  - [ ] Test SuchGallery app still works after migration
+  - [ ] Verify no broken references in API routes
 
-- [ ] **Verify marketplace contract address**
-  - Current address: `0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9` (Base Mainnet)
-  - Verify this is correct in `apps/auctionhouse/src/lib/contracts/marketplace.ts`
-  - Verify in `apps/backend/config.js`
-  - **Note**: Must be done manually as env vars are not accessible to AI tools
+- [ ] **Creator Core Indexer Service**
+  - [ ] Set up environment variables (POSTGRES_URL, RPC_URL)
+  - [ ] Test indexer detects Creator Core contracts
+  - [ ] Test Transfer event indexing
+  - [ ] Test mint detection (from = zero address)
+  - [ ] Test metadata fetching and caching
+  - [ ] Test extension registration tracking
+  - [ ] Verify indexer handles reorgs correctly
+  - [ ] Test indexer restart/recovery from last block
 
-- [ ] **Add LSSVM contract addresses to config**
-  - [ ] Add LSSVM Factory address: `0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e` (Base Mainnet)
-  - [ ] Add LSSVM Router address: `0x4352c72114C4b9c4e1F8C96347F2165EECaDeb5C` (Base Mainnet)
-  - [ ] Create config file or update existing config to include both marketplace and LSSVM addresses
-  - [ ] Document addresses in README or config documentation
+- [ ] **Shared Database Configuration**
+  - [ ] Test Postgres connection pooling
+  - [ ] Test Redis connection (Upstash and standard)
+  - [ ] Test key prefixing for Redis
+  - [ ] Verify all apps can use shared connections
+  - [ ] Test connection cleanup on shutdown
 
-## 🟡 Cross-Repo Integration Tasks
+### API Route Updates
 
-### Phase 1: Create Contracts ABIs Package (Optional)
+- [ ] **Studio API Routes - Creator Core Integration**
+  - [ ] Test `/api/studio/contracts` returns indexed contracts
+  - [ ] Test `/api/studio/collections/[address]` returns tokens from indexed data
+  - [ ] Test `/api/studio/auctions` uses indexed contracts
+  - [ ] Verify empty states work correctly
+  - [ ] Test error handling for missing contracts
 
-- [ ] **Create `packages/contracts-abis/` package** (if ABIs need to be shared)
-  - [ ] Create `package.json` with proper exports
-  - [ ] Extract Auctionhouse ABIs from:
-    - `apps/backend/config.js` (marketplaceAbi events)
-    - `packages/auctionhouse-contracts/` (full ABIs from compiled contracts)
-  - [ ] Extract Creator Core ABIs from:
-    - `packages/creator-core-contracts/` (ERC721/ERC1155 Creator ABIs)
-  - [ ] Export contract addresses/configuration helpers
-  - [ ] Add TypeScript build configuration
-  - [ ] Update `pnpm-workspace.yaml` to include new package
+- [ ] **SuchGallery API Routes - Gallery Terminology**
+  - [ ] Test all collection endpoints work with new table names
+  - [ ] Test quote-cast endpoints with `targetGalleryId`
+  - [ ] Verify referral tracking still works
+  - [ ] Test metadata refresh endpoints
 
-- [ ] **Create `packages/contracts-abis/src/index.ts`**
-  - Export all ABIs
-  - Export address helpers
-  - Export types
+### Studio App UI Updates
 
-- [ ] **Create `packages/contracts-abis/src/auctionhouse.ts`**
-  - Export Marketplace ABIs
-  - Export Marketplace address
-  - Export Marketplace types
+- [ ] **Studio Dashboard**
+  - [ ] Test Current Auctions component displays correctly
+  - [ ] Test Collections List component displays correctly
+  - [ ] Test empty states show appropriate messages
+  - [ ] Test view mode toggles (cards/table)
+  - [ ] Test "New Collection" button flow
 
-- [ ] **Create `packages/contracts-abis/src/creator-core.ts`**
-  - Export Creator Core ABIs (ERC721/ERC1155)
-  - Export Creator Core addresses (if applicable)
-  - Export Creator Core types
+- [ ] **Collection Creation Flow**
+  - [ ] Test CreateCollectionModal contract type selection
+  - [ ] Test collection creation form
+  - [ ] Test navigation to new collection detail page
+  - [ ] Verify breadcrumbs display correctly
 
-### Phase 2: Create Unified Indexer Package
+- [ ] **Collection Detail Page**
+  - [ ] Test compact collection details display
+  - [ ] Test NFT grid/list view
+  - [ ] Test "Create New Item" button
+  - [ ] Test "Create a Series" button
+  - [ ] Test empty state with creation options
 
-- [ ] **Create `packages/unified-indexer/` package**
-  - [ ] Create `package.json` with dependencies:
-    - `@lssvm/abis` (from such-lssvm repo)
-    - `@cryptoart/contracts-abis` (if created)
-    - GraphQL client libraries
-    - TypeScript types
-  - [ ] Add TypeScript build configuration
-  - [ ] Update `pnpm-workspace.yaml` to include new package
+- [ ] **NFT Creation Flow**
+  - [ ] Test NFT creation with pre-selected collection
+  - [ ] Test NFT creation without collection (dropdown selection)
+  - [ ] Test series creation flow
+  - [ ] Verify breadcrumbs adapt correctly
 
-- [ ] **Create `packages/unified-indexer/src/index.ts`**
-  - Export unified query functions
-  - Export types (PoolData, AuctionData, SalesOptions)
+### Subgraph Updates
 
-- [ ] **Create `packages/unified-indexer/src/types.ts`**
-  - Define `PoolData` interface (from LSSVM)
-  - Define `AuctionData` interface (from Auctionhouse)
-  - Define `SalesOptions` interface combining both
-  - Define `SalesMethod` type: `"pool" | "auction" | "both"`
+- [ ] **Creator Core & Auctionhouse Subgraph**
+  - [ ] Verify ERC1155CreatorTemplate works
+  - [ ] Verify ERC6551CreatorTemplate works
+  - [ ] Test dynamic contract tracking
+  - [ ] Deploy updated subgraph to The Graph Studio
+  - [ ] Test queries for new contract types
 
-- [ ] **Create `packages/unified-indexer/src/lssvm-queries.ts`**
-  - GraphQL queries for LSSVM subgraph
-  - `queryPoolsByNFTContract(nftContract: string, chainId: number)`
-  - `queryPoolDetails(poolAddress: string)`
-  - Use LSSVM subgraph endpoint:
-    - Base Mainnet: `https://api.studio.thegraph.com/query/5440/such-lssvm/0.0.1`
+## 🟡 In Progress
 
-- [ ] **Create `packages/unified-indexer/src/auctionhouse-queries.ts`**
-  - GraphQL queries for Auctionhouse subgraph
-  - `queryListingsByNFTContract(nftContract: string, chainId: number)`
-  - `queryListingDetails(listingId: string)`
-  - Use Auctionhouse subgraph endpoint (to be determined)
+### Database Schema Extensions
+- ✅ Created Creator Core tables (contracts, tokens, transfers, extensions)
+- ✅ Renamed SuchGallery tables (collections → galleries)
+- ⏳ **Needs**: Database migration and testing
 
-- [ ] **Create `packages/unified-indexer/src/unified.ts`**
-  - `getSalesOptions(nftContract: string, chainId: number): Promise<SalesOptions>`
-    - Queries both LSSVM and Auctionhouse subgraphs
-    - Returns unified data structure with pools and auctions
-  - `getPoolData(poolAddress: string): Promise<PoolData>`
-  - `getAuctionData(listingId: string): Promise<AuctionData>`
+### Creator Core Indexer
+- ✅ Created indexer service structure
+- ✅ Implemented contract detection
+- ✅ Implemented event processing
+- ✅ Implemented metadata fetching
+- ⏳ **Needs**: Deployment, configuration, and testing
 
-- [ ] **Build and test the package**
-  - [ ] Run `pnpm build` to ensure TypeScript compiles
-  - [ ] Test queries against deployed subgraphs
-  - [ ] Verify error handling for missing data
+### Shared Database Configuration
+- ✅ Created shared-db-config package
+- ✅ Implemented Postgres connection pooling
+- ✅ Implemented Redis connection utilities
+- ⏳ **Needs**: Integration testing across all apps
 
-### Phase 3: UI Integration - Collection Creation
+### API Integration
+- ✅ Updated API routes to use indexed data
+- ✅ Updated SuchGallery routes for gallery terminology
+- ⏳ **Needs**: End-to-end testing with real data
 
-- [ ] **Update `apps/cryptoart-studio-app/src/components/studio/ContractDeployer.tsx`**
-  - [ ] Add sales method selection UI
-  - [ ] Import `SalesMethod` type from `@cryptoart/unified-indexer`
-  - [ ] Add state for sales method: `useState<SalesMethod>("both")`
-  - [ ] Add radio buttons or toggle for: "Pool", "Auction", "Both"
-  - [ ] Update form to include sales method in deployment data
+### Documentation
+- ✅ Created central DEPLOYMENT.md
+- ✅ Updated README.md with deployment links
+- ✅ Removed backend references
+- ⏳ **Needs**: Review and verify all links work
 
-- [ ] **Create `apps/cryptoart-studio-app/src/components/studio/SalesMethodSelector.tsx`**
-  - [ ] Create reusable component for sales method selection
-  - [ ] Props: `value: SalesMethod`, `onChange: (method: SalesMethod) => void`
-  - [ ] UI: Radio buttons or segmented control
-  - [ ] Include descriptions: "Sell via Pool (LSSVM)", "Sell via Auction", "Both"
-  - [ ] Add icons or visual indicators
+## 🟢 Completed Recently
 
-- [ ] **Update collection creation flow**
-  - [ ] Integrate `SalesMethodSelector` into collection creation form
-  - [ ] Store sales method preference with collection metadata
-  - [ ] Pass sales method to API when saving collection
-
-- [ ] **Create pool creation flow**
-  - [ ] Create `apps/cryptoart-studio-app/src/components/studio/CreatePoolForm.tsx`
-  - [ ] Import LSSVM ABIs from `@lssvm/abis`
-  - [ ] Use `LSSVM_FACTORY_ABI` for pool creation
-  - [ ] Implement pool creation transaction:
-    - Select NFT contract (from Creator Core)
-    - Select bonding curve type
-    - Set initial spot price
-    - Set delta
-    - Set fee
-  - [ ] Use wagmi hooks for transaction handling
-  - [ ] Show transaction status and confirmation
-
-- [ ] **Create auction listing flow**
-  - [ ] Create `apps/cryptoart-studio-app/src/components/studio/CreateListingForm.tsx`
-  - [ ] Import Auctionhouse ABIs (from `@cryptoart/contracts-abis` or local)
-  - [ ] Use Marketplace ABI for listing creation
-  - [ ] Implement listing creation transaction:
-    - Select NFT contract and token ID(s)
-    - Set listing type (fixed price, auction, etc.)
-    - Set initial price/amount
-    - Set start/end times
-  - [ ] Use wagmi hooks for transaction handling
-  - [ ] Show transaction status and confirmation
-
-### Phase 4: UI Integration - Sales Display
-
-- [ ] **Create unified sales view component**
-  - [ ] Create `apps/cryptoart-studio-app/src/components/studio/CollectionSalesView.tsx`
-  - [ ] Use `@cryptoart/unified-indexer` to fetch sales data
-  - [ ] Display pools and auctions in separate sections or tabs
-  - [ ] Show clear distinction between pool and auction sales
-  - [ ] Include "Create Pool" and "Create Listing" buttons
-
-- [ ] **Update collection detail page**
-  - [ ] Add sales view to collection detail page
-  - [ ] Show active pools and auctions for the collection
-  - [ ] Allow filtering by sales method
-
-- [ ] **Create pool details component**
-  - [ ] Create `apps/cryptoart-studio-app/src/components/studio/PoolDetails.tsx`
-  - [ ] Display pool information:
-    - Spot price
-    - Delta
-    - Fee
-    - Available NFTs
-    - Pool type (ERC721/ERC1155)
-  - [ ] Import types from `@lssvm/abis`
-
-- [ ] **Create auction details component**
-  - [ ] Create `apps/cryptoart-studio-app/src/components/studio/AuctionDetails.tsx`
-  - [ ] Display auction information:
-    - Listing ID
-    - Current price/bid
-    - Time remaining
-    - Available quantity
-  - [ ] Import types from Auctionhouse ABIs
-
-### Phase 5: API Routes
-
-- [ ] **Create unified sales API route**
-  - [ ] Create `apps/cryptoart-studio-app/src/app/api/collections/[address]/sales/route.ts`
-  - [ ] Use `@cryptoart/unified-indexer` to query both subgraphs
-  - [ ] Return JSON with structure:
-    ```typescript
-    {
-      pools: PoolData[],
-      auctions: AuctionData[],
-      collectionAddress: string
-    }
-    ```
-  - [ ] Handle errors gracefully
-  - [ ] Add caching if needed
-
-- [ ] **Create pool-specific API route** (optional)
-  - [ ] Create `apps/cryptoart-studio-app/src/app/api/pools/[poolAddress]/route.ts`
-  - [ ] Query LSSVM subgraph for pool details
-  - [ ] Return pool data
-
-- [ ] **Create auction-specific API route** (optional)
-  - [ ] Create `apps/cryptoart-studio-app/src/app/api/listings/[listingId]/route.ts`
-  - [ ] Query Auctionhouse subgraph for listing details
-  - [ ] Return listing data
-
-- [ ] **Update collection API routes**
-  - [ ] Update `apps/cryptoart-studio-app/src/app/api/studio/contracts/route.ts`
-  - [ ] Include sales method in collection data
-  - [ ] Store sales method preference when creating collection
-
-### Phase 6: Subgraph/Indexer Integration
-
-- [ ] **Verify Auctionhouse subgraph deployment**
-  - [ ] Confirm subgraph is deployed and accessible
-  - [ ] Document subgraph endpoint
-  - [ ] Verify it supports querying by NFT contract address
-  - [ ] Test queries for listings by contract
-
-- [ ] **Update subgraph queries** (if needed)
-  - [ ] Ensure Auctionhouse subgraph supports:
-    - Querying listings by NFT contract address
-    - Querying active listings
-    - Querying listing details
-  - [ ] Add any missing fields needed for unified display
-
-- [ ] **Create subgraph documentation**
-  - [ ] Document both subgraph endpoints
-  - [ ] Document query examples
-  - [ ] Document data structures
-
-- [ ] **Test unified queries**
-  - [ ] Test `getSalesOptions` with real contract addresses
-  - [ ] Verify both pools and auctions are returned correctly
-  - [ ] Test error handling for contracts with no sales
-
-## 🟢 Documentation & Maintenance
-
-- [ ] **Update README.md**
-  - [ ] Document cross-repo integration approach
-  - [ ] Add instructions for using `@lssvm/abis` package
-  - [ ] Document unified indexer usage
-  - [ ] Add LSSVM contract addresses to contract addresses section
-
-- [ ] **Create integration guide**
-  - [ ] Document how to add LSSVM pool creation to collection flow
-  - [ ] Document how to query both sales methods
-  - [ ] Add code examples for using unified indexer
-  - [ ] Document sales method selection flow
-
-- [ ] **Update `llms-full.md`**
-  - [ ] Add section on LSSVM integration
-  - [ ] Document unified indexer package
-  - [ ] Document sales method selection
-
-- [ ] **Update component documentation**
-  - [ ] Document `SalesMethodSelector` component
-  - [ ] Document `CreatePoolForm` component
-  - [ ] Document `CreateListingForm` component
-  - [ ] Document `CollectionSalesView` component
+- ✅ Removed deprecated backend directories
+- ✅ Created Creator Core indexer package
+- ✅ Created shared database configuration package
+- ✅ Extended database schema with Creator Core tables
+- ✅ Renamed SuchGallery tables to use gallery terminology
+- ✅ Updated all API routes to use indexed data
+- ✅ Updated subgraph with ERC1155 and ERC6551 templates
+- ✅ Created comprehensive deployment documentation
 
 ## 📝 Notes
 
-- **Env Vars**: Environment variables must be updated manually as they are not accessible to AI tools
-- **Contract Addresses**:
-  - Marketplace (Auctionhouse): `0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9` (Base Mainnet)
-  - LSSVM Factory: `0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e` (Base Mainnet)
-  - LSSVM Router: `0x4352c72114C4b9c4e1F8C96347F2165EECaDeb5C` (Base Mainnet)
-- **Subgraph Endpoints**:
-  - LSSVM Base Mainnet: `https://api.studio.thegraph.com/query/5440/such-lssvm/0.0.1`
-  - Auctionhouse: (to be determined)
-- **Dependencies**: The `@lssvm/abis` package must be created in the such-lssvm repo first before it can be used here
+### Database Migration Strategy
 
-## 🔗 Related Repositories
+**Important**: The table renames require a migration strategy:
 
-- **cryptoart-studio**: `github.com/mxjxn/cryptoart-studio` (this repo)
-- **such-lssvm**: `github.com/mxjxn/such-lssvm` (LSSVM contracts and ABIs)
+1. **For SuchGallery tables**: 
+   - Option A: Create new tables, migrate data, drop old tables
+   - Option B: Use ALTER TABLE RENAME (PostgreSQL supports this)
+   - Recommended: Use ALTER TABLE for minimal downtime
 
-## Dependencies on such-lssvm Repo
+2. **For Creator Core tables**:
+   - These are new tables, so just run `pnpm run db:push`
+   - No migration needed, just creation
 
-This integration depends on the following tasks being completed in the such-lssvm repo:
+### Indexer Deployment
 
-1. ✅ `packages/lssvm-abis/` package must be created and published/accessible
-2. ✅ LSSVM subgraph must be deployed and accessible
-3. ✅ Contract addresses must be verified and documented
+The Creator Core Indexer needs to be deployed as a background service:
+- Railway, Render, or similar platform
+- Or as a Vercel cron job (for periodic indexing)
+- Or as a standalone service on a VPS
 
-See `TASKLIST.md` in the such-lssvm repo for progress on these tasks.
+### Testing Checklist
+
+Before considering complete:
+- [ ] All database migrations run successfully
+- [ ] Indexer indexes at least one contract successfully
+- [ ] Studio app displays indexed collections
+- [ ] SuchGallery app works with renamed tables
+- [ ] All API routes return correct data
+- [ ] No console errors in browser
+- [ ] No TypeScript compilation errors
+
+## 🔗 Related Documentation
+
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Complete deployment guide
+- [README.md](./README.md) - Project overview
+- [INDEXER_IMPLEMENTATION_SUMMARY.md](./INDEXER_IMPLEMENTATION_SUMMARY.md) - Indexer implementation details
 
 ---
 
 **Last Updated**: 2025-01-XX
-**Status**: Planning phase - awaiting completion of such-lssvm ABI package creation
-
+**Status**: Implementation complete, testing phase

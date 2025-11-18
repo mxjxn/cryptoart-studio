@@ -13,7 +13,7 @@ interface AuctionListingCheckerProps {
 
 export function AuctionListingChecker({ listingIds }: AuctionListingCheckerProps) {
   // For MVP, show all listings - AuctionCard will filter out non-auctions
-  // In production, this would be filtered server-side via backend API
+  // In production, this would be filtered server-side via API route or subgraph query
   return <AuctionList listingIds={listingIds} />;
 }
 

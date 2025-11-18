@@ -1,10 +1,10 @@
 import { createConfig, http, WagmiProvider } from "wagmi";
-import { base, degen, mainnet, optimism, unichain, celo } from "wagmi/chains";
+import { base, baseSepolia, degen, mainnet, optimism, unichain, celo } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/miniapp-wagmi-connector";
 import { coinbaseWallet, metaMask } from 'wagmi/connectors';
 import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useConnect, useAccount } from "wagmi";
 import React from "react";
 import { useIsMiniApp } from "~/hooks/useIsMiniApp";
@@ -17,13 +17,23 @@ function useIntelligentWalletAutoConnect() {
   const isMiniApp = useIsMiniApp();
   const { connect, connectors } = useConnect();
   const { isConnected } = useAccount();
-  const [hasAttemptedAutoConnect, setHasAttemptedAutoConnect] = useState(false);
+  const hasAttemptedRef = useRef(false);
+  const connectorsRef = useRef<string[]>([]);
+
+  // Track connector IDs to detect changes
+  const connectorIds = connectors.map(c => c.id).join(',');
 
   useEffect(() => {
     // Don't auto-connect if already connected or already attempted
-    if (isConnected || hasAttemptedAutoConnect) {
+    if (isConnected || hasAttemptedRef.current) {
       return;
     }
+
+    // Only attempt once per connector set
+    if (connectorsRef.current.join(',') === connectorIds && connectorsRef.current.length > 0) {
+      return;
+    }
+    connectorsRef.current = connectors.map(c => c.id);
 
     // In mini-app context: try Farcaster Frame connector first
     if (isMiniApp && connectors.length > 0) {
@@ -31,9 +41,13 @@ function useIntelligentWalletAutoConnect() {
         (c) => c.id === "farcasterFrame" || c.name === "Farcaster Frame"
       );
       if (farcasterConnector) {
-        console.log("Auto-connecting with Farcaster Frame connector (mini-app context)");
-        connect({ connector: farcasterConnector });
-        setHasAttemptedAutoConnect(true);
+        try {
+          console.log("Auto-connecting with Farcaster Frame connector (mini-app context)");
+          connect({ connector: farcasterConnector });
+          hasAttemptedRef.current = true;
+        } catch (err) {
+          console.warn("Auto-connection failed:", err);
+        }
         return;
       }
     }
@@ -50,9 +64,13 @@ function useIntelligentWalletAutoConnect() {
           (c) => c.id === "coinbaseWallet" || c.name === "Coinbase Wallet"
         );
         if (coinbaseConnector) {
-          console.log("Auto-connecting with Coinbase Wallet (web3 context)");
-          connect({ connector: coinbaseConnector });
-          setHasAttemptedAutoConnect(true);
+          try {
+            console.log("Auto-connecting with Coinbase Wallet (web3 context)");
+            connect({ connector: coinbaseConnector });
+            hasAttemptedRef.current = true;
+          } catch (err) {
+            console.warn("Auto-connection failed:", err);
+          }
           return;
         }
       }
@@ -63,14 +81,18 @@ function useIntelligentWalletAutoConnect() {
           (c) => c.id === "metaMask" || c.name === "MetaMask"
         );
         if (metaMaskConnector) {
-          console.log("Auto-connecting with MetaMask (web3 context)");
-          connect({ connector: metaMaskConnector });
-          setHasAttemptedAutoConnect(true);
+          try {
+            console.log("Auto-connecting with MetaMask (web3 context)");
+            connect({ connector: metaMaskConnector });
+            hasAttemptedRef.current = true;
+          } catch (err) {
+            console.warn("Auto-connection failed:", err);
+          }
           return;
         }
       }
     }
-  }, [isMiniApp, isConnected, hasAttemptedAutoConnect, connect, connectors]);
+  }, [isMiniApp, isConnected, connectorIds, connect]);
 }
 
 /**
@@ -98,9 +120,10 @@ function createWagmiConfig() {
   ];
 
   return createConfig({
-    chains: [base, optimism, mainnet, degen, unichain, celo],
+    chains: [base, baseSepolia, optimism, mainnet, degen, unichain, celo],
     transports: {
       [base.id]: http(),
+      [baseSepolia.id]: http(),
       [optimism.id]: http(),
       [mainnet.id]: http(),
       [degen.id]: http(),

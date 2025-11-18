@@ -126,7 +126,7 @@ select {
 
 /* Markdown styles */
 .markdown {
-  @apply prose prose-slate dark:prose-invert max-w-none;
+  @apply max-w-none;
 }
 
 .markdown h1 {

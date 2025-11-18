@@ -9,13 +9,17 @@ const CRYPTOART_CONTRACT = process.env.CRYPTOART_HYPERSUB_CONTRACT!;
  */
 export async function validateCryptoArtMembership(fid: number): Promise<boolean> {
   try {
-    const _client = getNeynarClient();
+    const apiKey = process.env.NEYNAR_API_KEY;
+    if (!apiKey) {
+      console.warn('NEYNAR_API_KEY not configured - membership validation disabled');
+      return false;
+    }
     
     // Fetch user's active subscriptions
     const url = `https://api.neynar.com/v2/farcaster/user/subscribers?fid=${fid}&subscription_provider=fabric_stp`;
     const response = await fetch(url, {
       headers: {
-        'x-api-key': process.env.NEYNAR_API_KEY!,
+        'x-api-key': apiKey,
       },
     });
 

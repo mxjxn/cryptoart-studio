@@ -10,4 +10,9 @@ export { CollectionSalesView } from "./CollectionSalesView";
 export { AuctionDetails } from "./AuctionDetails";
 export { PoolDetails } from "./PoolDetails";
 export { SalesMethodSelector } from "./SalesMethodSelector";
+export { TestNFTCollectionDeployer } from "./TestNFTCollectionDeployer";
+export { TestTokenDeployer } from "./TestTokenDeployer";
+export { CurrentAuctions } from "./CurrentAuctions";
+export { CollectionsList } from "./CollectionsList";
+export { CreateCollectionModal } from "./CreateCollectionModal";
 

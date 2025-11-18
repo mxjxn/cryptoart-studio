@@ -9,9 +9,8 @@ This monorepo contains several projects that work together:
 1. **Cryptoart Studio App** - Next.js Farcaster Mini App for creator tools
 2. **Auctionhouse App** - Next.js Farcaster Mini App for auctionhouse functionality
 3. **Such Gallery** - Next.js Farcaster Mini App for NFT curation and gallery
-4. **Backend** - Event indexer for blockchain events
-5. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
-6. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
+4. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
+5. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
 
 ## Related Projects
 
@@ -44,8 +43,7 @@ cryptoart-monorepo/
 ├── apps/
 │   ├── cryptoart-studio-app/  # Next.js Farcaster Mini App for creator tools
 │   ├── auctionhouse/          # Next.js Farcaster Mini App for auctionhouse
-│   ├── such-gallery/          # Next.js Farcaster Mini App for NFT curation
-│   └── backend/                # Event indexer for Base network
+│   └── such-gallery/          # Next.js Farcaster Mini App for NFT curation
 ├── packages/
 │   ├── creator-core-contracts/ # ERC721/ERC1155 NFT framework
 │   ├── auctionhouse-contracts/ # Solidity auction house contracts
@@ -70,6 +68,8 @@ cryptoart-monorepo/
 - Node.js >= 18.0.0
 - pnpm >= 9.1.4 (package manager)
 - Foundry (for contract development)
+- PostgreSQL database (for apps and indexers)
+- Redis (optional, for caching)
 
 ### Installation
 
@@ -83,6 +83,17 @@ pnpm run build
 # Run development mode for all projects
 pnpm run dev
 ```
+
+### Deployment
+
+For complete deployment instructions for all projects, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+
+**Quick Overview:**
+1. Set up shared PostgreSQL database
+2. Deploy contracts (Creator Core, Auctionhouse)
+3. Deploy indexers (Creator Core Indexer)
+4. Deploy subgraphs
+5. Deploy apps (Cryptoart Studio, Auctionhouse, Such Gallery)
 
 ## Projects
 
@@ -156,23 +167,6 @@ pnpm run dev
 **Documentation:** See `apps/such-gallery/README.md`
 
 ⚠️ **Note:** This app is newly modernized and has not been fully tested yet.
-
-#### Backend (`apps/backend/`)
-
-Event indexer that listens to blockchain events from the auction house contract and stores them for faster client-side retrieval.
-
-**Tech Stack:**
-- Node.js
-- Ethers.js
-- Alchemy RPC
-
-**Getting Started:**
-```bash
-cd apps/backend
-pnpm start
-```
-
-**Documentation:** See `apps/backend/guide.md`
 
 ### Packages
 
@@ -287,10 +281,6 @@ pnpm run dev
 cd apps/such-gallery
 pnpm run dev
 
-# Backend development
-cd apps/backend
-pnpm start
-
 # Contract development
 cd packages/auctionhouse-contracts
 forge build
@@ -302,6 +292,7 @@ forge test
 ### For Humans
 
 - **README.md** (this file) - High-level overview and getting started
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete deployment guide for all projects
 - **PACKAGES.md** - Documentation for additional shared packages
 - **Project-specific READMEs** - See each project's directory for detailed documentation
 

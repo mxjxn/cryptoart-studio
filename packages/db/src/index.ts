@@ -9,10 +9,14 @@ export {
   collectionMints,
   clankerTokens,
   suchGalleryUsers,
-  curatedCollections,
-  curatedCollectionNfts,
+  curatedGalleries,
+  curatedGalleryNfts,
   nftMetadataCache,
   quoteCasts,
-  adminUsers
+  adminUsers,
+  creatorCoreContracts,
+  creatorCoreTokens,
+  creatorCoreTransfers,
+  creatorCoreExtensions
 } from './client';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';

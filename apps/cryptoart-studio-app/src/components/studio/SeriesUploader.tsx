@@ -1,16 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { Upload, Loader2, CheckCircle2, FileArchive } from "lucide-react";
 
-export function SeriesUploader() {
+interface SeriesUploaderProps {
+  defaultContractAddress?: string;
+}
+
+export function SeriesUploader({ defaultContractAddress }: SeriesUploaderProps) {
   const { isConnected } = useAccount();
   const [zipFile, setZipFile] = useState<File | null>(null);
-  const [contractAddress, setContractAddress] = useState("");
+  const [contractAddress, setContractAddress] = useState(defaultContractAddress || "");
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultContractAddress) {
+      setContractAddress(defaultContractAddress);
+    }
+  }, [defaultContractAddress]);
 
   const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,13 +95,22 @@ export function SeriesUploader() {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Contract Address
         </label>
-        <input
-          type="text"
-          value={contractAddress}
-          onChange={(e) => setContractAddress(e.target.value)}
-          placeholder="0x..."
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
+        {defaultContractAddress ? (
+          <input
+            type="text"
+            value={contractAddress}
+            readOnly
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+          />
+        ) : (
+          <input
+            type="text"
+            value={contractAddress}
+            onChange={(e) => setContractAddress(e.target.value)}
+            placeholder="0x..."
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        )}
       </div>
 
       <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { Image, Loader2, CheckCircle2, Upload } from "lucide-react";
 import { SeriesUploader } from "./SeriesUploader";
@@ -8,14 +8,60 @@ import { EditionCreator } from "./EditionCreator";
 
 type MintType = "1of1" | "series" | "edition";
 
-export function NFTMinter() {
+interface NFTMinterProps {
+  defaultCollection?: string;
+  defaultMintType?: MintType;
+}
+
+interface Collection {
+  id: string;
+  address: string;
+  name: string | null;
+  symbol: string | null;
+  contractType: string;
+}
+
+export function NFTMinter({ defaultCollection, defaultMintType }: NFTMinterProps) {
   const { address, isConnected } = useAccount();
-  const [mintType, setMintType] = useState<MintType>("1of1");
-  const [contractAddress, setContractAddress] = useState("");
+  const [mintType, setMintType] = useState<MintType>(defaultMintType || "1of1");
+  const [contractAddress, setContractAddress] = useState(defaultCollection || "");
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loadingCollections, setLoadingCollections] = useState(false);
   const [tokenId, setTokenId] = useState("");
   const [metadataURI, setMetadataURI] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [mintSuccess, setMintSuccess] = useState(false);
+
+  useEffect(() => {
+    if (defaultCollection) {
+      setContractAddress(defaultCollection);
+    }
+  }, [defaultCollection]);
+
+  useEffect(() => {
+    if (defaultMintType) {
+      setMintType(defaultMintType);
+    }
+  }, [defaultMintType]);
+
+  useEffect(() => {
+    async function fetchCollections() {
+      if (defaultCollection) return; // Don't fetch if collection is pre-selected
+      try {
+        setLoadingCollections(true);
+        const response = await fetch("/api/studio/contracts");
+        if (response.ok) {
+          const data = await response.json();
+          setCollections(data.collections || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch collections:", error);
+      } finally {
+        setLoadingCollections(false);
+      }
+    }
+    fetchCollections();
+  }, [defaultCollection]);
 
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -104,15 +150,37 @@ export function NFTMinter() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Contract Address
+              Collection
             </label>
-            <input
-              type="text"
-              value={contractAddress}
-              onChange={(e) => setContractAddress(e.target.value)}
-              placeholder="0x..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            {defaultCollection ? (
+              <input
+                type="text"
+                value={contractAddress}
+                readOnly
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+              />
+            ) : collections.length > 0 ? (
+              <select
+                value={contractAddress}
+                onChange={(e) => setContractAddress(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select a collection...</option>
+                {collections.map((collection) => (
+                  <option key={collection.id} value={collection.address}>
+                    {collection.name || "Unnamed"} ({collection.contractType})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={contractAddress}
+                onChange={(e) => setContractAddress(e.target.value)}
+                placeholder="0x..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            )}
           </div>
 
           <div>
@@ -178,7 +246,9 @@ export function NFTMinter() {
       )}
 
       {/* Series Minting */}
-      {mintType === "series" && <SeriesUploader />}
+      {mintType === "series" && (
+        <SeriesUploader defaultContractAddress={contractAddress} />
+      )}
 
       {/* Edition Minting */}
       {mintType === "edition" && <EditionCreator />}

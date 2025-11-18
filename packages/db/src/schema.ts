@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, jsonb, index, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, text, timestamp, jsonb, index, unique, boolean } from 'drizzle-orm/pg-core';
 
 // Subscriptions cache table
 export const subscriptionsCache = pgTable('subscriptions_cache', {
@@ -188,8 +188,8 @@ export const suchGalleryUsers = pgTable('such_gallery_users', {
   ethAddressIdx: index('such_gallery_users_eth_address_idx').on(table.ethAddress),
 }));
 
-// Curated collections - user-created curation lists
-export const curatedCollections = pgTable('curated_collections', {
+// Curated galleries - user-created curation lists (renamed from "collections" to avoid confusion with Creator Core collections)
+export const curatedGalleries = pgTable('curated_galleries', {
   id: serial('id').primaryKey(),
   curatorFid: integer('curator_fid').notNull().references(() => suchGalleryUsers.fid),
   title: text('title').notNull(),
@@ -199,13 +199,13 @@ export const curatedCollections = pgTable('curated_collections', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
-  curatorFidIdx: index('curated_collections_curator_fid_idx').on(table.curatorFid),
-  curatorSlugIdx: index('curated_collections_curator_slug_idx').on(table.curatorFid, table.slug),
+  curatorFidIdx: index('curated_galleries_curator_fid_idx').on(table.curatorFid),
+  curatorSlugIdx: index('curated_galleries_curator_slug_idx').on(table.curatorFid, table.slug),
 }));
 
-// Curated collection NFTs - links NFTs to collections with curator metadata
-export const curatedCollectionNfts = pgTable('curated_collection_nfts', {
-  curatedCollectionId: integer('curated_collection_id').notNull().references(() => curatedCollections.id, { onDelete: 'cascade' }),
+// Curated gallery NFTs - links NFTs to galleries with curator metadata
+export const curatedGalleryNfts = pgTable('curated_gallery_nfts', {
+  curatedGalleryId: integer('curated_gallery_id').notNull().references(() => curatedGalleries.id, { onDelete: 'cascade' }),
   contractAddress: text('contract_address').notNull(),
   tokenId: text('token_id').notNull(),
   curatorComment: text('curator_comment'),
@@ -213,9 +213,9 @@ export const curatedCollectionNfts = pgTable('curated_collection_nfts', {
   showAttributes: boolean('show_attributes').default(false).notNull(),
   addedAt: timestamp('added_at').defaultNow().notNull(),
 }, (table) => ({
-  pk: unique('curated_collection_nfts_pk').on(table.curatedCollectionId, table.contractAddress, table.tokenId),
-  collectionIdx: index('curated_collection_nfts_collection_idx').on(table.curatedCollectionId),
-  contractTokenIdx: index('curated_collection_nfts_contract_token_idx').on(table.contractAddress, table.tokenId),
+  pk: unique('curated_gallery_nfts_pk').on(table.curatedGalleryId, table.contractAddress, table.tokenId),
+  galleryIdx: index('curated_gallery_nfts_gallery_idx').on(table.curatedGalleryId),
+  contractTokenIdx: index('curated_gallery_nfts_contract_token_idx').on(table.contractAddress, table.tokenId),
 }));
 
 // NFT metadata cache - cached NFT metadata with manual refresh
@@ -237,13 +237,13 @@ export const nftMetadataCache = pgTable('nft_metadata_cache', {
   uniqueContractToken: unique('nft_metadata_cache_unique_contract_token_idx').on(table.contractAddress, table.tokenId),
 }));
 
-// Quote casts - track quote-casts for collections/NFTs (for referral tracking)
+// Quote casts - track quote-casts for galleries/NFTs (for referral tracking)
 export const quoteCasts = pgTable('quote_casts', {
   id: serial('id').primaryKey(),
   curatorFid: integer('curator_fid').notNull().references(() => suchGalleryUsers.fid),
   castHash: text('cast_hash').notNull(),
-  targetType: text('target_type').notNull(), // 'collection' | 'nft'
-  targetCollectionId: integer('target_collection_id').references(() => curatedCollections.id),
+  targetType: text('target_type').notNull(), // 'gallery' | 'nft'
+  targetGalleryId: integer('target_gallery_id').references(() => curatedGalleries.id),
   targetContractAddress: text('target_contract_address'),
   targetTokenId: text('target_token_id'),
   referralAddress: text('referral_address').notNull(),
@@ -251,7 +251,7 @@ export const quoteCasts = pgTable('quote_casts', {
 }, (table) => ({
   curatorFidIdx: index('quote_casts_curator_fid_idx').on(table.curatorFid),
   castHashIdx: index('quote_casts_cast_hash_idx').on(table.castHash),
-  targetCollectionIdx: index('quote_casts_target_collection_idx').on(table.targetCollectionId),
+  targetGalleryIdx: index('quote_casts_target_gallery_idx').on(table.targetGalleryId),
   targetNftIdx: index('quote_casts_target_nft_idx').on(table.targetContractAddress, table.targetTokenId),
 }));
 
@@ -260,3 +260,86 @@ export const adminUsers = pgTable('admin_users', {
   fid: integer('fid').primaryKey(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// Creator Core Contracts - track all deployed Creator Core contracts
+export const creatorCoreContracts = pgTable('creator_core_contracts', {
+  id: serial('id').primaryKey(),
+  contractAddress: text('contract_address').notNull().unique(),
+  contractType: text('contract_type').notNull(), // 'ERC721' | 'ERC1155' | 'ERC6551'
+  creatorFid: integer('creator_fid'),
+  deployerAddress: text('deployer_address').notNull(),
+  deployTxHash: text('deploy_tx_hash'),
+  implementationAddress: text('implementation_address'),
+  proxyAdminAddress: text('proxy_admin_address'),
+  isUpgradeable: boolean('is_upgradeable').default(false).notNull(),
+  name: text('name'),
+  symbol: text('symbol'),
+  chainId: integer('chain_id').notNull(),
+  deployedAt: timestamp('deployed_at'),
+  deployedAtBlock: integer('deployed_at_block'),
+  metadata: jsonb('metadata'), // baseURI, royalties, etc.
+}, (table) => ({
+  contractAddressIdx: index('creator_core_contracts_contract_address_idx').on(table.contractAddress),
+  creatorFidIdx: index('creator_core_contracts_creator_fid_idx').on(table.creatorFid),
+  contractTypeIdx: index('creator_core_contracts_contract_type_idx').on(table.contractType),
+  chainIdIdx: index('creator_core_contracts_chain_id_idx').on(table.chainId),
+}));
+
+// Creator Core Tokens - track individual NFTs minted
+export const creatorCoreTokens = pgTable('creator_core_tokens', {
+  id: serial('id').primaryKey(),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: text('token_id').notNull(),
+  mintTxHash: text('mint_tx_hash'),
+  mintedBy: text('minted_by').notNull(),
+  mintedAt: timestamp('minted_at'),
+  mintedAtBlock: integer('minted_at_block'),
+  currentOwner: text('current_owner'),
+  tokenURI: text('token_uri'),
+  metadata: jsonb('metadata'), // Full metadata: name, description, image, attributes
+  extensionAddress: text('extension_address'),
+  totalSupply: text('total_supply'), // For ERC1155
+}, (table) => ({
+  contractTokenUnique: unique('creator_core_tokens_contract_token_unique').on(table.contractAddress, table.tokenId),
+  contractAddressIdx: index('creator_core_tokens_contract_address_idx').on(table.contractAddress),
+  tokenIdIdx: index('creator_core_tokens_token_id_idx').on(table.tokenId),
+  currentOwnerIdx: index('creator_core_tokens_current_owner_idx').on(table.currentOwner),
+  extensionAddressIdx: index('creator_core_tokens_extension_address_idx').on(table.extensionAddress),
+}));
+
+// Creator Core Transfers - track all transfer events
+export const creatorCoreTransfers = pgTable('creator_core_transfers', {
+  id: serial('id').primaryKey(),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: text('token_id').notNull(),
+  from: text('from').notNull(),
+  to: text('to').notNull(),
+  amount: text('amount').notNull(), // For ERC1155, "1" for ERC721
+  txHash: text('tx_hash').notNull(),
+  blockNumber: integer('block_number').notNull(),
+  timestamp: timestamp('timestamp'),
+  logIndex: integer('log_index').notNull(),
+}, (table) => ({
+  contractTokenIdx: index('creator_core_transfers_contract_token_idx').on(table.contractAddress, table.tokenId),
+  txHashIdx: index('creator_core_transfers_tx_hash_idx').on(table.txHash),
+  blockNumberIdx: index('creator_core_transfers_block_number_idx').on(table.blockNumber),
+  fromIdx: index('creator_core_transfers_from_idx').on(table.from),
+  toIdx: index('creator_core_transfers_to_idx').on(table.to),
+}));
+
+// Creator Core Extensions - track extension registrations
+export const creatorCoreExtensions = pgTable('creator_core_extensions', {
+  id: serial('id').primaryKey(),
+  contractAddress: text('contract_address').notNull(),
+  extensionAddress: text('extension_address').notNull(),
+  baseURI: text('base_uri'),
+  registeredAt: timestamp('registered_at'),
+  registeredAtBlock: integer('registered_at_block'),
+  unregisteredAt: timestamp('unregistered_at'),
+  unregisteredAtBlock: integer('unregistered_at_block'),
+  isBlacklisted: boolean('is_blacklisted').default(false).notNull(),
+}, (table) => ({
+  contractExtensionUnique: unique('creator_core_extensions_contract_extension_unique').on(table.contractAddress, table.extensionAddress),
+  contractAddressIdx: index('creator_core_extensions_contract_address_idx').on(table.contractAddress),
+  extensionAddressIdx: index('creator_core_extensions_extension_address_idx').on(table.extensionAddress),
+}));
