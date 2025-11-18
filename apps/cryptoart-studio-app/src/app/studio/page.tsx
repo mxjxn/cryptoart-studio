@@ -3,20 +3,13 @@
 import { useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
+import Link from "next/link";
+import { FileCode, Image, Package, ArrowRight } from "lucide-react";
 import { MobileLayout } from "~/components/ui/mobile/MobileLayout";
 import { AuthWrapper } from "~/components/AuthWrapper";
-import Link from "next/link";
-import { 
-  FileCode, 
-  Image, 
-  Layers, 
-  Package,
-  ArrowRight,
-  Sparkles
-} from "lucide-react";
 
 export default function StudioPage() {
-  const { context, isSDKLoaded } = useMiniApp();
+  const { isSDKLoaded } = useMiniApp();
 
   useEffect(() => {
     if (isSDKLoaded) {
@@ -24,115 +17,113 @@ export default function StudioPage() {
     }
   }, [isSDKLoaded]);
 
-  const actions = [
-    {
-      title: "Create Contract",
-      description: "Deploy a new ERC721, ERC1155, or ERC6551 contract",
-      icon: FileCode,
-      href: "/studio/contracts/new",
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-    {
-      title: "Create 1/1 NFT",
-      description: "Mint a unique single-edition NFT",
-      icon: Image,
-      href: "/studio/nfts/create?type=1of1",
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
-    },
-    {
-      title: "Create Series",
-      description: "Upload and mint a series of NFTs from a zip file",
-      icon: Layers,
-      href: "/studio/nfts/create?type=series",
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-    {
-      title: "Create Edition",
-      description: "Create a limited or open edition collection",
-      icon: Package,
-      href: "/studio/nfts/create?type=edition",
-      color: "text-orange-600",
-      bgColor: "bg-orange-50",
-    },
-  ];
-
   return (
     <AuthWrapper>
       <MobileLayout title="Creator Studio">
         <div className="space-y-4">
           {/* Welcome Section */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center">
-              <Sparkles className="h-6 w-6 text-indigo-600 mr-3" />
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  Creator Studio
-                </h1>
-                <p className="text-gray-600 mt-1 text-sm">
-                  Create and manage your NFT contracts and collections.
-                </p>
-              </div>
-            </div>
+            <h1 className="text-xl font-semibold text-gray-900 mb-2">
+              Creator Studio
+            </h1>
+            <p className="text-gray-600 text-sm">
+              Deploy contracts, create NFTs, and manage your collections.
+            </p>
           </div>
 
           {/* Quick Actions */}
-          <div className="space-y-3">
-            <h2 className="text-md font-semibold text-gray-900 px-1">
-              Quick Actions
-            </h2>
-            {actions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className="block"
-                >
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-gray-300 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center flex-1">
-                        <div className={`${action.bgColor} p-2 rounded-lg mr-3`}>
-                          <Icon className={`h-5 w-5 ${action.color}`} />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-base font-semibold text-gray-900">
-                            {action.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {action.description}
-                          </p>
-                        </div>
-                      </div>
-                      <ArrowRight className="h-5 w-5 text-gray-400" />
-                    </div>
+          <div className="grid grid-cols-1 gap-4">
+            {/* Contract Creation */}
+            <Link
+              href="/studio/contracts/new"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-blue-500 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 rounded-lg p-3 mr-4">
+                    <FileCode className="h-6 w-6 text-blue-600" />
                   </div>
-                </Link>
-              );
-            })}
-          </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Deploy Contract
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Create a new ERC721, ERC1155, or ERC6551 contract
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </div>
+            </Link>
 
-          {/* Navigation Links */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <h2 className="text-md font-semibold text-gray-900 mb-3">
-              Manage
-            </h2>
-            <div className="space-y-2">
-              <Link
-                href="/studio/contracts"
-                className="block text-sm text-blue-600 hover:text-blue-700"
-              >
-                View All Contracts →
-              </Link>
-              <Link
-                href="/studio/nfts"
-                className="block text-sm text-blue-600 hover:text-blue-700"
-              >
-                View All NFTs →
-              </Link>
-            </div>
+            {/* NFT Creation */}
+            <Link
+              href="/studio/nfts/create"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-green-500 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="bg-green-100 rounded-lg p-3 mr-4">
+                    <Image className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Create NFT
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Mint 1/1s, series, or editions
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </div>
+            </Link>
+
+            {/* View Contracts */}
+            <Link
+              href="/studio/contracts"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-purple-500 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="bg-purple-100 rounded-lg p-3 mr-4">
+                    <Package className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      My Contracts
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      View and manage your deployed contracts
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </div>
+            </Link>
+
+            {/* View NFTs */}
+            <Link
+              href="/studio/nfts"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-orange-500 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="bg-orange-100 rounded-lg p-3 mr-4">
+                    <Image className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      My NFTs
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      View and manage your minted NFTs
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-400" />
+              </div>
+            </Link>
           </div>
         </div>
       </MobileLayout>

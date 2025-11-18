@@ -1,54 +1,54 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount } from "wagmi";
-import { Package, Loader2, Calendar } from "lucide-react";
-
-type EditionType = "limited" | "open";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { Package, Loader2, CheckCircle2 } from "lucide-react";
 
 export function EditionCreator() {
   const { address, isConnected } = useAccount();
   const [contractAddress, setContractAddress] = useState("");
-  const [editionType, setEditionType] = useState<EditionType>("limited");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [editionType, setEditionType] = useState<"limited" | "open">("limited");
   const [maxSupply, setMaxSupply] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [hasMintTimeframe, setHasMintTimeframe] = useState(false);
+  const [price, setPrice] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [price, setPrice] = useState("");
+  const [metadataURI, setMetadataURI] = useState("");
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  });
 
   const handleCreateEdition = async () => {
-    if (!isConnected || !contractAddress || !name) {
+    if (!isConnected || !contractAddress || !metadataURI) {
       return;
     }
 
-    // TODO: Implement edition creation
-    // 1. Upload image to IPFS
-    // 2. Create metadata JSON
-    // 3. Upload metadata to IPFS
-    // 4. Mint edition (ERC1155) with supply limit
-    // 5. Optionally create marketplace listing
+    // TODO: Implement actual edition creation
+    // This would:
+    // 1. Upload image/metadata to IPFS if provided
+    // 2. Call createEdition or similar function on contract
+    // 3. Configure mint timeframe if provided
+    // 4. Set price if provided
+    // 5. Save to database via API
 
     console.log("Creating edition:", {
       contractAddress,
       editionType,
-      name,
-      description,
-      maxSupply,
-      hasMintTimeframe,
+      maxSupply: editionType === "limited" ? maxSupply : "unlimited",
+      price,
       startTime,
       endTime,
-      price,
+      metadataURI,
     });
+
+    // Placeholder
   };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
       <h2 className="text-lg font-semibold text-gray-900">Create Edition</h2>
 
-      {/* Contract Address */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Contract Address
@@ -58,11 +58,10 @@ export function EditionCreator() {
           value={contractAddress}
           onChange={(e) => setContractAddress(e.target.value)}
           placeholder="0x..."
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
 
-      {/* Edition Type */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Edition Type
@@ -77,7 +76,7 @@ export function EditionCreator() {
                 : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
             }`}
           >
-            Limited Edition
+            Limited
           </button>
           <button
             type="button"
@@ -88,44 +87,15 @@ export function EditionCreator() {
                 : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
             }`}
           >
-            Open Edition
+            Open
           </button>
         </div>
       </div>
 
-      {/* Name */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Name *
-        </label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="My Edition"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-
-      {/* Description */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Description
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe your edition..."
-          rows={3}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-
-      {/* Max Supply (Limited only) */}
       {editionType === "limited" && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Max Supply *
+            Max Supply
           </label>
           <input
             type="number"
@@ -138,85 +108,9 @@ export function EditionCreator() {
         </div>
       )}
 
-      {/* Image Upload */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Image *
-        </label>
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-            className="hidden"
-            id="edition-image-upload"
-          />
-          <label
-            htmlFor="edition-image-upload"
-            className="cursor-pointer flex flex-col items-center"
-          >
-            {imageFile ? (
-              <img
-                src={URL.createObjectURL(imageFile)}
-                alt="Preview"
-                className="max-h-32 rounded-lg mb-2"
-              />
-            ) : (
-              <Package className="h-8 w-8 text-gray-400 mb-2" />
-            )}
-            <span className="text-sm text-gray-600">
-              {imageFile ? imageFile.name : "Click to upload image"}
-            </span>
-          </label>
-        </div>
-      </div>
-
-      {/* Mint Timeframe */}
-      <div>
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={hasMintTimeframe}
-            onChange={(e) => setHasMintTimeframe(e.target.checked)}
-            className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <span className="text-sm font-medium text-gray-700">
-            Set mint timeframe
-          </span>
-        </label>
-      </div>
-
-      {hasMintTimeframe && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Time
-            </label>
-            <input
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              End Time
-            </label>
-            <input
-              type="datetime-local"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Price (Optional) */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Price (ETH) - Optional
+          Price (ETH)
         </label>
         <input
           type="number"
@@ -227,24 +121,78 @@ export function EditionCreator() {
           min="0"
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
-        <p className="text-xs text-gray-500 mt-1">
-          If set, will create a marketplace listing automatically
-        </p>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Start Time (optional)
+        </label>
+        <input
+          type="datetime-local"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          End Time (optional)
+        </label>
+        <input
+          type="datetime-local"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Metadata URI (IPFS)
+        </label>
+        <input
+          type="text"
+          value={metadataURI}
+          onChange={(e) => setMetadataURI(e.target.value)}
+          placeholder="ipfs://..."
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-800">
+            Error: {error.message || "Failed to create edition"}
+          </p>
+        </div>
+      )}
+
+      {isSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <p className="text-sm text-green-800">Edition created successfully!</p>
+          </div>
+        </div>
+      )}
 
       <button
         onClick={handleCreateEdition}
-        disabled={
-          !isConnected ||
-          !contractAddress ||
-          !name ||
-          !imageFile ||
-          (editionType === "limited" && !maxSupply)
-        }
-        className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        disabled={!isConnected || !contractAddress || !metadataURI || isPending || isConfirming}
+        className="w-full flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
-        <Package className="h-5 w-5 mr-2" />
-        Create Edition
+        {isPending || isConfirming ? (
+          <>
+            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+            {isPending ? "Creating..." : "Confirming..."}
+          </>
+        ) : (
+          <>
+            <Package className="h-5 w-5 mr-2" />
+            Create Edition
+          </>
+        )}
       </button>
     </div>
   );

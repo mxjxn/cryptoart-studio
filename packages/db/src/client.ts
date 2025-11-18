@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { subscriptionsCache, subscribersCache, airdropLists, listRecipients, airdropHistory, nftCollections, collectionMints, clankerTokens } from './schema';
+import { subscriptionsCache, subscribersCache, airdropLists, listRecipients, airdropHistory, nftCollections, collectionMints, clankerTokens, suchGalleryUsers, curatedCollections, curatedCollectionNfts, nftMetadataCache, quoteCasts, adminUsers } from './schema';
 
 // Database client singleton
 let db: ReturnType<typeof drizzle> | null = null;
@@ -28,7 +28,11 @@ export {
   nftCollections, 
   collectionMints, 
   clankerTokens,
-  auctionListings,
-  auctionBids,
+  suchGalleryUsers,
+  curatedCollections,
+  curatedCollectionNfts,
+  nftMetadataCache,
+  quoteCasts,
+  adminUsers
 } from './schema';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';

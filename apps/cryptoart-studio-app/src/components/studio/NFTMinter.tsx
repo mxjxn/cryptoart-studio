@@ -1,107 +1,107 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount } from "wagmi";
-import { Image, Layers, Package, Upload, Loader2 } from "lucide-react";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { Image, Loader2, CheckCircle2, Upload } from "lucide-react";
 import { SeriesUploader } from "./SeriesUploader";
 import { EditionCreator } from "./EditionCreator";
 
-type NFTType = "1of1" | "series" | "edition";
+type MintType = "1of1" | "series" | "edition";
 
-interface NFTMinterProps {
-  initialType?: NFTType;
-}
-
-export function NFTMinter({ initialType = "1of1" }: NFTMinterProps) {
+export function NFTMinter() {
   const { address, isConnected } = useAccount();
-  const [type, setType] = useState<NFTType>(initialType);
+  const [mintType, setMintType] = useState<MintType>("1of1");
   const [contractAddress, setContractAddress] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [tokenId, setTokenId] = useState("");
+  const [metadataURI, setMetadataURI] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [animationFile, setAnimationFile] = useState<File | null>(null);
-  const [tokenURI, setTokenURI] = useState("");
+  const [mintSuccess, setMintSuccess] = useState(false);
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  });
 
   const handleMint1of1 = async () => {
-    if (!isConnected || !contractAddress || !name) {
+    if (!isConnected || !contractAddress || !metadataURI) {
       return;
     }
 
-    // TODO: Implement 1/1 minting
-    // 1. Upload image/animation to IPFS
+    // TODO: Implement actual minting
+    // This would:
+    // 1. Upload image to IPFS if provided
     // 2. Create metadata JSON
     // 3. Upload metadata to IPFS
-    // 4. Mint token with metadata URI
-    console.log("Minting 1/1:", {
+    // 4. Call mint function on contract
+    // 5. Save to database via API
+
+    console.log("Minting 1/1 NFT:", {
       contractAddress,
-      name,
-      description,
+      metadataURI,
       imageFile,
-      animationFile,
     });
+
+    // Placeholder
+    setMintSuccess(true);
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      // TODO: Upload to IPFS and set metadataURI
+    }
+  };
+
+  if (mintSuccess) {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-green-600" />
+          <p className="text-sm text-green-800">NFT minted successfully!</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {!isConnected && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-sm text-yellow-800">
-            Please connect your wallet to create NFTs.
+            Please connect your wallet to mint NFTs.
           </p>
         </div>
       )}
 
-      {/* Type Selector */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          NFT Type
-        </label>
+      {/* Mint Type Selector */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Mint Type
+        </h2>
         <div className="grid grid-cols-3 gap-3">
-          <button
-            type="button"
-            onClick={() => setType("1of1")}
-            className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center ${
-              type === "1of1"
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <Image className="h-5 w-5 mb-1" />
-            1/1
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("series")}
-            className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center ${
-              type === "series"
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <Layers className="h-5 w-5 mb-1" />
-            Series
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("edition")}
-            className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors flex flex-col items-center ${
-              type === "edition"
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <Package className="h-5 w-5 mb-1" />
-            Edition
-          </button>
+          {(["1of1", "series", "edition"] as MintType[]).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setMintType(type)}
+              className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
+                mintType === type
+                  ? "border-blue-600 bg-blue-50 text-blue-700"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {type === "1of1" ? "1/1" : type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Render appropriate form based on type */}
-      {type === "1of1" && (
+      {/* 1/1 Minting */}
+      {mintType === "1of1" && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create 1/1 NFT</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Mint 1/1 NFT</h2>
 
-          {/* Contract Address */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Contract Address
@@ -111,119 +111,77 @@ export function NFTMinter({ initialType = "1of1" }: NFTMinterProps) {
               value={contractAddress}
               onChange={(e) => setContractAddress(e.target.value)}
               placeholder="0x..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-            />
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Name *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Unique NFT"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
-          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
+              Image
             </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe your NFT..."
-              rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Image Upload */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Image *
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                className="hidden"
-                id="image-upload"
-              />
-              <label
-                htmlFor="image-upload"
-                className="cursor-pointer flex flex-col items-center"
-              >
-                <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-600">
-                  {imageFile ? imageFile.name : "Click to upload image"}
-                </span>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                <Upload className="h-5 w-5 mr-2 text-gray-600" />
+                <span className="text-sm text-gray-700">Upload Image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
               </label>
+              {imageFile && (
+                <span className="text-sm text-gray-600">{imageFile.name}</span>
+              )}
             </div>
           </div>
 
-          {/* Animation Upload (Optional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Animation (Optional)
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                accept="video/*,image/gif"
-                onChange={(e) =>
-                  setAnimationFile(e.target.files?.[0] || null)
-                }
-                className="hidden"
-                id="animation-upload"
-              />
-              <label
-                htmlFor="animation-upload"
-                className="cursor-pointer flex flex-col items-center"
-              >
-                <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-600">
-                  {animationFile
-                    ? animationFile.name
-                    : "Click to upload animation"}
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {/* Or Token URI */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Or Token URI (if metadata already uploaded)
+              Metadata URI (IPFS)
             </label>
             <input
               type="text"
-              value={tokenURI}
-              onChange={(e) => setTokenURI(e.target.value)}
+              value={metadataURI}
+              onChange={(e) => setMetadataURI(e.target.value)}
               placeholder="ipfs://..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-800">
+                Error: {error.message || "Failed to mint NFT"}
+              </p>
+            </div>
+          )}
 
           <button
             onClick={handleMint1of1}
-            disabled={!isConnected || !contractAddress || !name || !imageFile}
-            className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            disabled={!isConnected || !contractAddress || !metadataURI || isPending || isConfirming}
+            className="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            <Image className="h-5 w-5 mr-2" />
-            Mint 1/1 NFT
+            {isPending || isConfirming ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                {isPending ? "Minting..." : "Confirming..."}
+              </>
+            ) : (
+              <>
+                <Image className="h-5 w-5 mr-2" />
+                Mint 1/1 NFT
+              </>
+            )}
           </button>
         </div>
       )}
 
-      {type === "series" && <SeriesUploader />}
-      {type === "edition" && <EditionCreator />}
+      {/* Series Minting */}
+      {mintType === "series" && <SeriesUploader />}
+
+      {/* Edition Minting */}
+      {mintType === "edition" && <EditionCreator />}
     </div>
   );
 }

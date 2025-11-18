@@ -53,6 +53,7 @@
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-select": "^2.2.6",
+    "@cryptoart/unified-indexer": "workspace:*",
     "@repo/cache": "workspace:*",
     "@repo/db": "workspace:*",
     "@tanstack/react-query": "^5.61.0",

@@ -23,6 +23,7 @@ cryptoart-monorepo/
 ├── packages/
 │   ├── creator-core-contracts/ # ERC721/ERC1155 NFT framework
 │   ├── auctionhouse-contracts/ # Solidity auction house contracts
+│   ├── unified-indexer/         # Unified indexer for LSSVM pools and auctions
 │   ├── cache/                  # Hypersub caching layer
 │   ├── db/                     # Database layer with Drizzle ORM
 │   ├── eslint-config/          # Shared ESLint configuration
@@ -154,6 +155,17 @@ forge build
 forge test
 ```
 
+#### Unified Indexer (`packages/unified-indexer/`)
+
+Unified indexer package for querying both LSSVM pools and auctionhouse listings. Provides a single interface to fetch sales data for NFT collections.
+
+**Features:**
+- Query LSSVM pools by NFT contract
+- Query auctionhouse listings by NFT contract
+- Unified data structures for displaying sales
+
+**Documentation:** See `LSSVM_INTEGRATION.md` for integration details
+
 #### Additional Packages
 
 The monorepo also includes several shared packages:
@@ -229,10 +241,13 @@ forge test
 
 ## Contract Addresses
 
-### Mainnet (Base)
+For a complete list of all contract addresses across all networks, see **[CONTRACT_ADDRESSES.md](./CONTRACT_ADDRESSES.md)**.
 
-- **Auctionhouse Contract**: `0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9`
-- **Network**: Base Mainnet (Chain ID: 8453)
+This includes:
+- Auctionhouse contracts
+- LSSVM contracts (Router, Factory, Bonding Curves)
+- Creator Core contract deployments
+- Manifold extension contracts
 
 ## Contributing
 

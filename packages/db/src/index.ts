@@ -8,7 +8,11 @@ export {
   nftCollections,
   collectionMints,
   clankerTokens,
-  auctionListings,
-  auctionBids,
+  suchGalleryUsers,
+  curatedCollections,
+  curatedCollectionNfts,
+  nftMetadataCache,
+  quoteCasts,
+  adminUsers
 } from './client';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';

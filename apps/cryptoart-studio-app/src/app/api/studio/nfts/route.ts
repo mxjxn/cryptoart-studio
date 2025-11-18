@@ -1,67 +1,128 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDatabase, collectionMints, nftCollections } from "@repo/db";
+import { eq } from "drizzle-orm";
 
-// GET /api/studio/nfts - List NFTs for user
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userAddress = searchParams.get("address");
-    const contractAddress = searchParams.get("contract");
+    const { searchParams } = new URL(request.url);
+    const collectionAddress = searchParams.get("collectionAddress");
+    const collectionId = searchParams.get("collectionId");
 
-    if (!userAddress) {
-      return NextResponse.json(
-        { error: "Address parameter required" },
-        { status: 400 }
-      );
+    const db = getDatabase();
+    let query = db.select().from(collectionMints);
+
+    if (collectionId) {
+      query = query.where(eq(collectionMints.collectionId, parseInt(collectionId)));
+    } else if (collectionAddress) {
+      // First find the collection by address
+      const [collection] = await db
+        .select()
+        .from(nftCollections)
+        .where(eq(nftCollections.contractAddress, collectionAddress.toLowerCase()))
+        .limit(1);
+      
+      if (collection) {
+        query = query.where(eq(collectionMints.collectionId, collection.id));
+      } else {
+        return NextResponse.json({
+          success: true,
+          mints: [],
+        });
+      }
     }
 
-    // TODO: Query subgraph or database for NFTs owned by user
-    // Filter by contract if provided
-    const nfts = [];
+    const mints = await query;
 
-    return NextResponse.json({ nfts });
+    return NextResponse.json({
+      success: true,
+      mints: mints.map((m) => ({
+        id: m.id,
+        collectionId: m.collectionId,
+        tokenId: m.tokenId,
+        recipientAddress: m.recipientAddress,
+        recipientFid: m.recipientFid,
+        txHash: m.txHash,
+        metadata: m.metadata,
+        createdAt: m.mintedAt.toISOString(),
+      })),
+    });
   } catch (error) {
-    console.error("Error fetching NFTs:", error);
+    console.error("Error fetching mints:", error);
     return NextResponse.json(
-      { error: "Failed to fetch NFTs" },
+      { success: false, error: "Failed to fetch mints" },
       { status: 500 }
     );
   }
 }
 
-// POST /api/studio/nfts - Save NFT mint info
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      contractAddress,
-      tokenId,
-      tokenURI,
-      owner,
-      transactionHash,
-    } = body;
+    const { collectionId, collectionAddress, tokenId, recipientAddress, recipientFid, txHash, metadata } = body;
 
-    if (!contractAddress || !tokenId || !owner) {
+    if (!tokenId || !recipientAddress) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { success: false, error: "Missing required fields: tokenId, recipientAddress" },
         { status: 400 }
       );
     }
 
-    // TODO: Save to database or KV store
+    const db = getDatabase();
+    let finalCollectionId = collectionId;
+
+    // If collectionAddress provided but not collectionId, find the collection
+    if (!finalCollectionId && collectionAddress) {
+      const [collection] = await db
+        .select()
+        .from(nftCollections)
+        .where(eq(nftCollections.contractAddress, collectionAddress.toLowerCase()))
+        .limit(1);
+      
+      if (!collection) {
+        return NextResponse.json(
+          { success: false, error: "Collection not found" },
+          { status: 404 }
+        );
+      }
+      finalCollectionId = collection.id;
+    }
+
+    if (!finalCollectionId) {
+      return NextResponse.json(
+        { success: false, error: "Missing collectionId or collectionAddress" },
+        { status: 400 }
+      );
+    }
+
+    const [mint] = await db
+      .insert(collectionMints)
+      .values({
+        collectionId: finalCollectionId,
+        tokenId: tokenId.toString(),
+        recipientAddress: recipientAddress.toLowerCase(),
+        recipientFid: recipientFid || null,
+        txHash: txHash || null,
+        metadata: metadata || null,
+      })
+      .returning();
+
     return NextResponse.json({
       success: true,
-      nft: {
-        contractAddress,
-        tokenId,
-        tokenURI,
-        owner,
-        transactionHash,
+      mint: {
+        id: mint.id,
+        collectionId: mint.collectionId,
+        tokenId: mint.tokenId,
+        recipientAddress: mint.recipientAddress,
+        recipientFid: mint.recipientFid,
+        txHash: mint.txHash,
+        metadata: mint.metadata,
+        createdAt: mint.mintedAt.toISOString(),
       },
     });
   } catch (error) {
-    console.error("Error saving NFT:", error);
+    console.error("Error creating mint:", error);
     return NextResponse.json(
-      { error: "Failed to save NFT" },
+      { success: false, error: "Failed to create mint" },
       { status: 500 }
     );
   }

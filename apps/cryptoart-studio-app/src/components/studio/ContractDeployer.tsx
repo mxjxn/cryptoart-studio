@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseEther } from "viem";
 import { FileCode, Loader2, CheckCircle2 } from "lucide-react";
+import { type SalesMethod } from "@cryptoart/unified-indexer";
+import { SalesMethodSelector } from "./SalesMethodSelector";
 
 type ContractType = "ERC721" | "ERC1155" | "ERC6551";
 
@@ -13,6 +14,7 @@ export function ContractDeployer() {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [isUpgradeable, setIsUpgradeable] = useState(false);
+  const [salesMethod, setSalesMethod] = useState<SalesMethod>("both");
   const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
 
   // TODO: Add actual contract ABIs and deployment logic
@@ -29,13 +31,19 @@ export function ContractDeployer() {
 
     // TODO: Implement actual contract deployment
     // This would use the contract factory and deploy
-    console.log("Deploying contract:", { contractType, name, symbol, isUpgradeable });
+    console.log("Deploying contract:", { 
+      contractType, 
+      name, 
+      symbol, 
+      isUpgradeable,
+      salesMethod 
+    });
     
     // Placeholder - actual implementation would:
     // 1. Get contract bytecode and ABI
     // 2. Deploy via writeContract or direct deployment
     // 3. Wait for confirmation
-    // 4. Save deployment info
+    // 4. Save deployment info including salesMethod
   };
 
   if (isSuccess && deployedAddress) {
@@ -144,6 +152,11 @@ export function ContractDeployer() {
               maxLength={10}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* Sales Method Selector */}
+          <div className="mb-4">
+            <SalesMethodSelector value={salesMethod} onChange={setSalesMethod} />
           </div>
 
           {/* Upgradeable Toggle */}

@@ -1,0 +1,128 @@
+[
+  {
+    "type": "event",
+    "name": "CreateListing",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "marketplaceBPS", "type": "uint16", "indexed": false, "internalType": "uint16"},
+      {"name": "referrerBPS", "type": "uint16", "indexed": false, "internalType": "uint16"},
+      {"name": "listingType", "type": "uint8", "indexed": false, "internalType": "uint8"},
+      {"name": "totalAvailable", "type": "uint24", "indexed": false, "internalType": "uint24"},
+      {"name": "totalPerSale", "type": "uint24", "indexed": false, "internalType": "uint24"},
+      {"name": "startTime", "type": "uint48", "indexed": false, "internalType": "uint48"},
+      {"name": "endTime", "type": "uint48", "indexed": false, "internalType": "uint48"},
+      {"name": "initialAmount", "type": "uint256", "indexed": false, "internalType": "uint256"},
+      {"name": "extensionInterval", "type": "uint16", "indexed": false, "internalType": "uint16"},
+      {"name": "minIncrementBPS", "type": "uint16", "indexed": false, "internalType": "uint16"},
+      {"name": "erc20", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "identityVerifier", "type": "address", "indexed": false, "internalType": "address"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreateListingTokenDetails",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "id", "type": "uint256", "indexed": false, "internalType": "uint256"},
+      {"name": "address_", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "spec", "type": "uint8", "indexed": false, "internalType": "uint8"},
+      {"name": "lazy", "type": "bool", "indexed": false, "internalType": "bool"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreateListingFees",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "deliverBPS", "type": "uint16", "indexed": false, "internalType": "uint16"},
+      {"name": "deliverFixed", "type": "uint240", "indexed": false, "internalType": "uint240"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PurchaseEvent",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "referrer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "buyer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "count", "type": "uint24", "indexed": false, "internalType": "uint24"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BidEvent",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "referrer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "bidder", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OfferEvent",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "referrer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "offerrer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RescindOfferEvent",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "offerrer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AcceptOfferEvent",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "offerrer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ModifyListing",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "initialAmount", "type": "uint256", "indexed": false, "internalType": "uint256"},
+      {"name": "startTime", "type": "uint48", "indexed": false, "internalType": "uint48"},
+      {"name": "endTime", "type": "uint48", "indexed": false, "internalType": "uint48"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CancelListing",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"},
+      {"name": "requestor", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "holdbackBPS", "type": "uint16", "indexed": false, "internalType": "uint16"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FinalizeListing",
+    "inputs": [
+      {"name": "listingId", "type": "uint40", "indexed": true, "internalType": "uint40"}
+    ],
+    "anonymous": false
+  }
+]
+

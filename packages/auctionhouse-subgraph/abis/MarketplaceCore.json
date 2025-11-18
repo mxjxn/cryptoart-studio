@@ -1,0 +1,60 @@
+[
+  {
+    "type": "event",
+    "name": "MarketplaceEnabled",
+    "inputs": [
+      {"name": "requestor", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "value", "type": "bool", "indexed": false, "internalType": "bool"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketplaceFees",
+    "inputs": [
+      {"name": "requestor", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "feeBPS", "type": "uint16", "indexed": false, "internalType": "uint16"},
+      {"name": "referrerBPS", "type": "uint16", "indexed": false, "internalType": "uint16"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketplaceSellerRegistry",
+    "inputs": [
+      {"name": "requestor", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "registry", "type": "address", "indexed": false, "internalType": "address"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketplaceWithdraw",
+    "inputs": [
+      {"name": "requestor", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "erc20", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"},
+      {"name": "receiver", "type": "address", "indexed": false, "internalType": "address"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketplaceWithdrawEscrow",
+    "inputs": [
+      {"name": "requestor", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "erc20", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketplaceRoyaltyEngineUpdate",
+    "inputs": [
+      {"name": "royaltyEngineV1", "type": "address", "indexed": false, "internalType": "address"}
+    ],
+    "anonymous": false
+  }
+]
+
