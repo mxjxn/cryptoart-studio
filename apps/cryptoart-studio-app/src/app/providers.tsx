@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { MiniAppProvider } from '@neynar/react';
+import { ThemeProvider } from '@repo/ui/theme';
 import { ANALYTICS_ENABLED, RETURN_URL } from '~/lib/constants';
 
 // Lazy load heavy providers
@@ -19,14 +20,16 @@ export function Providers({
   children: React.ReactNode;
 }) {
   return (
-    <WagmiProvider>
-      <MiniAppProvider
-        analyticsEnabled={ANALYTICS_ENABLED}
-        backButtonEnabled={true}
-        returnUrl={RETURN_URL}
-      >
-        {children}
-      </MiniAppProvider>
-    </WagmiProvider>
+    <ThemeProvider storagePrefix="cryptoart-studio">
+      <WagmiProvider>
+        <MiniAppProvider
+          analyticsEnabled={ANALYTICS_ENABLED}
+          backButtonEnabled={true}
+          returnUrl={RETURN_URL}
+        >
+          {children}
+        </MiniAppProvider>
+      </WagmiProvider>
+    </ThemeProvider>
   );
 }

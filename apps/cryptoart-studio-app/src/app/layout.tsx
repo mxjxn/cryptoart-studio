@@ -16,7 +16,7 @@ export default async function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body style={{ background: 'var(--color-background-gradient)' }}>
         <Providers>
           {children}
         </Providers>

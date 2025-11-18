@@ -20,6 +20,9 @@
  * This design system is intentionally minimal to prevent bloat and maintain consistency.
  */
 
+/* Import terminal theme styles */
+@import '../../../../packages/ui/src/styles/terminal.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

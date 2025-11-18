@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
-    "./*": "./src/*.tsx"
+    "./*": "./src/*.tsx",
+    "./theme": "./src/theme/index.ts",
+    "./components": "./src/components/index.ts",
+    "./styles/terminal": "./src/styles/terminal.css"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
@@ -21,6 +24,10 @@
   },
   "dependencies": {
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "next": "^15.0.0"
+  },
+  "peerDependencies": {
+    "next": "^15.0.0"
   }
 }
