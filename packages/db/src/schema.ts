@@ -327,19 +327,3 @@ export const creatorCoreTransfers = pgTable('creator_core_transfers', {
   toIdx: index('creator_core_transfers_to_idx').on(table.to),
 }));
 
-// Creator Core Extensions - track extension registrations
-export const creatorCoreExtensions = pgTable('creator_core_extensions', {
-  id: serial('id').primaryKey(),
-  contractAddress: text('contract_address').notNull(),
-  extensionAddress: text('extension_address').notNull(),
-  baseURI: text('base_uri'),
-  registeredAt: timestamp('registered_at'),
-  registeredAtBlock: integer('registered_at_block'),
-  unregisteredAt: timestamp('unregistered_at'),
-  unregisteredAtBlock: integer('unregistered_at_block'),
-  isBlacklisted: boolean('is_blacklisted').default(false).notNull(),
-}, (table) => ({
-  contractExtensionUnique: unique('creator_core_extensions_contract_extension_unique').on(table.contractAddress, table.extensionAddress),
-  contractAddressIdx: index('creator_core_extensions_contract_address_idx').on(table.contractAddress),
-  extensionAddressIdx: index('creator_core_extensions_extension_address_idx').on(table.extensionAddress),
-}));
