@@ -343,3 +343,234 @@ export const creatorCoreExtensions = pgTable('creator_core_extensions', {
   contractAddressIdx: index('creator_core_extensions_contract_address_idx').on(table.contractAddress),
   extensionAddressIdx: index('creator_core_extensions_extension_address_idx').on(table.extensionAddress),
 }));
+
+// ============================================================================
+// SOCIAL FEATURES - Cross-platform social layer
+// ============================================================================
+
+// User profiles - unified profile across all platforms
+export const userProfiles = pgTable('user_profiles', {
+  fid: integer('fid').primaryKey(),
+  username: text('username'),
+  displayName: text('display_name'),
+  avatar: text('avatar'),
+  bio: text('bio'),
+  verifiedAddresses: jsonb('verified_addresses'), // Array of addresses
+  metadata: jsonb('metadata'), // Additional Farcaster data
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  usernameIdx: index('user_profiles_username_idx').on(table.username),
+}));
+
+// Reputation scores - cross-platform reputation system
+export const reputationScores = pgTable('reputation_scores', {
+  fid: integer('fid').primaryKey().references(() => userProfiles.fid),
+
+  // Creator metrics (cryptoart.social)
+  creatorScore: integer('creator_score').default(0).notNull(),
+  collectionsDeployed: integer('collections_deployed').default(0).notNull(),
+  totalMinted: integer('total_minted').default(0).notNull(),
+  creatorRevenue: text('creator_revenue').default('0').notNull(), // bigint as string
+  uniqueCollectors: integer('unique_collectors').default(0).notNull(),
+
+  // Trader metrics (such.market)
+  traderScore: integer('trader_score').default(0).notNull(),
+  tradeVolume: text('trade_volume').default('0').notNull(), // bigint as string
+  poolsCreated: integer('pools_created').default(0).notNull(),
+  lpFeesEarned: text('lp_fees_earned').default('0').notNull(), // bigint as string
+
+  // Collector metrics (such.gallery)
+  collectorScore: integer('collector_score').default(0).notNull(),
+  totalSpent: text('total_spent').default('0').notNull(), // bigint as string
+  auctionsWon: integer('auctions_won').default(0).notNull(),
+  itemsCollected: integer('items_collected').default(0).notNull(),
+
+  // Curator metrics (such.gallery)
+  curatorScore: integer('curator_score').default(0).notNull(),
+  galleriesCurated: integer('galleries_curated').default(0).notNull(),
+  referralRevenue: text('referral_revenue').default('0').notNull(), // bigint as string
+  referralConversions: integer('referral_conversions').default(0).notNull(),
+
+  // Overall
+  overallRank: integer('overall_rank'),
+  badges: jsonb('badges'), // Array of badge objects
+  lastUpdated: timestamp('last_updated').defaultNow().notNull(),
+}, (table) => ({
+  creatorScoreIdx: index('reputation_scores_creator_score_idx').on(table.creatorScore),
+  traderScoreIdx: index('reputation_scores_trader_score_idx').on(table.traderScore),
+  collectorScoreIdx: index('reputation_scores_collector_score_idx').on(table.collectorScore),
+  curatorScoreIdx: index('reputation_scores_curator_score_idx').on(table.curatorScore),
+  overallRankIdx: index('reputation_scores_overall_rank_idx').on(table.overallRank),
+}));
+
+// Patronage relationships - collector-creator relationships
+export const patronships = pgTable('patronships', {
+  id: serial('id').primaryKey(),
+  collectorFid: integer('collector_fid').notNull().references(() => userProfiles.fid),
+  creatorFid: integer('creator_fid').notNull().references(() => userProfiles.fid),
+
+  // Purchase tracking
+  firstPurchase: timestamp('first_purchase').notNull(),
+  lastPurchase: timestamp('last_purchase').notNull(),
+  totalSpent: text('total_spent').default('0').notNull(), // bigint as string
+  itemsOwned: integer('items_owned').default(0).notNull(),
+
+  // Platform breakdown
+  marketPurchases: integer('market_purchases').default(0).notNull(), // From such.market (LSSVM)
+  galleryPurchases: integer('gallery_purchases').default(0).notNull(), // From such.gallery (auctions)
+
+  // Status
+  patronTier: text('patron_tier').notNull(), // 'supporter' | 'collector' | 'patron' | 'whale'
+  isTopPatron: boolean('is_top_patron').default(false).notNull(), // Top 3 for this creator
+
+  // Social
+  metadata: jsonb('metadata'), // Custom notes, relationship data
+
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  uniqueRelationship: unique('patronships_unique_relationship').on(table.collectorFid, table.creatorFid),
+  collectorFidIdx: index('patronships_collector_fid_idx').on(table.collectorFid),
+  creatorFidIdx: index('patronships_creator_fid_idx').on(table.creatorFid),
+  patronTierIdx: index('patronships_patron_tier_idx').on(table.patronTier),
+  isTopPatronIdx: index('patronships_is_top_patron_idx').on(table.isTopPatron),
+  totalSpentIdx: index('patronships_total_spent_idx').on(table.totalSpent),
+}));
+
+// Auction completions cache - recently finished auctions with rich metadata
+export const auctionCompletionsCache = pgTable('auction_completions_cache', {
+  id: serial('id').primaryKey(),
+  listingId: text('listing_id').notNull().unique(), // BigInt as string
+
+  // NFT details
+  tokenContract: text('token_contract').notNull(),
+  tokenId: text('token_id').notNull(),
+  nftMetadata: jsonb('nft_metadata'), // {name, image, description, attributes}
+
+  // Auction details
+  finalBid: text('final_bid').notNull(), // bigint as string
+  bidCount: integer('bid_count').default(0).notNull(),
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time').notNull(),
+  completedAt: timestamp('completed_at').notNull(),
+
+  // Participants
+  seller: text('seller').notNull(),
+  sellerFid: integer('seller_fid'),
+  winner: text('winner').notNull(),
+  winnerFid: integer('winner_fid'),
+
+  // Attribution
+  referrer: text('referrer'),
+  curatorFid: integer('curator_fid'),
+  curatorEarnings: text('curator_earnings'), // bigint as string
+
+  // Social flags
+  featured: boolean('featured').default(false).notNull(),
+  isFirstWin: boolean('is_first_win').default(false).notNull(), // Winner's first auction?
+  isRecordPrice: boolean('is_record_price').default(false).notNull(), // Highest for this creator?
+
+  // Cache management
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // Cache for 30 days
+}, (table) => ({
+  listingIdIdx: index('auction_completions_cache_listing_id_idx').on(table.listingId),
+  completedAtIdx: index('auction_completions_cache_completed_at_idx').on(table.completedAt),
+  winnerFidIdx: index('auction_completions_cache_winner_fid_idx').on(table.winnerFid),
+  sellerFidIdx: index('auction_completions_cache_seller_fid_idx').on(table.sellerFid),
+  curatorFidIdx: index('auction_completions_cache_curator_fid_idx').on(table.curatorFid),
+  tokenContractIdx: index('auction_completions_cache_token_contract_idx').on(table.tokenContract),
+  expiresAtIdx: index('auction_completions_cache_expires_at_idx').on(table.expiresAt),
+  featuredIdx: index('auction_completions_cache_featured_idx').on(table.featured),
+}));
+
+// Market swaps cache - LSSVM pool trades for such.market integration
+export const marketSwapsCache = pgTable('market_swaps_cache', {
+  id: serial('id').primaryKey(),
+  txHash: text('tx_hash').notNull().unique(),
+
+  // Pool info
+  poolAddress: text('pool_address').notNull(),
+  poolType: text('pool_type').notNull(), // LINEAR, EXPONENTIAL, XYK, GDA
+
+  // NFT details
+  nftContract: text('nft_contract').notNull(),
+  tokenIds: jsonb('token_ids').notNull(), // Array of token IDs for batch swaps
+
+  // Trade details
+  trader: text('trader').notNull(),
+  traderFid: integer('trader_fid'),
+  isBuy: boolean('is_buy').notNull(),
+  ethAmount: text('eth_amount').notNull(), // bigint as string
+  nftAmount: integer('nft_amount').notNull(),
+  spotPrice: text('spot_price').notNull(), // bigint as string
+
+  // Fees
+  poolFee: text('pool_fee'), // bigint as string
+  protocolFee: text('protocol_fee'), // bigint as string
+
+  // Timing
+  timestamp: timestamp('timestamp').notNull(),
+  blockNumber: integer('block_number').notNull(),
+
+  // Cache management
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // Cache for 30 days
+}, (table) => ({
+  txHashIdx: index('market_swaps_cache_tx_hash_idx').on(table.txHash),
+  poolAddressIdx: index('market_swaps_cache_pool_address_idx').on(table.poolAddress),
+  traderFidIdx: index('market_swaps_cache_trader_fid_idx').on(table.traderFid),
+  nftContractIdx: index('market_swaps_cache_nft_contract_idx').on(table.nftContract),
+  timestampIdx: index('market_swaps_cache_timestamp_idx').on(table.timestamp),
+  expiresAtIdx: index('market_swaps_cache_expires_at_idx').on(table.expiresAt),
+}));
+
+// Achievements/badges - gamification system
+export const achievements = pgTable('achievements', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull().references(() => userProfiles.fid),
+
+  // Badge details
+  badgeType: text('badge_type').notNull(), // 'first_win', 'whale', 'patron', etc.
+  badgeCategory: text('badge_category').notNull(), // 'collector', 'trader', 'curator', 'creator'
+  platform: text('platform').notNull(), // 'market', 'gallery', 'social', 'all'
+
+  // When earned
+  awardedAt: timestamp('awarded_at').defaultNow().notNull(),
+  metadata: jsonb('metadata'), // Custom badge data (thresholds, specific achievement details)
+}, (table) => ({
+  uniqueBadge: unique('achievements_unique_badge').on(table.fid, table.badgeType),
+  fidIdx: index('achievements_fid_idx').on(table.fid),
+  badgeTypeIdx: index('achievements_badge_type_idx').on(table.badgeType),
+  badgeCategoryIdx: index('achievements_badge_category_idx').on(table.badgeCategory),
+  platformIdx: index('achievements_platform_idx').on(table.platform),
+}));
+
+// Curator performance tracking - for curators to see their impact
+export const curatorPerformance = pgTable('curator_performance', {
+  id: serial('id').primaryKey(),
+  curatorFid: integer('curator_fid').notNull().references(() => userProfiles.fid),
+  galleryId: integer('gallery_id').references(() => curatedGalleries.id),
+
+  // Engagement metrics
+  views: integer('views').default(0).notNull(),
+  uniqueViewers: integer('unique_viewers').default(0).notNull(),
+  shares: integer('shares').default(0).notNull(),
+
+  // Conversion metrics
+  referralClicks: integer('referral_clicks').default(0).notNull(),
+  referralSales: integer('referral_sales').default(0).notNull(),
+  conversionRate: text('conversion_rate').default('0').notNull(), // Stored as percentage string
+
+  // Revenue breakdown
+  totalReferralRevenue: text('total_referral_revenue').default('0').notNull(), // bigint as string
+  marketReferrals: text('market_referrals').default('0').notNull(), // From LSSVM
+  galleryReferrals: text('gallery_referrals').default('0').notNull(), // From auctions
+
+  // Timing
+  lastUpdated: timestamp('last_updated').defaultNow().notNull(),
+}, (table) => ({
+  uniqueCuratorGallery: unique('curator_performance_unique_curator_gallery').on(table.curatorFid, table.galleryId),
+  curatorFidIdx: index('curator_performance_curator_fid_idx').on(table.curatorFid),
+  galleryIdIdx: index('curator_performance_gallery_id_idx').on(table.galleryId),
+}));
