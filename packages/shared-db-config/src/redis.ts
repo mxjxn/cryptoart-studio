@@ -1,8 +1,8 @@
 import { Redis } from '@upstash/redis';
-import RedisClient from 'ioredis';
+import { Redis as IORedis } from 'ioredis';
 
 // Redis client singleton
-let redis: Redis | RedisClient | null = null;
+let redis: Redis | IORedis | null = null;
 let redisType: 'upstash' | 'ioredis' | null = null;
 
 /**
@@ -14,7 +14,7 @@ let redisType: 'upstash' | 'ioredis' | null = null;
  * 2. Standard Redis (if REDIS_URL is set)
  * 3. Throws error if neither is configured
  */
-export function getSharedRedis(): Redis | RedisClient {
+export function getSharedRedis(): Redis | IORedis {
   if (redis) {
     return redis;
   }
@@ -35,9 +35,9 @@ export function getSharedRedis(): Redis | RedisClient {
   // Fall back to standard Redis
   const redisUrl = process.env.REDIS_URL;
   if (redisUrl) {
-    redis = new RedisClient(redisUrl, {
+    redis = new IORedis(redisUrl, {
       maxRetriesPerRequest: 3,
-      retryStrategy: (times) => {
+      retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
       },
@@ -67,7 +67,7 @@ export function getPrefixedKey(project: string, key: string): string {
  */
 export async function closeRedis() {
   if (redis) {
-    if (redisType === 'ioredis' && redis instanceof RedisClient) {
+    if (redisType === 'ioredis' && redis instanceof IORedis) {
       await redis.quit();
     }
     // Upstash Redis doesn't need explicit closing

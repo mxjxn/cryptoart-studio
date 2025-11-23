@@ -1,3 +1,3 @@
-export { getSharedDatabase, closeDatabase, getPostgresClient } from './postgres';
-export { getSharedRedis, closeRedis, getPrefixedKey, isRedisAvailable } from './redis';
+export { getSharedDatabase, closeDatabase, getPostgresClient } from './postgres.js';
+export { getSharedRedis, closeRedis, getPrefixedKey, isRedisAvailable } from './redis.js';
 
