@@ -16,7 +16,6 @@ export {
   adminUsers,
   creatorCoreContracts,
   creatorCoreTokens,
-  creatorCoreTransfers,
-  creatorCoreExtensions
+  creatorCoreTransfers
 } from './client';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';

@@ -6,7 +6,6 @@ Indexes all Creator Core contracts (ERC721, ERC1155, ERC6551) deployed through t
 
 - **Contract Detection**: Automatically detects and indexes new Creator Core contracts
 - **Event Indexing**: Tracks Transfer events to detect mints and transfers
-- **Extension Tracking**: Monitors extension registrations and unregistrations
 - **Metadata Caching**: Fetches and caches NFT metadata from tokenURIs
 - **Incremental Indexing**: Processes blocks incrementally, handling reorgs
 
@@ -45,7 +44,7 @@ The indexer:
 
 1. **Monitors Blocks**: Polls for new blocks and processes events
 2. **Detects Contracts**: Checks if contracts are Creator Core contracts
-3. **Indexes Events**: Processes Transfer, ExtensionRegistered, ExtensionUnregistered events
+3. **Indexes Events**: Processes Transfer events (ERC721 and ERC1155)
 4. **Caches Metadata**: Fetches NFT metadata and stores in database
 5. **Handles Reorgs**: Can be configured to handle blockchain reorganizations
 
@@ -55,6 +54,5 @@ The indexer writes to:
 - `creator_core_contracts`: Contract deployments
 - `creator_core_tokens`: Individual NFTs
 - `creator_core_transfers`: All transfer events
-- `creator_core_extensions`: Extension registrations
 - `nft_metadata_cache`: Cached NFT metadata
 
