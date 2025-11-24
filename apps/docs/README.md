@@ -1,6 +1,6 @@
-# Auctionhouse Contracts Documentation Site
+# CryptoArt Studio Documentation Site
 
-A comprehensive documentation site for the Auctionhouse Contracts, built with Next.js and styled to match the terminal aesthetic of the LSSVM documentation site.
+A comprehensive documentation site for CryptoArt Studio tools and smart contracts, built with Next.js and styled with a terminal aesthetic.
 
 ## Features
 
@@ -37,6 +37,8 @@ This generates a static export in the `out/` directory.
 ## Structure
 
 - `app/` - Next.js app router pages
+  - `app/page.tsx` - Root page with monorepo overview
+  - `app/auctionhouse/` - Auctionhouse contracts documentation
 - `components/` - Reusable React components
 - `contexts/` - React contexts (ColorScheme)
 - `lib/` - Utility functions (markdown loading, color scheme)
@@ -45,16 +47,20 @@ This generates a static export in the `out/` directory.
 
 ## Documentation Pages
 
-- `/` - Home page with overview and quick links
-- `/getting-started` - Getting started guide (from README.md)
-- `/capabilities` - Comprehensive capabilities documentation (from CAPABILITIES.md)
-- `/integration` - Integration guide (from INTEGRATION_GUIDE.md)
-- `/deployment` - Deployment guide (from DEPLOYMENT.md)
-- `/examples` - Example contracts and use cases (from src/examples/)
+### Root
+- `/` - Home page with overview of all tools
+
+### Auctionhouse Contracts
+- `/auctionhouse` - Auctionhouse home page
+- `/auctionhouse/getting-started` - Getting started guide (from README.md)
+- `/auctionhouse/capabilities` - Comprehensive capabilities documentation (from CAPABILITIES.md)
+- `/auctionhouse/integration` - Integration guide (from INTEGRATION_GUIDE.md)
+- `/auctionhouse/deployment` - Deployment guide (from DEPLOYMENT.md)
+- `/auctionhouse/examples` - Example contracts and use cases (from src/examples/)
 
 ## Markdown Files
 
-The documentation site reads markdown files from `../../packages/auctionhouse-contracts/`:
+The auctionhouse documentation reads markdown files from `../../packages/auctionhouse-contracts/`:
 
 - `README.md` - Getting started page
 - `CAPABILITIES.md` - Capabilities page
@@ -71,9 +77,12 @@ The site uses a dynamic color scheme system that:
 - Persists user preferences in localStorage
 - Updates CSS variables dynamically
 
+## Deployment
+
+The site is automatically deployed to GitHub Pages at `https://mxjxn.github.io/cryptoart-studio/` when changes are pushed to the main branch.
+
 ## Attribution
 
 - Original auctionhouse contracts by [Manifold Gallery](https://gallery.manifold.xyz)
 - Documentation site styled after [LSSVM docs](https://github.com/mxjxn/such-lssvm)
-- Enhanced for the [Cryptoart](https://warpcast.com/~/channel/cryptoart) channel on Farcaster
-
+- Built for the [Cryptoart](https://warpcast.com/~/channel/cryptoart) channel on Farcaster

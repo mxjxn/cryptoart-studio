@@ -19,8 +19,8 @@ export default function Deployment() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-mono">
       <div className="mb-8">
-        <Link href="/" className="font-mono" style={{ color: 'var(--color-primary)' }}>
-          ← Back to Home
+        <Link href="/auctionhouse" className="font-mono" style={{ color: 'var(--color-primary)' }}>
+          ← Back to Auctionhouse
         </Link>
       </div>
       

@@ -1,10 +1,10 @@
-name: Deploy Auctionhouse Docs to GitHub Pages
+name: Deploy Docs to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/auctionhouse-docs/**'
+      - 'apps/docs/**'
       - 'packages/auctionhouse-contracts/**'
       - '.github/workflows/deploy-auctionhouse-docs.yml'
   workflow_dispatch:
@@ -58,7 +58,7 @@ jobs:
 
       - name: Build docs
         run: |
-          cd apps/auctionhouse-docs
+          cd apps/docs
           pnpm build
 
       - name: Setup Pages
@@ -67,7 +67,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./apps/auctionhouse-docs/out
+          path: ./apps/docs/out
 
   deploy:
     environment:

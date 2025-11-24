@@ -20,8 +20,8 @@ export default function GettingStarted() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-mono">
       <div className="mb-8">
-        <Link href="/" className="font-mono" style={{ color: 'var(--color-primary)' }}>
-          ← Back to Home
+        <Link href="/auctionhouse" className="font-mono" style={{ color: 'var(--color-primary)' }}>
+          ← Back to Auctionhouse
         </Link>
       </div>
       
@@ -32,7 +32,7 @@ export default function GettingStarted() {
           Next Steps
         </h2>
         <div className="grid md:grid-cols-2 gap-4">
-          <Link href="/capabilities" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
+          <Link href="/auctionhouse/capabilities" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
             <div className="font-semibold mb-2 uppercase" style={{ color: 'var(--color-primary)' }}>
               Capabilities →
             </div>
@@ -41,7 +41,7 @@ export default function GettingStarted() {
             </div>
           </Link>
           
-          <Link href="/integration" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
+          <Link href="/auctionhouse/integration" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
             <div className="font-semibold mb-2 uppercase" style={{ color: 'var(--color-primary)' }}>
               Integration Guide →
             </div>
@@ -50,7 +50,7 @@ export default function GettingStarted() {
             </div>
           </Link>
           
-          <Link href="/deployment" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
+          <Link href="/auctionhouse/deployment" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
             <div className="font-semibold mb-2 uppercase" style={{ color: 'var(--color-primary)' }}>
               Deployment →
             </div>
@@ -59,7 +59,7 @@ export default function GettingStarted() {
             </div>
           </Link>
           
-          <Link href="/examples" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
+          <Link href="/auctionhouse/examples" className="p-4 border-2 font-mono hover:opacity-80 transition-opacity" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
             <div className="font-semibold mb-2 uppercase" style={{ color: 'var(--color-primary)' }}>
               Examples →
             </div>
