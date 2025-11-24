@@ -9,17 +9,17 @@ interface MarkdownRendererProps {
 
 export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const components: Components = {
-    img: ({ ...props }) => (
+    img: ({ node, ...props }) => {
       // eslint-disable-next-line @next/next/no-img-element
-      <img {...props} alt={props.alt || ''} />
-    ),
-    a: ({ ...props }) => {
+      return <img {...(props as React.ImgHTMLAttributes<HTMLImageElement>)} alt={props.alt || ''} />;
+    },
+    a: ({ node, ...props }) => {
       const href = props.href || '';
       // For relative links, we need to handle them specially
       if (href.startsWith('http://') || href.startsWith('https://')) {
-        return <a {...props} target="_blank" rel="noopener noreferrer" />;
+        return <a {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)} target="_blank" rel="noopener noreferrer" />;
       }
-      return <a {...props} />;
+      return <a {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)} />;
     },
   };
 
