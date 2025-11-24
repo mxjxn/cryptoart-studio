@@ -4,8 +4,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // GitHub Pages base path (repository name)
-  basePath: '/cryptoart-studio',
+  // GitHub Pages base path
+  basePath: '/cryptoart-auctionhouse',
   trailingSlash: true,
 }
 

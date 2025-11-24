@@ -135,6 +135,18 @@ export default function Home() {
               Open →
             </TerminalLink>
           </TerminalCard>
+          
+          <TerminalCard className="text-center">
+            <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+              Base Mainnet
+            </div>
+            <div className="text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+              View on BaseScan
+            </div>
+            <TerminalLink href="https://basescan.org/address/0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9" external className="text-xs mt-2 block">
+              Open →
+            </TerminalLink>
+          </TerminalCard>
         </div>
       </TerminalCard>
 
