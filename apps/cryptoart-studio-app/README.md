@@ -145,7 +145,7 @@ See [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) for detailed architecture informa
 npm run deploy:vercel
 ```
 
-For complete deployment instructions including environment variables and database setup, see the [main deployment guide](../../DEPLOYMENT.md#cryptoart-studio-app).
+For complete deployment instructions including environment variables and database setup, see the [main deployment guide](../../docs/DEPLOYMENT.md#cryptoart-studio-app).
 
 ## Development Scripts
 
