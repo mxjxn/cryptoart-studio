@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 
-const docsDirectory = path.join(process.cwd(), '../../packages/auctionhouse-contracts');
+const auctionhouseDocsDirectory = path.join(process.cwd(), '../../packages/auctionhouse-contracts');
+const creatorCoreDocsDirectory = path.join(process.cwd(), '../../packages/creator-core-contracts');
 
 export interface DocFile {
   slug: string;
@@ -13,7 +14,7 @@ export interface DocFile {
 
 export function getDocContent(relativePath: string): DocFile | null {
   try {
-    const fullPath = path.join(docsDirectory, relativePath);
+    const fullPath = path.join(auctionhouseDocsDirectory, relativePath);
     const fileContents = fs.readFileSync(fullPath, 'utf8');
     const { data, content } = matter(fileContents);
     
@@ -25,6 +26,24 @@ export function getDocContent(relativePath: string): DocFile | null {
     };
   } catch (error) {
     console.error(`Error reading file ${relativePath}:`, error);
+    return null;
+  }
+}
+
+export function getCreatorCoreDocContent(relativePath: string): DocFile | null {
+  try {
+    const fullPath = path.join(creatorCoreDocsDirectory, relativePath);
+    const fileContents = fs.readFileSync(fullPath, 'utf8');
+    const { data, content } = matter(fileContents);
+    
+    return {
+      slug: path.basename(relativePath, '.md'),
+      title: data.title || extractTitleFromContent(content) || path.basename(relativePath, '.md'),
+      content,
+      path: relativePath,
+    };
+  } catch (error) {
+    console.error(`Error reading Creator Core file ${relativePath}:`, error);
     return null;
   }
 }

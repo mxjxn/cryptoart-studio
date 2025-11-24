@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 const navigation: Array<{ name: string; href: string; external?: boolean }> = [
   { name: 'Home', href: '/' },
   { name: 'Auctionhouse', href: '/auctionhouse' },
+  { name: 'Creator Core', href: '/creator-core' },
   { name: 'NFT Liquidity Pools', href: 'https://mxjxn.github.io/such-lssvm/', external: true },
 ]
 

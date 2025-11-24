@@ -36,6 +36,13 @@ const tools: Tool[] = [
     contractAddress: '0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e',
     status: 'deployed',
   },
+  {
+    name: 'Creator Core Contracts',
+    description: 'Extendible ERC721/ERC1155 creator contracts with extension system and upgradeable proxy support',
+    docsUrl: '/creator-core',
+    chain: 'Base',
+    status: 'deployed',
+  },
 ]
 
 const deployedContracts: DeployedContract[] = [
