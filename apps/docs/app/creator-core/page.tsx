@@ -12,10 +12,24 @@ export default function CreatorCoreHome() {
         <GradientHeader className="text-5xl mb-4">
           Creator Core Contracts
         </GradientHeader>
-        <p className="text-xl max-w-3xl mx-auto" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+        <p className="text-xl max-w-3xl mx-auto mb-6" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
           Extendible ERC721/ERC1155 creator contracts with extension system, upgradeable proxy support, 
           and comprehensive royalty management. A library for building flexible NFT collections.
         </p>
+        <div className="max-w-2xl mx-auto">
+          <TerminalCard className="text-center">
+            <p className="text-sm font-mono mb-2" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              <strong style={{ color: 'var(--color-primary)' }}>Created by Manifold</strong>
+            </p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text)', opacity: 0.7 }}>
+              All contracts, architecture, and core functionality developed by{' '}
+              <TerminalLink href="https://manifold.xyz" external>Manifold</TerminalLink>
+              {' • '}
+              Documentation and deployment tooling by{' '}
+              <TerminalLink href="https://github.com/mxjxn" external>mxjxn</TerminalLink>
+            </p>
+          </TerminalCard>
+        </div>
       </div>
 
       {/* Key Features */}
@@ -140,25 +154,38 @@ export default function CreatorCoreHome() {
       {/* Attribution */}
       <div className="mt-16 text-center">
         <TerminalCard className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold mb-4 uppercase" style={{ color: 'var(--color-primary)' }}>
+          <h2 className="text-2xl font-bold mb-6 uppercase" style={{ color: 'var(--color-primary)' }}>
             Attribution
           </h2>
           <div className="grid md:grid-cols-2 gap-8 text-left">
             <div>
-              <h3 className="font-bold text-lg mb-2 uppercase" style={{ color: 'var(--color-primary)' }}>
+              <h3 className="font-bold text-lg mb-3 uppercase" style={{ color: 'var(--color-primary)' }}>
                 From Manifold
               </h3>
+              <p className="text-xs mb-3 font-mono" style={{ color: 'var(--color-text)', opacity: 0.7 }}>
+                All contract development, architecture, and core functionality
+              </p>
               <ul className="space-y-1 text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-                <li>• Original Creator Core contracts</li>
+                <li>• Creator Core contracts (ERC721/ERC1155)</li>
                 <li>• Extension system architecture</li>
                 <li>• Royalty management system</li>
                 <li>• Proxy pattern implementation</li>
+                <li>• Security patterns & testing</li>
+                <li>• Core marketplace functionality</li>
               </ul>
+              <div className="mt-4">
+                <TerminalLink href="https://manifold.xyz" external className="text-sm">
+                  Learn more about Manifold →
+                </TerminalLink>
+              </div>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              <h3 className="font-bold text-lg mb-3 uppercase" style={{ color: 'var(--color-secondary)' }}>
                 From mxjxn
               </h3>
+              <p className="text-xs mb-3 font-mono" style={{ color: 'var(--color-text)', opacity: 0.7 }}>
+                Documentation and tooling (future enhancements planned)
+              </p>
               <ul className="space-y-1 text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
                 <li>• Documentation site</li>
                 <li>• Integration examples</li>
