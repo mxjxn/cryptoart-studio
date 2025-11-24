@@ -10,7 +10,18 @@ WORKDIR /app
 
 # Copy workspace configuration
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
-COPY packages/*/package.json ./packages/*/
+
+# Copy entire packages directory (needed for pnpm workspace resolution)
+# The .dockerignore will exclude node_modules, dist, etc.
+COPY packages ./packages
+
+# Clean up unnecessary files but keep directory structure and package.json files
+RUN find ./packages -type f \( -name "*.md" -o -name "*.log" \) -delete && \
+    find ./packages -type d -name "node_modules" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name "dist" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name ".next" -exec rm -rf {} + 2>/dev/null || true
+
+# Copy app package.json
 COPY apps/cryptoart-studio-app/package.json ./apps/cryptoart-studio-app/
 
 # Install dependencies
