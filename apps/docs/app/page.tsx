@@ -60,7 +60,8 @@ const deployedContracts: DeployedContract[] = [
 
 export default function Home() {
   return (
-    <div className="space-y-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-mono">
+      <div className="space-y-12">
       {/* Hero Section */}
       <div className="text-center space-y-4">
         <GradientHeader className="text-5xl md:text-6xl">
@@ -193,6 +194,7 @@ export default function Home() {
           </TerminalCard>
         </div>
       </TerminalCard>
+      </div>
     </div>
   )
 }
