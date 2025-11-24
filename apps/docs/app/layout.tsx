@@ -11,9 +11,10 @@ export const metadata: Metadata = {
   description: 'Documentation and tools for CryptoArt Studio smart contracts and applications',
 }
 
-const navigation = [
+const navigation: Array<{ name: string; href: string; external?: boolean }> = [
   { name: 'Home', href: '/' },
   { name: 'Auctionhouse', href: '/auctionhouse' },
+  { name: 'NFT Liquidity Pools', href: 'https://mxjxn.github.io/such-lssvm/', external: true },
 ]
 
 export default function RootLayout({
@@ -50,6 +51,7 @@ export default function RootLayout({
                       <TerminalLink
                         key={item.name}
                         href={item.href}
+                        external={item.external}
                         className="text-sm uppercase"
                       >
                         {item.name}
@@ -85,6 +87,7 @@ export default function RootLayout({
                           <TerminalLink
                             key={item.name}
                             href={item.href}
+                            external={item.external}
                             className="text-sm uppercase"
                           >
                             {item.name}

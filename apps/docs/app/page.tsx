@@ -8,8 +8,15 @@ interface Tool {
   name: string
   description: string
   docsUrl: string
-  contractUrl?: string
+  chain: string
+  contractAddress?: string
   status: 'deployed' | 'coming-soon'
+}
+
+interface DeployedContract {
+  name: string
+  address: string
+  chain: string
 }
 
 const tools: Tool[] = [
@@ -17,15 +24,30 @@ const tools: Tool[] = [
     name: 'Auctionhouse Contracts',
     description: 'Manifold Gallery auctionhouse contracts with membership-based seller registry',
     docsUrl: '/auctionhouse',
-    contractUrl: 'https://basescan.org/address/0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9',
+    chain: 'Base',
+    contractAddress: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9',
     status: 'deployed',
   },
   {
-    name: 'LSSVM Protocol',
+    name: 'NFT Liquidity Pools',
     description: 'Liquidity-Sensitive Single-Variant Market protocol for NFT pools',
     docsUrl: 'https://mxjxn.github.io/such-lssvm/',
-    contractUrl: 'https://basescan.org/address/0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e',
+    chain: 'Base',
+    contractAddress: '0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e',
     status: 'deployed',
+  },
+]
+
+const deployedContracts: DeployedContract[] = [
+  {
+    name: 'Auctionhouse Marketplace',
+    address: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9',
+    chain: 'Base',
+  },
+  {
+    name: 'LSSVM Router',
+    address: '0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e',
+    chain: 'Base',
   },
 ]
 
@@ -79,8 +101,11 @@ export default function Home() {
                     Deployed
                   </span>
                 </div>
-                <p className="font-mono text-sm mb-4 flex-1" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                <p className="font-mono text-sm mb-2 flex-1" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
                   {tool.description}
+                </p>
+                <p className="font-mono text-xs mb-4" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+                  Deployed on {tool.chain}
                 </p>
                 <div className="flex flex-wrap gap-3">
                   {tool.docsUrl && (
@@ -90,15 +115,6 @@ export default function Home() {
                       className="text-sm"
                     >
                       Documentation →
-                    </TerminalLink>
-                  )}
-                  {tool.contractUrl && (
-                    <TerminalLink
-                      href={tool.contractUrl}
-                      external
-                      className="text-sm"
-                    >
-                      View Contract →
                     </TerminalLink>
                   )}
                 </div>
@@ -119,12 +135,44 @@ export default function Home() {
         </TerminalCard>
       </div>
 
+      {/* Deployed Contracts */}
+      <TerminalCard>
+        <h2 className="text-2xl font-bold mb-6 text-center uppercase" style={{ color: 'var(--color-primary)' }}>
+          Deployed Contracts
+        </h2>
+        <div className="space-y-3">
+          {deployedContracts.map((contract) => (
+            <div
+              key={contract.address}
+              className="flex items-center justify-between p-3 border-2"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <div>
+                <div className="font-semibold uppercase text-sm" style={{ color: 'var(--color-primary)' }}>
+                  {contract.name}
+                </div>
+                <div className="text-xs font-mono" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
+                  {contract.chain}
+                </div>
+              </div>
+              <TerminalLink
+                href={`https://basescan.org/address/${contract.address}`}
+                external
+                className="text-xs font-mono"
+              >
+                {contract.address}
+              </TerminalLink>
+            </div>
+          ))}
+        </div>
+      </TerminalCard>
+
       {/* Quick Links */}
       <TerminalCard>
         <h2 className="text-2xl font-bold mb-6 text-center uppercase" style={{ color: 'var(--color-primary)' }}>
           Quick Links
         </h2>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-1 gap-4">
           <TerminalCard className="text-center">
             <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
               GitHub Repository
@@ -134,18 +182,6 @@ export default function Home() {
             </div>
             <TerminalLink href="https://github.com/mxjxn/cryptoart-studio" external className="text-xs mt-2 block">
               Open →
-            </TerminalLink>
-          </TerminalCard>
-          
-          <TerminalCard className="text-center">
-            <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
-              Base Mainnet
-            </div>
-            <div className="text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-              All contracts deployed
-            </div>
-            <TerminalLink href="https://basescan.org/" external className="text-xs mt-2 block">
-              Explore →
             </TerminalLink>
           </TerminalCard>
         </div>
