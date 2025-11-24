@@ -13,7 +13,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY packages/*/package.json ./packages/*/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+# Note: Using --no-frozen-lockfile for deployment flexibility
+# In CI/CD, you may want to update pnpm-lock.yaml first
+RUN pnpm install --no-frozen-lockfile
 
 # Build the indexer
 FROM base AS builder

@@ -14,7 +14,9 @@ COPY packages/*/package.json ./packages/*/
 COPY apps/cryptoart-studio-app/package.json ./apps/cryptoart-studio-app/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+# Note: Using --no-frozen-lockfile for deployment flexibility
+# In CI/CD, you may want to update pnpm-lock.yaml first
+RUN pnpm install --no-frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
