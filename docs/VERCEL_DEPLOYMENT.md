@@ -166,7 +166,7 @@ Before deploying, set up your database schema:
    ```bash
    pnpm db:push
    ```
-
+ 
 5. **Verify tables were created**:
    - Go to Supabase Dashboard → Table Editor
    - You should see all required tables
