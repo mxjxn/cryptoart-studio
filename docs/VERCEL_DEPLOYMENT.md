@@ -275,21 +275,29 @@ Cron jobs are automatically configured via `vercel.json`:
 
 **Problem**: pnpm fails to fetch packages from npm registry with `ERR_INVALID_THIS` errors
 
+**Root Cause**: 
+This is a **known bug in pnpm 9.x** related to the `undici` HTTP client used by pnpm. The error occurs when pnpm's HTTP client encounters certain network conditions or Node.js versions on Vercel's build environment. It's NOT a network connectivity issue - it's a compatibility bug in pnpm's HTTP client.
+
 **Solution**:
-- This is often a pnpm/Node.js compatibility issue or transient npm registry problem
-- The `.npmrc` file includes retry settings (5 retries with increasing timeouts)
-- **First, verify Node.js version**: 
-  - Vercel Dashboard → Settings → General → Node.js Version
-  - Should be **20.x** (required by `engines.node` in `package.json`)
-  - If set to 18.x, change it to 20.x
-- The `installCommand` in `vercel.json` uses `corepack` to ensure correct pnpm version
-- Try redeploying - the error may be temporary
-- If persistent, check:
-  - Ensure pnpm version matches `packageManager` field in `package.json` (currently 9.12.3)
-  - Verify `COREPACK_ENABLE=1` is set in `vercel.json` env section
-  - Check Vercel status page for npm registry issues
-  - The `--no-frozen-lockfile` flag is already configured in the install command
-  - **Note**: The retry mechanism (5 retries with increasing timeouts) may eventually succeed - check if the build completes after retries
+1. **Use pnpm 8.x instead of 9.x**: 
+   - pnpm 8.x uses a different HTTP client that doesn't have this bug
+   - The `package.json` specifies `pnpm@8.15.6` 
+   - The `installCommand` in `vercel.json` installs pnpm 8.x via npm before running install
+   
+2. **Verify Node.js version**: 
+   - Vercel Dashboard → Settings → General → Node.js Version
+   - Should be **20.x** (required by `engines.node` in `package.json`)
+
+3. **If you need pnpm 9.x features**:
+   - Wait for pnpm 9.x bug fix (track issue on pnpm GitHub)
+   - Or use Docker-based deployment instead of Vercel
+   - Or consider using npm instead (not recommended for monorepos)
+
+**Why This Happens**:
+- pnpm 9.x switched to using `undici` as the HTTP client
+- `undici` has compatibility issues with certain Node.js versions/environments
+- Vercel's build environment triggers this bug consistently
+- pnpm 8.x uses `node-fetch` which doesn't have this issue
 
 ### Build Fails: "Host key verification failed" for Git Dependencies
 
