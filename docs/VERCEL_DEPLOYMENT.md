@@ -279,25 +279,31 @@ Cron jobs are automatically configured via `vercel.json`:
 This is a **known bug in pnpm 9.x** related to the `undici` HTTP client used by pnpm. The error occurs when pnpm's HTTP client encounters certain network conditions or Node.js versions on Vercel's build environment. It's NOT a network connectivity issue - it's a compatibility bug in pnpm's HTTP client.
 
 **Solution**:
-1. **Use pnpm 8.x instead of 9.x**: 
-   - pnpm 8.x uses a different HTTP client that doesn't have this bug
+1. **Use Node.js 18.x instead of 20.x**: 
+   - The `ERR_INVALID_THIS` error occurs with Node.js 20+ on Vercel
+   - The `package.json` specifies `"node": "18.x"` in `engines`
+   - Vercel will automatically use Node.js 18.x based on this setting
+
+2. **Use pnpm 8.x instead of 9.x**: 
+   - pnpm 8.x uses a different HTTP client that's more stable
    - The `package.json` specifies `pnpm@8.15.6` 
    - The `installCommand` in `vercel.json` installs pnpm 8.x via npm before running install
-   
-2. **Verify Node.js version**: 
-   - Vercel Dashboard → Settings → General → Node.js Version
-   - Should be **20.x** (required by `engines.node` in `package.json`)
+   - The lockfile is regenerated to ensure compatibility with pnpm 8.x
 
-3. **If you need pnpm 9.x features**:
-   - Wait for pnpm 9.x bug fix (track issue on pnpm GitHub)
+3. **Verify settings in Vercel Dashboard**: 
+   - Go to Settings → General → Node.js Version
+   - Should be **18.x** (automatically set from `engines.node` in `package.json`)
+
+4. **If you need Node.js 20+ or pnpm 9.x features**:
+   - Wait for pnpm bug fix (track issue on pnpm GitHub)
    - Or use Docker-based deployment instead of Vercel
    - Or consider using npm instead (not recommended for monorepos)
 
 **Why This Happens**:
-- pnpm 9.x switched to using `undici` as the HTTP client
-- `undici` has compatibility issues with certain Node.js versions/environments
-- Vercel's build environment triggers this bug consistently
-- pnpm 8.x uses `node-fetch` which doesn't have this issue
+- pnpm's HTTP client has compatibility issues with Node.js 20+ on Vercel's build environment
+- This affects both pnpm 8.x and 9.x when using Node.js 20+
+- Node.js 18.x works reliably with pnpm 8.x on Vercel
+- The lockfile incompatibility warning can also contribute to the issue
 
 ### Build Fails: "Host key verification failed" for Git Dependencies
 
