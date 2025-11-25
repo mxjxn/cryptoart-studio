@@ -7,7 +7,9 @@
     "moduleResolution": "bundler",
     "strict": false,
     "noUncheckedIndexedAccess": false,
-    "strictNullChecks": false
+    "strictNullChecks": false,
+    "noEmitOnError": false,
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
