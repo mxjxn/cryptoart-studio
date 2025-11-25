@@ -83,7 +83,8 @@ COPY --from=builder /app/packages ./packages
 
 # Install production dependencies and properly link workspace packages
 # This ensures workspace symlinks in node_modules are correctly set up
-RUN pnpm install --prod --frozen-lockfile && \
+# Using --no-frozen-lockfile because lockfile may have slight config differences between stages
+RUN pnpm install --prod --no-frozen-lockfile && \
     # Chown only the directories that need it (much faster than recursive on entire /app)
     chown -R indexer:nodejs /app/node_modules && \
     chown -R indexer:nodejs /app/dist && \
