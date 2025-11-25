@@ -74,5 +74,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "apps/cryptoart-studio-app/server.js"]
+# Next.js standalone output may preserve monorepo structure, try both possible paths
+CMD ["sh", "-c", "if [ -f server.js ]; then node server.js; elif [ -f apps/cryptoart-studio-app/server.js ]; then node apps/cryptoart-studio-app/server.js; else echo 'Error: server.js not found. Available files:'; find . -name 'server.js' -type f 2>/dev/null; exit 1; fi"]
 
