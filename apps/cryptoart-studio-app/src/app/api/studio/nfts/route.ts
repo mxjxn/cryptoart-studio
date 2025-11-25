@@ -8,10 +8,11 @@ export async function GET(request: NextRequest) {
     const collectionId = searchParams.get("collectionId");
 
     const db = getDatabase();
-    let query = db.select().from(collectionMints);
+    const baseQuery = db.select().from(collectionMints);
 
+    let mints;
     if (collectionId) {
-      query = query.where(eq(collectionMints.collectionId, parseInt(collectionId)));
+      mints = await baseQuery.where(eq(collectionMints.collectionId, parseInt(collectionId)));
     } else if (collectionAddress) {
       // First find the collection by address
       const [collection] = await db
@@ -21,16 +22,16 @@ export async function GET(request: NextRequest) {
         .limit(1);
       
       if (collection) {
-        query = query.where(eq(collectionMints.collectionId, collection.id));
+        mints = await baseQuery.where(eq(collectionMints.collectionId, collection.id));
       } else {
         return NextResponse.json({
           success: true,
           mints: [],
         });
       }
+    } else {
+      mints = await baseQuery;
     }
-
-    const mints = await query;
 
     return NextResponse.json({
       success: true,
