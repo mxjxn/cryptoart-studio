@@ -52,12 +52,12 @@ RUN cd packages/shared-db-config && \
     echo "shared-db-config built successfully"
 
 # Build @cryptoart/db (dependency of indexer)
-# Create tsconfig.json if it doesn't exist, then build
 RUN cd packages/db && \
-    # Create a minimal tsconfig.json if it doesn't exist
-    test -f tsconfig.json || node --input-type=commonjs -e "const fs=require('fs'); const tsconfig={extends:'@cryptoart/typescript-config/base.json',compilerOptions:{outDir:'./dist',rootDir:'./src'},include:['src/**/*'],exclude:['node_modules','dist']}; fs.writeFileSync('tsconfig.json', JSON.stringify(tsconfig, null, 2) + '\n');" && \
-    (pnpm exec tsc || true) && \
-    test -d dist && test "$(ls -A dist)" && \
+    pnpm exec tsc && \
+    test -f dist/index.js && \
+    test -f dist/index.d.ts && \
+    # Verify exports exist in built file
+    grep -q "creatorCoreTokens" dist/index.js && \
     # Update package.json to point to built dist for production
     node --input-type=commonjs -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.main='./dist/index.js'; pkg.types='./dist/index.d.ts'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" && \
     echo "@cryptoart/db built successfully"
