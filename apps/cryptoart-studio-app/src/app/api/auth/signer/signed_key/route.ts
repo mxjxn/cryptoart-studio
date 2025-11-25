@@ -43,6 +43,12 @@ export async function POST(request: Request) {
     }
 
     const neynarClient = getNeynarClient();
+    if (!neynarClient) {
+      return NextResponse.json(
+        { error: 'Neynar client not configured' },
+        { status: 503 }
+      );
+    }
 
     const account = mnemonicToAccount(seedPhrase);
 

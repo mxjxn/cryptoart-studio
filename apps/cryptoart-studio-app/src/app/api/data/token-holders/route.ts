@@ -61,6 +61,12 @@ export async function GET(request: NextRequest) {
     }
 
     const client = getNeynarClient();
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Neynar client not configured' },
+        { status: 503 }
+      );
+    }
     const publicClient = createPublicClient({
       chain: base,
       transport: http(),

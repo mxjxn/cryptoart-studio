@@ -23,6 +23,12 @@ export async function GET(request: Request) {
 
   try {
     const client = getNeynarClient();
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Neynar client not configured' },
+        { status: 503 }
+      );
+    }
     const data = await client.fetchSigners({ message, signature });
     const signers = data.signers;
     return NextResponse.json({

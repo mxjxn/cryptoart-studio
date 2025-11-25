@@ -40,6 +40,12 @@ export async function GET(request: NextRequest) {
     }
 
     const client = getNeynarClient();
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Neynar client not configured' },
+        { status: 503 }
+      );
+    }
 
     // Get user data for all FIDs
     const usersResponse = await client.fetchBulkUsers({ fids: fidNumbers });
