@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         recipientFid: mint.recipientFid,
         txHash: mint.txHash,
         metadata: mint.metadata,
-        createdAt: mint.mintedAt.toISOString(),
+        createdAt: mint.mintedAt?.toISOString() || null,
       },
     });
   } catch (error) {
