@@ -30,23 +30,14 @@ const nextConfig: NextConfig = {
     }
     
     // Fix for ESM .js extensions in TypeScript imports
-    // When TypeScript files import with .js extension, webpack should resolve to .ts files
-    // This is needed because we use .js extensions in source for Node.js ESM compatibility
-    config.resolve.extensions = [
-      '.ts',
-      '.tsx', 
-      '.js',
-      '.jsx',
-      '.mjs',
-      '.mts',
-      '.json',
-      ...(config.resolve.extensions || []),
-    ];
-    
-    // Configure module resolution to try .ts before .js
-    config.resolve.extensionAlias = {
-      '.js': ['.ts', '.tsx', '.js', '.jsx'],
-    };
+    // Next.js/webpack needs to resolve .js imports in TypeScript to .ts files
+    // This allows us to keep .js extensions in source for Node.js ESM compatibility
+    // Webpack 5.74+ supports extensionAlias
+    if (!config.resolve.extensionAlias) {
+      config.resolve.extensionAlias = {};
+    }
+    // When a .js file is imported, try .ts first (for TypeScript source files)
+    config.resolve.extensionAlias['.js'] = ['.ts', '.tsx', '.js'];
     
     return config;
   },
