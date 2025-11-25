@@ -1,8 +1,8 @@
-export { CreatorCoreIndexer } from './indexer';
-export { getConfig } from './config';
-export { createClient, detectCreatorCoreContract } from './contracts';
-export * from './events';
-export * from './metadata';
+export { CreatorCoreIndexer } from './indexer.js';
+export { getConfig } from './config.js';
+export { createClient, detectCreatorCoreContract } from './contracts.js';
+export * from './events.js';
+export * from './metadata.js';
 
 // Main entry point - start the indexer when run directly
 import { CreatorCoreIndexer } from './indexer.js';

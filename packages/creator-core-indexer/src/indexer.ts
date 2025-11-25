@@ -14,15 +14,15 @@ import {
   creatorCoreTokens,
 } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { getConfig } from './config';
-import { createClient, detectCreatorCoreContract } from './contracts';
+import { getConfig } from './config.js';
+import { createClient, detectCreatorCoreContract } from './contracts.js';
 import {
   processTransferEvent,
   processTransferSingleEvent,
   processTransferBatchEvent,
   storeTransfer,
-} from './events';
-import { fetchAndCacheMetadata } from './metadata';
+} from './events.js';
+import { fetchAndCacheMetadata } from './metadata.js';
 
 // Event topic signatures
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
