@@ -5,7 +5,12 @@ import { cn } from "~/lib/utils"
 
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+  Omit<React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>, 'asChild'> & {
+    className?: string
+    id?: string
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }
 >(({ className, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
