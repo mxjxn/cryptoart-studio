@@ -11,9 +11,8 @@ interface CheckboxProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 // Cast CheckboxPrimitive.Root to avoid type conflicts with multiple @types/react versions
-const CheckboxRoot = CheckboxPrimitive.Root as React.ComponentType<
-  React.ComponentProps<typeof CheckboxPrimitive.Root>
->
+// Using 'any' to bypass type inference issues with multiple @types/react versions
+const CheckboxRoot = CheckboxPrimitive.Root as any
 
 const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(({ className, ...props }, ref) => (
   <CheckboxRoot
