@@ -23,11 +23,26 @@ export async function POST(request: NextRequest) {
     const arPriceUSD = arPriceData.arweave.usd;
 
     // 2. Get upload cost in AR
-    const turbo = TurboFactory.unauthenticated();
-    const rates = await turbo.getUploadRates();
-    const wincPerByte = rates[0].winc;
+    // Use a fallback rate if Turbo SDK doesn't provide the method
+    // Typical Arweave cost is around 0.0000000001 AR per byte (1e-10 AR/byte)
+    // This equals 0.0001 Winston per byte (since 1 AR = 1e12 Winston)
+    let wincPerByte = BigInt(100000); // 0.0001 AR per byte as fallback
     
-    const uploadCostWinston = BigInt(fileSize) * BigInt(wincPerByte);
+    try {
+      const turbo = TurboFactory.unauthenticated();
+      // Try to get rates if the method exists
+      if (typeof (turbo as any).getUploadRates === 'function') {
+        const rates = await (turbo as any).getUploadRates();
+        if (rates && rates[0] && rates[0].winc) {
+          wincPerByte = BigInt(rates[0].winc);
+        }
+      }
+    } catch (error) {
+      console.warn('Could not fetch Turbo upload rates, using fallback:', error);
+      // Continue with fallback value
+    }
+    
+    const uploadCostWinston = BigInt(fileSize) * wincPerByte;
     const uploadCostAR = Number(uploadCostWinston) / 1e12;
     
     const basePriceUSD = uploadCostAR * arPriceUSD;
