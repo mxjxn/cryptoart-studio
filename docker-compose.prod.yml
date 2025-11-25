@@ -56,7 +56,8 @@ services:
       - .env.production
     environment:
       - NODE_ENV=production
-      - POSTGRES_URL=postgres://${POSTGRES_USER:-postgres}:$$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB:-cryptoart}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-cryptoart}
       - RPC_URL=${RPC_URL}
       - CHAIN_ID=${CHAIN_ID:-8453}
       - START_BLOCK=${START_BLOCK:-}
@@ -65,7 +66,6 @@ services:
       - ERC721_IMPLEMENTATION_ADDRESSES=${ERC721_IMPLEMENTATION_ADDRESSES:-}
       - ERC1155_IMPLEMENTATION_ADDRESSES=${ERC1155_IMPLEMENTATION_ADDRESSES:-}
       - ERC6551_IMPLEMENTATION_ADDRESSES=${ERC6551_IMPLEMENTATION_ADDRESSES:-}
-      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
     secrets:
       - postgres_password
       - redis_password

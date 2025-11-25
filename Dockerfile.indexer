@@ -89,6 +89,9 @@ COPY --from=builder /app/pnpm-lock.yaml ./
 COPY --from=builder /app/packages/creator-core-indexer/dist ./dist
 COPY --from=builder /app/packages/creator-core-indexer/package.json ./
 
+# Copy entrypoint script
+COPY packages/creator-core-indexer/docker-entrypoint.sh /app/docker-entrypoint.sh
+
 # Copy packages (workspace dependencies) - this must happen before pnpm install
 COPY --from=builder /app/packages ./packages
 
@@ -96,13 +99,16 @@ COPY --from=builder /app/packages ./packages
 # This ensures workspace symlinks in node_modules are correctly set up
 # Using --no-frozen-lockfile because lockfile may have slight config differences between stages
 RUN pnpm install --prod --no-frozen-lockfile && \
+    # Make entrypoint executable
+    chmod +x /app/docker-entrypoint.sh && \
     # Chown only the directories that need it (much faster than recursive on entire /app)
     chown -R indexer:nodejs /app/node_modules && \
     chown -R indexer:nodejs /app/dist && \
     chown -R indexer:nodejs /app/packages && \
-    chown indexer:nodejs /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml
+    chown indexer:nodejs /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/docker-entrypoint.sh
 
 USER indexer
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/index.js"]
 
