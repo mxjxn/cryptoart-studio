@@ -61,14 +61,11 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 indexer
 
-# Copy built application and dependencies
-COPY --from=builder /app/packages/creator-core-indexer/dist ./dist
-COPY --from=builder /app/packages/creator-core-indexer/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-
-# Set correct permissions
-RUN chown -R indexer:nodejs /app
+# Copy built application and dependencies with correct ownership
+COPY --from=builder --chown=indexer:nodejs /app/packages/creator-core-indexer/dist ./dist
+COPY --from=builder --chown=indexer:nodejs /app/packages/creator-core-indexer/package.json ./
+COPY --from=builder --chown=indexer:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=indexer:nodejs /app/packages ./packages
 
 USER indexer
 
