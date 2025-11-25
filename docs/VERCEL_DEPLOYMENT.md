@@ -64,7 +64,13 @@ git push origin main
    - Ensure **Root Directory** is set to `apps/cryptoart-studio-app`
    - The build command will run from the monorepo root automatically
    - Vercel will detect pnpm from `packageManager` field in root `package.json`
-   - Vercel will use Node.js 20.x (specified in `engines.node` field)
+   
+6. **CRITICAL: Set Node.js Version**:
+   - Go to **Vercel Dashboard** → **Your Project** → **Settings** → **General**
+   - Find **Node.js Version** setting
+   - **Manually set it to 18.x** (Vercel may not automatically respect `engines.node`)
+   - This is required to avoid `ERR_INVALID_THIS` errors
+   - The `.nvmrc` file in the repo root also specifies Node 18
 
 ### Option B: Via Vercel CLI
 
@@ -290,9 +296,12 @@ This is a **known bug in pnpm 9.x** related to the `undici` HTTP client used by 
    - The `installCommand` in `vercel.json` installs pnpm 8.x via npm before running install
    - The lockfile is regenerated to ensure compatibility with pnpm 8.x
 
-3. **Verify settings in Vercel Dashboard**: 
-   - Go to Settings → General → Node.js Version
-   - Should be **18.x** (automatically set from `engines.node` in `package.json`)
+3. **CRITICAL: Manually set Node.js version in Vercel Dashboard**: 
+   - Go to **Vercel Dashboard** → **Your Project** → **Settings** → **General**
+   - Find **Node.js Version** setting
+   - **Manually select 18.x** (Vercel does NOT automatically respect `engines.node` field)
+   - This is the most important step - without this, Vercel will use Node 22+ which causes the error
+   - The `.nvmrc` file in repo root also specifies Node 18, but manual setting is more reliable
 
 4. **If you need Node.js 20+ or pnpm 9.x features**:
    - Wait for pnpm bug fix (track issue on pnpm GitHub)
