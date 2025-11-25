@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSharedDatabase } from '@repo/shared-db-config';
+import { getDatabase } from '@repo/db';
 
 export async function GET() {
   try {
@@ -13,7 +13,7 @@ export async function GET() {
 
     // Optional: Check database connection
     try {
-      const db = getSharedDatabase();
+      const db = getDatabase();
       // Simple query to verify database connection
       await db.execute({ sql: 'SELECT 1', args: [] });
       return NextResponse.json({
