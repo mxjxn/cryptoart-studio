@@ -69,15 +69,26 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 indexer
 
-# Copy workspace configuration (needed for pnpm workspace resolution)
-COPY --from=builder --chown=indexer:nodejs /app/package.json ./
-COPY --from=builder --chown=indexer:nodejs /app/pnpm-workspace.yaml ./
+# Copy workspace configuration and lockfile (needed for pnpm workspace resolution)
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/pnpm-lock.yaml ./
 
-# Copy built application and dependencies with correct ownership
-COPY --from=builder --chown=indexer:nodejs /app/packages/creator-core-indexer/dist ./dist
-COPY --from=builder --chown=indexer:nodejs /app/packages/creator-core-indexer/package.json ./
-COPY --from=builder --chown=indexer:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=indexer:nodejs /app/packages ./packages
+# Copy built application
+COPY --from=builder /app/packages/creator-core-indexer/dist ./dist
+COPY --from=builder /app/packages/creator-core-indexer/package.json ./
+
+# Copy packages (workspace dependencies) - this must happen before pnpm install
+COPY --from=builder /app/packages ./packages
+
+# Install production dependencies and properly link workspace packages
+# This ensures workspace symlinks in node_modules are correctly set up
+RUN pnpm install --prod --frozen-lockfile && \
+    # Chown only the directories that need it (much faster than recursive on entire /app)
+    chown -R indexer:nodejs /app/node_modules && \
+    chown -R indexer:nodejs /app/dist && \
+    chown -R indexer:nodejs /app/packages && \
+    chown indexer:nodejs /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml
 
 USER indexer
 
