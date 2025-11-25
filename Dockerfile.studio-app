@@ -41,7 +41,8 @@ COPY --from=deps /app/apps ./apps
 # Copy source code
 COPY . .
 
-# Build unified-indexer first (dependency of studio-app)
+# Build workspace dependencies first
+RUN pnpm --filter @repo/shared-db-config build || echo "shared-db-config build skipped or already built"
 RUN pnpm --filter @cryptoart/unified-indexer build || echo "unified-indexer build skipped or already built"
 
 # Build the application
