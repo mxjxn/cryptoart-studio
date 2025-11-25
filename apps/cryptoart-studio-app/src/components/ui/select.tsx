@@ -17,6 +17,7 @@ const SelectTrigger = React.forwardRef<
   }
 >(({ className, children, ...props }, ref) => {
   const SelectTriggerPrimitive = SelectPrimitive.Trigger as any
+  const SelectIconPrimitive = SelectPrimitive.Icon as any
   return (
   <SelectTriggerPrimitive
     ref={ref}
@@ -27,9 +28,9 @@ const SelectTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <SelectPrimitive.Icon asChild>
+    <SelectIconPrimitive asChild>
       {React.createElement(ChevronDown as React.ComponentType<{ className?: string }>, { className: "h-4 w-4 opacity-50" })}
-    </SelectPrimitive.Icon>
+    </SelectIconPrimitive>
   </SelectTriggerPrimitive>
   )
 })
