@@ -253,23 +253,5 @@ export class CreatorCoreIndexer {
   }
 }
 
-// Main entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const indexer = new CreatorCoreIndexer();
-  
-  indexer.initialize().then(() => {
-    indexer.start();
-  });
-
-  // Graceful shutdown
-  process.on('SIGINT', () => {
-    indexer.stop();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', () => {
-    indexer.stop();
-    process.exit(0);
-  });
-}
+// Entry point logic moved to index.ts
 
