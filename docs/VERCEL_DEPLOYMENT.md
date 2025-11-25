@@ -64,6 +64,7 @@ git push origin main
    - Ensure **Root Directory** is set to `apps/cryptoart-studio-app`
    - The build command will run from the monorepo root automatically
    - Vercel will detect pnpm from `packageManager` field in root `package.json`
+   - Vercel will use Node.js 20.x (specified in `engines.node` field)
 
 ### Option B: Via Vercel CLI
 
@@ -275,14 +276,18 @@ Cron jobs are automatically configured via `vercel.json`:
 **Problem**: pnpm fails to fetch packages from npm registry with `ERR_INVALID_THIS` errors
 
 **Solution**:
-- This is often a transient npm registry or network issue
+- This is often a pnpm/Node.js compatibility issue or transient npm registry problem
 - The `.npmrc` file includes retry settings (5 retries with increasing timeouts)
+- **First, verify Node.js version**: 
+  - Vercel Dashboard → Settings → General → Node.js Version
+  - Should be **20.x** (required by `engines.node` in `package.json`)
+  - If set to 18.x, change it to 20.x
+- The `installCommand` in `vercel.json` uses `corepack` to ensure correct pnpm version
 - Try redeploying - the error may be temporary
 - If persistent, check:
-  - Vercel Dashboard → Settings → General → Node.js Version (should be 18.x or 20.x)
   - Ensure pnpm version matches `packageManager` field in `package.json` (9.1.4)
   - Check Vercel status page for npm registry issues
-- As a last resort, you can temporarily use `--no-frozen-lockfile` in install command (already configured)
+  - The `--no-frozen-lockfile` flag is already configured in the install command
 
 ### Build Fails: "Host key verification failed" for Git Dependencies
 
