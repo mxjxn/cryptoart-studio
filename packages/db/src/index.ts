@@ -17,6 +17,16 @@ export {
   creatorCoreContracts,
   creatorCoreTokens,
   creatorCoreTransfers,
-  creatorCoreExtensions
+  creatorCoreExtensions,
+  userProfiles,
+  reputationScores,
+  patronships,
+  auctionCompletionsCache,
+  marketSwapsCache,
+  achievements,
+  curatorPerformance,
 } from './client';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';
+
+// Re-export common drizzle-orm functions to ensure type compatibility
+export { eq, and, or, desc, asc, sql, count, lt, gt, gte, lte, ne, not, like, ilike, inArray } from 'drizzle-orm';

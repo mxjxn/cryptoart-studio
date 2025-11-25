@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import { generateColorScheme, ColorScheme, DEFAULT_HUE, DEFAULT_THEME_MODE, THEME_MODES, ThemeMode } from './colorScheme'
 
 export type ThemeModeName = keyof typeof THEME_MODES
@@ -20,7 +20,7 @@ const STORAGE_KEY_HUE = 'cryptoart-theme-hue'
 const STORAGE_KEY_THEME_MODE = 'cryptoart-theme-mode'
 
 interface ThemeProviderProps {
-  children: ReactNode
+  children: React.ReactNode
   storagePrefix?: string
   defaultHue?: number
   defaultThemeMode?: ThemeModeName

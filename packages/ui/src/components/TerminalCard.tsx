@@ -1,10 +1,10 @@
 'use client'
 
-import { ReactNode } from 'react'
+import React from 'react'
 import { useTheme } from '../theme/ThemeProvider'
 
 interface TerminalCardProps {
-  children: ReactNode
+  children: React.ReactNode
   className?: string
   title?: string
 }

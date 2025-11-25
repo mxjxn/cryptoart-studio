@@ -64,7 +64,7 @@ export default function NewCollectionPage() {
       }
 
       // TODO: Upload image to IPFS if provided
-      let imageURI = null;
+      const imageURI = null;
       if (imageFile) {
         // Placeholder - implement IPFS upload
         console.log("Image upload to IPFS not yet implemented");

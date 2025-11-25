@@ -1,6 +1,6 @@
 # CreatePoolForm Testing Guide
 
-This guide walks you through testing the `CreatePoolForm` component with real contract interactions.
+This guide walks you through using the `CreatePoolForm` component for creating LSSVM liquidity pools.
 
 ## Prerequisites
 
@@ -8,39 +8,36 @@ This guide walks you through testing the `CreatePoolForm` component with real co
 2. **NFT Contract**: You need a deployed ERC721 NFT contract address
 3. **Test ETH**: Have some ETH in your wallet for gas fees
 
-## Component Features
+## Component Status
 
-The `CreatePoolForm` component now includes:
+The `CreatePoolForm` component is currently in development. The UI is implemented, but the actual pool creation functionality is a placeholder pending final LSSVM integration.
 
-✅ **Input Validation**
-- Validates spot price > 0
-- Validates delta > 0
-- Validates fee is between 0-10000 BPS (0-100%)
-- Validates NFT contract address format
+**Current State:**
+- ✅ UI and form inputs implemented
+- ✅ Input validation for spot price, delta, and fee
+- ✅ Bonding curve type selection
+- ⚠️ Pool creation transaction is a TODO (placeholder)
 
-✅ **Pool Address Extraction**
-- Automatically extracts pool address from transaction receipt
-- Parses `NewERC721Pair` event from factory contract
-- Displays pool address and explorer links on success
+## Planned Features
 
-✅ **Error Handling**
-- Shows validation errors before submission
-- Displays transaction errors from wagmi
-- Clear error messages for debugging
+When fully implemented, the component will:
+- Validate input parameters (spot price, delta, fee)
+- Support multiple bonding curve types (linear, exponential, XYK, GDA)
+- Extract pool address from transaction receipt
+- Parse `NewERC721Pair` event from factory contract
+- Display pool address and explorer links on success
+- Show proper error messages for transaction failures
 
-✅ **Chain Support**
-- Automatically detects chain ID (Base Mainnet or Sepolia)
-- Shows correct explorer links based on chain
-
-## Testing Steps
+## Usage Guide
 
 ### 1. Prepare Your NFT Contract
 
-You'll need an ERC721 contract address. For testing, you can use:
-- Your deployed Creator Core contract from Base Sepolia: `0x6302C5F1F2E3d0e4D5ae5aeB88bd8044c88Eef9A`
-- Or deploy a new one using the ContractDeployer component
+You'll need an ERC721 contract address. For testing, you can:
+- Use an existing NFT contract you own
+- Deploy a test NFT contract using the TestNFTCollectionDeployer component
+- Use the ContractDeployer component to deploy a new collection
 
-### 2. Fill in Pool Parameters
+### 2. Understanding Pool Parameters
 
 **Spot Price (ETH)**: The initial price per NFT
 - Example: `0.01` (0.01 ETH)
@@ -63,87 +60,34 @@ You'll need an ERC721 contract address. For testing, you can use:
 - **XYK**: Constant product formula (like Uniswap)
 - **GDA**: Gradual Dutch Auction
 
-### 3. Submit Transaction
+## Current Limitations
 
-1. Click "Create Pool"
-2. Approve the transaction in your wallet
-3. Wait for confirmation (usually 1-2 seconds on Base)
-4. The component will automatically:
-   - Wait for transaction confirmation
-   - Parse the `NewERC721Pair` event
-   - Extract and display the pool address
-   - Show explorer links
+⚠️ **Important**: The pool creation transaction is currently a placeholder. The actual implementation is pending LSSVM ABI integration. When you click "Create Pool", you'll see a console log of the parameters but no actual transaction will be submitted.
 
-### 4. Verify Pool Creation
+### To Implement
 
-After successful creation, you should see:
-- ✅ Success message
-- Pool address (if extracted successfully)
-- Link to view pool on BaseScan
-- Link to view transaction on BaseScan
+The following steps are needed to complete the implementation:
+1. Import proper LSSVM factory ABI
+2. Get bonding curve address based on selected type
+3. Configure asset recipient address
+4. Implement actual `writeContract` call with proper parameters
+5. Add transaction receipt parsing for pool address extraction
+6. Add success state with pool address and explorer links
 
-## Expected Transaction Flow
+## Development Notes
 
+The component structure is in place with proper form validation and UI flow. See the TODO comments in `CreatePoolForm.tsx` for implementation details:
+
+```typescript
+// TODO: Implement actual pool creation
+// This is a placeholder - actual implementation would:
+// 1. Get bonding curve address based on type
+// 2. Set asset recipient (could be the creator or a fee recipient)
+// 3. Encode parameters and call createPairERC721
 ```
-1. User fills form → Validates inputs
-2. User clicks "Create Pool" → Shows "Creating..." state
-3. Wallet prompts for approval → User approves
-4. Transaction submitted → Shows "Confirming..." state
-5. Transaction confirmed → Extracts pool address from receipt
-6. Success screen → Shows pool address and links
-```
-
-## Troubleshooting
-
-### "Invalid NFT contract address"
-- Make sure the address is a valid Ethereum address (0x followed by 40 hex characters)
-- Check that the contract is deployed on the same network you're connected to
-
-### "Failed to create pool" / Transaction Reverts
-Common reasons:
-1. **Insufficient gas**: Make sure you have enough ETH for gas
-2. **Invalid parameters**: Check that spot price and delta are reasonable values
-3. **Contract not ERC721**: The contract must be a valid ERC721 contract
-4. **Factory address mismatch**: Make sure you're on the correct network (Base Mainnet or Sepolia)
-
-### Pool address not extracted
-If the transaction succeeds but pool address isn't shown:
-- Check browser console for errors
-- The transaction hash is still shown, you can manually check on BaseScan
-- Look for the `NewERC721Pair` event in the transaction logs
-
-### "Please connect your wallet"
-- Make sure your wallet is connected
-- Check that you're connected to Base Mainnet (8453) or Base Sepolia (84532)
-
-## Testing on Base Sepolia
-
-For testing, use Base Sepolia:
-- **Chain ID**: 84532
-- **LSSVM Factory**: `0x372990Fd91CF61967325dD5270f50c4192bfb892`
-- **Explorer**: https://sepolia.basescan.org
-
-Note: Bonding curve addresses for Sepolia may differ. Check the LSSVM deployment docs for Sepolia addresses.
-
-## Next Steps After Pool Creation
-
-Once your pool is created:
-1. **Add NFTs to Pool**: Use the LSSVM Router to deposit NFTs
-2. **Add Liquidity**: Deposit ETH to enable buying
-3. **View Pool**: Check pool status on BaseScan or via the unified indexer
-4. **Test Buying**: Try buying an NFT from the pool
-
-## Code Structure
-
-The component uses:
-- `useWriteContract` - Submits the transaction
-- `useWaitForTransactionReceipt` - Waits for confirmation
-- `usePublicClient` - Reads the transaction receipt
-- `decodeEventLog` - Extracts pool address from event logs
 
 ## Related Documentation
 
-- [LSSVM Integration Guide](../LSSVM_INTEGRATION.md)
-- [Contract Addresses](../../CONTRACT_ADDRESSES.md)
-- [Unified Indexer](../../packages/unified-indexer/README.md)
+- [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) - Studio app architecture
+- [DUAL_MODE_GUIDE.md](./DUAL_MODE_GUIDE.md) - Dual-mode operation guide
 

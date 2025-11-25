@@ -1,6 +1,6 @@
 # PostgreSQL Caching Setup
 
-This document explains how to set up PostgreSQL caching for the Hypersub dashboard.
+This document explains how to set up PostgreSQL caching for the CryptoArt Studio App.
 
 ## Environment Variables
 

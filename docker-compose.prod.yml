@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: cryptoart-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB:-cryptoart}
+    secrets:
+      - postgres_password
+    ports:
+      - "127.0.0.1:5432:5432"  # Only expose on localhost
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - cryptoart-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: cryptoart-redis-prod
+    command: >
+      sh -c "redis-server --appendonly yes --requirepass $$(cat /run/secrets/redis_password)"
+    secrets:
+      - redis_password
+    ports:
+      - "127.0.0.1:6379:6379"  # Only expose on localhost
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "$$(cat /run/secrets/redis_password)", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cryptoart-network
+
+  # Creator Core Indexer Service
+  indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile.indexer
+    container_name: cryptoart-indexer-prod
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
+      - POSTGRES_URL=postgres://${POSTGRES_USER:-postgres}:$$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB:-cryptoart}
+      - RPC_URL=${RPC_URL}
+      - CHAIN_ID=${CHAIN_ID:-8453}
+      - START_BLOCK=${START_BLOCK:-}
+      - BATCH_SIZE=${BATCH_SIZE:-100}
+      - POLL_INTERVAL=${POLL_INTERVAL:-12000}
+      - ERC721_IMPLEMENTATION_ADDRESSES=${ERC721_IMPLEMENTATION_ADDRESSES:-}
+      - ERC1155_IMPLEMENTATION_ADDRESSES=${ERC1155_IMPLEMENTATION_ADDRESSES:-}
+      - ERC6551_IMPLEMENTATION_ADDRESSES=${ERC6551_IMPLEMENTATION_ADDRESSES:-}
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+    secrets:
+      - postgres_password
+      - redis_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - cryptoart-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # CryptoArt Studio App (Next.js)
+  studio-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.studio-app
+    container_name: cryptoart-studio-app-prod
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_URL=${NEXT_PUBLIC_URL}
+      - POSTGRES_URL=postgres://${POSTGRES_USER:-postgres}:$$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB:-cryptoart}
+      - NEYNAR_API_KEY=${NEYNAR_API_KEY}
+      - NEYNAR_CLIENT_ID=${NEYNAR_CLIENT_ID}
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+      - KV_REST_API_URL=${KV_REST_API_URL:-}
+      - KV_REST_API_TOKEN=${KV_REST_API_TOKEN:-}
+      - CRYPTOART_HYPERSUB_CONTRACT=${CRYPTOART_HYPERSUB_CONTRACT:-}
+      - DEV_BYPASS_MEMBERSHIP=${DEV_BYPASS_MEMBERSHIP:-}
+      - CRON_SECRET=${CRON_SECRET:-}
+      - AIRDROP_WALLET_PRIVATE_KEY=${AIRDROP_WALLET_PRIVATE_KEY:-}
+    secrets:
+      - postgres_password
+      - redis_password
+    ports:
+      - "127.0.0.1:3000:3000"  # Only expose on localhost (use host nginx for public access)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      indexer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - cryptoart-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy (optional, for SSL termination)
+  # NOTE: For production, we recommend using host-level nginx instead
+  # See NGINX_REVERSE_PROXY_GUIDE.md for setup instructions
+  # Uncomment below if you want to use Docker nginx instead
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: cryptoart-nginx-prod
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - studio-app
+  #   restart: unless-stopped
+  #   networks:
+  #     - cryptoart-network
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  cryptoart-network:
+    driver: bridge
+

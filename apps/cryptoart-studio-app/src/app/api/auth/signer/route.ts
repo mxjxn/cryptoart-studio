@@ -4,6 +4,12 @@ import { getNeynarClient } from '~/lib/neynar';
 export async function POST() {
   try {
     const neynarClient = getNeynarClient();
+    if (!neynarClient) {
+      return NextResponse.json(
+        { error: 'Neynar client not configured' },
+        { status: 503 }
+      );
+    }
     const signer = await neynarClient.createSigner();
     return NextResponse.json(signer);
   } catch (error) {
@@ -28,6 +34,12 @@ export async function GET(request: Request) {
 
   try {
     const neynarClient = getNeynarClient();
+    if (!neynarClient) {
+      return NextResponse.json(
+        { error: 'Neynar client not configured' },
+        { status: 503 }
+      );
+    }
     const signer = await neynarClient.lookupSigner({
       signerUuid,
     });

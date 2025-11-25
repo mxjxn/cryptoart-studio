@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, creatorCoreContracts } from "@repo/db";
-import { eq, and } from "drizzle-orm";
+import { getDatabase, creatorCoreContracts, eq, and } from "@repo/db";
 import { getSalesForCollection } from "@cryptoart/unified-indexer";
 import { isAddress } from "viem";
 import type { AuctionData } from "@cryptoart/unified-indexer";

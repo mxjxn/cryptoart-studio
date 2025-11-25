@@ -4,10 +4,10 @@ import { getSalesForCollection } from '@cryptoart/unified-indexer'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { address: string } }
+  { params }: { params: Promise<{ address: string }> }
 ) {
   try {
-    const { address } = params
+    const { address } = await params
     const { searchParams } = new URL(request.url)
     const chainId = parseInt(searchParams.get('chainId') || '8453', 10) // Default to Base Mainnet
     const first = parseInt(searchParams.get('first') || '100', 10)

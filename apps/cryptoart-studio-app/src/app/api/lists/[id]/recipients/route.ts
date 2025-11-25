@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateMembershipMiddleware } from '~/lib/auth';
-import { getDatabase, airdropLists, listRecipients } from '@repo/db';
-import { eq, and } from 'drizzle-orm';
+import { getDatabase, airdropLists, listRecipients, eq, and } from '@repo/db';
 
 export async function GET(request: NextRequest) {
   try {

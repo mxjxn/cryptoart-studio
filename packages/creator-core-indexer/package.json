@@ -14,10 +14,13 @@
   "dependencies": {
     "@repo/db": "workspace:*",
     "@repo/shared-db-config": "workspace:*",
+    "drizzle-orm": "^0.36.4",
     "viem": "^2.0.0",
     "wagmi": "^2.0.0"
   },
   "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/minimatch": "^5.1.2",
     "@types/node": "^22.15.3",
     "typescript": "^5.9.2",
     "tsx": "^4.7.0"

@@ -86,7 +86,7 @@ pnpm run dev
 
 ### Deployment
 
-For complete deployment instructions for all projects, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+For complete deployment instructions for all projects, see **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**.
 
 **Quick Overview:**
 1. Set up shared PostgreSQL database
@@ -292,19 +292,19 @@ forge test
 ### For Humans
 
 - **README.md** (this file) - High-level overview and getting started
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete deployment guide for all projects
-- **PACKAGES.md** - Documentation for additional shared packages
+- **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)** - Complete deployment guide for all projects
+- **[PACKAGES.md](./docs/PACKAGES.md)** - Documentation for additional shared packages
 - **Project-specific READMEs** - See each project's directory for detailed documentation
 
 ### For LLMs/AI
 
-- **llms-full.md** - Complete technical documentation consolidated from all projects
+- **[llms-full.md](./docs/llms-full.md)** - Complete technical documentation consolidated from all projects
   - Includes architecture, deployment guides, quick references, and technical notes
   - Use this for comprehensive understanding of the codebase
 
 ## Contract Addresses
 
-For a complete list of all contract addresses across all networks, see **[CONTRACT_ADDRESSES.md](./CONTRACT_ADDRESSES.md)**.
+For a complete list of all contract addresses across all networks, see **[CONTRACT_ADDRESSES.md](./docs/CONTRACT_ADDRESSES.md)**.
 
 This includes:
 - Auctionhouse contracts

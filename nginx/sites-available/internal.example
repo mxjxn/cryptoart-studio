@@ -1,0 +1,48 @@
+# Example nginx configuration for internal-only services
+# This is NOT publicly accessible - only from localhost or VPN
+# Copy to /etc/nginx/sites-available/admin.internal (or similar)
+# Enable with: ln -s /etc/nginx/sites-available/admin.internal /etc/nginx/sites-enabled/
+
+# Internal admin panel - only accessible from localhost
+server {
+    listen 127.0.0.1:8080;  # Only bind to localhost
+    server_name admin.internal;
+
+    # Basic authentication (optional but recommended)
+    # Create password file with: htpasswd -c /etc/nginx/.htpasswd username
+    auth_basic "Admin Area";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    # Logging
+    access_log /var/log/nginx/admin.internal.access.log;
+    error_log /var/log/nginx/admin.internal.error.log;
+
+    location / {
+        proxy_pass http://127.0.0.1:3003;  # Internal admin service
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Alternative: IP whitelist (instead of localhost-only)
+# server {
+#     listen 443 ssl http2;
+#     server_name admin.cryptoart.social;
+#
+#     # Allow only specific IPs
+#     allow 1.2.3.4;  # Your office IP
+#     allow 5.6.7.8;  # Your home IP
+#     deny all;
+#
+#     ssl_certificate /etc/letsencrypt/live/admin.cryptoart.social/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/admin.cryptoart.social/privkey.pem;
+#
+#     location / {
+#         proxy_pass http://127.0.0.1:3003;
+#         # ... proxy headers
+#     }
+# }
+

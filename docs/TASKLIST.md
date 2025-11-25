@@ -6,21 +6,26 @@ This document tracks tasks, in-progress work, and items needing testing across t
 
 ### Creator Core Indexer & Database Schema
 
-- [ ] **Database Migration - Creator Core Tables**
-  - [ ] Run `cd packages/db && pnpm run db:push` to create new tables
-  - [ ] Verify `creator_core_contracts` table created
-  - [ ] Verify `creator_core_tokens` table created
-  - [ ] Verify `creator_core_transfers` table created
-  - [ ] Verify `creator_core_extensions` table created
+- [x] **Database Migration - Creator Core Tables**
+  - [x] Schema defined with Creator Core tables (contracts, tokens, transfers)
+  - [x] Migration scripts available from project root (`pnpm db:push`)
+  - [x] Drizzle config updated to use `.env.local` from project root
+  - [x] Verified `creator_core_contracts` table exists
+  - [x] Verified `creator_core_tokens` table exists
+  - [x] Verified `creator_core_transfers` table exists
   - [ ] Test inserting sample contract data
   - [ ] Test querying indexed data
 
-- [ ] **Database Migration - SuchGallery Table Renames**
-  - [ ] Run migration to rename `curated_collections` → `curated_galleries`
-  - [ ] Run migration to rename `curated_collection_nfts` → `curated_gallery_nfts`
-  - [ ] Update `target_collection_id` → `target_gallery_id` in `quote_casts` table
-  - [ ] Verify all foreign key constraints updated
-  - [ ] Test SuchGallery app still works after migration
+- [x] **Database Migration - SuchGallery Tables**
+  - [x] Schema updated with gallery terminology (curated_galleries, curated_gallery_nfts)
+  - [x] Schema uses `target_gallery_id` in quote_casts table
+  - [x] Migration scripts available from project root (`pnpm db:push`)
+  - [x] SuchGallery API routes updated to use Drizzle with new table names
+  - [x] Verified `such_gallery_users` table exists
+  - [x] Verified `curated_galleries` table exists
+  - [x] Verified `curated_gallery_nfts` table exists
+  - [x] Verified `quote_casts` table with `target_gallery_id` exists
+  - [ ] Test SuchGallery app works with new tables
   - [ ] Verify no broken references in API routes
 
 - [ ] **Creator Core Indexer Service**
@@ -50,6 +55,9 @@ This document tracks tasks, in-progress work, and items needing testing across t
   - [ ] Test error handling for missing contracts
 
 - [ ] **SuchGallery API Routes - Gallery Terminology**
+  - [x] API routes updated to use Drizzle with gallery table names
+  - [x] Collections API (`/api/collections`) uses `curatedGalleries` table
+  - [x] Quote-cast schema uses `targetGalleryId` field
   - [ ] Test all collection endpoints work with new table names
   - [ ] Test quote-cast endpoints with `targetGalleryId`
   - [ ] Verify referral tracking still works
@@ -86,6 +94,13 @@ This document tracks tasks, in-progress work, and items needing testing across t
 ### Subgraph Updates
 
 - [ ] **Creator Core & Auctionhouse Subgraph**
+  - [ ] Add `startBlock` configuration to all data sources
+    - [ ] Set `ERC721_CREATOR_START_BLOCK` in main subgraph (currently using template variable)
+    - [ ] Set `ERC1155_CREATOR_START_BLOCK` in main subgraph (currently using template variable)
+    - [ ] Set `MARKETPLACE_START_BLOCK` in main subgraph (currently using template variable)
+    - [ ] Verify auctionhouse subgraph has correct start blocks (MarketplaceCore: 30437036, SettlementLib: 30437036, CreatorCore: 0)
+    - [ ] Document start block values in deployment docs
+    - [ ] Note: Templates don't need startBlock, but instantiated contracts should use deployment block
   - [ ] Verify ERC1155CreatorTemplate works
   - [ ] Verify ERC6551CreatorTemplate works
   - [ ] Test dynamic contract tracking
@@ -97,7 +112,10 @@ This document tracks tasks, in-progress work, and items needing testing across t
 ### Database Schema Extensions
 - ✅ Created Creator Core tables (contracts, tokens, transfers, extensions)
 - ✅ Renamed SuchGallery tables (collections → galleries)
-- ⏳ **Needs**: Database migration and testing
+- ✅ Updated drizzle.config.ts to use `.env.local` from project root
+- ✅ Added migration scripts to root package.json (`pnpm db:push`, `pnpm db:generate`, etc.)
+- ✅ SuchGallery API routes updated to use Drizzle with new table names
+- ⏳ **Needs**: Run migrations from project root and test
 
 ### Creator Core Indexer
 - ✅ Created indexer service structure
@@ -133,6 +151,11 @@ This document tracks tasks, in-progress work, and items needing testing across t
 - ✅ Updated all API routes to use indexed data
 - ✅ Updated subgraph with ERC1155 and ERC6551 templates
 - ✅ Created comprehensive deployment documentation
+- ✅ Configured migrations to run from project root
+- ✅ Updated drizzle.config.ts to read `.env.local` from project root
+- ✅ SuchGallery API routes migrated to use Drizzle with shared database
+- ✅ Verified all database tables exist (17/17 tables confirmed)
+- ✅ Created database verification script (`pnpm db:verify`)
 
 ## 📝 Notes
 
@@ -146,8 +169,9 @@ This document tracks tasks, in-progress work, and items needing testing across t
    - Recommended: Use ALTER TABLE for minimal downtime
 
 2. **For Creator Core tables**:
-   - These are new tables, so just run `pnpm run db:push`
+   - These are new tables, so just run `pnpm db:push` from project root
    - No migration needed, just creation
+   - Drizzle config now reads `.env.local` from project root
 
 ### Indexer Deployment
 

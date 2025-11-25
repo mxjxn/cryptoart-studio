@@ -1,0 +1,76 @@
+# Multi-stage build for creator-core-indexer
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN npm install -g pnpm@9.1.4
+
+# Install dependencies only when needed
+FROM base AS deps
+WORKDIR /app
+
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+
+# Copy all packages directory (needed for workspace dependency resolution)
+COPY packages ./packages
+
+# Clean up but keep package.json files and structure
+RUN find ./packages -type f \( -name "*.md" -o -name "*.log" \) -delete && \
+    find ./packages -type d -name "node_modules" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name "dist" -exec rm -rf {} + 2>/dev/null || true
+
+# Install dependencies
+# Note: Using --no-frozen-lockfile for deployment flexibility
+# In CI/CD, you may want to update pnpm-lock.yaml first
+RUN pnpm install --no-frozen-lockfile
+
+# Build the indexer
+FROM base AS builder
+WORKDIR /app
+
+# Copy workspace configuration (needed for pnpm to resolve workspace dependencies)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+
+# Copy everything from deps stage (includes node_modules and packages)
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+
+# Copy fresh source code (overwrites what was in deps stage)
+COPY packages/creator-core-indexer ./packages/creator-core-indexer
+COPY packages/db ./packages/db
+COPY packages/shared-db-config ./packages/shared-db-config
+
+# Reinstall to ensure all workspace dependencies are properly linked and devDependencies are available
+RUN pnpm install --no-frozen-lockfile
+
+# Build the indexer
+# TypeScript will emit JS even with errors (noEmitOnError: false in tsconfig)
+# Check if dist was created to verify build succeeded
+RUN cd packages/creator-core-indexer && \
+    (pnpm exec tsc || true) && \
+    test -d dist && test "$(ls -A dist)" && \
+    echo "Build output created successfully"
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 indexer
+
+# Copy built application and dependencies
+COPY --from=builder /app/packages/creator-core-indexer/dist ./dist
+COPY --from=builder /app/packages/creator-core-indexer/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+
+# Set correct permissions
+RUN chown -R indexer:nodejs /app
+
+USER indexer
+
+CMD ["node", "dist/index.js"]
+

@@ -8,7 +8,6 @@ import {
   creatorCoreContracts,
   creatorCoreTokens,
   creatorCoreTransfers,
-  creatorCoreExtensions,
 } from '@repo/db';
 import { eq, and } from 'drizzle-orm';
 
@@ -18,10 +17,6 @@ const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a
 const TRANSFER_SINGLE_TOPIC = '0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62';
 // TransferBatch event signature (ERC1155)
 const TRANSFER_BATCH_TOPIC = '0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb';
-// ExtensionRegistered event signature
-const EXTENSION_REGISTERED_TOPIC = '0x5f8e26a46bd3d9f0e5eaa4dd6c89f486f7f03ae3fc2e61e9550fa504f9b4800';
-// ExtensionUnregistered event signature
-const EXTENSION_UNREGISTERED_TOPIC = '0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -220,78 +215,4 @@ async function updateTokenOwner(transfer: ProcessedTransfer): Promise<void> {
     );
 }
 
-/**
- * Process ExtensionRegistered event
- */
-export async function processExtensionRegistered(
-  log: Log,
-  timestamp: Date | null
-): Promise<void> {
-  if (log.topics.length < 3) return;
-
-  const contractAddress = log.address.toLowerCase();
-  const extensionAddress = ('0x' + log.topics[2].slice(-40)).toLowerCase();
-
-  const db = getSharedDatabase();
-
-  // Check if already exists
-  const existing = await db
-    .select()
-    .from(creatorCoreExtensions)
-    .where(
-      eq(creatorCoreExtensions.contractAddress, contractAddress) &&
-      eq(creatorCoreExtensions.extensionAddress, extensionAddress)
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    // Update existing
-    await db
-      .update(creatorCoreExtensions)
-      .set({
-        registeredAt: timestamp,
-        registeredAtBlock: Number(log.blockNumber),
-        isBlacklisted: false,
-      })
-      .where(
-        eq(creatorCoreExtensions.contractAddress, contractAddress) &&
-        eq(creatorCoreExtensions.extensionAddress, extensionAddress)
-      );
-  } else {
-    // Create new
-    await db.insert(creatorCoreExtensions).values({
-      contractAddress,
-      extensionAddress,
-      registeredAt: timestamp,
-      registeredAtBlock: Number(log.blockNumber),
-      isBlacklisted: false,
-    });
-  }
-}
-
-/**
- * Process ExtensionUnregistered event
- */
-export async function processExtensionUnregistered(
-  log: Log,
-  timestamp: Date | null
-): Promise<void> {
-  if (log.topics.length < 3) return;
-
-  const contractAddress = log.address.toLowerCase();
-  const extensionAddress = ('0x' + log.topics[2].slice(-40)).toLowerCase();
-
-  const db = getSharedDatabase();
-
-  await db
-    .update(creatorCoreExtensions)
-    .set({
-      unregisteredAt: timestamp,
-      unregisteredAtBlock: Number(log.blockNumber),
-    })
-    .where(
-      eq(creatorCoreExtensions.contractAddress, contractAddress) &&
-      eq(creatorCoreExtensions.extensionAddress, extensionAddress)
-    );
-}
 

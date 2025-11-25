@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, creatorCoreContracts, creatorCoreTokens } from "@repo/db";
-import { eq, and } from "drizzle-orm";
+import { getDatabase, creatorCoreContracts, creatorCoreTokens, eq, and } from "@repo/db";
 import { isAddress } from "viem";
 import { getSalesForCollection } from "@cryptoart/unified-indexer";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { address: string } }
+  { params }: { params: Promise<{ address: string }> }
 ) {
   try {
-    const { address } = params;
+    const { address } = await params;
     const { searchParams } = new URL(request.url);
     const chainId = parseInt(searchParams.get("chainId") || "8453", 10);
 
