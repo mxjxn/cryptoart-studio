@@ -71,69 +71,96 @@ if (!fs.existsSync(tempGitDir)) {
 for (const dep of gitDeps) {
   console.log(`\nProcessing ${dep.name}...`);
   
-  // Extract git URL (format: git+https://github.com/user/repo.git#branch)
-  const gitUrl = dep.version.replace(/^git\+/, '');
-  const [urlPart, branchPart] = gitUrl.split('#');
-  const branch = branchPart || 'main';
-  const repoName = urlPart.split('/').pop().replace('.git', '');
-  const clonePath = path.join(tempGitDir, repoName);
-  
-  try {
-    // Clone the repo
-    if (fs.existsSync(clonePath)) {
-      console.log(`  Repository already cloned, pulling latest...`);
-      execSync(`git pull origin ${branch}`, { cwd: clonePath, stdio: 'pipe' });
-    } else {
-      console.log(`  Cloning ${urlPart} (branch: ${branch})...`);
-      execSync(`git clone -b ${branch} ${urlPart} ${clonePath}`, {
-        stdio: 'pipe'
-      });
-    }
+    // Extract git URL (format: git+https://github.com/user/repo.git#branch)
+    const gitUrl = dep.version.replace(/^git\+/, '');
+    const [urlPart, branchPart] = gitUrl.split('#');
+    const branch = branchPart || 'main';
+    const repoName = urlPart.split('/').pop().replace('.git', '');
+    const clonePath = path.join(tempGitDir, repoName);
     
-    // Find and convert workspace:* deps in the cloned repo
-    console.log(`  Converting workspace:* deps in cloned repo...`);
-    function convertWorkspaceDeps(dir) {
-      const files = fs.readdirSync(dir);
-      for (const file of files) {
-        const filePath = path.join(dir, file);
-        const stat = fs.statSync(filePath);
+    // For @lssvm/abis, we need the packages/lssvm-abis subdirectory
+    const packageSubdir = dep.name === '@lssvm/abis' ? 'packages/lssvm-abis' : '.';
+    const packagePath = path.join(clonePath, packageSubdir);
+    
+    try {
+      // Clone the repo
+      if (fs.existsSync(clonePath)) {
+        console.log(`  Repository already cloned, pulling latest...`);
+        execSync(`git pull origin ${branch}`, { cwd: clonePath, stdio: 'pipe' });
+      } else {
+        console.log(`  Cloning ${urlPart} (branch: ${branch})...`);
+        execSync(`git clone -b ${branch} --depth 1 ${urlPart} ${clonePath}`, {
+          stdio: 'pipe'
+        });
+      }
+      
+      // Find and convert workspace:* deps in the cloned repo
+      console.log(`  Converting workspace:* deps in cloned repo...`);
+      function convertWorkspaceDeps(dir, depth = 0) {
+        // Limit depth to avoid infinite loops and symlink issues
+        if (depth > 10) return;
         
-        if (stat.isDirectory() && !['node_modules', '.git'].includes(file)) {
-          convertWorkspaceDeps(filePath);
-        } else if (file === 'package.json') {
-          try {
-            const pkg = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            let modified = false;
+        try {
+          const files = fs.readdirSync(dir);
+          for (const file of files) {
+            // Skip common directories that might cause issues
+            if (['node_modules', '.git', 'dist', 'build', '.next', 'out'].includes(file)) {
+              continue;
+            }
             
-            function removeWorkspaceDeps(deps) {
-              if (!deps) return;
-              for (const [name, version] of Object.entries(deps)) {
-                if (version === 'workspace:*') {
-                  delete deps[name];
-                  modified = true;
-                  console.log(`    Removed workspace:* dependency: ${name}`);
+            const filePath = path.join(dir, file);
+            
+            try {
+              const stat = fs.statSync(filePath);
+              
+              if (stat.isDirectory()) {
+                // Check if it's a symlink
+                if (stat.isSymbolicLink()) {
+                  continue; // Skip symlinks
+                }
+                convertWorkspaceDeps(filePath, depth + 1);
+              } else if (file === 'package.json') {
+                try {
+                  const pkg = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                  let modified = false;
+                  
+                  function removeWorkspaceDeps(deps) {
+                    if (!deps) return;
+                    for (const [name, version] of Object.entries(deps)) {
+                      if (version === 'workspace:*') {
+                        delete deps[name];
+                        modified = true;
+                        console.log(`    Removed workspace:* dependency: ${name}`);
+                      }
+                    }
+                  }
+                  
+                  removeWorkspaceDeps(pkg.dependencies);
+                  removeWorkspaceDeps(pkg.devDependencies);
+                  
+                  if (modified) {
+                    fs.writeFileSync(filePath, JSON.stringify(pkg, null, 2) + '\n');
+                  }
+                } catch (e) {
+                  // Skip if can't parse
                 }
               }
+            } catch (err) {
+              // Skip files/dirs that can't be accessed (symlinks, permissions, etc.)
+              continue;
             }
-            
-            removeWorkspaceDeps(pkg.dependencies);
-            removeWorkspaceDeps(pkg.devDependencies);
-            
-            if (modified) {
-              fs.writeFileSync(filePath, JSON.stringify(pkg, null, 2) + '\n');
-            }
-          } catch (e) {
-            // Skip if can't parse
           }
+        } catch (err) {
+          // Skip directories that can't be read
+          return;
         }
       }
-    }
-    
-    convertWorkspaceDeps(clonePath);
-    
-    // Install the git dependency from local path
-    console.log(`  Installing ${dep.name} from local clone...`);
-    packageJson[dep.type][dep.name] = `file:${path.relative(repoRoot, clonePath)}`;
+      
+      convertWorkspaceDeps(clonePath);
+      
+      // Install the git dependency from local path (pointing to the specific package)
+      console.log(`  Installing ${dep.name} from local clone (${packageSubdir})...`);
+      packageJson[dep.type][dep.name] = `file:${path.relative(repoRoot, packagePath)}`;
     
   } catch (error) {
     console.error(`  Failed to handle ${dep.name}:`, error.message);
