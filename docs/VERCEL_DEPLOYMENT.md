@@ -270,6 +270,29 @@ Cron jobs are automatically configured via `vercel.json`:
 - After adding/changing variables, trigger a new deployment
 - Or manually redeploy from Vercel Dashboard
 
+### Build Fails: "ERR_INVALID_THIS" or npm Registry Errors
+
+**Problem**: pnpm fails to fetch packages from npm registry with `ERR_INVALID_THIS` errors
+
+**Solution**:
+- This is often a transient npm registry or network issue
+- The `.npmrc` file includes retry settings (5 retries with increasing timeouts)
+- Try redeploying - the error may be temporary
+- If persistent, check:
+  - Vercel Dashboard → Settings → General → Node.js Version (should be 18.x or 20.x)
+  - Ensure pnpm version matches `packageManager` field in `package.json` (9.1.4)
+  - Check Vercel status page for npm registry issues
+- As a last resort, you can temporarily use `--no-frozen-lockfile` in install command (already configured)
+
+### Build Fails: "Host key verification failed" for Git Dependencies
+
+**Problem**: pnpm tries to use SSH for GitHub repositories
+
+**Solution**:
+- The `vercel.json` includes an `installCommand` that forces HTTPS
+- Verify the dependency URL in `package.json` uses `git+https://` not `git+ssh://`
+- Check that `.npmrc` exists in the project root
+
 ### Turborepo Build Issues
 
 **Problem**: Dependencies not building correctly
