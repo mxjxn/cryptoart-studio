@@ -29,11 +29,9 @@ const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a
 const TRANSFER_SINGLE_TOPIC = '0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62';
 const TRANSFER_BATCH_TOPIC = '0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb';
 // ExtensionRegistered(address,address) - keccak256 hash
-// TODO: Calculate actual topic hash from event signature
-const EXTENSION_REGISTERED_TOPIC = '0x' + '0'.repeat(64); // Placeholder
+const EXTENSION_REGISTERED_TOPIC = '0xd8cb8ba4086944eabf43c5535b7712015e4d4c714b24bf812c040ea5b7a3e42a';
 // ExtensionUnregistered(address,address) - keccak256 hash  
-// TODO: Calculate actual topic hash from event signature
-const EXTENSION_UNREGISTERED_TOPIC = '0x' + '0'.repeat(64); // Placeholder
+const EXTENSION_UNREGISTERED_TOPIC = '0xd19cf84cf0fec6bec9ddfa29c63adf83a55707c712f32c8285d6180a78901479';
 
 export class CreatorCoreIndexer {
   private client: PublicClient;

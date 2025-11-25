@@ -16,7 +16,15 @@ export {
   adminUsers,
   creatorCoreContracts,
   creatorCoreTokens,
-  creatorCoreTransfers
+  creatorCoreTransfers,
+  creatorCoreExtensions,
+  userProfiles,
+  reputationScores,
+  patronships,
+  auctionCompletionsCache,
+  marketSwapsCache,
+  achievements,
+  curatorPerformance,
 } from './client';
 export type { SubscriptionCacheData, SubscriberCacheData } from './schema';
 
