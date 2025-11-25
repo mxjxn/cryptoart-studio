@@ -6,8 +6,7 @@ import { deployContract } from "wagmi/actions";
 import { config } from "~/components/providers/WagmiProvider";
 import { baseSepolia } from "wagmi/chains";
 import { FileCode, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
-import { type SalesMethod } from "@cryptoart/unified-indexer";
-import { SalesMethodSelector } from "./SalesMethodSelector";
+import { SalesMethodSelector, type SalesMethod as LocalSalesMethod } from "./SalesMethodSelector";
 import { useMiniApp } from "@neynar/react";
 
 type ContractType = "ERC721" | "ERC1155" | "ERC6551";
@@ -20,7 +19,7 @@ export function ContractDeployer() {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [isUpgradeable, setIsUpgradeable] = useState(false);
-  const [salesMethod, setSalesMethod] = useState<SalesMethod>("both");
+  const [salesMethod, setSalesMethod] = useState<LocalSalesMethod | null>(null);
   const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
