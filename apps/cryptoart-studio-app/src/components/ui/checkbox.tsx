@@ -3,15 +3,14 @@ import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
 import { Check } from "lucide-react"
 import { cn } from "~/lib/utils"
 
-const Checkbox = React.forwardRef<
-  HTMLButtonElement,
-  Omit<React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>, 'asChild'> & {
-    className?: string
-    id?: string
-    checked?: boolean
-    onCheckedChange?: (checked: boolean) => void
-  }
->(({ className, ...props }, ref) => (
+interface CheckboxProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  className?: string
+  id?: string
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
+}
+
+const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(({ className, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
