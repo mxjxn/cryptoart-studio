@@ -14,8 +14,8 @@ const labelVariants = cva(
 const LabelRoot = LabelPrimitive.Root as any
 
 const Label = React.forwardRef<
-  React.ElementRef<typeof LabelPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> &
+  HTMLLabelElement,
+  React.LabelHTMLAttributes<HTMLLabelElement> &
     VariantProps<typeof labelVariants>
 >(({ className, ...props }, ref) => (
   <LabelRoot
