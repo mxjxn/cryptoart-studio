@@ -90,8 +90,43 @@ const packageJsonFiles = findPackageJsonFiles(repoRoot);
 
 console.log(`Found ${packageJsonFiles.length} package.json files`);
 
-// Convert workspace:* dependencies
+// Convert workspace:* dependencies in local files
 packageJsonFiles.forEach(convertWorkspaceDeps);
 
-console.log('Workspace dependency conversion complete');
+// Handle git dependencies that might have workspace:* deps
+const rootPackageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+const gitDeps = [];
+
+function findGitDeps(deps) {
+  if (!deps) return;
+  for (const [depName, depVersion] of Object.entries(deps)) {
+    if (typeof depVersion === 'string' && depVersion.startsWith('git+')) {
+      gitDeps.push({ name: depName, url: depVersion });
+    }
+  }
+}
+
+findGitDeps(rootPackageJson.dependencies);
+findGitDeps(rootPackageJson.devDependencies);
+
+// Also check all package.json files for git deps
+packageJsonFiles.forEach(pkgPath => {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    findGitDeps(pkg.dependencies);
+    findGitDeps(pkg.devDependencies);
+  } catch (e) {
+    // Skip if can't parse
+  }
+});
+
+if (gitDeps.length > 0) {
+  console.log(`\nFound ${gitDeps.length} git dependency(ies). Note: Git dependencies with workspace:* deps may need manual handling.`);
+  gitDeps.forEach(dep => {
+    console.log(`  - ${dep.name}: ${dep.url}`);
+  });
+  console.log('\nNote: If git dependencies have workspace:* deps, npm may fail. Consider using a published package or local file path instead.');
+}
+
+console.log('\nWorkspace dependency conversion complete');
 
