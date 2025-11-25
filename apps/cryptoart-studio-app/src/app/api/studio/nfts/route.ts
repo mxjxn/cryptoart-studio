@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         recipientFid: m.recipientFid,
         txHash: m.txHash,
         metadata: m.metadata,
-        createdAt: m.mintedAt.toISOString(),
+        createdAt: m.mintedAt?.toISOString() || null,
       })),
     });
   } catch (error) {
