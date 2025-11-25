@@ -28,7 +28,7 @@
     "services:status": "docker-compose ps"
   },
   "dependencies": {
-    "@lssvm/abis": "git+https://github.com/mxjxn/such-lssvm.git#main"
+    "@lssvm/abis": "^0.1.0"
   },
   "devDependencies": {
     "prettier": "^3.6.2",
