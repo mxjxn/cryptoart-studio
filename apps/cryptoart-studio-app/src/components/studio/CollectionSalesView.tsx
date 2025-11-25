@@ -30,7 +30,7 @@ export function CollectionSalesView({
       try {
         setLoading(true)
         setError(null)
-        const data = await getSalesForCollection(collectionAddress, chainId)
+        const data = await getSalesForCollection(collectionAddress as Address, chainId)
         setSalesData(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch sales data')
