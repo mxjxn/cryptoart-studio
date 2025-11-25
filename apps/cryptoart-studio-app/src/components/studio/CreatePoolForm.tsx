@@ -8,7 +8,7 @@ import { CONTRACT_ADDRESSES } from "@cryptoart/unified-indexer";
 import { TestNFTCollectionDeployer } from "./TestNFTCollectionDeployer";
 import { TestTokenDeployer } from "./TestTokenDeployer";
 
-// TODO: Import LSSVM ABIs from @lssvm/abis once package is available
+// TODO: Import LSSVM ABIs from @mxjxn/lssvm-abis once package is available
 // For now, using placeholder ABI structure
 const LSSVM_FACTORY_ABI = [
   {
