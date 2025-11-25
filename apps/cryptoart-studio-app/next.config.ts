@@ -29,6 +29,13 @@ const nextConfig: NextConfig = {
       };
     }
     
+    // Fix for ESM .js extensions in TypeScript imports
+    // Next.js/webpack needs to resolve .js imports in TypeScript to .ts files
+    config.resolve.extensionAlias = {
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+    };
+    
     return config;
   },
   
