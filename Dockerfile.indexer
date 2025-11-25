@@ -43,6 +43,14 @@ COPY packages/shared-db-config ./packages/shared-db-config
 # Reinstall to ensure all workspace dependencies are properly linked and devDependencies are available
 RUN pnpm install --no-frozen-lockfile
 
+# Build shared-db-config first (dependency of indexer)
+RUN cd packages/shared-db-config && \
+    (pnpm exec tsc || true) && \
+    test -d dist && test "$(ls -A dist)" && \
+    # Update package.json to point to built dist for production
+    node --input-type=commonjs -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.main='./dist/index.js'; pkg.types='./dist/index.d.ts'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" && \
+    echo "shared-db-config built successfully"
+
 # Build the indexer
 # TypeScript will emit JS even with errors (noEmitOnError: false in tsconfig)
 # Check if dist was created to verify build succeeded
@@ -60,6 +68,10 @@ ENV NODE_ENV=production
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 indexer
+
+# Copy workspace configuration (needed for pnpm workspace resolution)
+COPY --from=builder --chown=indexer:nodejs /app/package.json ./
+COPY --from=builder --chown=indexer:nodejs /app/pnpm-workspace.yaml ./
 
 # Copy built application and dependencies with correct ownership
 COPY --from=builder --chown=indexer:nodejs /app/packages/creator-core-indexer/dist ./dist
