@@ -86,8 +86,10 @@ const SelectContent = React.forwardRef<
   }
 >(({ className, children, position = "popper", ...props }, ref) => {
   const SelectContentPrimitive = SelectPrimitive.Content as any
+  const SelectPortalPrimitive = SelectPrimitive.Portal as any
+  const SelectViewportPrimitive = SelectPrimitive.Viewport as any
   return (
-  <SelectPrimitive.Portal>
+  <SelectPortalPrimitive>
     <SelectContentPrimitive
       ref={ref}
       className={cn(
@@ -100,7 +102,7 @@ const SelectContent = React.forwardRef<
       {...props}
     >
       <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
+      <SelectViewportPrimitive
         className={cn(
           "p-1",
           position === "popper" &&
@@ -108,10 +110,10 @@ const SelectContent = React.forwardRef<
         )}
       >
         {children}
-      </SelectPrimitive.Viewport>
+      </SelectViewportPrimitive>
       <SelectScrollDownButton />
     </SelectContentPrimitive>
-  </SelectPrimitive.Portal>
+  </SelectPortalPrimitive>
   )
 })
 SelectContent.displayName = SelectPrimitive.Content.displayName
@@ -140,6 +142,8 @@ const SelectItem = React.forwardRef<
   }
 >(({ className, children, ...props }, ref) => {
   const SelectItemPrimitive = SelectPrimitive.Item as any
+  const SelectItemIndicatorPrimitive = SelectPrimitive.ItemIndicator as any
+  const SelectItemTextPrimitive = SelectPrimitive.ItemText as any
   return (
   <SelectItemPrimitive
     ref={ref}
@@ -150,12 +154,12 @@ const SelectItem = React.forwardRef<
     {...props}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <SelectPrimitive.ItemIndicator>
+      <SelectItemIndicatorPrimitive>
         {React.createElement(Check as React.ComponentType<{ className?: string }>, { className: "h-4 w-4" })}
-      </SelectPrimitive.ItemIndicator>
+      </SelectItemIndicatorPrimitive>
     </span>
 
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    <SelectItemTextPrimitive>{children}</SelectItemTextPrimitive>
   </SelectItemPrimitive>
   )
 })
