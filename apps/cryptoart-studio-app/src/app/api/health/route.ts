@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDatabase } from '@repo/db';
+import { getDatabase, sql } from '@repo/db';
 
 export async function GET() {
   try {
@@ -15,7 +15,7 @@ export async function GET() {
     try {
       const db = getDatabase();
       // Simple query to verify database connection
-      await db.execute({ sql: 'SELECT 1', args: [] });
+      await db.execute(sql`SELECT 1`);
       return NextResponse.json({
         ...health,
         database: 'connected',
