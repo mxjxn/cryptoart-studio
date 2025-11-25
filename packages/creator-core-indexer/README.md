@@ -31,7 +31,7 @@ npm run index
 ### Programmatic
 
 ```typescript
-import { CreatorCoreIndexer } from '@repo/creator-core-indexer';
+import { CreatorCoreIndexer } from '@cryptoart/creator-core-indexer';
 
 const indexer = new CreatorCoreIndexer();
 await indexer.initialize();

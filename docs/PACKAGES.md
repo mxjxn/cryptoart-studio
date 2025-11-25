@@ -22,7 +22,7 @@ This document describes packages that were added to the monorepo but whose exact
 
 ### `packages/cache/` - Hypersub Cache
 
-**Package Name**: `@repo/cache`
+**Package Name**: `@cryptoart/cache`
 
 **Purpose**: Provides caching functionality for Hypersub subscription data.
 
@@ -31,7 +31,7 @@ This document describes packages that were added to the monorepo but whose exact
 - `src/index.ts` - Package exports
 
 **Dependencies**:
-- `@repo/db` - Database package for cache storage
+- `@cryptoart/db` - Database package for cache storage
 
 **Main Exports**:
 ```typescript
@@ -46,7 +46,7 @@ export { HypersubCache, hypersubCache } from './hypersub-cache';
 
 **Usage Example**:
 ```typescript
-import { HypersubCache } from '@repo/cache';
+import { HypersubCache } from '@cryptoart/cache';
 
 const cache = new HypersubCache();
 const subscriptions = await cache.getSubscriptions(fid);
@@ -58,14 +58,14 @@ await cache.setSubscriptions(fid, subscriptionData);
 - `subscribers_cache` - Stores cached subscriber data
 
 **Relationship to Other Packages**:
-- Depends on `@repo/db` for database access
+- Depends on `@cryptoart/db` for database access
 - Used by `apps/cryptoart-studio-app/` for caching Hypersub data
 
 ---
 
 ### `packages/db/` - Database Layer
 
-**Package Name**: `@repo/db`
+**Package Name**: `@cryptoart/db`
 
 **Purpose**: Provides database access layer using Drizzle ORM with PostgreSQL.
 
@@ -117,21 +117,21 @@ Requires `POSTGRES_URL` environment variable.
 
 **Usage Example**:
 ```typescript
-import { getDatabase, subscriptionsCache } from '@repo/db';
+import { getDatabase, subscriptionsCache } from '@cryptoart/db';
 
 const db = getDatabase();
 const result = await db.select().from(subscriptionsCache);
 ```
 
 **Relationship to Other Packages**:
-- Used by `@repo/cache` for database operations
+- Used by `@cryptoart/cache` for database operations
 - Used by `apps/cryptoart-studio-app/` for data persistence
 
 ---
 
 ### `packages/eslint-config/` - ESLint Configuration
 
-**Package Name**: `@repo/eslint-config`
+**Package Name**: `@cryptoart/eslint-config`
 
 **Purpose**: Shared ESLint configuration for the monorepo.
 
@@ -146,20 +146,20 @@ Used by other packages and apps via:
 ```json
 {
   "eslintConfig": {
-    "extends": "@repo/eslint-config/next"
+    "extends": "@cryptoart/eslint-config/next"
   }
 }
 ```
 
 **Relationship to Other Packages**:
-- Used by `@repo/ui` package
+- Used by `@cryptoart/ui` package
 - Used by Next.js apps in the monorepo
 
 ---
 
 ### `packages/typescript-config/` - TypeScript Configuration
 
-**Package Name**: `@repo/typescript-config`
+**Package Name**: `@cryptoart/typescript-config`
 
 **Purpose**: Shared TypeScript configuration files for consistent type checking across the monorepo.
 
@@ -172,19 +172,19 @@ Used by other packages and apps via:
 Used by other packages via:
 ```json
 {
-  "extends": "@repo/typescript-config/nextjs.json"
+  "extends": "@cryptoart/typescript-config/nextjs.json"
 }
 ```
 
 **Relationship to Other Packages**:
-- Used by `@repo/ui` package
+- Used by `@cryptoart/ui` package
 - Used by all TypeScript projects in the monorepo
 
 ---
 
 ### `packages/ui/` - UI Component Library
 
-**Package Name**: `@repo/ui`
+**Package Name**: `@cryptoart/ui`
 
 **Purpose**: Shared UI component library for React applications.
 
@@ -196,8 +196,8 @@ Used by other packages via:
 **Dependencies**:
 - `react` - React library
 - `react-dom` - React DOM
-- `@repo/eslint-config` - ESLint configuration
-- `@repo/typescript-config` - TypeScript configuration
+- `@cryptoart/eslint-config` - ESLint configuration
+- `@cryptoart/typescript-config` - TypeScript configuration
 
 **Scripts**:
 - `lint` - Lint the package
@@ -216,12 +216,12 @@ Uses wildcard exports:
 
 **Usage Example**:
 ```typescript
-import { Button } from '@repo/ui/button';
-import { Card } from '@repo/ui/card';
+import { Button } from '@cryptoart/ui/button';
+import { Card } from '@cryptoart/ui/card';
 ```
 
 **Relationship to Other Packages**:
-- Uses `@repo/eslint-config` and `@repo/typescript-config`
+- Uses `@cryptoart/eslint-config` and `@cryptoart/typescript-config`
 - Intended to be used by Next.js apps in the monorepo
 
 ---
@@ -230,16 +230,16 @@ import { Card } from '@repo/ui/card';
 
 ```
 apps/cryptoart-studio-app/
-  ├── Uses: @repo/ui (for UI components)
-  ├── Uses: @repo/cache (for caching)
-  └── Uses: @repo/db (for database access)
+  ├── Uses: @cryptoart/ui (for UI components)
+  ├── Uses: @cryptoart/cache (for caching)
+  └── Uses: @cryptoart/db (for database access)
 
 packages/cache/
-  └── Depends on: @repo/db
+  └── Depends on: @cryptoart/db
 
 packages/ui/
-  ├── Uses: @repo/eslint-config
-  └── Uses: @repo/typescript-config
+  ├── Uses: @cryptoart/eslint-config
+  └── Uses: @cryptoart/typescript-config
 
 packages/eslint-config/
   └── Standalone configuration
@@ -254,7 +254,7 @@ packages/typescript-config/
 
 ### Current Usage
 
-- **cryptoart-studio-app**: Uses `@repo/db` and `@repo/cache` for data management
+- **cryptoart-studio-app**: Uses `@cryptoart/db` and `@cryptoart/cache` for data management
 - **ui package**: Shared components available but adoption pending
 - **config packages**: Used internally but relationship to main project needs clarification
 
@@ -269,7 +269,7 @@ packages/typescript-config/
    - Should other apps use this directly or through the cache package?
 
 3. **UI Package**:
-   - Should auctionhouse frontend use `@repo/ui`?
+   - Should auctionhouse frontend use `@cryptoart/ui`?
    - Are there plans to expand the component library?
 
 4. **Config Packages**:

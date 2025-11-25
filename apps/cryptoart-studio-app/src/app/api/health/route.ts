@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDatabase, sql } from '@repo/db';
+import { getDatabase, sql } from '@cryptoart/db';
 
 export async function GET() {
   try {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateMembershipMiddleware } from '~/lib/auth';
-import { getDatabase, airdropHistory, eq, desc } from '@repo/db';
+import { getDatabase, airdropHistory, eq, desc } from '@cryptoart/db';
 
 export async function GET(request: NextRequest) {
   try {

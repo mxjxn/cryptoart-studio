@@ -3,8 +3,8 @@
  */
 
 import { PublicClient, Address } from 'viem';
-import { getSharedDatabase } from '@repo/shared-db-config';
-import { creatorCoreTokens, nftMetadataCache } from '@repo/db';
+import { getSharedDatabase } from '@cryptoart/shared-db-config';
+import { creatorCoreTokens, nftMetadataCache } from '@cryptoart/db';
 import { eq, and } from 'drizzle-orm';
 
 export interface NFTMetadata {

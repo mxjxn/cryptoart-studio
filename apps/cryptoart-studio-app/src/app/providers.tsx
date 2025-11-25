@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { MiniAppProvider } from '@neynar/react';
-import { ThemeProvider } from '@repo/ui/theme';
+import { ThemeProvider } from '@cryptoart/ui/theme';
 import { ANALYTICS_ENABLED, RETURN_URL } from '~/lib/constants';
 
 // Lazy load heavy providers

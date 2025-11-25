@@ -10,7 +10,7 @@ import {
   setUserNotificationDetails,
 } from "~/lib/kv";
 import { sendMiniAppNotification } from "~/lib/notifs";
-import { hypersubCache } from '@repo/cache';
+import { hypersubCache } from '@cryptoart/cache';
 
 export async function POST(request: NextRequest) {
   // If Neynar is enabled, we don't need to handle webhooks here

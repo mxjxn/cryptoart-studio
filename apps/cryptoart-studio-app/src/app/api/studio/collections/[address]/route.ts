@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, creatorCoreContracts, creatorCoreTokens, eq, and } from "@repo/db";
+import { getDatabase, creatorCoreContracts, creatorCoreTokens, eq, and } from "@cryptoart/db";
 import { isAddress } from "viem";
 import { getSalesForCollection } from "@cryptoart/unified-indexer";
 

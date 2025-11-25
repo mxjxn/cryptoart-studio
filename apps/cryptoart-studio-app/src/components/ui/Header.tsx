@@ -4,7 +4,7 @@ import { useState } from "react";
 import { APP_NAME } from "~/lib/constants";
 import sdk from "@farcaster/miniapp-sdk";
 import { useMiniApp } from "@neynar/react";
-import { HueSlider, ThemeSelector } from "@repo/ui/components";
+import { HueSlider, ThemeSelector } from "@cryptoart/ui/components";
 
 type HeaderProps = {
   neynarUser?: {

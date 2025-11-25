@@ -30,8 +30,8 @@ This package provides shared database connection utilities for Postgres and Redi
 ### Postgres
 
 ```typescript
-import { getSharedDatabase } from '@repo/shared-db-config';
-import { someTable } from '@repo/db';
+import { getSharedDatabase } from '@cryptoart/shared-db-config';
+import { someTable } from '@cryptoart/db';
 
 const db = getSharedDatabase();
 const results = await db.select().from(someTable);
@@ -40,7 +40,7 @@ const results = await db.select().from(someTable);
 ### Redis
 
 ```typescript
-import { getSharedRedis, getPrefixedKey } from '@repo/shared-db-config';
+import { getSharedRedis, getPrefixedKey } from '@cryptoart/shared-db-config';
 
 const redis = getSharedRedis();
 const project = 'cryptoart-studio';

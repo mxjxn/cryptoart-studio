@@ -41,7 +41,7 @@
 
 ## Shared Database Variables
 
-These are used by `@repo/shared-db-config`:
+These are used by `@cryptoart/shared-db-config`:
 
 - `REDIS_URL`: Standard Redis connection string (if not using Upstash)
 - `KV_REST_API_URL`: Upstash Redis REST API URL

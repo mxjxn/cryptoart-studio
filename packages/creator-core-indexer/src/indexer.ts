@@ -8,11 +8,11 @@
  */
 
 import { PublicClient, Address, Log } from 'viem';
-import { getSharedDatabase } from '@repo/shared-db-config';
+import { getSharedDatabase } from '@cryptoart/shared-db-config';
 import {
   creatorCoreContracts,
   creatorCoreTokens,
-} from '@repo/db';
+} from '@cryptoart/db';
 import { eq } from 'drizzle-orm';
 import { getConfig } from './config.js';
 import { createClient, detectCreatorCoreContract } from './contracts.js';

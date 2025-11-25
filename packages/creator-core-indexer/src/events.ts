@@ -3,12 +3,12 @@
  */
 
 import { PublicClient, Address, Log } from 'viem';
-import { getSharedDatabase } from '@repo/shared-db-config';
+import { getSharedDatabase } from '@cryptoart/shared-db-config';
 import {
   creatorCoreContracts,
   creatorCoreTokens,
   creatorCoreTransfers,
-} from '@repo/db';
+} from '@cryptoart/db';
 import { eq, and } from 'drizzle-orm';
 
 // Transfer event signature (ERC721)

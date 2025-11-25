@@ -1,5 +1,5 @@
 {
-  "name": "@repo/shared-db-config",
+  "name": "@cryptoart/shared-db-config",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -16,7 +16,7 @@
     "ioredis": "^5.4.2"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@cryptoart/typescript-config": "workspace:*",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^22.15.3",
     "typescript": "^5.9.2"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, creatorCoreContracts, nftCollections, eq } from "@repo/db";
+import { getDatabase, creatorCoreContracts, nftCollections, eq } from "@cryptoart/db";
 
 export async function GET(request: NextRequest) {
   try {

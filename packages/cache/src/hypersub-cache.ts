@@ -7,7 +7,7 @@ import {
   lt,
   type SubscriptionCacheData,
   type SubscriberCacheData 
-} from '@repo/db';
+} from '@cryptoart/db';
 
 export class HypersubCache {
   private _db: ReturnType<typeof getDatabase> | null = null;

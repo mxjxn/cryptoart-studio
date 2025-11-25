@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hypersubCache } from '@repo/cache';
+import { hypersubCache } from '@cryptoart/cache';
 
 export async function GET(request: NextRequest) {
   try {

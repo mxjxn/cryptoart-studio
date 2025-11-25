@@ -363,7 +363,7 @@ docker exec -it cryptoart-redis redis-cli
 ## Notes
 
 - Local services are perfect for development but should not be used in production
-- The shared database config package (`@repo/shared-db-config`) supports both local and remote PostgreSQL/Redis
+- The shared database config package (`@cryptoart/shared-db-config`) supports both local and remote PostgreSQL/Redis
 - Individual app KV files (`apps/*/src/lib/kv.ts`) now support both Upstash and local Redis
 - Data persists in Docker volumes between container restarts
 - Use `npm run services:clean` when you need a completely fresh database
