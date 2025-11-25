@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, collectionMints, nftCollections } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { getDatabase, collectionMints, nftCollections, eq } from "@repo/db";
 
 export async function GET(request: NextRequest) {
   try {

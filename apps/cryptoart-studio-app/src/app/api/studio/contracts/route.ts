@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, creatorCoreContracts } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { getDatabase, creatorCoreContracts, eq } from "@repo/db";
 
 export async function GET(request: NextRequest) {
   try {
