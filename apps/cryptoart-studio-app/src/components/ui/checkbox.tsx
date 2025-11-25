@@ -27,7 +27,7 @@ const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(({ className
     <CheckboxIndicator
       className={cn("flex items-center justify-center text-current")}
     >
-      <Check className="h-4 w-4" />
+      {React.createElement(Check as React.ComponentType<{ className?: string }>, { className: "h-4 w-4" })}
     </CheckboxIndicator>
   </CheckboxRoot>
 ))
