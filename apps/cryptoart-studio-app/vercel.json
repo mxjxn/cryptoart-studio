@@ -1,5 +1,5 @@
 {
-  "buildCommand": "next build",
+  "buildCommand": "cd ../.. && turbo build --filter=cryptoart-studio-app",
   "framework": "nextjs",
   "crons": [
     {

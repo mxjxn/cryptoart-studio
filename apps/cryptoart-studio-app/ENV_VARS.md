@@ -4,6 +4,18 @@ This document lists the environment variables needed for the cryptoart-studio-ap
 
 ## Required for Basic Functionality
 
+### `POSTGRES_URL`
+- **Description**: PostgreSQL database connection string
+- **Required for**: All database operations, caching, and data persistence
+- **Format**: 
+  - **Supabase (Recommended for Vercel)**: `postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true`
+  - **Direct connection**: `postgresql://user:password@host:port/database`
+- **For Vercel Deployment**: Use Supabase pooled connection string (port 6543)
+- **Setup Guide**: See [SUPABASE_SETUP.md](../../docs/SUPABASE_SETUP.md)
+- **Get from**: 
+  - Supabase Dashboard → Settings → Database → Connection Pooling (for Supabase)
+  - Or your database provider's connection settings
+
 ### `NEXT_PUBLIC_URL`
 - **Description**: The base URL of your application
 - **Examples**: 
@@ -88,4 +100,31 @@ If you're using ngrok for testing (e.g., for webhooks or mobile testing):
 4. **Restart your dev server** for the change to take effect
 
 **Note**: Ngrok URLs change when you restart ngrok (unless you have a paid plan with a static domain). Update `NEXT_PUBLIC_URL` if your ngrok URL changes.
+
+## Database Setup
+
+### For Vercel Deployment (Supabase)
+
+The app uses Supabase PostgreSQL for production deployments. See [SUPABASE_SETUP.md](../../docs/SUPABASE_SETUP.md) for complete setup instructions.
+
+**Quick Setup:**
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Get your pooled connection string from Settings → Database → Connection Pooling
+3. Set `POSTGRES_URL` environment variable in Vercel Dashboard
+4. Run migrations: `pnpm db:push` (from project root)
+
+### For Local Development
+
+Use a local PostgreSQL instance or Supabase:
+```bash
+POSTGRES_URL=postgresql://postgres:password@localhost:5432/cryptoart
+```
+
+Or use Supabase connection string for local development.
+
+## Vercel Deployment
+
+For complete Vercel deployment instructions, see:
+- [VERCEL_ENV_VARS.md](./VERCEL_ENV_VARS.md) - Complete environment variable reference for Vercel
+- [VERCEL_DEPLOYMENT.md](../../docs/VERCEL_DEPLOYMENT.md) - Step-by-step deployment guide
 

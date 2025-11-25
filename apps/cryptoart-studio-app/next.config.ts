@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Enable standalone output for Docker
-  output: 'standalone',
-  
   // Optimize for performance
   experimental: {
     optimizePackageImports: ['@farcaster/miniapp-sdk', 'lucide-react', '@radix-ui/react-select', '@radix-ui/react-checkbox'],
@@ -42,8 +39,9 @@ const nextConfig: NextConfig = {
     return config;
   },
   
-  // Output file tracing root to fix workspace warning
-  // In Docker, this will be /app, locally it can be your project root
+  // Output file tracing root for monorepo
+  // For Vercel/Turborepo: uses process.cwd() which will be the monorepo root
+  // This ensures proper workspace package resolution
   outputFileTracingRoot: process.env.NEXT_OUTPUT_TRACING_ROOT || process.cwd(),
   
   // Disable ESLint during build (warnings won't fail build)
