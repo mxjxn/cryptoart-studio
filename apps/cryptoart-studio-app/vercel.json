@@ -1,10 +1,7 @@
 {
   "buildCommand": "cd ../.. && turbo build --filter=cryptoart-studio-app",
-  "installCommand": "corepack enable && corepack prepare pnpm@8.15.6 --activate && git config --global url.\"https://github.com/\".insteadOf \"git+ssh://git@github.com/\" && pnpm install --no-frozen-lockfile",
+  "installCommand": "git config --global url.\"https://github.com/\".insteadOf \"git+ssh://git@github.com/\" && npm install",
   "framework": "nextjs",
-  "env": {
-    "ENABLE_EXPERIMENTAL_COREPACK": "1"
-  },
   "crons": [
     {
       "path": "/api/sync/subscriptions",
