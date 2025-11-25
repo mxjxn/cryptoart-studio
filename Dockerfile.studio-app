@@ -41,6 +41,9 @@ COPY --from=deps /app/apps ./apps
 # Copy source code
 COPY . .
 
+# Build unified-indexer first (dependency of studio-app)
+RUN pnpm --filter @cryptoart/unified-indexer build || echo "unified-indexer build skipped or already built"
+
 # Build the application
 RUN pnpm --filter cryptoart-studio-app build
 
