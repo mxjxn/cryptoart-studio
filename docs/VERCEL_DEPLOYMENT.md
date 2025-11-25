@@ -285,9 +285,11 @@ Cron jobs are automatically configured via `vercel.json`:
 - The `installCommand` in `vercel.json` uses `corepack` to ensure correct pnpm version
 - Try redeploying - the error may be temporary
 - If persistent, check:
-  - Ensure pnpm version matches `packageManager` field in `package.json` (9.1.4)
+  - Ensure pnpm version matches `packageManager` field in `package.json` (currently 9.12.3)
+  - Verify `COREPACK_ENABLE=1` is set in `vercel.json` env section
   - Check Vercel status page for npm registry issues
   - The `--no-frozen-lockfile` flag is already configured in the install command
+  - **Note**: The retry mechanism (5 retries with increasing timeouts) may eventually succeed - check if the build completes after retries
 
 ### Build Fails: "Host key verification failed" for Git Dependencies
 
