@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         salesMethod: collection.metadata && typeof collection.metadata === 'object' && 'salesMethod' in collection.metadata 
           ? (collection.metadata as any).salesMethod 
           : null,
-        createdAt: collection.deployedAt.toISOString(),
+        createdAt: collection.deployedAt?.toISOString() || null,
       },
     });
   } catch (error) {
