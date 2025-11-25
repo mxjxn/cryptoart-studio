@@ -29,9 +29,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: cryptoart-redis-prod
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
-    environment:
-      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
+    command: >
+      sh -c "redis-server --appendonly yes --requirepass $$(cat /run/secrets/redis_password)"
     secrets:
       - redis_password
     ports:
