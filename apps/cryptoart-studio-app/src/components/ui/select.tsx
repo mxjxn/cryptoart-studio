@@ -117,7 +117,11 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName
 
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
+  Omit<React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>, 'asChild'> & {
+    className?: string
+    children?: React.ReactNode
+    value: string
+  }
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
