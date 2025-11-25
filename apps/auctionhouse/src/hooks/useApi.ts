@@ -4,7 +4,9 @@
 
 import { useState, useEffect } from 'react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Use NEXT_PUBLIC_API_URL if set, otherwise use relative paths (same origin)
+// This allows for a separate API server if needed, but defaults to same-app routes
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Listing {
   listingId: number;

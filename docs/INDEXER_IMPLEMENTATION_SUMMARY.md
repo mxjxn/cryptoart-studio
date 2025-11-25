@@ -19,7 +19,6 @@ Successfully implemented a comprehensive indexing system for Creator Core contra
   - `creator_core_contracts`: Tracks all deployed Creator Core contracts
   - `creator_core_tokens`: Tracks individual NFTs with full metadata
   - `creator_core_transfers`: Tracks all transfer events
-  - `creator_core_extensions`: Tracks extension registrations
 
 **Updated Files**:
 - `packages/db/src/client.ts`: Exports new tables

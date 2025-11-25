@@ -17,6 +17,7 @@ interface MobileLayoutProps {
   backHref?: string;
   showBottomNav?: boolean;
   breadcrumbs?: Breadcrumb[];
+  headerActions?: React.ReactNode;
 }
 
 export function MobileLayout({ 
@@ -25,7 +26,8 @@ export function MobileLayout({
   showBackButton = false,
   backHref = "/",
   showBottomNav = true,
-  breadcrumbs = []
+  breadcrumbs = [],
+  headerActions
 }: MobileLayoutProps) {
   const [activeTab, setActiveTab] = useState('studio');
 
@@ -70,14 +72,19 @@ export function MobileLayout({
               </div>
             </div>
             
-            {/* Back to main app button */}
-            <Link 
-              href="/"
-              className="btn btn-outline px-3 py-1.5 text-xs inline-flex items-center flex-shrink-0 ml-2"
-            >
-              <Home className="mr-1 h-4 w-4" />
-              App
-            </Link>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              {/* Header actions (e.g., Create button) */}
+              {headerActions}
+              
+              {/* Back to main app button */}
+              <Link 
+                href="/"
+                className="btn btn-outline px-3 py-1.5 text-xs inline-flex items-center"
+              >
+                <Home className="mr-1 h-4 w-4" />
+                App
+              </Link>
+            </div>
           </div>
         </div>
       </div>

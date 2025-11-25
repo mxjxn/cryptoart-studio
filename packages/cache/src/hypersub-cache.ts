@@ -1,14 +1,23 @@
-import { eq, and, lt } from 'drizzle-orm';
 import { 
   getDatabase, 
   subscriptionsCache, 
   subscribersCache,
+  eq,
+  and,
+  lt,
   type SubscriptionCacheData,
   type SubscriberCacheData 
 } from '@repo/db';
 
 export class HypersubCache {
-  private db = getDatabase();
+  private _db: ReturnType<typeof getDatabase> | null = null;
+
+  private get db() {
+    if (!this._db) {
+      this._db = getDatabase();
+    }
+    return this._db;
+  }
 
   /**
    * Get cached subscriptions for a user

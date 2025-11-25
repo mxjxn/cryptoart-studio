@@ -102,7 +102,6 @@ export function useQuickAuth(): UseQuickAuthReturn {
    */
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: NodeJS.Timeout;
 
     const checkExistingAuthentication = async () => {
       try {
@@ -148,7 +147,7 @@ export function useQuickAuth(): UseQuickAuthReturn {
 
     // Set a fallback timeout in case the check never completes
     // Increased to 10 seconds to allow for slower network conditions
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (isMounted) {
         // Use a ref or check current status before setting
         // For now, just set a longer timeout and let the async function complete

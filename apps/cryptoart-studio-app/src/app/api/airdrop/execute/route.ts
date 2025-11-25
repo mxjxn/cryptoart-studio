@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateMembershipMiddleware } from '~/lib/auth';
 import { executeAirdrop, validateAirdropParams } from '~/lib/airdrop';
-import { getDatabase, airdropHistory } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { getDatabase, airdropHistory, eq } from '@repo/db';
 
 export async function POST(request: NextRequest) {
   try {

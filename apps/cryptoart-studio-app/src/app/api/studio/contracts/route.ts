@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, creatorCoreContracts } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { getDatabase, creatorCoreContracts, nftCollections, eq } from "@repo/db";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,14 +7,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const creatorFid = searchParams.get("creatorFid");
 
-    let query = db.select().from(creatorCoreContracts);
-
-    // Filter by creator FID if provided
-    if (creatorFid) {
-      query = query.where(eq(creatorCoreContracts.creatorFid, parseInt(creatorFid)));
-    }
-
-    const contracts = await query;
+    // Build query conditionally
+    const baseQuery = db.select().from(creatorCoreContracts);
+    const contracts = creatorFid
+      ? await baseQuery.where(eq(creatorCoreContracts.creatorFid, parseInt(creatorFid)))
+      : await baseQuery;
 
     return NextResponse.json({
       success: true,
@@ -87,7 +83,7 @@ export async function POST(request: NextRequest) {
         salesMethod: collection.metadata && typeof collection.metadata === 'object' && 'salesMethod' in collection.metadata 
           ? (collection.metadata as any).salesMethod 
           : null,
-        createdAt: collection.deployedAt.toISOString(),
+        createdAt: collection.deployedAt?.toISOString() || null,
       },
     });
   } catch (error) {

@@ -1,0 +1,78 @@
+# Multi-stage build for cryptoart-studio-app
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN npm install -g pnpm@9.1.4
+
+# Install dependencies only when needed
+FROM base AS deps
+WORKDIR /app
+
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+
+# Copy entire packages directory (needed for pnpm workspace resolution)
+# The .dockerignore will exclude node_modules, dist, etc.
+COPY packages ./packages
+
+# Clean up unnecessary files but keep directory structure and package.json files
+RUN find ./packages -type f \( -name "*.md" -o -name "*.log" \) -delete && \
+    find ./packages -type d -name "node_modules" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name "dist" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name ".next" -exec rm -rf {} + 2>/dev/null || true
+
+# Copy app package.json
+COPY apps/cryptoart-studio-app/package.json ./apps/cryptoart-studio-app/
+
+# Install dependencies
+# Note: Using --no-frozen-lockfile for deployment flexibility
+# In CI/CD, you may want to update pnpm-lock.yaml first
+RUN pnpm install --no-frozen-lockfile
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+COPY --from=deps /app/apps ./apps
+
+# Copy source code
+COPY . .
+
+# Build workspace dependencies first
+RUN pnpm --filter @repo/shared-db-config build || echo "shared-db-config build skipped or already built"
+RUN pnpm --filter @cryptoart/unified-indexer build || echo "unified-indexer build skipped or already built"
+
+# Build the application
+RUN pnpm --filter cryptoart-studio-app build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built application
+COPY --from=builder /app/apps/cryptoart-studio-app/.next/standalone ./
+COPY --from=builder /app/apps/cryptoart-studio-app/.next/static ./apps/cryptoart-studio-app/.next/static
+COPY --from=builder /app/apps/cryptoart-studio-app/public ./apps/cryptoart-studio-app/public
+
+# Set correct permissions
+RUN chown -R nextjs:nodejs /app
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "apps/cryptoart-studio-app/server.js"]
+

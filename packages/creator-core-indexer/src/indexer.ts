@@ -4,8 +4,7 @@
  * Indexes Creator Core contracts by:
  * 1. Monitoring for new contract deployments (by tracking known implementation addresses)
  * 2. Indexing Transfer events to detect mints and transfers
- * 3. Tracking extension registrations
- * 4. Fetching and caching NFT metadata
+ * 3. Fetching and caching NFT metadata
  */
 
 import { PublicClient, Address, Log } from 'viem';
@@ -22,8 +21,6 @@ import {
   processTransferSingleEvent,
   processTransferBatchEvent,
   storeTransfer,
-  processExtensionRegistered,
-  processExtensionUnregistered,
 } from './events';
 import { fetchAndCacheMetadata } from './metadata';
 
@@ -31,8 +28,12 @@ import { fetchAndCacheMetadata } from './metadata';
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const TRANSFER_SINGLE_TOPIC = '0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62';
 const TRANSFER_BATCH_TOPIC = '0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb';
-const EXTENSION_REGISTERED_TOPIC = '0x5f8e26a46bd3d9f0e5eaa4dd6c89f486f7f03ae3fc2e61e9550fa504f9b4800';
-const EXTENSION_UNREGISTERED_TOPIC = '0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0';
+// ExtensionRegistered(address,address) - keccak256 hash
+// TODO: Calculate actual topic hash from event signature
+const EXTENSION_REGISTERED_TOPIC = '0x' + '0'.repeat(64); // Placeholder
+// ExtensionUnregistered(address,address) - keccak256 hash  
+// TODO: Calculate actual topic hash from event signature
+const EXTENSION_UNREGISTERED_TOPIC = '0x' + '0'.repeat(64); // Placeholder
 
 export class CreatorCoreIndexer {
   private client: PublicClient;
@@ -190,10 +191,6 @@ export class CreatorCoreIndexer {
         for (const transfer of transfers) {
           await storeTransfer(transfer);
         }
-      } else if (log.topics[0] === EXTENSION_REGISTERED_TOPIC) {
-        await processExtensionRegistered(log, timestamp);
-      } else if (log.topics[0] === EXTENSION_UNREGISTERED_TOPIC) {
-        await processExtensionUnregistered(log, timestamp);
       }
     } catch (error) {
       console.error(`Error processing log ${log.transactionHash}:`, error);
@@ -256,23 +253,5 @@ export class CreatorCoreIndexer {
   }
 }
 
-// Main entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const indexer = new CreatorCoreIndexer();
-  
-  indexer.initialize().then(() => {
-    indexer.start();
-  });
-
-  // Graceful shutdown
-  process.on('SIGINT', () => {
-    indexer.stop();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', () => {
-    indexer.stop();
-    process.exit(0);
-  });
-}
+// Entry point logic moved to index.ts
 

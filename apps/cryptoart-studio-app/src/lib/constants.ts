@@ -1,5 +1,3 @@
-import { type AccountAssociation } from '@farcaster/miniapp-core/src/manifest';
-
 /**
  * Application constants and configuration values.
  *
@@ -10,6 +8,13 @@ import { type AccountAssociation } from '@farcaster/miniapp-core/src/manifest';
  * NOTE: This file is automatically updated by the init script.
  * Manual changes may be overwritten during project initialization.
  */
+
+// Account association type (from Farcaster miniapp spec)
+type AccountAssociation = {
+  header: string;
+  payload: string;
+  signature: string;
+};
 
 // --- App Configuration ---
 /**

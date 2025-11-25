@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, collectionMints, nftCollections } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { getDatabase, collectionMints, nftCollections, eq } from "@repo/db";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,10 +8,11 @@ export async function GET(request: NextRequest) {
     const collectionId = searchParams.get("collectionId");
 
     const db = getDatabase();
-    let query = db.select().from(collectionMints);
+    const baseQuery = db.select().from(collectionMints);
 
+    let mints;
     if (collectionId) {
-      query = query.where(eq(collectionMints.collectionId, parseInt(collectionId)));
+      mints = await baseQuery.where(eq(collectionMints.collectionId, parseInt(collectionId)));
     } else if (collectionAddress) {
       // First find the collection by address
       const [collection] = await db
@@ -22,16 +22,16 @@ export async function GET(request: NextRequest) {
         .limit(1);
       
       if (collection) {
-        query = query.where(eq(collectionMints.collectionId, collection.id));
+        mints = await baseQuery.where(eq(collectionMints.collectionId, collection.id));
       } else {
         return NextResponse.json({
           success: true,
           mints: [],
         });
       }
+    } else {
+      mints = await baseQuery;
     }
-
-    const mints = await query;
 
     return NextResponse.json({
       success: true,
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         recipientFid: m.recipientFid,
         txHash: m.txHash,
         metadata: m.metadata,
-        createdAt: m.mintedAt.toISOString(),
+        createdAt: m.mintedAt?.toISOString() || null,
       })),
     });
   } catch (error) {
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         recipientFid: mint.recipientFid,
         txHash: mint.txHash,
         metadata: mint.metadata,
-        createdAt: mint.mintedAt.toISOString(),
+        createdAt: mint.mintedAt?.toISOString() || null,
       },
     });
   } catch (error) {
