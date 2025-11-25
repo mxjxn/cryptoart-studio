@@ -105,9 +105,12 @@ RUN pnpm install --prod --no-frozen-lockfile && \
     chown -R indexer:nodejs /app/node_modules && \
     chown -R indexer:nodejs /app/dist && \
     chown -R indexer:nodejs /app/packages && \
-    chown indexer:nodejs /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/docker-entrypoint.sh
+    chown indexer:nodejs /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/docker-entrypoint.sh && \
+    # Install su-exec for switching users (needed to read secrets as root, then switch to indexer)
+    apk add --no-cache su-exec
 
-USER indexer
+# Don't switch to indexer user here - entrypoint will do it after reading secrets
+# USER indexer
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/index.js"]
