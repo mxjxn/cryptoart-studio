@@ -1,15 +1,5 @@
 {
-  "buildCommand": "cd ../.. && npx turbo run build --filter=cryptoart-studio-app",
+  "buildCommand": "cd apps/cryptoart-studio-app && npm run build",
   "installCommand": "cd ../.. && git config --global url.\"https://github.com/\".insteadOf \"git+ssh://git@github.com/\" && node scripts/convert-workspace-deps.js && node scripts/install-with-git-deps.js",
   "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/sync/subscriptions",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/sync/subscribers", 
-      "schedule": "*/15 * * * *"
-    }
-  ]
 } 
