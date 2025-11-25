@@ -10,9 +10,10 @@ interface CheckboxProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   onCheckedChange?: (checked: boolean) => void
 }
 
-// Cast CheckboxPrimitive.Root to avoid type conflicts with multiple @types/react versions
+// Cast CheckboxPrimitive components to avoid type conflicts with multiple @types/react versions
 // Using 'any' to bypass type inference issues with multiple @types/react versions
 const CheckboxRoot = CheckboxPrimitive.Root as any
+const CheckboxIndicator = CheckboxPrimitive.Indicator as any
 
 const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(({ className, ...props }, ref) => (
   <CheckboxRoot
@@ -23,11 +24,11 @@ const Checkbox = React.forwardRef<HTMLButtonElement, CheckboxProps>(({ className
     )}
     {...props}
   >
-    <CheckboxPrimitive.Indicator
+    <CheckboxIndicator
       className={cn("flex items-center justify-center text-current")}
     >
       <Check className="h-4 w-4" />
-    </CheckboxPrimitive.Indicator>
+    </CheckboxIndicator>
   </CheckboxRoot>
 ))
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
