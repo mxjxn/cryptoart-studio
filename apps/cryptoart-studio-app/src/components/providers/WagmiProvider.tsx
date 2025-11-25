@@ -145,13 +145,15 @@ function IntelligentWalletAutoConnect({ children }: { children: React.ReactNode 
 }
 
 export default function Provider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const WagmiProviderComponent = WagmiProvider as React.ComponentType<{ config: typeof config; children: React.ReactNode }>;
+  
   return (
-    <WagmiProvider config={config}>
+    <WagmiProviderComponent config={config}>
       <QueryClientProvider client={queryClient}>
         <IntelligentWalletAutoConnect>
           {children}
         </IntelligentWalletAutoConnect>
       </QueryClientProvider>
-    </WagmiProvider>
+    </WagmiProviderComponent>
   );
 }
