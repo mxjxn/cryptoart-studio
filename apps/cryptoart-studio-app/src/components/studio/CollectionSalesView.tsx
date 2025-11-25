@@ -45,9 +45,10 @@ export function CollectionSalesView({
   }, [collectionAddress, chainId])
 
   if (loading) {
+    const LoaderComponent = Loader2 as React.ComponentType<{ className?: string }>;
     return (
       <div className="flex items-center justify-center p-8">
-        {React.createElement(Loader2 as React.ComponentType<{ className?: string }>, { className: "h-8 w-8 animate-spin text-gray-400" })}
+        <LoaderComponent className="h-8 w-8 animate-spin text-gray-400" />
         <span className="ml-2 text-gray-600">Loading sales data...</span>
       </div>
     )
