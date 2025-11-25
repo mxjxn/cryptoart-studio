@@ -1,6 +1,6 @@
 {
   "buildCommand": "cd ../.. && turbo build --filter=cryptoart-studio-app",
-  "installCommand": "cd ../.. && git config --global url.\"https://github.com/\".insteadOf \"git+ssh://git@github.com/\" && node scripts/convert-workspace-deps.js && npm install",
+  "installCommand": "cd ../.. && git config --global url.\"https://github.com/\".insteadOf \"git+ssh://git@github.com/\" && node scripts/convert-workspace-deps.js && npm install --legacy-peer-deps",
   "framework": "nextjs",
   "crons": [
     {
