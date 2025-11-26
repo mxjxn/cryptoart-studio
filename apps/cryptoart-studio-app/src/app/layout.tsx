@@ -11,11 +11,9 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
 };
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+// Use 'any' for props to bypass React.ReactNode type conflicts between @types/react versions
+export default async function RootLayout(props: any) {
+  const { children } = props;
   // Type assertion to bridge multiple @types/react versions in monorepo
   // Using 'any' as intermediate type to bypass strict type checking between versions
   const childrenNode = children as any as React.ReactNode;
