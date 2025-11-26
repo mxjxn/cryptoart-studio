@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Transpile monorepo packages (Next.js 16+)
+  transpilePackages: ['@cryptoart/ui', '@cryptoart/db', '@cryptoart/shared-db-config', '@cryptoart/unified-indexer', '@cryptoart/cache'],
+  
   // Optimize for performance
   experimental: {
     optimizePackageImports: ['@farcaster/miniapp-sdk', 'lucide-react', '@radix-ui/react-select', '@radix-ui/react-checkbox'],
@@ -14,6 +17,10 @@ const nextConfig: NextConfig = {
     formats: ['image/webp', 'image/avif'],
     minimumCacheTTL: 60,
   },
+  
+  // Turbopack configuration (Next.js 16+)
+  // Empty config to silence error - we're using webpack for now
+  turbopack: {},
   
   // Optimize bundle
   webpack: (config, { isServer }) => {
@@ -59,12 +66,6 @@ const nextConfig: NextConfig = {
   // For Vercel/Turborepo: uses process.cwd() which will be the monorepo root
   // This ensures proper workspace package resolution
   outputFileTracingRoot: process.env.NEXT_OUTPUT_TRACING_ROOT || process.cwd(),
-  
-  // Disable ESLint during build (warnings won't fail build)
-  // TODO: Fix ESLint warnings and re-enable
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 };
 
 export default nextConfig;
