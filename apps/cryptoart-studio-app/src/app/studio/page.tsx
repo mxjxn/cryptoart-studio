@@ -10,6 +10,11 @@ import { AuthWrapper } from "~/components/AuthWrapper";
 import { CurrentAuctions } from "~/components/studio/CurrentAuctions";
 import { CollectionsList } from "~/components/studio/CollectionsList";
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
+
 export default function StudioPage() {
   const { isSDKLoaded } = useMiniApp();
 

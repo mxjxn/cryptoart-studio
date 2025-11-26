@@ -8,6 +8,11 @@ import { SubscriptionList } from "~/components/ui/dashboard/SubscriptionList";
 import { Users } from "lucide-react";
 import { AuthWrapper } from "~/components/AuthWrapper";
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
+
 export default function SubscriptionsPage() {
   const { context, isSDKLoaded } = useMiniApp();
 

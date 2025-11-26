@@ -8,6 +8,11 @@ import { MobileLayout } from "~/components/ui/mobile/MobileLayout";
 import { AuthWrapper } from "~/components/AuthWrapper";
 import { NFTMinter } from "~/components/studio/NFTMinter";
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
+
 export default function CreateNFTPage() {
   const { isSDKLoaded } = useMiniApp();
   const searchParams = useSearchParams();
