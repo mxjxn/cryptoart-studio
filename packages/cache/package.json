@@ -6,6 +6,6 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@cryptoart/db": "workspace:*"
+    "@cryptoart/db": "file:../db"
   }
 }

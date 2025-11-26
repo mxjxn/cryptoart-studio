@@ -12,18 +12,17 @@
     "index": "tsx src/index.ts"
   },
   "dependencies": {
-    "@cryptoart/db": "workspace:*",
-    "@cryptoart/shared-db-config": "workspace:*",
+    "@cryptoart/db": "file:../db",
+    "@cryptoart/shared-db-config": "file:../shared-db-config",
     "drizzle-orm": "^0.36.4",
     "viem": "^2.0.0",
     "wagmi": "^2.0.0"
   },
   "devDependencies": {
-    "@cryptoart/typescript-config": "workspace:*",
+    "@cryptoart/typescript-config": "file:../typescript-config",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^22.15.3",
     "typescript": "^5.9.2",
     "tsx": "^4.7.0"
   }
 }
-

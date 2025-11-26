@@ -1,8 +1,8 @@
 import {
   SendNotificationRequest,
   sendNotificationResponseSchema,
+  type MiniAppNotificationDetails,
 } from "@farcaster/miniapp-sdk";
-import { getUserNotificationDetails } from "~/lib/kv";
 import { APP_URL } from "./constants";
 
 type SendMiniAppNotificationResult =
@@ -18,12 +18,13 @@ export async function sendMiniAppNotification({
   fid,
   title,
   body,
+  notificationDetails,
 }: {
   fid: number;
   title: string;
   body: string;
+  notificationDetails: MiniAppNotificationDetails;
 }): Promise<SendMiniAppNotificationResult> {
-  const notificationDetails = await getUserNotificationDetails(fid);
   if (!notificationDetails) {
     return { state: "no_token" };
   }

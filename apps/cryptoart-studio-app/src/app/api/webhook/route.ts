@@ -1,18 +1,25 @@
-import {
-  ParseWebhookEvent,
-  parseWebhookEvent,
-  verifyAppKeyWithNeynar,
-} from "@farcaster/miniapp-node";
+import type { ParseWebhookEvent } from "@farcaster/miniapp-node";
 import { NextRequest } from "next/server";
-import { APP_NAME } from "~/lib/constants";
-import {
-  deleteUserNotificationDetails,
-  setUserNotificationDetails,
-} from "~/lib/kv";
-import { sendMiniAppNotification } from "~/lib/notifs";
-import { hypersubCache } from '@cryptoart/cache';
+
+// Force dynamic rendering to avoid build-time execution issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 
 export async function POST(request: NextRequest) {
+  // Lazy load all modules to avoid build-time execution issues
+  const [
+    { parseWebhookEvent, verifyAppKeyWithNeynar },
+    { APP_NAME },
+    { sendMiniAppNotification },
+    { hypersubCache }
+  ] = await Promise.all([
+    import("@farcaster/miniapp-node"),
+    import("~/lib/constants"),
+    import("~/lib/notifs"),
+    import('@cryptoart/cache')
+  ]);
+
   // If Neynar is enabled, we don't need to handle webhooks here
   // as they will be handled by Neynar's webhook endpoint
   const neynarEnabled = process.env.NEYNAR_API_KEY && process.env.NEYNAR_CLIENT_ID;
@@ -59,32 +66,32 @@ export async function POST(request: NextRequest) {
   switch (event.event) {
     case "miniapp_added":
       if (event.notificationDetails) {
-        await setUserNotificationDetails(fid, event.notificationDetails);
+        // Pass notification details directly - no need to store them
         await sendMiniAppNotification({
           fid,
           title: `Welcome to ${APP_NAME}`,
           body: "Mini app is now added to your client",
+          notificationDetails: event.notificationDetails,
         });
-      } else {
-        await deleteUserNotificationDetails(fid);
       }
       break;
 
     case "miniapp_removed":
-      await deleteUserNotificationDetails(fid);
+      // No action needed - just log the removal
       break;
 
     case "notifications_enabled":
-      await setUserNotificationDetails(fid, event.notificationDetails);
+      // Pass notification details directly - no need to store them
       await sendMiniAppNotification({
         fid,
         title: `Welcome to ${APP_NAME}`,
         body: "Notifications are now enabled",
+        notificationDetails: event.notificationDetails,
       });
       break;
 
     case "notifications_disabled":
-      await deleteUserNotificationDetails(fid);
+      // No action needed - just log the disable
       break;
   }
 

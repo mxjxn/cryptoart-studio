@@ -14,8 +14,8 @@
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cryptoart/eslint-config": "workspace:*",
-    "@cryptoart/typescript-config": "workspace:*",
+    "@cryptoart/eslint-config": "file:../eslint-config",
+    "@cryptoart/typescript-config": "file:../typescript-config",
     "@types/node": "^22.15.3",
     "@types/react": "^18",
     "@types/react-dom": "^18",

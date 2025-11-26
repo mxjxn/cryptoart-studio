@@ -10,21 +10,35 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 function findPackageJsonFiles(dir, fileList = []) {
-  const files = fs.readdirSync(dir);
-  
-  files.forEach(file => {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
+  try {
+    const files = fs.readdirSync(dir);
     
-    if (stat.isDirectory()) {
-      // Skip node_modules and other build directories
-      if (!['node_modules', '.next', 'dist', 'build', '.turbo'].includes(file)) {
-        findPackageJsonFiles(filePath, fileList);
+    files.forEach(file => {
+      const filePath = path.join(dir, file);
+      
+      try {
+        const stat = fs.statSync(filePath);
+        
+        if (stat.isDirectory()) {
+          // Skip node_modules and other build directories, and .temp-git-deps
+          if (!['node_modules', '.next', 'dist', 'build', '.turbo', '.temp-git-deps'].includes(file)) {
+            // Skip symlinks
+            if (!stat.isSymbolicLink()) {
+              findPackageJsonFiles(filePath, fileList);
+            }
+          }
+        } else if (file === 'package.json') {
+          fileList.push(filePath);
+        }
+      } catch (err) {
+        // Skip files/dirs that can't be accessed (symlinks, permissions, etc.)
+        return;
       }
-    } else if (file === 'package.json') {
-      fileList.push(filePath);
-    }
-  });
+    });
+  } catch (err) {
+    // Skip directories that can't be read
+    return fileList;
+  }
   
   return fileList;
 }

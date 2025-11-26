@@ -158,9 +158,61 @@ for (const dep of gitDeps) {
       
       convertWorkspaceDeps(clonePath);
       
-      // Install the git dependency from local path (pointing to the specific package)
-      console.log(`  Installing ${dep.name} from local clone (${packageSubdir})...`);
-      packageJson[dep.type][dep.name] = `file:${path.relative(repoRoot, packagePath)}`;
+      // Build and install the package manually to node_modules
+      const packageJsonInPath = path.join(packagePath, 'package.json');
+      if (!fs.existsSync(packageJsonInPath)) {
+        throw new Error(`package.json not found in: ${packagePath}`);
+      }
+      
+      const pkg = JSON.parse(fs.readFileSync(packageJsonInPath, 'utf8'));
+      
+      // Install dependencies for the package
+      if (pkg.dependencies || pkg.devDependencies) {
+        console.log(`  Installing dependencies for ${dep.name}...`);
+        try {
+          execSync('npm install --legacy-peer-deps', { 
+            cwd: packagePath, 
+            stdio: 'pipe'
+          });
+        } catch (installError) {
+          console.warn(`  ⚠ Failed to install dependencies for ${dep.name}, continuing anyway`);
+        }
+      }
+      
+      // Build the package if needed
+      if (pkg.scripts && pkg.scripts.build) {
+        console.log(`  Building ${dep.name}...`);
+        try {
+          execSync('npm run build', { cwd: packagePath, stdio: 'pipe' });
+          console.log(`  ✓ Built ${dep.name}`);
+        } catch (buildError) {
+          console.warn(`  ⚠ Build failed for ${dep.name}, continuing anyway`);
+        }
+      }
+      
+      // Manually copy package to node_modules
+      const nodeModulesPath = path.join(repoRoot, 'node_modules');
+      if (!fs.existsSync(nodeModulesPath)) {
+        fs.mkdirSync(nodeModulesPath, { recursive: true });
+      }
+      
+      const scopedName = dep.name.startsWith('@') ? dep.name.split('/') : [dep.name];
+      const targetDir = scopedName.length === 2 
+        ? path.join(nodeModulesPath, scopedName[0], scopedName[1])
+        : path.join(nodeModulesPath, scopedName[0]);
+      
+      // Remove existing if present
+      if (fs.existsSync(targetDir)) {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      }
+      
+      // Copy package
+      fs.cpSync(packagePath, targetDir, { recursive: true });
+      console.log(`  ✓ Copied ${dep.name} to node_modules`);
+      
+      // Remove from package.json so npm doesn't try to install it
+      // (we've already installed it manually)
+      delete packageJson[dep.type][dep.name];
     
   } catch (error) {
     console.error(`  Failed to handle ${dep.name}:`, error.message);
@@ -169,25 +221,10 @@ for (const dep of gitDeps) {
   }
 }
 
-// Update package.json with local paths
+// Save package.json (git deps have been removed since we installed them manually)
 fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-console.log('\nUpdated package.json with local git dependency paths');
-
-// Install git dependencies from local paths
-console.log('\nInstalling git dependencies from local paths...');
-try {
-  execSync('npm install --legacy-peer-deps', {
-    cwd: repoRoot,
-    stdio: 'inherit'
-  });
-  console.log('✓ Git dependencies installed');
-} catch (error) {
-  console.error('Failed to install git dependencies');
-  // Restore package.json
-  fs.copyFileSync(packageJsonBackup, packageJsonPath);
-  fs.unlinkSync(packageJsonBackup);
-  process.exit(1);
-}
+console.log('\n✓ Git dependencies installed manually to node_modules');
+console.log('✓ Removed git dependencies from package.json (already installed)');
 
 // Restore original package.json (but keep the changes for reference)
 // Actually, let's keep the local paths since they work

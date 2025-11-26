@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TurboFactory } from "@ardrive/turbo-sdk";
-import { FEE_PERCENTAGE } from "@/lib/config/payment";
+
+// Force dynamic rendering to avoid build-time execution issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 
 export async function POST(request: NextRequest) {
+  // Lazy load modules to avoid build-time execution issues
+  const [{ TurboFactory }, { FEE_PERCENTAGE }] = await Promise.all([
+    import("@ardrive/turbo-sdk"),
+    import("@/lib/config/payment"),
+  ]);
+
   try {
     const { fileSize } = await request.json();
 

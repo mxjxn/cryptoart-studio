@@ -1,33 +1,33 @@
-import { notificationDetailsSchema } from "@farcaster/miniapp-sdk";
 import { NextRequest } from "next/server";
-import { z } from "zod";
 
 // Force dynamic rendering to avoid build-time execution issues
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const fetchCache = 'force-no-store';
 
-const requestSchema = z.object({
-  fid: z.number(),
-  notificationDetails: notificationDetailsSchema,
-});
-
 export async function POST(request: NextRequest) {
   // Lazy load all modules to avoid build-time execution issues
   // This prevents Next.js from trying to analyze the route during build
   const [
-    kvModule,
+    { notificationDetailsSchema },
+    { z },
     notifsModule,
     neynarModule
   ] = await Promise.all([
-    import("~/lib/kv"),
+    import("@farcaster/miniapp-sdk"),
+    import("zod"),
     import("~/lib/notifs"),
     import("~/lib/neynar"),
   ]);
   
-  const { setUserNotificationDetails } = kvModule;
   const { sendMiniAppNotification } = notifsModule;
   const { sendNeynarMiniAppNotification } = neynarModule;
+  
+  // Define schema inside function to avoid top-level module analysis
+  const requestSchema = z.object({
+    fid: z.number(),
+    notificationDetails: notificationDetailsSchema,
+  });
 
   // If Neynar is enabled, we don't need to store notification details
   // as they will be managed by Neynar's system
@@ -43,33 +43,49 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Only store notification details if not using Neynar
-  if (!neynarEnabled) {
-    await setUserNotificationDetails(
-      Number(requestBody.data.fid),
-      requestBody.data.notificationDetails
-    );
-  }
-
   // Use appropriate notification function based on Neynar status
-  const sendNotification = neynarEnabled ? sendNeynarMiniAppNotification : sendMiniAppNotification;
-  const sendResult = await sendNotification({
-    fid: Number(requestBody.data.fid),
-    title: "Test notification",
-    body: "Sent at " + new Date().toISOString(),
-  });
-
-  if (sendResult.state === "error") {
-    return Response.json(
-      { success: false, error: sendResult.error },
-      { status: 500 }
-    );
-  } else if (sendResult.state === "rate_limit") {
-    return Response.json(
-      { success: false, error: "Rate limited" },
-      { status: 429 }
-    );
+  if (neynarEnabled) {
+    // Use Neynar's notification system (doesn't need notification details)
+    const sendResult = await sendNeynarMiniAppNotification({
+      fid: Number(requestBody.data.fid),
+      title: "Test notification",
+      body: "Sent at " + new Date().toISOString(),
+    });
+    
+    if (sendResult.state === "error") {
+      return Response.json(
+        { success: false, error: sendResult.error },
+        { status: 500 }
+      );
+    } else if (sendResult.state === "rate_limit") {
+      return Response.json(
+        { success: false, error: "Rate limited" },
+        { status: 429 }
+      );
+    }
+    
+    return Response.json({ success: true });
+  } else {
+    // Pass notification details directly - no need to store them
+    const sendResult = await sendMiniAppNotification({
+      fid: Number(requestBody.data.fid),
+      title: "Test notification",
+      body: "Sent at " + new Date().toISOString(),
+      notificationDetails: requestBody.data.notificationDetails,
+    });
+    
+    if (sendResult.state === "error") {
+      return Response.json(
+        { success: false, error: sendResult.error },
+        { status: 500 }
+      );
+    } else if (sendResult.state === "rate_limit") {
+      return Response.json(
+        { success: false, error: "Rate limited" },
+        { status: 429 }
+      );
+    }
+    
+    return Response.json({ success: true });
   }
-
-  return Response.json({ success: true });
 }
