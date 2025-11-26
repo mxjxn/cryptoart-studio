@@ -7,13 +7,16 @@ import { ANALYTICS_ENABLED, RETURN_URL } from '~/lib/constants';
 import React from 'react';
 
 // Lazy load heavy providers
-const WagmiProvider = dynamic(
+const WagmiProviderDynamic = dynamic(
   () => import('~/components/providers/WagmiProvider'),
   {
     ssr: false,
     loading: () => React.createElement('div', { className: 'flex items-center justify-center h-screen' }, React.createElement('div', { className: 'spinner h-8 w-8' })),
   }
 );
+
+// Cast to any to bypass React type conflicts between @types/react versions
+const WagmiProvider = WagmiProviderDynamic as any;
 
 export function Providers({
   children,
