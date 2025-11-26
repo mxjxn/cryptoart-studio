@@ -20,7 +20,7 @@ export default async function RootLayout({
       <body style={{ background: 'var(--color-background-gradient)' }}>
         <ErrorHandler>
           <Providers>
-            {children}
+            {children as React.ReactNode}
           </Providers>
         </ErrorHandler>
       </body>
