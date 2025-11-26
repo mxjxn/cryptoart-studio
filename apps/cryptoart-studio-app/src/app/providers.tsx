@@ -1,4 +1,4 @@
-const newLocal = 'use client';
+'use client';
 
 import dynamic from 'next/dynamic';
 import { MiniAppProvider } from '@neynar/react';
@@ -25,11 +25,21 @@ export function Providers({
 }) {
   const safeChildren = children as any;
   
-  // During static generation (window is undefined), return children directly
-  // This prevents ANY client components from being evaluated during build
+  // During static generation (window is undefined), provide minimal providers
+  // Use React.createElement to avoid JSX creating element objects during build
   if (typeof window === 'undefined') {
-    // Return children as a fragment to avoid creating element objects
-    return React.createElement(React.Fragment, {}, safeChildren);
+    // During static generation, only provide MiniAppProvider (needed for useMiniApp hook)
+    // Use React.createElement instead of JSX to avoid element object issues
+    // Pass children as the third argument (props object is second)
+    return React.createElement(
+      MiniAppProvider as any,
+      {
+        analyticsEnabled: ANALYTICS_ENABLED,
+        backButtonEnabled: true,
+        returnUrl: RETURN_URL,
+        children: safeChildren,
+      } as any
+    );
   }
   
   // During client-side rendering, use all providers normally
