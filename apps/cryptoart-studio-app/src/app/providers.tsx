@@ -18,31 +18,25 @@ const WagmiProviderDynamic = dynamic(
 // Cast to any to bypass React type conflicts between @types/react versions
 const WagmiProvider = WagmiProviderDynamic as any;
 
-// Wrapper component to safely render WagmiProvider during static generation
-function SafeWagmiProvider({ children }: { children: React.ReactNode }) {
-  // During static generation, WagmiProvider with ssr: false should not render
-  // But we need to ensure it doesn't create React element objects
-  if (typeof window === 'undefined') {
-    // During SSR/static generation, render children directly without WagmiProvider
-    return <>{children}</>;
-  }
-  
-  // During client-side rendering, use WagmiProvider
-  return React.createElement(WagmiProvider, {}, children as any);
-}
-
 export function Providers({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // During static generation, ensure children are properly handled
-  // Cast children to any to avoid React element object issues
+  // During static generation (window is undefined), skip all providers and render children directly
+  // This prevents React element objects from being created during error page generation
+  if (typeof window === 'undefined') {
+    // During SSR/static generation, render children directly without any providers
+    // Cast to any to avoid React element object issues
+    return <>{children as any}</>;
+  }
+  
+  // During client-side rendering, use all providers normally
   const safeChildren = children as any;
   
   return (
     <ThemeProvider storagePrefix="cryptoart-studio">
-      <SafeWagmiProvider>
+      <WagmiProvider>
         <MiniAppProvider
           analyticsEnabled={ANALYTICS_ENABLED}
           backButtonEnabled={true}
@@ -50,7 +44,7 @@ export function Providers({
         >
           {safeChildren}
         </MiniAppProvider>
-      </SafeWagmiProvider>
+      </WagmiProvider>
     </ThemeProvider>
   );
 }

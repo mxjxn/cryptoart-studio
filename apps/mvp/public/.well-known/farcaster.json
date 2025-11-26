@@ -1,0 +1,15 @@
+{
+  "accountAssociation": null,
+  "miniapp": {
+    "version": "1",
+    "name": "MVP Auction",
+    "homeUrl": "http://localhost:3000",
+    "iconUrl": "http://localhost:3000/icon.png",
+    "imageUrl": "http://localhost:3000/api/opengraph-image",
+    "buttonTitle": "Browse Auctions",
+    "splashImageUrl": "http://localhost:3000/splash.png",
+    "splashBackgroundColor": "#f7f7f7",
+    "webhookUrl": "http://localhost:3000/api/webhook"
+  }
+}
+
