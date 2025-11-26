@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TurboFactory } from "@ardrive/turbo-sdk";
-import { createPublicClient, http, formatUnits } from "viem";
-import { base, baseSepolia } from "viem/chains";
-import { TREASURY_ADDRESS, USDC_ADDRESSES, FEE_PERCENTAGE } from "@/lib/config/payment";
-import { Readable } from "stream";
+
+// Force dynamic rendering to avoid build-time execution issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 
 export async function POST(request: NextRequest) {
+  // Lazy load all modules to avoid build-time execution issues
+  const [
+    { TurboFactory },
+    { createPublicClient, http, formatUnits },
+    { base, baseSepolia },
+    paymentConfig,
+    { Readable }
+  ] = await Promise.all([
+    import("@ardrive/turbo-sdk"),
+    import("viem"),
+    import("viem/chains"),
+    import("@/lib/config/payment"),
+    import("stream")
+  ]);
+  
+  const { TREASURY_ADDRESS, USDC_ADDRESSES, FEE_PERCENTAGE } = paymentConfig;
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
