@@ -36,6 +36,22 @@ const nextConfig: NextConfig = {
     // When a .js file is imported, try .ts first (for TypeScript source files)
     config.resolve.extensionAlias['.js'] = ['.ts', '.tsx', '.js'];
     
+    // Externalize Redis packages to avoid bundling issues during build
+    if (isServer) {
+      config.externals = config.externals || [];
+      if (typeof config.externals === 'function') {
+        const originalExternals = config.externals;
+        config.externals = [
+          originalExternals,
+          ({ request }: { request?: string }) => {
+            if (request?.includes('@upstash/redis') || request?.includes('ioredis')) {
+              return `commonjs ${request}`;
+            }
+          },
+        ];
+      }
+    }
+    
     return config;
   },
   

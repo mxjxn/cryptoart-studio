@@ -1,9 +1,11 @@
 import { notificationDetailsSchema } from "@farcaster/miniapp-sdk";
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { setUserNotificationDetails } from "~/lib/kv";
-import { sendMiniAppNotification } from "~/lib/notifs";
-import { sendNeynarMiniAppNotification } from "~/lib/neynar";
+
+// Force dynamic rendering to avoid build-time execution issues
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 
 const requestSchema = z.object({
   fid: z.number(),
@@ -11,6 +13,22 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Lazy load all modules to avoid build-time execution issues
+  // This prevents Next.js from trying to analyze the route during build
+  const [
+    kvModule,
+    notifsModule,
+    neynarModule
+  ] = await Promise.all([
+    import("~/lib/kv"),
+    import("~/lib/notifs"),
+    import("~/lib/neynar"),
+  ]);
+  
+  const { setUserNotificationDetails } = kvModule;
+  const { sendMiniAppNotification } = notifsModule;
+  const { sendNeynarMiniAppNotification } = neynarModule;
+
   // If Neynar is enabled, we don't need to store notification details
   // as they will be managed by Neynar's system
   const neynarEnabled = process.env.NEYNAR_API_KEY && process.env.NEYNAR_CLIENT_ID;
