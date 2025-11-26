@@ -1,4 +1,4 @@
-'use client';
+const newLocal = 'use client';
 
 import dynamic from 'next/dynamic';
 import { MiniAppProvider } from '@neynar/react';
@@ -25,12 +25,17 @@ export function Providers({
 }) {
   const safeChildren = children as any;
   
-  // During static generation, render providers but ensure no element objects are created
-  // The key is to ensure children are properly handled, not to skip providers
+  // During static generation (window is undefined), return children directly
+  // This prevents ANY client components from being evaluated during build
+  if (typeof window === 'undefined') {
+    // Return children as a fragment to avoid creating element objects
+    return React.createElement(React.Fragment, {}, safeChildren);
+  }
+  
+  // During client-side rendering, use all providers normally
   return (
     <ThemeProvider storagePrefix="cryptoart-studio">
-      {typeof window === 'undefined' ? (
-        // During SSR/static generation, render MiniAppProvider directly without WagmiProvider
+      <WagmiProvider>
         <MiniAppProvider
           analyticsEnabled={ANALYTICS_ENABLED}
           backButtonEnabled={true}
@@ -38,18 +43,7 @@ export function Providers({
         >
           {safeChildren}
         </MiniAppProvider>
-      ) : (
-        // During client-side rendering, use all providers
-        <WagmiProvider>
-          <MiniAppProvider
-            analyticsEnabled={ANALYTICS_ENABLED}
-            backButtonEnabled={true}
-            returnUrl={RETURN_URL}
-          >
-            {safeChildren}
-          </MiniAppProvider>
-        </WagmiProvider>
-      )}
+      </WagmiProvider>
     </ThemeProvider>
   );
 }
