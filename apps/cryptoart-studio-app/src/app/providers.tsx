@@ -11,7 +11,7 @@ const WagmiProviderDynamic = dynamic(
   () => import('~/components/providers/WagmiProvider'),
   {
     ssr: false,
-    loading: () => React.createElement('div', { className: 'flex items-center justify-center h-screen' }, React.createElement('div', { className: 'spinner h-8 w-8' })),
+    loading: () => null, // Return null during SSR/static generation to avoid React element object issues
   }
 );
 
