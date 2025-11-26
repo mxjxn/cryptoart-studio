@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
 import React from 'react';
+import dynamic from 'next/dynamic';
 
 import '~/app/globals.css';
-import { Providers } from '~/app/providers';
 import { APP_NAME, APP_DESCRIPTION } from '~/lib/constants';
 import { ErrorHandler } from '~/components/ErrorHandler';
+
+// Dynamically import Providers to prevent it from being analyzed during static generation
+// This avoids React element object creation during build
+const Providers = dynamic(() => import('~/app/providers').then(mod => ({ default: mod.Providers })), {
+  ssr: true,
+});
 
 export const metadata: Metadata = {
   title: APP_NAME,

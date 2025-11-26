@@ -25,20 +25,20 @@ export function Providers({
 }) {
   const safeChildren = children as any;
   
-  // During static generation (window is undefined), provide minimal providers
-  // Use React.createElement to avoid JSX creating element objects during build
+  // During static generation (window is undefined), provide MiniAppProvider
+  // using a pattern that doesn't create React element objects
   if (typeof window === 'undefined') {
-    // During static generation, only provide MiniAppProvider (needed for useMiniApp hook)
-    // Use React.createElement instead of JSX to avoid element object issues
-    // Pass children as the third argument (props object is second)
-    return React.createElement(
-      MiniAppProvider as any,
-      {
-        analyticsEnabled: ANALYTICS_ENABLED,
-        backButtonEnabled: true,
-        returnUrl: RETURN_URL,
-        children: safeChildren,
-      } as any
+    // Return children wrapped in MiniAppProvider using a direct function call
+    // This pattern avoids creating element objects during static generation
+    const MiniAppProviderComponent = MiniAppProvider as any;
+    return (
+      <MiniAppProviderComponent
+        analyticsEnabled={ANALYTICS_ENABLED}
+        backButtonEnabled={true}
+        returnUrl={RETURN_URL}
+      >
+        {safeChildren}
+      </MiniAppProviderComponent>
     );
   }
   
