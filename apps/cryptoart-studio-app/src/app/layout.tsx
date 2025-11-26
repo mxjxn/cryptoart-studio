@@ -8,9 +8,11 @@ import { ErrorHandler } from '~/components/ErrorHandler';
 
 // Dynamically import Providers to prevent it from being analyzed during static generation
 // This avoids React element object creation during build
-const Providers = dynamic(() => import('~/app/providers').then(mod => ({ default: mod.Providers })), {
+// Cast to any to bypass TypeScript issues with dynamic imports
+const ProvidersDynamic = dynamic(() => import('~/app/providers').then(mod => ({ default: mod.Providers })), {
   ssr: true,
-});
+}) as any;
+const Providers = ProvidersDynamic as React.ComponentType<{ children: React.ReactNode }>;
 
 export const metadata: Metadata = {
   title: APP_NAME,
