@@ -23,6 +23,10 @@ export function Providers({
 }: {
   children: React.ReactNode;
 }) {
+  // During static generation, ensure children are properly handled
+  // Cast children to any to avoid React element object issues
+  const safeChildren = children as any;
+  
   return (
     <ThemeProvider storagePrefix="cryptoart-studio">
       <WagmiProvider>
@@ -31,7 +35,7 @@ export function Providers({
           backButtonEnabled={true}
           returnUrl={RETURN_URL}
         >
-          {children}
+          {safeChildren}
         </MiniAppProvider>
       </WagmiProvider>
     </ThemeProvider>
