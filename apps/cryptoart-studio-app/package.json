@@ -85,8 +85,8 @@
   "devDependencies": {
     "@types/inquirer": "^9.0.8",
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@vercel/sdk": "^1.9.0",
     "crypto": "^1.0.1",
     "drizzle-kit": "^0.30.0",

@@ -17,8 +17,8 @@
     "@cryptoart/eslint-config": "file:../eslint-config",
     "@cryptoart/typescript-config": "file:../typescript-config",
     "@types/node": "^22.15.3",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "eslint": "^9.34.0",
     "typescript": "5.9.2"
   },
