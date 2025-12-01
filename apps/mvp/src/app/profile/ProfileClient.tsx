@@ -30,6 +30,17 @@ export default function ProfileClient() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
+        <div className="mb-6">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-2 mb-4"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back
+          </Link>
+        </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Profile</h1>
           

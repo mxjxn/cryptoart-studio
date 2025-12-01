@@ -39,6 +39,9 @@ export const ANALYTICS_ENABLED: boolean = true;
 
 export const RETURN_URL: string | undefined = undefined;
 
+// --- Membership Configuration ---
+export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d90' as const;
+
 // PLEASE DO NOT UPDATE THIS
 export const SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN = {
   name: 'Farcaster SignedKeyRequestValidator',

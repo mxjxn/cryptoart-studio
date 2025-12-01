@@ -3,8 +3,9 @@ import { base } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/miniapp-wagmi-connector";
 import { coinbaseWallet, metaMask } from 'wagmi/connectors';
+import { configureFabricSDK } from '@withfabric/protocol-sdks';
 import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
-import React from "react";
+import React, { useEffect } from "react";
 
 export const config = createConfig({
   chains: [base],
@@ -26,6 +27,9 @@ export const config = createConfig({
     }),
   ],
 });
+
+// Configure Fabric SDK with wagmi config
+configureFabricSDK({ wagmiConfig: config });
 
 const queryClient = new QueryClient();
 

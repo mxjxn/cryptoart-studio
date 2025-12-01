@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import type { AuctionData } from '@cryptoart/unified-indexer';
+import type { EnrichedAuctionData } from '~/lib/types';
 import { getActiveAuctions } from '~/lib/subgraph';
 
 export function useActiveAuctions() {
-  const [auctions, setAuctions] = useState<AuctionData[]>([]);
+  const [auctions, setAuctions] = useState<EnrichedAuctionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -12,7 +12,7 @@ export function useActiveAuctions() {
       try {
         setLoading(true);
         setError(null);
-        const data = await getActiveAuctions({ first: 100, skip: 0 });
+        const data = await getActiveAuctions({ first: 16, skip: 0, enrich: true });
         setAuctions(data);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch auctions'));

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import type { AuctionData } from '@cryptoart/unified-indexer';
+import type { EnrichedAuctionData } from '~/lib/types';
 import { getAuction } from '~/lib/subgraph';
 
 export function useAuction(listingId: string | null) {
-  const [auction, setAuction] = useState<AuctionData | null>(null);
+  const [auction, setAuction] = useState<EnrichedAuctionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -28,11 +28,6 @@ export function useAuction(listingId: string | null) {
     }
 
     fetchAuction();
-    
-    // Poll every 10 seconds for updates
-    const interval = setInterval(fetchAuction, 10000);
-    
-    return () => clearInterval(interval);
   }, [listingId]);
 
   return { auction, loading, error };

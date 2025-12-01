@@ -17,6 +17,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Get BaseScan URL for a transaction hash
+ */
+export function getBaseScanUrl(hash: string): string {
+  return `https://basescan.org/tx/${hash}`;
+}
+
 export function getMiniAppEmbedMetadata(ogImageUrl?: string) {
   return {
     version: '1',
