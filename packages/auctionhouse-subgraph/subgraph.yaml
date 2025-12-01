@@ -11,7 +11,7 @@ dataSources:
     source:
       address: "0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9"
       abi: MarketplaceLib
-      startBlock: 30437036 # First block with marketplace activity
+      startBlock: 38886000 # Just before first auction (tx at block 38886751)
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -61,7 +61,7 @@ dataSources:
     source:
       address: "0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9"
       abi: SettlementLib
-      startBlock: 30437036 # First block with marketplace activity
+      startBlock: 38886000 # Just before first auction (tx at block 38886751)
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -80,81 +80,6 @@ dataSources:
           handler: handleEscrow
       file: ./src/auctionhouse.ts
 
-  # Creator Core contracts - template for dynamic contract indexing
-  - kind: ethereum
-    name: CreatorCore
-    network: base
-    source:
-      abi: CreatorCore
-      startBlock: 0
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
-        - Collection
-        - Extension
-        - Royalty
-        - TokenRoyalty
-        - Token
-      abis:
-        - name: CreatorCore
-          file: ./abis/CreatorCore.json
-        - name: ERC721Creator
-          file: ./abis/ERC721Creator.json
-        - name: ERC1155Creator
-          file: ./abis/ERC1155Creator.json
-      eventHandlers:
-        - event: ExtensionRegistered(indexed address,indexed address)
-          handler: handleExtensionRegistered
-        - event: ExtensionUnregistered(indexed address,indexed address)
-          handler: handleExtensionUnregistered
-        - event: ExtensionBlacklisted(indexed address,indexed address)
-          handler: handleExtensionBlacklisted
-        - event: RoyaltiesUpdated(indexed uint256,address[],uint256[])
-          handler: handleRoyaltiesUpdated
-        - event: DefaultRoyaltiesUpdated(address[],uint256[])
-          handler: handleDefaultRoyaltiesUpdated
-        - event: ExtensionRoyaltiesUpdated(indexed address,address[],uint256[])
-          handler: handleExtensionRoyaltiesUpdated
-      file: ./src/creator-core.ts
-
-templates:
-  # Template for indexing individual Creator Core contracts
-  - kind: ethereum
-    name: CreatorCoreContract
-    network: base
-    source:
-      abi: CreatorCore
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
-        - Collection
-        - Extension
-        - Royalty
-        - TokenRoyalty
-        - Token
-      abis:
-        - name: CreatorCore
-          file: ./abis/CreatorCore.json
-        - name: ERC721Creator
-          file: ./abis/ERC721Creator.json
-        - name: ERC1155Creator
-          file: ./abis/ERC1155Creator.json
-      eventHandlers:
-        - event: ExtensionRegistered(indexed address,indexed address)
-          handler: handleExtensionRegistered
-        - event: ExtensionUnregistered(indexed address,indexed address)
-          handler: handleExtensionUnregistered
-        - event: ExtensionBlacklisted(indexed address,indexed address)
-          handler: handleExtensionBlacklisted
-        - event: RoyaltiesUpdated(indexed uint256,address[],uint256[])
-          handler: handleRoyaltiesUpdated
-        - event: DefaultRoyaltiesUpdated(address[],uint256[])
-          handler: handleDefaultRoyaltiesUpdated
-        - event: ExtensionRoyaltiesUpdated(indexed address,address[],uint256[])
-          handler: handleExtensionRoyaltiesUpdated
-      file: ./src/creator-core.ts
+# NOTE: CreatorCore indexing removed for MVP - it was indexing ALL Manifold contracts on Base
+# which created 27k+ entities. Re-add with specific contract addresses if needed later.
 

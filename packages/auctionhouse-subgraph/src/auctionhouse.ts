@@ -23,6 +23,7 @@ import { Listing, Purchase, Bid, Offer, Escrow } from "../generated/schema";
 import { BigInt, Bytes, Address } from "@graphprotocol/graph-ts";
 
 // Helper function to get or create a listing
+// IMPORTANT: Initialize ALL non-nullable fields with defaults to avoid save errors
 function getOrCreateListing(listingId: BigInt, blockNumber: BigInt, timestamp: BigInt): Listing {
   let id = listingId.toString();
   let listing = Listing.load(id);
@@ -31,7 +32,26 @@ function getOrCreateListing(listingId: BigInt, blockNumber: BigInt, timestamp: B
     listing = new Listing(id);
     listing.listingId = listingId;
     listing.marketplace = Address.fromString("0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9");
+    
+    // Initialize all non-nullable fields with defaults
+    // These will be overwritten by the actual event handlers
+    listing.seller = Address.zero();
+    listing.tokenAddress = Address.zero();
+    listing.tokenSpec = 0;
+    listing.lazy = false;
+    listing.listingType = 0;
+    listing.initialAmount = BigInt.fromI32(0);
+    listing.totalAvailable = 0;
+    listing.totalPerSale = 0;
     listing.totalSold = 0;
+    listing.startTime = BigInt.fromI32(0);
+    listing.endTime = BigInt.fromI32(0);
+    listing.extensionInterval = 0;
+    listing.minIncrementBPS = 0;
+    listing.marketplaceBPS = 0;
+    listing.referrerBPS = 0;
+    listing.deliverBPS = 0;
+    listing.deliverFixed = BigInt.fromI32(0);
     listing.status = "ACTIVE";
     listing.hasBid = false;
     listing.finalized = false;
