@@ -248,5 +248,25 @@ export const MARKETPLACE_ABI = [
     outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
     stateMutability: 'view',
   },
+  {
+    type: 'event',
+    name: 'CreateListing',
+    inputs: [
+      { name: 'listingId', type: 'uint40', indexed: true, internalType: 'uint40' },
+      { name: 'marketplaceBPS', type: 'uint16', indexed: false, internalType: 'uint16' },
+      { name: 'referrerBPS', type: 'uint16', indexed: false, internalType: 'uint16' },
+      { name: 'listingType', type: 'uint8', indexed: false, internalType: 'uint8' },
+      { name: 'totalAvailable', type: 'uint24', indexed: false, internalType: 'uint24' },
+      { name: 'totalPerSale', type: 'uint24', indexed: false, internalType: 'uint24' },
+      { name: 'startTime', type: 'uint48', indexed: false, internalType: 'uint48' },
+      { name: 'endTime', type: 'uint48', indexed: false, internalType: 'uint48' },
+      { name: 'initialAmount', type: 'uint256', indexed: false, internalType: 'uint256' },
+      { name: 'extensionInterval', type: 'uint16', indexed: false, internalType: 'uint16' },
+      { name: 'minIncrementBPS', type: 'uint16', indexed: false, internalType: 'uint16' },
+      { name: 'erc20', type: 'address', indexed: false, internalType: 'address' },
+      { name: 'identityVerifier', type: 'address', indexed: false, internalType: 'address' },
+    ],
+    anonymous: false,
+  },
 ] as const;
 

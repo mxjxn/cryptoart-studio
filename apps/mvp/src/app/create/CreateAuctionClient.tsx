@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useRouter } from "next/navigation";
-import { type Address, parseEther } from "viem";
+import { type Address, parseEther, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 import { TransactionStatus } from "~/components/TransactionStatus";
@@ -125,9 +125,10 @@ export default function CreateAuctionClient() {
   });
   const [alchemyName, setAlchemyName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdListingId, setCreatedListingId] = useState<number | null>(null);
 
   const { writeContract, data: hash, isPending, error, reset: resetListing } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   });
 
@@ -493,6 +494,8 @@ export default function CreateAuctionClient() {
     });
     setAlchemyName(null);
     setIsSubmitting(false);
+    setCreatedListingId(null);
+    resetListing();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -635,6 +638,40 @@ export default function CreateAuctionClient() {
       setIsSubmitting(false);
     }
   };
+
+  // Extract listing ID from transaction receipt
+  useEffect(() => {
+    if (receipt && isSuccess) {
+      try {
+        // Find the CreateListing event in the logs
+        const createListingEvent = receipt.logs.find((log) => {
+          try {
+            const decoded = decodeEventLog({
+              abi: MARKETPLACE_ABI,
+              data: log.data,
+              topics: log.topics,
+            });
+            return decoded.eventName === 'CreateListing';
+          } catch {
+            return false;
+          }
+        });
+
+        if (createListingEvent) {
+          const decoded = decodeEventLog({
+            abi: MARKETPLACE_ABI,
+            data: createListingEvent.data,
+            topics: createListingEvent.topics,
+          });
+          if (decoded.eventName === 'CreateListing') {
+            setCreatedListingId(Number(decoded.args.listingId));
+          }
+        }
+      } catch (err) {
+        console.error('Error extracting listing ID from receipt:', err);
+      }
+    }
+  }, [receipt, isSuccess]);
 
   // Reset submitting state when transaction completes
   useEffect(() => {
@@ -1096,13 +1133,23 @@ export default function CreateAuctionClient() {
           {/* Action Buttons */}
           {isSuccess ? (
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => router.push("/")}
-                className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-              >
-                View Auctions
-              </button>
+              {createdListingId !== null ? (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/auction/${createdListingId}`)}
+                  className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                >
+                  View Listing
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                >
+                  View Listings
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleReset}
