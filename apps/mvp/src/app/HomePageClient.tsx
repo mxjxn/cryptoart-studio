@@ -102,7 +102,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {auctions.map((auction, index) => (
               <AuctionCard
-                key={auction.id}
+                key={auction.listingId}
                 auction={auction}
                 gradient={gradients[index % gradients.length]}
                 index={index}
