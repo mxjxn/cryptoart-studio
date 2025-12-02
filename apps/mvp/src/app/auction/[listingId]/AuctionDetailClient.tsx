@@ -661,45 +661,177 @@ export default function AuctionDetailClient({
           </>
         )}
 
-        {/* Compact auction details - multiple items per row - Hidden if cancelled */}
+        {/* Listing details - Different display based on listing type - Hidden if cancelled */}
         {!isCancelled && (
           <div className="mb-4 space-y-3">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="text-[#999999]">Reserve:</span>
-                <span className="ml-2 font-medium">
-                  {formatEther(BigInt(auction.initialAmount))} ETH
-                </span>
-              </div>
-              <div>
-                <span className="text-[#999999]">Current:</span>
-                <span className="ml-2 font-medium">
-                  {auction.highestBid
-                    ? `${formatEther(BigInt(currentPrice))} ETH`
-                    : "No bids"}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#999999]">Bids:</span>
-                <span className="ml-2 font-medium">{bidCount}</span>
-              </div>
-              <div>
-                <span className="text-[#999999]">Status:</span>
-                <span className="ml-2 font-medium">
-                  {isActive ? "Active" : "Ended"}
-                </span>
-              </div>
-            </div>
-            <div className="text-xs">
-              <span className="text-[#999999]">Seller:</span>
-              <span className="ml-2 font-medium">
-                {sellerName ? (
-                  sellerName
-                ) : (
-                  <span className="font-mono">{auction.seller}</span>
+            {auction.listingType === "INDIVIDUAL_AUCTION" && (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[#999999]">Reserve:</span>
+                    <span className="ml-2 font-medium">
+                      {formatEther(BigInt(auction.initialAmount))} ETH
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Current:</span>
+                    <span className="ml-2 font-medium">
+                      {auction.highestBid
+                        ? `${formatEther(BigInt(currentPrice))} ETH`
+                        : "No bids"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Bids:</span>
+                    <span className="ml-2 font-medium">{bidCount}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Status:</span>
+                    <span className="ml-2 font-medium">
+                      {isActive ? "Active" : "Ended"}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs">
+                  <span className="text-[#999999]">Seller:</span>
+                  <span className="ml-2 font-medium">
+                    {sellerName ? (
+                      sellerName
+                    ) : (
+                      <span className="font-mono">{auction.seller}</span>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {auction.listingType === "FIXED_PRICE" && (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[#999999]">Price:</span>
+                    <span className="ml-2 font-medium">
+                      {formatEther(BigInt(auction.initialAmount))} ETH
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">For sale:</span>
+                    <span className="ml-2 font-medium">
+                      {parseInt(auction.totalAvailable)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Remaining:</span>
+                    <span className="ml-2 font-medium">
+                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Status:</span>
+                    <span className="ml-2 font-medium">
+                      {isActive ? "Active" : "Ended"}
+                    </span>
+                  </div>
+                </div>
+                {endTime > 0 && (
+                  <div className="text-xs">
+                    <span className="text-[#999999]">On sale until:</span>
+                    <span className="ml-2 font-medium">
+                      {new Date(endTime * 1000).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  </div>
                 )}
-              </span>
-            </div>
+                <div className="text-xs">
+                  <span className="text-[#999999]">Seller:</span>
+                  <span className="ml-2 font-medium">
+                    {sellerName ? (
+                      sellerName
+                    ) : (
+                      <span className="font-mono">{auction.seller}</span>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {auction.listingType === "OFFERS_ONLY" && (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[#999999]">Type:</span>
+                    <span className="ml-2 font-medium">Offers Only</span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Status:</span>
+                    <span className="ml-2 font-medium">
+                      {isActive ? "Active" : "Ended"}
+                    </span>
+                  </div>
+                </div>
+                {endTime > 0 && (
+                  <div className="text-xs">
+                    <span className="text-[#999999]">Accepts offers until:</span>
+                    <span className="ml-2 font-medium">
+                      {new Date(endTime * 1000).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  </div>
+                )}
+                <div className="text-xs">
+                  <span className="text-[#999999]">Seller:</span>
+                  <span className="ml-2 font-medium">
+                    {sellerName ? (
+                      sellerName
+                    ) : (
+                      <span className="font-mono">{auction.seller}</span>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {auction.listingType === "DYNAMIC_PRICE" && (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-[#999999]">Type:</span>
+                    <span className="ml-2 font-medium">Dynamic Price</span>
+                  </div>
+                  <div>
+                    <span className="text-[#999999]">Status:</span>
+                    <span className="ml-2 font-medium">
+                      {isActive ? "Active" : "Ended"}
+                    </span>
+                  </div>
+                </div>
+                {endTime > 0 && (
+                  <div className="text-xs">
+                    <span className="text-[#999999]">On sale until:</span>
+                    <span className="ml-2 font-medium">
+                      {new Date(endTime * 1000).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  </div>
+                )}
+                <div className="text-xs">
+                  <span className="text-[#999999]">Seller:</span>
+                  <span className="ml-2 font-medium">
+                    {sellerName ? (
+                      sellerName
+                    ) : (
+                      <span className="font-mono">{auction.seller}</span>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
