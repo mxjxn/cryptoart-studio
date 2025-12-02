@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { AuctionCard } from "~/components/AuctionCard";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { getActiveAuctions } from "~/lib/subgraph";
 
 // Gradient colors for artwork placeholders
 const gradients = [
@@ -20,9 +23,36 @@ interface HomePageClientProps {
 }
 
 export default function HomePageClient({ initialAuctions = [] }: HomePageClientProps) {
-  // Use server-rendered data directly - no client-side fetching
-  const auctions = initialAuctions;
-  const loading = initialAuctions.length === 0;
+  const router = useRouter();
+  const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
+  const [loading, setLoading] = useState(false);
+
+  // Refetch auctions when component mounts
+  // This ensures fresh data after navigation from cancel/finalize actions
+  useEffect(() => {
+    async function fetchFreshAuctions() {
+      setLoading(true);
+      try {
+        const freshAuctions = await getActiveAuctions({ 
+          first: 16, 
+          skip: 0, 
+          enrich: true,
+          cache: false // Bypass cache to get fresh data
+        });
+        setAuctions(freshAuctions);
+      } catch (error) {
+        console.error('Error fetching fresh auctions:', error);
+        // Keep using initialAuctions on error
+        setAuctions(initialAuctions);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Always refetch on mount to ensure we have the latest data
+    // This is especially important after cancel/finalize actions
+    fetchFreshAuctions();
+  }, []); // Empty deps - only run on mount
 
   return (
     <div className="min-h-screen bg-black text-white">

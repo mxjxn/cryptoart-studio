@@ -118,17 +118,24 @@ export default function AuctionDetailClient({
   // Redirect after successful cancellation
   useEffect(() => {
     if (isCancelConfirmed) {
-      router.push("/");
+      // Refresh router to get fresh data, then navigate to home
+      router.refresh();
+      setTimeout(() => {
+        router.push("/");
+      }, 100);
     }
   }, [isCancelConfirmed, router]);
 
-  // Refetch auction data after successful finalization
+  // Redirect after successful finalization
   useEffect(() => {
-    if (isFinalizeConfirmed && auction) {
-      // Refetch auction data to update status
-      window.location.reload();
+    if (isFinalizeConfirmed) {
+      // Refresh router to get fresh data, then navigate to home
+      router.refresh();
+      setTimeout(() => {
+        router.push("/");
+      }, 100);
     }
-  }, [isFinalizeConfirmed, auction]);
+  }, [isFinalizeConfirmed, router]);
 
   // Set up back navigation for Farcaster mini-app
   useEffect(() => {
