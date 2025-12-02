@@ -174,11 +174,15 @@ export function handleListingFinalized(event: ListingFinalized): void {
 
 function _getListingTypeString(listingType: i32): string {
   if (listingType == 0) {
-    return "INDIVIDUAL_AUCTION";
+    return "INVALID";
   } else if (listingType == 1) {
-    return "FIXED_PRICE";
+    return "INDIVIDUAL_AUCTION";
   } else if (listingType == 2) {
+    return "FIXED_PRICE";
+  } else if (listingType == 3) {
     return "DYNAMIC_PRICE";
+  } else if (listingType == 4) {
+    return "OFFERS_ONLY";
   } else {
     return "UNKNOWN";
   }

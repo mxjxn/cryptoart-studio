@@ -4,6 +4,7 @@ import { CHAIN_ID } from '~/lib/contracts/marketplace';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
+import { normalizeListingType } from '~/lib/server/auction';
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -98,6 +99,7 @@ export async function GET(
 
     const enriched: EnrichedAuctionData = {
       ...listing,
+      listingType: normalizeListingType(listing.listingType, listing),
       bidCount,
       highestBid: highestBid ? {
         amount: highestBid.amount,

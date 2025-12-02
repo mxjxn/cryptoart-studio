@@ -3,6 +3,7 @@ import { request, gql } from "graphql-request";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { type Address } from "viem";
+import { normalizeListingType } from "~/lib/server/auction";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -141,6 +142,7 @@ export async function GET(
 
           const enriched: EnrichedAuctionData = {
             ...listing,
+            listingType: normalizeListingType(listing.listingType, listing),
             bidCount,
             highestBid: highestBid
               ? {

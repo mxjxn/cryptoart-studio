@@ -89,6 +89,56 @@ const ACTIVE_LISTINGS_QUERY = gql`
 `;
 
 /**
+ * Normalize listingType to ensure correct string format
+ * Handles both number and string inputs, and corrects buggy mappings from old subgraph version
+ * 
+ * Old subgraph bug mapping:
+ * - 0 (INVALID) -> "INDIVIDUAL_AUCTION" (should be "INVALID")
+ * - 1 (INDIVIDUAL_AUCTION) -> "FIXED_PRICE" (should be "INDIVIDUAL_AUCTION")
+ * - 2 (FIXED_PRICE) -> "DYNAMIC_PRICE" (should be "FIXED_PRICE")
+ * - 3 (DYNAMIC_PRICE) -> "UNKNOWN" (should be "DYNAMIC_PRICE")
+ * - 4 (OFFERS_ONLY) -> "UNKNOWN" (should be "OFFERS_ONLY")
+ * 
+ * We can detect buggy "DYNAMIC_PRICE" entries because:
+ * - DYNAMIC_PRICE listings MUST be lazy (per contract requirements)
+ * - If we see "DYNAMIC_PRICE" but lazy=false, it's likely a buggy FIXED_PRICE (type 2)
+ */
+export function normalizeListingType(
+  listingType: string | number | undefined,
+  listing?: { lazy?: boolean }
+): "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY" {
+  // Handle number input (from subgraph that stores as Int)
+  if (typeof listingType === 'number') {
+    switch (listingType) {
+      case 0: return "INDIVIDUAL_AUCTION"; // INVALID maps to INDIVIDUAL_AUCTION as fallback
+      case 1: return "INDIVIDUAL_AUCTION";
+      case 2: return "FIXED_PRICE";
+      case 3: return "DYNAMIC_PRICE";
+      case 4: return "OFFERS_ONLY";
+      default: return "INDIVIDUAL_AUCTION";
+    }
+  }
+  
+  // Handle string input
+  const typeStr = String(listingType || "").toUpperCase();
+  
+  // Fix buggy "DYNAMIC_PRICE" mapping: if it's marked as DYNAMIC_PRICE but not lazy,
+  // it's likely a buggy FIXED_PRICE (type 2 was incorrectly mapped to DYNAMIC_PRICE)
+  if (typeStr === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
+    return "FIXED_PRICE";
+  }
+  
+  // Validate and return correct type
+  if (typeStr === "INDIVIDUAL_AUCTION" || typeStr === "FIXED_PRICE" || 
+      typeStr === "DYNAMIC_PRICE" || typeStr === "OFFERS_ONLY") {
+    return typeStr as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
+  }
+  
+  // Default fallback
+  return "INDIVIDUAL_AUCTION";
+}
+
+/**
  * Fetch auction data server-side (for use in route handlers, etc.)
  */
 export async function getAuctionServer(
@@ -148,6 +198,7 @@ export async function getAuctionServer(
 
     const enriched: EnrichedAuctionData = {
       ...listing,
+      listingType: normalizeListingType(listing.listingType, listing),
       bidCount,
       highestBid: highestBid
         ? {
@@ -226,6 +277,7 @@ async function fetchActiveAuctions(
 
         const enriched: EnrichedAuctionData = {
           ...listing,
+          listingType: normalizeListingType(listing.listingType, listing),
           bidCount,
           highestBid: highestBid ? {
             amount: highestBid.amount,
