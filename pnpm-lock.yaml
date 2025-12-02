@@ -391,9 +391,6 @@ importers:
       '@cryptoart/db':
         specifier: file:../../packages/db
         version: link:../../packages/db
-      '@cryptoart/unified-indexer':
-        specifier: file:../../packages/unified-indexer
-        version: link:../../packages/unified-indexer
       '@farcaster/auth-kit':
         specifier: ^0.6.1
         version: 0.6.1(@types/react@19.2.7)(babel-plugin-macros@3.1.0)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(utf-8-validate@5.0.10)(viem@2.40.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13))
