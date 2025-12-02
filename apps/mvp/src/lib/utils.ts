@@ -11,7 +11,31 @@ import {
   APP_SPLASH_URL,
   APP_TAGS,
   APP_URL,
+  APP_WEBHOOK_URL,
+  APP_ACCOUNT_ASSOCIATION,
 } from './constants';
+
+// Manifest type definition (from Farcaster miniapp spec)
+type AccountAssociation = {
+  header: string;
+  payload: string;
+  signature: string;
+};
+
+type Manifest = {
+  accountAssociation: AccountAssociation | null;
+  miniapp: {
+    version: string;
+    name: string;
+    homeUrl: string;
+    iconUrl: string;
+    imageUrl: string;
+    buttonTitle: string;
+    splashImageUrl: string;
+    splashBackgroundColor: string;
+    webhookUrl: string;
+  };
+};
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -70,6 +94,28 @@ export function getMiniAppEmbedMetadata(
         splashImageUrl: finalSplashUrl, // Use auction-specific OG image as splash
         splashBackgroundColor: APP_SPLASH_BACKGROUND_COLOR, // Optional
       },
+    },
+  };
+}
+
+/**
+ * Get Farcaster domain manifest for /.well-known/farcaster.json
+ * This manifest is used by Farcaster clients to identify and configure the Mini App
+ * See: https://miniapps.farcaster.xyz/docs/guides/manifest
+ */
+export async function getFarcasterDomainManifest(): Promise<Manifest> {
+  return {
+    accountAssociation: APP_ACCOUNT_ASSOCIATION ?? null,
+    miniapp: {
+      version: '1',
+      name: APP_NAME,
+      homeUrl: APP_URL,
+      iconUrl: APP_ICON_URL,
+      imageUrl: APP_OG_IMAGE_URL,
+      buttonTitle: APP_BUTTON_TEXT,
+      splashImageUrl: APP_SPLASH_URL,
+      splashBackgroundColor: APP_SPLASH_BACKGROUND_COLOR,
+      webhookUrl: APP_WEBHOOK_URL,
     },
   };
 }
