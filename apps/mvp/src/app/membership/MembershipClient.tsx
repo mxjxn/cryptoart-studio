@@ -105,10 +105,36 @@ function formatPeriodDuration(durationSeconds?: bigint) {
   return `${seconds} sec${seconds === 1 ? "" : "s"}`;
 }
 
+// ERC721 ABI for token queries
+const ERC721_ABI = [
+  {
+    type: 'function',
+    name: 'tokenOfOwnerByIndex',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'index', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const;
+
 export default function MembershipClient() {
   const { address, isConnected } = useAccount();
   const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
   const [periods, setPeriods] = useState(12); // Changed from "months" to "periods"
+  const [showAddTime, setShowAddTime] = useState(false);
+  
+  // Get the subscription token ID to calculate time subscribed
+  const { data: tokenId } = useReadContract({
+    address: membershipAddress ? (STP_V2_CONTRACT_ADDRESS as Address) : undefined,
+    abi: ERC721_ABI,
+    functionName: 'tokenOfOwnerByIndex',
+    args: membershipAddress ? [membershipAddress as Address, 0n] : undefined,
+    query: {
+      enabled: !!membershipAddress && isPro,
+    },
+  });
 
   // Read tier detail (tier 1) from contract to get price per period
   // Note: This doesn't require wallet connection, so we can always read it
@@ -249,6 +275,18 @@ export default function MembershipClient() {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
+  // Calculate time subscribed (months and days)
+  // TODO: Query actual mint timestamp from token's mint block to get accurate start date
+  // For now, we show a placeholder - in production, query the block where the token was minted
+  const calculateTimeSubscribed = (): { months: number; days: number } | null => {
+    // Since we don't have the mint timestamp, we can't calculate exact time subscribed
+    // This would require querying the block where the token was minted
+    // For now, return null to show "Active subscription" instead
+    return null;
+  };
+
+  const timeSubscribed = calculateTimeSubscribed();
+
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -323,6 +361,124 @@ export default function MembershipClient() {
               Manage on Hypersub →
             </a>
           </div>
+        ) : isPro && isFarcasterWallet ? (
+          <>
+            {/* Your Subscription Panel */}
+            <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 mb-4">
+              <h2 className="text-lg font-medium mb-4">Your Subscription</h2>
+              <div className="space-y-3">
+                <div className="p-3 bg-black rounded border border-[#333333]">
+                  <p className="text-xs text-[#999999] mb-1">Status</p>
+                  <p className="text-lg text-white font-medium">Active Subscription</p>
+                  {timeSubscribed && (
+                    <p className="text-sm text-[#cccccc] mt-1">
+                      {timeSubscribed.months > 0 && `${timeSubscribed.months} month${timeSubscribed.months !== 1 ? 's' : ''}`}
+                      {timeSubscribed.months > 0 && timeSubscribed.days > 0 && ' and '}
+                      {timeSubscribed.days > 0 && `${timeSubscribed.days} day${timeSubscribed.days !== 1 ? 's' : ''}`}
+                      {timeSubscribed.months === 0 && timeSubscribed.days === 0 && 'Less than 1 day'}
+                    </p>
+                  )}
+                </div>
+                {expirationDate && (
+                  <div className="p-3 bg-black rounded border border-[#333333]">
+                    <p className="text-xs text-[#999999] mb-1">Expires</p>
+                    <p className="text-sm text-white">{formatDate(expirationDate)}</p>
+                    <p className="text-xs text-[#cccccc] mt-1">{formatTimeRemaining(expirationDate)} remaining</p>
+                  </div>
+                )}
+                {membershipAddress && (
+                  <div className="p-3 bg-black rounded border border-[#333333]">
+                    <p className="text-xs text-[#999999] mb-1">Membership Wallet</p>
+                    <p className="text-sm text-white font-mono">{formatAddress(membershipAddress)}</p>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowAddTime(!showAddTime)}
+                className="w-full mt-4 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+              >
+                {showAddTime ? 'Hide Add Time' : 'Add Time'}
+              </button>
+            </div>
+
+            {/* Add Time Panel (shown when showAddTime is true) */}
+            {showAddTime && (
+              <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+                <div className="mb-6">
+                  <label className="block text-sm text-[#cccccc] mb-3">
+                    Duration (number of periods)
+                  </label>
+                  <div className="flex gap-2">
+                    {[1, 3, 6, 12, 24].map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => setPeriods(value)}
+                        className={`px-4 py-2 text-sm rounded border transition-colors ${
+                          periods === value
+                            ? "bg-white text-black border-white"
+                            : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                        }`}
+                      >
+                        {value}p
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6 p-4 bg-black rounded border border-[#333333]">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-[#999999]">
+                      {periodDurationLabel ? `Price per period (${periodDurationLabel})` : "Price per period"}
+                    </span>
+                    <span className="text-white">
+                      {loadingPrice ? "Loading..." : priceError ? "Error loading price" : pricePerMonthWei ? `${parseFloat(pricePerPeriodEth).toFixed(4)} ETH` : "0.0000 ETH"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-[#999999]">Total ({periods} periods)</span>
+                    <span className="text-xl font-medium text-white">
+                      {loadingPrice ? "..." : priceError ? "Error" : totalPriceWei ? `${parseFloat(totalPriceEth).toFixed(4)} ETH` : "0.0000 ETH"}
+                    </span>
+                  </div>
+                  {periodDurationLabel && (
+                    <div className="flex justify-between items-center mt-2 text-sm text-[#cccccc]">
+                      <span>Period length</span>
+                      <span>{periodDurationLabel}</span>
+                    </div>
+                  )}
+                  {priceError && (
+                    <div className="mt-2 text-xs text-red-400">
+                      Failed to load price. Please check contract address and network.
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded text-red-400 text-sm">
+                    Error: {error.message}
+                  </div>
+                )}
+
+                {isSuccess && (
+                  <div className="mb-4 p-3 bg-green-900/20 border border-green-500 rounded text-green-400 text-sm">
+                    Transaction successful! Your membership has been renewed.
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSubscribe}
+                  disabled={isPending || isConfirming || statusLoading}
+                  className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isPending || isConfirming
+                    ? "Processing..."
+                    : isSuccess
+                    ? "Success!"
+                    : "Add Time"}
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
             <div className="mb-6">
