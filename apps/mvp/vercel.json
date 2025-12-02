@@ -3,6 +3,10 @@
     {
       "path": "/api/revalidate-homepage",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/notifications",
+      "schedule": "*/1 * * * *"
     }
   ]
 }

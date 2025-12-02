@@ -17,6 +17,7 @@ export default defineConfig({
   out: './migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.POSTGRES_URL!,
+    // Support both STORAGE_POSTGRES_URL (Supabase) and POSTGRES_URL for backward compatibility
+    url: process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL!,
   },
 });

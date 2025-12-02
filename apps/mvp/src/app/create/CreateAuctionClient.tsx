@@ -655,9 +655,9 @@ export default function CreateAuctionClient() {
     }
   };
 
-  // Extract listing ID from transaction receipt
+  // Extract listing ID from transaction receipt and create notification
   useEffect(() => {
-    if (receipt && isSuccess) {
+    if (receipt && isSuccess && address) {
       try {
         // Find the CreateListing event in the logs
         const createListingEvent = receipt.logs.find((log) => {
@@ -680,14 +680,44 @@ export default function CreateAuctionClient() {
             topics: createListingEvent.topics,
           });
           if (decoded.eventName === 'CreateListing') {
-            setCreatedListingId(Number(decoded.args.listingId));
+            const listingId = Number(decoded.args.listingId);
+            setCreatedListingId(listingId);
+            
+            // Create real-time notification
+            const listingType = formData.listingType === 'INDIVIDUAL_AUCTION' ? 'auction' 
+              : formData.listingType === 'FIXED_PRICE' ? 'fixed price listing'
+              : 'offers-only listing';
+            
+            const artworkName = contractPreview.name || `Token #${formData.tokenId}` || 'your artwork';
+            
+            // Create real-time notification immediately
+            fetch('/api/notifications', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userAddress: address,
+                type: 'LISTING_CREATED',
+                title: 'Listing Created',
+                message: `You created a ${listingType} ${artworkName}`,
+                listingId: String(listingId),
+                metadata: {
+                  listingType: formData.listingType,
+                  artworkName,
+                  tokenAddress: formData.nftContract,
+                  tokenId: formData.tokenId,
+                },
+              }),
+            }).catch(err => {
+              console.error('Error creating listing notification:', err);
+              // Don't block UI - notification will be created by cron job
+            });
           }
         }
       } catch (err) {
         console.error('Error extracting listing ID from receipt:', err);
       }
     }
-  }, [receipt, isSuccess]);
+  }, [receipt, isSuccess, address, formData.listingType, formData.tokenId, formData.nftContract, contractPreview.name]);
 
   // Reset submitting state when transaction completes
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
+import { getUserFromCache, cacheUserInfo } from "~/lib/server/user-cache.js";
 
 /**
  * Shared artist name resolution utilities.
@@ -15,10 +16,25 @@ export const publicClient = createPublicClient({
 /**
  * Lookup user by verified ETH address using Neynar API
  * Uses the bulk-by-address endpoint which is more reliable
+ * Now checks cache first before making API calls
  */
 export async function lookupNeynarByAddress(
   address: string
 ): Promise<{ name: string; fid: number } | null> {
+  // Check cache first
+  const cached = await getUserFromCache(address);
+  if (cached && cached.expiresAt > new Date() && cached.fid) {
+    const name = cached.username || cached.displayName || cached.ensName;
+    if (name) {
+      console.log("[lookupNeynarByAddress] Using cached data for:", address);
+      return {
+        name,
+        fid: cached.fid,
+      };
+    }
+  }
+  
+  // Cache miss or expired - fetch from API
   console.log("[lookupNeynarByAddress] Starting lookup for address:", address);
   const apiKey = process.env.NEYNAR_API_KEY;
   if (!apiKey) {
@@ -101,6 +117,17 @@ export async function lookupNeynarByAddress(
       if (user && user.fid) {
         const name = user.username || user.display_name || `@${user.username}`;
         console.log("[lookupNeynarByAddress] Returning name:", name);
+        
+        // Cache the result for future use
+        await cacheUserInfo(address, {
+          fid: user.fid,
+          username: user.username,
+          displayName: user.display_name,
+          pfpUrl: user.pfp_url,
+          verifiedWallets: user.verified_addresses?.eth_addresses || [],
+          source: 'neynar',
+        });
+        
         return {
           name,
           fid: user.fid,
@@ -121,12 +148,29 @@ export async function lookupNeynarByAddress(
 
 /**
  * Reverse resolve ENS name from address
+ * Now checks cache first before making RPC calls
  */
 export async function resolveEnsName(address: string): Promise<string | null> {
+  // Check cache first
+  const cached = await getUserFromCache(address);
+  if (cached && cached.expiresAt > new Date() && cached.ensName) {
+    console.log("[resolveEnsName] Using cached ENS name for:", address);
+    return cached.ensName;
+  }
+  
   try {
     const ensName = await publicClient.getEnsName({
       address: address as `0x${string}`,
     });
+    
+    // Cache the result if found
+    if (ensName) {
+      await cacheUserInfo(address, {
+        ensName,
+        source: 'ens',
+      });
+    }
+    
     return ensName;
   } catch (error) {
     console.error("Error resolving ENS name:", error);

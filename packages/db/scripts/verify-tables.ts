@@ -21,16 +21,18 @@ config({ path: resolve(__dirname, '../.env.local') });
 // Fallback to local .env if exists
 config({ path: resolve(__dirname, '../.env') });
 
-const connectionString = process.env.POSTGRES_URL;
+const connectionString = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
 if (!connectionString) {
-  console.error('❌ POSTGRES_URL environment variable is required');
+  console.error('❌ STORAGE_POSTGRES_URL or POSTGRES_URL environment variable is required');
   process.exit(1);
 }
 
 // MVP-only tables
 const expectedTables = [
-  'artist_cache',
+  'user_cache',
   'contract_cache',
+  'notifications',
+  'notification_preferences',
 ];
 
 async function verifyTables() {

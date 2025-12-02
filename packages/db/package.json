@@ -10,7 +10,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:verify": "tsx scripts/verify-tables.ts"
+    "db:verify": "tsx scripts/verify-tables.ts",
+    "db:run-migration": "tsx scripts/run-migration.ts"
   },
   "dependencies": {
     "@vercel/postgres": "^0.8.0",

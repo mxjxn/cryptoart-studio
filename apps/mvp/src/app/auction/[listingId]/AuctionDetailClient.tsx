@@ -65,6 +65,12 @@ export default function AuctionDetailClient({
     hash: acceptHash,
   });
 
+  // Bid transaction (for INDIVIDUAL_AUCTION)
+  const { writeContract: placeBid, data: bidHash, isPending: isBidding, error: bidError } = useWriteContract();
+  const { isLoading: isConfirmingBid, isSuccess: isBidConfirmed } = useWaitForTransactionReceipt({
+    hash: bidHash,
+  });
+
   // Resolve creator name from contract address (NFT creator, not auction seller)
   // Pass null for address so it only looks up contract creator, not seller
   const {
@@ -131,8 +137,32 @@ export default function AuctionDetailClient({
     if (!isConnected || !bidAmount || !auction) {
       return;
     }
-    // TODO: Implement bid functionality
-    console.log("Place bid:", bidAmount);
+
+    try {
+      const bidAmountWei = parseEther(bidAmount);
+      const currentPrice = auction.highestBid?.amount || auction.initialAmount;
+      
+      // Calculate minimum bid (default 5% increment if not specified)
+      const minIncrementBPS = 500; // Default 5% increment
+      const minBid = BigInt(currentPrice) + (BigInt(currentPrice) * BigInt(minIncrementBPS)) / BigInt(10000);
+      
+      if (bidAmountWei < minBid) {
+        alert(`Bid must be at least ${formatEther(minBid)} ETH`);
+        return;
+      }
+      
+      // Use increase=false to bid the exact amount sent
+      await placeBid({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'bid',
+        args: [Number(listingId), false],
+        value: bidAmountWei,
+      });
+    } catch (err) {
+      console.error("Error placing bid:", err);
+      alert("Failed to place bid. Please try again.");
+    }
   };
 
   const handlePurchase = async () => {
@@ -256,23 +286,206 @@ export default function AuctionDetailClient({
     }
   }, [isFinalizeConfirmed, router]);
 
-  // Refetch offers after successful offer or accept
+  // Create notifications after successful bid
   useEffect(() => {
-    if (isOfferConfirmed || isAcceptConfirmed) {
+    if (isBidConfirmed && address && auction) {
+      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
+      const bidAmountEth = bidAmount ? formatEther(parseEther(bidAmount)) : '0';
+      const previousBidder = auction.highestBid?.bidder;
+      
+      // Notify bidder
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address,
+          type: 'BID_PLACED',
+          title: 'Bid Placed',
+          message: `You've placed a bid on ${artworkName}`,
+          listingId: listingId,
+          metadata: {
+            amount: bidAmount,
+            artworkName,
+          },
+        }),
+      }).catch(err => console.error('Error creating bidder notification:', err));
+      
+      // Notify seller
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: auction.seller,
+          type: 'NEW_BID',
+          title: 'New Bid',
+          message: `New bid on ${artworkName} from ${address.slice(0, 6)}...${address.slice(-4)} for ${bidAmountEth} ETH`,
+          listingId: listingId,
+          metadata: {
+            bidder: address,
+            amount: bidAmount,
+            artworkName,
+          },
+        }),
+      }).catch(err => console.error('Error creating seller notification:', err));
+      
+      // Notify previous bidder if they were outbid
+      if (previousBidder && previousBidder.toLowerCase() !== address.toLowerCase()) {
+        fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: previousBidder,
+            type: 'OUTBID',
+            title: 'You\'ve Been Outbid',
+            message: `You've been outbid on ${artworkName}`,
+            listingId: listingId,
+            metadata: {
+              newBidAmount: bidAmount,
+              artworkName,
+            },
+          }),
+        }).catch(err => console.error('Error creating outbid notification:', err));
+      }
+      
+      // Refresh auction data
+      router.refresh();
+      setBidAmount(''); // Clear bid input
+    }
+  }, [isBidConfirmed, address, auction, listingId, bidAmount, router]);
+
+  // Refetch offers after successful offer or accept and create notifications
+  useEffect(() => {
+    if (isOfferConfirmed && address && auction) {
+      // Create notification for seller about new offer
+      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
+      
+      // Parse offer amount for display
+      const offerAmountEth = offerAmount ? formatEther(parseEther(offerAmount)) : '0';
+      
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: auction.seller,
+          type: 'NEW_OFFER',
+          title: 'New Offer',
+          message: `New offer on ${artworkName} for ${offerAmountEth} ETH from ${address.slice(0, 6)}...${address.slice(-4)}`,
+          listingId: listingId,
+          metadata: {
+            offerer: address,
+            amount: offerAmount,
+            artworkName,
+          },
+        }),
+      }).catch(err => console.error('Error creating offer notification:', err));
+      
       refetchOffers();
       router.refresh();
     }
-  }, [isOfferConfirmed, isAcceptConfirmed, refetchOffers, router]);
-
-  // Redirect after successful purchase
+  }, [isOfferConfirmed, refetchOffers, router, address, auction, listingId, offerAmount]);
+  
   useEffect(() => {
-    if (isPurchaseConfirmed) {
+    if (isAcceptConfirmed && address && auction && offers) {
+      // Create notifications for accepted offer
+      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
+      
+      // Find the accepted offer to get offerer address
+      const acceptedOffer = offers.find((o: any) => o.offerer && o.offerer.toLowerCase() !== address.toLowerCase());
+      if (acceptedOffer) {
+        // Notify offerer
+        fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: acceptedOffer.offerer,
+            type: 'OFFER_ACCEPTED',
+            title: 'Offer Accepted',
+            message: `Your offer on ${artworkName} was accepted`,
+            listingId: listingId,
+            metadata: {
+              artworkName,
+              amount: acceptedOffer.amount,
+            },
+          }),
+        }).catch(err => console.error('Error creating offer accepted notification:', err));
+        
+        // Notify seller
+        fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: address,
+            type: 'BUY_NOW_SALE',
+            title: 'Sale Completed',
+            message: `New sale on ${artworkName} to ${acceptedOffer.offerer.slice(0, 6)}...${acceptedOffer.offerer.slice(-4)}`,
+            listingId: listingId,
+            metadata: {
+              buyer: acceptedOffer.offerer,
+              artworkName,
+              amount: acceptedOffer.amount,
+            },
+          }),
+        }).catch(err => console.error('Error creating seller notification:', err));
+      }
+      
+      refetchOffers();
+      router.refresh();
+    }
+  }, [isAcceptConfirmed, refetchOffers, router, address, auction, listingId, offers]);
+
+  // Redirect after successful purchase and create notifications
+  useEffect(() => {
+    if (isPurchaseConfirmed && address && auction) {
+      // Create real-time notifications for buyer and seller
+      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
+      const isERC1155 = auction.tokenSpec === 'ERC1155' || String(auction.tokenSpec) === '2';
+      const notificationType = isERC1155 ? 'ERC1155_PURCHASE' : 'ERC721_PURCHASE';
+      
+      // Notify buyer
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address,
+          type: notificationType,
+          title: 'Purchase Completed',
+          message: isERC1155 
+            ? `You bought ${purchaseQuantity} ${artworkName}`
+            : `You purchased ${artworkName}`,
+          listingId: listingId,
+          metadata: {
+            artworkName,
+            quantity: purchaseQuantity,
+            price: auction.currentPrice || auction.initialAmount,
+          },
+        }),
+      }).catch(err => console.error('Error creating buyer notification:', err));
+      
+      // Notify seller
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: auction.seller,
+          type: 'BUY_NOW_SALE',
+          title: 'Sale Completed',
+          message: `New sale on ${artworkName} to ${address.slice(0, 6)}...${address.slice(-4)}`,
+          listingId: listingId,
+          metadata: {
+            buyer: address,
+            artworkName,
+            quantity: purchaseQuantity,
+            price: auction.currentPrice || auction.initialAmount,
+          },
+        }),
+      }).catch(err => console.error('Error creating seller notification:', err));
+      
       router.refresh();
       setTimeout(() => {
         router.push("/");
       }, 100);
     }
-  }, [isPurchaseConfirmed, router]);
+  }, [isPurchaseConfirmed, router, address, auction, listingId, purchaseQuantity]);
 
   // Set up back navigation for Farcaster mini-app
   useEffect(() => {
