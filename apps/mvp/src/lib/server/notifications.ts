@@ -10,9 +10,9 @@ import {
   and,
   gte
 } from '@cryptoart/db';
-import { sendPushNotification } from './neynar-notifications.js';
-import { getUserFromCache } from './user-cache.js';
-import { lookupNeynarByAddress } from '~/lib/artist-name-resolution.js';
+import { sendPushNotification } from './neynar-notifications';
+import { getUserFromCache } from './user-cache';
+import { lookupNeynarByAddress } from '~/lib/artist-name-resolution';
 
 /**
  * Check for duplicate notification within the last hour

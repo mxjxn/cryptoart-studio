@@ -1,4 +1,4 @@
-import { processEventsSince } from './notification-events.js';
+import { processEventsSince } from './notification-events';
 import { getDatabase, notificationWorkerState } from '@cryptoart/db';
 import { eq } from '@cryptoart/db';
 
@@ -111,6 +111,7 @@ export async function runNotificationWorker(): Promise<void> {
       throw error;
     }
     
+    const currentTimestamp = Math.floor(Date.now() / 1000);
     console.log('[notification-worker] Notification worker completed successfully');
     console.log(`[notification-worker] Updated state: block=${lastBlock}, timestamp=${currentTimestamp}`);
   } catch (error) {
