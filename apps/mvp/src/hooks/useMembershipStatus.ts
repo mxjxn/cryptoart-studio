@@ -74,19 +74,43 @@ export function useMembershipStatus(): MembershipStatus {
     const wallets: string[] = [];
     
     if (context?.user) {
+      const user = context.user as any;
+      
       // Add custody address (the native Farcaster wallet)
-      const custodyAddr = (context.user as any).custody_address;
+      const custodyAddr = user.custody_address;
       if (custodyAddr) {
         wallets.push(custodyAddr.toLowerCase());
       }
       
       // Add primary verified address (fallback/alternative native wallet)
-      const verifiedAddrs = (context.user as any).verified_addresses;
+      const verifiedAddrs = user.verified_addresses;
       if (verifiedAddrs?.primary?.eth_address) {
         const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
         if (!wallets.includes(primaryAddr)) {
           wallets.push(primaryAddr);
         }
+      }
+      
+      // Also check if primary is in eth_addresses array and add it
+      if (verifiedAddrs?.eth_addresses && verifiedAddrs.primary?.eth_address) {
+        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+        // Check if primary is actually in the eth_addresses array
+        const primaryInArray = verifiedAddrs.eth_addresses.some(
+          (addr: string) => addr.toLowerCase() === primaryAddr
+        );
+        if (primaryInArray && !wallets.includes(primaryAddr)) {
+          wallets.push(primaryAddr);
+        }
+      }
+      
+      // Debug: Log what we found
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useMembershipStatus] Farcaster native wallets:', {
+          custody_address: custodyAddr,
+          primary_eth_address: verifiedAddrs?.primary?.eth_address,
+          all_eth_addresses: verifiedAddrs?.eth_addresses,
+          farcasterNativeWallets: wallets,
+        });
       }
     }
     
@@ -144,18 +168,50 @@ export function useMembershipStatus(): MembershipStatus {
 
   // Check if membership is on a Farcaster native wallet (custody or primary)
   // If it's on any other verified address, it's considered "external" and should show "manage on hypersub"
-  const isFarcasterWallet = membershipData.membershipAddress 
-    ? farcasterNativeWallets.includes(membershipData.membershipAddress.toLowerCase())
-    : false;
+  // Note: membershipAddress is already lowercased from verifiedAddresses array
+  const membershipAddrLower = membershipData.membershipAddress?.toLowerCase() || null;
+  
+  // Determine if this is the Farcaster wallet:
+  // 1. Check if it's in the farcasterNativeWallets array (custody or primary)
+  // 2. Fallback: If miniapp context doesn't provide custody/primary, check if it's:
+  //    - The connected address (from eth_requestAccounts in miniapp)
+  //    - The first verified address (often the primary/custody)
+  let isFarcasterWallet = false;
+  if (membershipAddrLower) {
+    // First check: Is it in the explicit Farcaster native wallets?
+    isFarcasterWallet = farcasterNativeWallets.includes(membershipAddrLower);
+    
+    // Fallback: If we couldn't determine from custody/primary (miniapp might not provide these)
+    // and the membership is on the connected address or first verified address, treat it as Farcaster wallet
+    if (!isFarcasterWallet && farcasterNativeWallets.length === 0) {
+      const connectedAddrLower = connectedAddress?.toLowerCase();
+      const firstVerifiedAddr = verifiedAddresses[0]?.toLowerCase();
+      
+      // If membership is on connected address (miniapp wallet) or first verified address, it's likely the Farcaster wallet
+      if (membershipAddrLower === connectedAddrLower || membershipAddrLower === firstVerifiedAddr) {
+        isFarcasterWallet = true;
+      }
+    }
+  }
   
   // Debug logging in development
-  if (process.env.NODE_ENV === 'development' && membershipData.membershipAddress) {
-    console.log('[useMembershipStatus] Membership check:', {
-      membershipAddress: membershipData.membershipAddress,
-      farcasterNativeWallets,
-      isFarcasterWallet,
-      allVerifiedAddresses: verifiedAddresses,
-    });
+  if (process.env.NODE_ENV === 'development') {
+    if (membershipData.membershipAddress) {
+      console.log('[useMembershipStatus] Membership check:', {
+        membershipAddress: membershipData.membershipAddress,
+        membershipAddressLower: membershipAddrLower,
+        connectedAddress: connectedAddress?.toLowerCase(),
+        firstVerifiedAddress: verifiedAddresses[0],
+        farcasterNativeWallets,
+        isFarcasterWallet,
+        allVerifiedAddresses: verifiedAddresses,
+        comparison: farcasterNativeWallets.map(w => ({
+          wallet: w,
+          matches: w === membershipAddrLower,
+        })),
+        fallbackUsed: farcasterNativeWallets.length === 0 && isFarcasterWallet,
+      });
+    }
   }
 
   return {

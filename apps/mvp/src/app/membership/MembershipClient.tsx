@@ -309,6 +309,10 @@ export default function MembershipClient() {
                 Your membership is active in a different verified wallet. To manage your subscription, 
                 please visit Hypersub directly.
               </p>
+              <div className="mb-4 p-3 bg-black rounded border border-[#333333]">
+                <p className="text-xs text-[#999999] mb-1">Membership Address:</p>
+                <p className="text-sm text-white font-mono break-all">{membershipAddress}</p>
+              </div>
             </div>
             <a
               href="https://hypersub.xyz/s/cryptoart"
