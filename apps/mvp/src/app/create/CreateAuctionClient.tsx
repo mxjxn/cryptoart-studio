@@ -7,8 +7,11 @@ import { type Address, parseEther } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 import { TransactionStatus } from "~/components/TransactionStatus";
+import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { useAuthMode } from "~/hooks/useAuthMode";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
+import Link from "next/link";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -101,6 +104,7 @@ export default function CreateAuctionClient() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
+  const { isMiniApp } = useAuthMode();
   const [formData, setFormData] = useState({
     nftContract: "",
     tokenId: "",
@@ -619,35 +623,59 @@ export default function CreateAuctionClient() {
   }, [isSDKLoaded, router]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-2xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Create Auction</h1>
+    <div className="min-h-screen bg-black text-white">
+      {/* Header - only show when not in miniapp */}
+      {!isMiniApp && (
+        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <div className="flex items-center gap-3">
+            <ProfileDropdown />
+          </div>
+        </header>
+      )}
+
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="mb-8">
+          <Link
+            href="/"
+            className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2 mb-6"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back
+          </Link>
+          <h1 className="text-3xl font-light mb-2">Create Auction</h1>
+          <p className="text-sm text-[#cccccc]">
+            List your NFT for auction. Set a reserve price and auction duration.
+          </p>
+        </div>
 
         {!isConnected && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <p className="text-yellow-800">Please connect your wallet to create an auction.</p>
+          <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-4 mb-6">
+            <p className="text-[#cccccc]">Please connect your wallet to create an auction.</p>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-[#cccccc] mb-2">
               NFT Contract Address
             </label>
             <input
               type="text"
               value={formData.nftContract}
               onChange={(e) => setFormData({ ...formData, nftContract: e.target.value })}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white ${
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black ${
                 formData.nftContract && !isValidAddressFormat(formData.nftContract)
-                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300'
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                  : 'border-[#333333]'
               }`}
               placeholder="0x..."
               required
             />
             {formData.nftContract && !isValidAddressFormat(formData.nftContract) && (
-              <p className="mt-1 text-sm text-red-600">
+              <p className="mt-1 text-sm text-red-400">
                 Please enter a valid Ethereum address (42 characters, starting with 0x)
               </p>
             )}
@@ -655,47 +683,47 @@ export default function CreateAuctionClient() {
 
           {/* Contract Preview Pane */}
           {isValidContract && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-black border border-[#333333] rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-blue-900">Contract Preview</h3>
+                <h3 className="text-sm font-medium text-white">Contract Preview</h3>
                 {/* Token Type Badge */}
                 {tokenType === 'loading' ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-200 text-gray-600">
-                    <span className="h-3 w-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-1"></span>
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-[#0a0a0a] text-[#999999] border border-[#333333]">
+                    <span className="h-3 w-3 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mr-1"></span>
                     Detecting...
                   </span>
                 ) : tokenType === 'ERC721' ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-900/30 text-purple-300 border border-purple-700/50">
                     ERC-721
                   </span>
                 ) : tokenType === 'ERC1155' ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-900/30 text-orange-300 border border-orange-700/50">
                     ERC-1155
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-900/30 text-red-300 border border-red-700/50">
                     Unknown Type
                   </span>
                 )}
               </div>
               {contractPreview.loading ? (
                 <div className="space-y-2">
-                  <div className="h-4 bg-blue-200 rounded animate-pulse"></div>
-                  <div className="h-4 bg-blue-200 rounded animate-pulse w-3/4"></div>
+                  <div className="h-4 bg-[#0a0a0a] rounded animate-pulse"></div>
+                  <div className="h-4 bg-[#0a0a0a] rounded animate-pulse w-3/4"></div>
                 </div>
               ) : contractPreview.error ? (
-                <p className="text-sm text-red-600">{contractPreview.error}</p>
+                <p className="text-sm text-red-400">{contractPreview.error}</p>
               ) : (
                 <div className="space-y-2 text-sm">
                   <div>
-                    <span className="font-medium text-blue-900">Name:</span>{' '}
-                    <span className="text-blue-700">
+                    <span className="font-medium text-[#999999]">Name:</span>{' '}
+                    <span className="text-white">
                       {contractPreview.name || 'Not available'}
                     </span>
                   </div>
                   <div>
-                    <span className="font-medium text-blue-900">Owner:</span>{' '}
-                    <span className="text-blue-700 font-mono text-xs">
+                    <span className="font-medium text-[#999999]">Owner:</span>{' '}
+                    <span className="text-white font-mono text-xs">
                       {contractPreview.owner || 'Not available'}
                     </span>
                   </div>
@@ -705,14 +733,14 @@ export default function CreateAuctionClient() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-[#cccccc] mb-2">
               Token ID
             </label>
             <input
               type="text"
               value={formData.tokenId}
               onChange={(e) => setFormData({ ...formData, tokenId: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white"
+              className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
               placeholder="1"
               required
             />
@@ -720,30 +748,30 @@ export default function CreateAuctionClient() {
 
           {/* Ownership Status */}
           {isValidContract && hasValidTokenId && (
-            <div className={`rounded-lg p-4 ${
+            <div className={`rounded-lg p-4 border ${
               ownershipStatus.loading 
-                ? 'bg-gray-50 border border-gray-200' 
+                ? 'bg-[#0a0a0a] border-[#333333]' 
                 : ownershipStatus.isOwner 
-                  ? 'bg-green-50 border border-green-200'
-                  : 'bg-red-50 border border-red-200'
+                  ? 'bg-green-900/20 border-green-700/50'
+                  : 'bg-red-900/20 border-red-700/50'
             }`}>
               {ownershipStatus.loading ? (
                 <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-gray-600 text-sm">Checking ownership...</span>
+                  <div className="h-4 w-4 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-[#cccccc] text-sm">Checking ownership...</span>
                 </div>
               ) : ownershipStatus.error ? (
-                <p className="text-red-800 text-sm">{ownershipStatus.error}</p>
+                <p className="text-red-400 text-sm">{ownershipStatus.error}</p>
               ) : ownershipStatus.isOwner ? (
                 <div className="space-y-1">
-                  <p className="text-green-800 text-sm font-medium">✓ You own this token</p>
-                  <p className="text-green-700 text-xs">Token Type: {tokenType}</p>
+                  <p className="text-green-400 text-sm font-medium">✓ You own this token</p>
+                  <p className="text-green-300 text-xs">Token Type: {tokenType}</p>
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <p className="text-red-800 text-sm font-medium">✗ You do not own this token</p>
+                  <p className="text-red-400 text-sm font-medium">✗ You do not own this token</p>
                   {ownershipStatus.owner && tokenType === 'ERC721' && (
-                    <p className="text-red-700 text-xs font-mono">
+                    <p className="text-red-300 text-xs font-mono">
                       Owned by: {ownershipStatus.owner}
                     </p>
                   )}
@@ -754,27 +782,27 @@ export default function CreateAuctionClient() {
 
           {/* Approval Status */}
           {canProceed && (
-            <div className={`rounded-lg p-4 ${
+            <div className={`rounded-lg p-4 border ${
               approvalStatus.loading 
-                ? 'bg-gray-50 border border-gray-200' 
+                ? 'bg-[#0a0a0a] border-[#333333]' 
                 : approvalStatus.isApproved 
-                  ? 'bg-green-50 border border-green-200'
-                  : 'bg-amber-50 border border-amber-200'
+                  ? 'bg-green-900/20 border-green-700/50'
+                  : 'bg-amber-900/20 border-amber-700/50'
             }`}>
               {approvalStatus.loading ? (
                 <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-gray-600 text-sm">Checking marketplace approval...</span>
+                  <div className="h-4 w-4 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-[#cccccc] text-sm">Checking marketplace approval...</span>
                 </div>
               ) : approvalStatus.isApproved ? (
                 <div className="space-y-1">
-                  <p className="text-green-800 text-sm font-medium">✓ Marketplace approved to transfer this token</p>
+                  <p className="text-green-400 text-sm font-medium">✓ Marketplace approved to transfer this token</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <p className="text-amber-800 text-sm font-medium">⚠ Approval required</p>
-                    <p className="text-amber-700 text-xs">
+                    <p className="text-amber-400 text-sm font-medium">⚠ Approval required</p>
+                    <p className="text-amber-300 text-xs">
                       {tokenType === 'ERC721' 
                         ? `Approve the marketplace to transfer token #${formData.tokenId} when the auction ends.`
                         : 'The marketplace needs permission to transfer your tokens. This approves all tokens in this collection.'}
@@ -796,7 +824,7 @@ export default function CreateAuctionClient() {
                     <button
                       type="button"
                       onClick={handleApprove}
-                      className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors text-sm"
+                      className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
                     >
                       {tokenType === 'ERC721' 
                         ? `Approve Token #${formData.tokenId}`
@@ -812,7 +840,7 @@ export default function CreateAuctionClient() {
           <div className={!canProceed ? 'opacity-50 pointer-events-none' : ''}>
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-[#cccccc] mb-2">
                   Reserve Price (ETH)
                 </label>
                 <input
@@ -820,7 +848,7 @@ export default function CreateAuctionClient() {
                   step="0.001"
                   value={formData.reservePrice}
                   onChange={(e) => setFormData({ ...formData, reservePrice: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white disabled:bg-gray-100"
+                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
                   placeholder="0.1"
                   required
                   disabled={!canProceed}
@@ -828,41 +856,41 @@ export default function CreateAuctionClient() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-[#cccccc] mb-2">
                   Start Time (optional, leave empty to start on first bid)
                 </label>
                 <input
                   type="datetime-local"
                   value={formData.startTime}
                   onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white disabled:bg-gray-100"
+                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
                   disabled={!canProceed}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-[#cccccc] mb-2">
                   End Time
                 </label>
                 <input
                   type="datetime-local"
                   value={formData.endTime}
                   onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white disabled:bg-gray-100"
+                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
                   required
                   disabled={!canProceed}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-[#cccccc] mb-2">
                   Min Increment (basis points, e.g., 500 = 5%)
                 </label>
                 <input
                   type="number"
                   value={formData.minIncrementBPS}
                   onChange={(e) => setFormData({ ...formData, minIncrementBPS: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 bg-white disabled:bg-gray-100"
+                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
                   placeholder="500"
                   required
                   disabled={!canProceed}
@@ -887,14 +915,14 @@ export default function CreateAuctionClient() {
               <button
                 type="button"
                 onClick={() => router.push("/")}
-                className="flex-1 px-4 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors"
+                className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
               >
                 View Auctions
               </button>
               <button
                 type="button"
                 onClick={handleReset}
-                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                className="flex-1 px-6 py-3 bg-[#0a0a0a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#1a1a1a] transition-colors"
               >
                 Create Another
               </button>
@@ -903,7 +931,7 @@ export default function CreateAuctionClient() {
             <button
               type="submit"
               disabled={!isConnected || !canProceed || !approvalStatus.isApproved || isPending || isConfirming || isSubmitting}
-              className="w-full px-4 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] disabled:bg-[#333333] disabled:text-[#666666] disabled:cursor-not-allowed transition-colors"
             >
               {isPending
                 ? "Waiting for signature..."
