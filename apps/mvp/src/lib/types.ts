@@ -1,5 +1,29 @@
-import type { AuctionData } from '@cryptoart/unified-indexer';
 import type { NFTMetadata } from './nft-metadata';
+
+/**
+ * Base auction data structure from the subgraph
+ */
+export interface AuctionData {
+  id: string;
+  listingId: string;
+  marketplace: string;
+  seller: string;
+  tokenAddress: string;
+  tokenId?: string;
+  tokenSpec: "ERC721" | "ERC1155";
+  listingType: "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
+  initialAmount: string;
+  totalAvailable: string;
+  totalPerSale: string;
+  startTime: string;
+  endTime: string;
+  lazy: boolean;
+  status: "ACTIVE" | "FINALIZED" | "CANCELLED";
+  totalSold: string;
+  currentPrice?: string;
+  createdAt: string;
+  createdAtBlock: string;
+}
 
 /**
  * Enriched auction data with metadata and bid information

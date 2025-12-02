@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { useMiniApp } from '@neynar/react';
-import type { AuctionData } from '@cryptoart/unified-indexer';
+import type { AuctionData } from '~/lib/types';
 import { getAuctionsBySeller, getAuctionsWithBids } from '~/lib/subgraph';
 import { Address } from 'viem';
 

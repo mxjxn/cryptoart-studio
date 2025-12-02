@@ -1,5 +1,4 @@
-import type { AuctionData } from '@cryptoart/unified-indexer';
-import type { EnrichedAuctionData } from './types';
+import type { AuctionData, EnrichedAuctionData } from './types';
 import { Address } from 'viem';
 
 const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '8453', 10);
