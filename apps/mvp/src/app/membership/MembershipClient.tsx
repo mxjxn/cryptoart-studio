@@ -107,7 +107,7 @@ function formatPeriodDuration(durationSeconds?: bigint) {
 
 export default function MembershipClient() {
   const { address, isConnected } = useAccount();
-  const { isPro, expirationDate, loading: statusLoading } = useMembershipStatus();
+  const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
   const [periods, setPeriods] = useState(12); // Changed from "months" to "periods"
 
   // Read tier detail (tier 1) from contract to get price per period
@@ -223,6 +223,32 @@ export default function MembershipClient() {
     });
   };
 
+  const formatTimeRemaining = (expirationDate: Date) => {
+    const now = new Date();
+    const diff = expirationDate.getTime() - now.getTime();
+    
+    if (diff <= 0) {
+      return "Expired";
+    }
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days} day${days !== 1 ? 's' : ''}${hours > 0 ? `, ${hours} hour${hours !== 1 ? 's' : ''}` : ''}`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours !== 1 ? 's' : ''}${minutes > 0 ? `, ${minutes} minute${minutes !== 1 ? 's' : ''}` : ''}`;
+    } else {
+      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    }
+  };
+
+  const formatAddress = (addr: string | null) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -247,19 +273,55 @@ export default function MembershipClient() {
             Back
           </Link>
           <h1 className="text-3xl font-light mb-2">Membership</h1>
-          <p className="text-sm text-[#cccccc]">
-            {statusLoading
-              ? "Loading membership status..."
-              : isPro
-              ? expirationDate
-                ? `Your membership expires on ${formatDate(expirationDate)}`
-                : "You have an active membership"
-              : "Get access to create auctions and premium features"}
-          </p>
+          {statusLoading ? (
+            <p className="text-sm text-[#cccccc]">Loading membership status...</p>
+          ) : isPro ? (
+            <div className="space-y-2">
+              <p className="text-sm text-[#cccccc]">
+                {expirationDate
+                  ? `Your membership expires on ${formatDate(expirationDate)}`
+                  : "You have an active membership"}
+              </p>
+              {expirationDate && (
+                <p className="text-sm text-white font-medium">
+                  Time remaining: {formatTimeRemaining(expirationDate)}
+                </p>
+              )}
+              {membershipAddress && (
+                <p className="text-sm text-[#cccccc]">
+                  Membership wallet: <span className="text-white font-mono">{formatAddress(membershipAddress)}</span>
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-[#cccccc]">
+              Get access to create auctions and premium features
+            </p>
+          )}
         </div>
 
-        <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
-          <div className="mb-6">
+        {/* Show different UI based on membership status and wallet */}
+        {isPro && !isFarcasterWallet && membershipAddress ? (
+          <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-medium mb-2">Membership in Another Wallet</h2>
+              <p className="text-sm text-[#cccccc] mb-4">
+                Your membership is active in a different verified wallet. To manage your subscription, 
+                please visit Hypersub directly.
+              </p>
+            </div>
+            <a
+              href="https://hypersub.xyz/s/cryptoart"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors inline-block text-center"
+            >
+              Manage on Hypersub →
+            </a>
+          </div>
+        ) : (
+          <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+            <div className="mb-6">
             <label className="block text-sm text-[#cccccc] mb-3">
               Duration (number of periods)
             </label>
@@ -333,7 +395,8 @@ export default function MembershipClient() {
               ? "Renew Membership"
               : "Mint Membership"}
           </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

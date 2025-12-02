@@ -27,33 +27,10 @@ if (!connectionString) {
   process.exit(1);
 }
 
+// MVP-only tables
 const expectedTables = [
-  // Cache tables
-  'subscriptions_cache',
-  'subscribers_cache',
-  
-  // Airdrop tables
-  'airdrop_lists',
-  'list_recipients',
-  'airdrop_history',
-  
-  // NFT collection tables
-  'nft_collections',
-  'collection_mints',
-  'clanker_tokens',
-  
-  // SuchGallery tables
-  'such_gallery_users',
-  'curated_galleries',
-  'curated_gallery_nfts',
-  'nft_metadata_cache',
-  'quote_casts',
-  'admin_users',
-  
-  // Creator Core tables
-  'creator_core_contracts',
-  'creator_core_tokens',
-  'creator_core_transfers',
+  'artist_cache',
+  'contract_cache',
 ];
 
 async function verifyTables() {
@@ -127,4 +104,3 @@ async function verifyTables() {
 }
 
 verifyTables();
-

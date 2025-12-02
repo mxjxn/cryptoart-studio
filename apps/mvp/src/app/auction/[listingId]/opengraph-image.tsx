@@ -1,11 +1,16 @@
 import { ImageResponse } from "next/og";
-import { getAuction } from "~/lib/subgraph";
-import { formatEther } from "viem";
+import { getAuctionServer } from "~/lib/server/auction";
+import {
+  prepareAuctionOGImageData,
+  getAuctionOGImageJSX,
+} from "~/lib/og-image-generator";
 
 export const alt = "Auction";
+// Farcaster Mini App embeds require 3:2 aspect ratio
+// See: https://miniapps.farcaster.xyz/docs/guides/sharing
 export const size = {
   width: 1200,
-  height: 630,
+  height: 800, // 3:2 aspect ratio (1200/800 = 1.5)
 };
 
 export const contentType = "image/png";
@@ -15,81 +20,98 @@ export default async function Image({
 }: {
   params: Promise<{ listingId: string }>;
 }) {
+  const startTime = Date.now();
   const { listingId } = await params;
-  const auction = await getAuction(listingId);
+  
+  console.log(`[OG Image] GET /auction/${listingId}/opengraph-image - Request received`);
+  console.log(`[OG Image] Listing ID: ${listingId}`);
+  
+  const auction = await getAuctionServer(listingId);
 
   if (!auction) {
+    console.warn(`[OG Image] Auction ${listingId} not found - returning fallback image`);
     return new ImageResponse(
       (
         <div
+          tw="flex flex-col items-center justify-center w-full h-full text-6xl text-white font-bold"
           style={{
-            fontSize: 60,
-            background: 'linear-gradient(to bottom right, #8b5cf6, #6366f1)',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
+            background: "linear-gradient(to bottom right, #8b5cf6, #6366f1)",
           }}
         >
-          <div style={{ fontSize: 72, fontWeight: 'bold' }}>
-            Auction Not Found
-          </div>
+          <div>Auction Not Found</div>
         </div>
       ),
       {
         ...size,
         headers: {
-          'Cache-Control': 'public, max-age=300, s-maxage=300',
+          // Farcaster recommends immutable, no-transform for dynamic images
+          // See: https://miniapps.farcaster.xyz/docs/guides/sharing
+          "Cache-Control": "public, immutable, no-transform, max-age=3600, s-maxage=3600",
         },
       }
     );
   }
 
-  const currentPrice = auction.currentPrice || auction.initialAmount;
-  const endTime = parseInt(auction.endTime);
-  const now = Math.floor(Date.now() / 1000);
-  const timeRemaining = endTime > now ? endTime - now : 0;
-  const hours = Math.floor(timeRemaining / 3600);
-  const minutes = Math.floor((timeRemaining % 3600) / 60);
+  try {
+    console.log(`[OG Image] Auction found: tokenAddress=${auction.tokenAddress}, tokenId=${auction.tokenId}`);
+    
+    // Prepare image data
+    console.log(`[OG Image] Preparing image data...`);
+    const imageData = await prepareAuctionOGImageData(auction);
+    console.log(`[OG Image] Image data prepared:`, {
+      title: imageData.title,
+      collectionName: imageData.collectionName,
+      artistName: imageData.artistName,
+      priceLabel: imageData.priceLabel,
+      price: imageData.price,
+      timeText: imageData.timeText,
+      hasImageUrl: !!imageData.imageUrl,
+      imageUrl: imageData.imageUrl?.substring(0, 100) + (imageData.imageUrl && imageData.imageUrl.length > 100 ? '...' : ''),
+    });
 
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          fontSize: 60,
-          background: 'linear-gradient(to bottom right, #8b5cf6, #6366f1)',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          padding: '40px',
-        }}
-      >
-        <div style={{ fontSize: 48, fontWeight: 'bold', marginBottom: 20 }}>
-          Auction #{listingId}
-        </div>
-        <div style={{ fontSize: 36, marginBottom: 30 }}>
-          Current Bid: {formatEther(BigInt(currentPrice))} ETH
-        </div>
-        {timeRemaining > 0 && (
-          <div style={{ fontSize: 32 }}>
-            Time Remaining: {hours}h {minutes}m
-          </div>
-        )}
-      </div>
-    ),
-    {
+    // Generate JSX for the image
+    console.log(`[OG Image] Generating JSX...`);
+    const imageJSX = getAuctionOGImageJSX(imageData);
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`[OG Image] Image generation complete in ${elapsed}ms`);
+    console.log(`[OG Image] Returning image with size: ${size.width}x${size.height}, contentType: ${contentType}`);
+
+    return new ImageResponse(imageJSX, {
       ...size,
       headers: {
-        'Cache-Control': 'public, max-age=300, s-maxage=300',
+        // Farcaster recommends immutable, no-transform for dynamic images
+        // See: https://miniapps.farcaster.xyz/docs/guides/sharing
+        "Cache-Control": "public, immutable, no-transform, max-age=3600, s-maxage=3600",
       },
+    });
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    console.error(`[OG Image] Error generating OG image for ${listingId} (${elapsed}ms):`, error);
+    if (error instanceof Error) {
+      console.error(`[OG Image] Error stack:`, error.stack);
     }
-  );
+    // Fallback to simple gradient
+    console.log(`[OG Image] Returning fallback error image`);
+    return new ImageResponse(
+      (
+        <div
+          tw="flex flex-col items-center justify-center w-full h-full text-5xl text-white font-bold"
+          style={{
+            background: "linear-gradient(to bottom right, #8b5cf6, #6366f1)",
+          }}
+        >
+          <div>Auction #{listingId}</div>
+        </div>
+      ),
+      {
+        ...size,
+        headers: {
+          // Short cache for fallback images to prevent caching errors
+          "Cache-Control": "public, max-age=300, s-maxage=300",
+        },
+      }
+    );
+  }
 }
 

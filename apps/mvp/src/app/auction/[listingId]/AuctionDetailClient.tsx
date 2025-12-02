@@ -5,20 +5,60 @@ import { useAccount } from "wagmi";
 import { formatEther } from "viem";
 import { useRouter } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
+import { useArtistName } from "~/hooks/useArtistName";
+import { useContractName } from "~/hooks/useContractName";
 import { ShareButton } from "~/components/ShareButton";
+import { LinkShareButton } from "~/components/LinkShareButton";
+import { CopyButton } from "~/components/CopyButton";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { type Address } from "viem";
 
 interface AuctionDetailClientProps {
   listingId: string;
 }
 
-export default function AuctionDetailClient({ listingId }: AuctionDetailClientProps) {
+export default function AuctionDetailClient({
+  listingId,
+}: AuctionDetailClientProps) {
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
   const { auction, loading } = useAuction(listingId);
   const [bidAmount, setBidAmount] = useState("");
+
+  // Resolve creator name from contract address (NFT creator, not auction seller)
+  // Pass null for address so it only looks up contract creator, not seller
+  const {
+    artistName: creatorName,
+    isLoading: creatorNameLoading,
+    creatorAddress,
+  } = useArtistName(
+    null, // Don't pass seller address - we want the contract creator, not seller
+    auction?.tokenAddress || undefined,
+    auction?.tokenId ? BigInt(auction.tokenId) : undefined
+  );
+
+  // Resolve seller name separately (for display in auction details)
+  const { artistName: sellerName, isLoading: sellerNameLoading } =
+    useArtistName(
+      auction?.seller || null,
+      undefined, // No contract address for seller lookup
+      undefined
+    );
+
+  // Resolve bidder name if there's a highest bid
+  const { artistName: bidderName, isLoading: bidderNameLoading } =
+    useArtistName(
+      auction?.highestBid?.bidder || null,
+      undefined, // No contract address for bidder lookup
+      undefined
+    );
+
+  // Fetch contract name
+  const { contractName, isLoading: contractNameLoading } = useContractName(
+    auction?.tokenAddress as Address | undefined
+  );
 
   const handleBid = async () => {
     if (!isConnected || !bidAmount) {
@@ -36,21 +76,21 @@ export default function AuctionDetailClient({ listingId }: AuctionDetailClientPr
       try {
         // Check if back navigation is supported
         const capabilities = await sdk.getCapabilities();
-        if (capabilities.includes('back')) {
+        if (capabilities.includes("back")) {
           // Enable web navigation integration (automatically handles browser history)
           await sdk.back.enableWebNavigation();
-          
+
           // Also set up a custom handler for back navigation
           sdk.back.onback = () => {
             // Navigate back to home page
-            router.push('/');
+            router.push("/");
           };
 
           // Show the back button
           await sdk.back.show();
         }
       } catch (error) {
-        console.error('Failed to set up back navigation:', error);
+        console.error("Failed to set up back navigation:", error);
       }
     };
 
@@ -58,13 +98,13 @@ export default function AuctionDetailClient({ listingId }: AuctionDetailClientPr
 
     // Listen for back navigation events
     const handleBackNavigation = () => {
-      router.push('/');
+      router.push("/");
     };
 
-    sdk.on('backNavigationTriggered', handleBackNavigation);
+    sdk.on("backNavigationTriggered", handleBackNavigation);
 
     return () => {
-      sdk.off('backNavigationTriggered', handleBackNavigation);
+      sdk.off("backNavigationTriggered", handleBackNavigation);
       // Clear the back handler
       sdk.back.onback = null;
     };
@@ -91,121 +131,147 @@ export default function AuctionDetailClient({ listingId }: AuctionDetailClientPr
   const now = Math.floor(Date.now() / 1000);
   const isActive = endTime > now;
   const title = auction.title || `Auction #${listingId}`;
-  const artist = auction.artist || 'Unknown Artist';
+  // Use metadata artist, then resolved creator name from contract
+  const displayCreatorName = auction.artist || creatorName;
+  // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
+  const displayCreatorAddress = creatorAddress || auction.seller;
   const bidCount = auction.bidCount || 0;
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="container mx-auto px-5 py-8 max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-[32px] font-light mb-2">
-            {title}
-          </h1>
-          <div className="text-sm text-[#cccccc] mb-6">
-            by {artist}
-          </div>
+      <div className="container mx-auto px-5 py-4 max-w-4xl">
+        {/* Full width artwork */}
+        <div className="mb-4">
+          {auction.image ? (
+            <img
+              src={auction.image}
+              alt={title}
+              className="w-full aspect-square object-cover rounded-lg"
+            />
+          ) : (
+            <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg" />
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Image */}
-          <div className="relative">
-            {auction.image ? (
-              <img
-                src={auction.image}
-                alt={title}
-                className="w-full aspect-square object-cover rounded-lg"
+        {/* Title, Collection, Creator - each on own row */}
+        <div className="mb-4">
+          <div className="flex items-start justify-between gap-4 mb-1">
+            <h1 className="text-2xl font-light">{title}</h1>
+            <div className="flex gap-2 flex-shrink-0">
+              <LinkShareButton
+                url={typeof window !== "undefined" ? window.location.href : ""}
               />
-            ) : (
-              <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg" />
-            )}
-            <div className="absolute top-4 right-4">
               <ShareButton
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                text={`Check out this auction: ${title}`}
+                url={typeof window !== "undefined" ? window.location.href : ""}
+                artworkUrl={auction.image || auction.metadata?.image || null}
+                title={title}
+                artistName={displayCreatorName || undefined}
+                artistAddress={displayCreatorAddress || undefined}
+                sellerAddress={auction.seller}
+                sellerName={sellerName || undefined}
+                reservePrice={auction.initialAmount}
+                currentBid={auction.highestBid?.amount || undefined}
+                bidderAddress={auction.highestBid?.bidder || undefined}
+                bidderName={bidderName || undefined}
+                hasBids={bidCount > 0}
               />
             </div>
           </div>
-
-          {/* Details */}
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-4">
-                Auction Details
-              </h2>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-[#cccccc]">Reserve Price:</span>
-                  <span className="font-medium">{formatEther(BigInt(auction.initialAmount))} ETH</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#cccccc]">Current Bid:</span>
-                  <span className="font-medium">
-                    {auction.highestBid 
-                      ? `${formatEther(BigInt(currentPrice))} ETH`
-                      : 'No bids yet'
-                    }
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#cccccc]">Bid Count:</span>
-                  <span className="font-medium">{bidCount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#cccccc]">Status:</span>
-                  <span className="font-medium">{isActive ? "Active" : "Ended"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#cccccc]">Seller:</span>
-                  <span className="font-medium font-mono text-xs">{auction.seller}</span>
-                </div>
-              </div>
+          {contractName && (
+            <div className="text-xs text-[#999999] mb-1">{contractName}</div>
+          )}
+          {displayCreatorName ? (
+            <div className="text-xs text-[#cccccc] mb-4">
+              by {displayCreatorName}
             </div>
+          ) : displayCreatorAddress && !creatorNameLoading ? (
+            <div className="text-xs text-[#cccccc] mb-4 flex items-center gap-2">
+              <span className="font-mono">{displayCreatorAddress}</span>
+              <CopyButton text={displayCreatorAddress} />
+            </div>
+          ) : null}
+          {/* Description */}
+          {auction.description && (
+            <div className="mb-4">
+              <p className="text-xs text-[#cccccc] leading-relaxed">
+                {auction.description}
+              </p>
+            </div>
+          )}
+        </div>
 
-            {auction.description && (
-              <div>
-                <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-4">
-                  Description
-                </h2>
-                <p className="text-sm text-[#cccccc] leading-relaxed">
-                  {auction.description}
-                </p>
-              </div>
-            )}
-
-            {isActive && (
-              <div className="border-t border-[#333333] pt-6">
-                <h3 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-4">
+        {/* Place Bid */}
+        {isActive && (
+          <div className="mb-4">
+            {!isConnected ? (
+              <p className="text-xs text-[#cccccc]">
+                Please connect your wallet to place a bid.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="number"
+                  step="0.001"
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                  placeholder={
+                    auction.highestBid
+                      ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
+                      : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
+                  }
+                />
+                <button
+                  onClick={handleBid}
+                  className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                >
                   Place Bid
-                </h3>
-                {!isConnected ? (
-                  <p className="text-sm text-[#cccccc]">Please connect your wallet to place a bid.</p>
-                ) : (
-                  <div className="space-y-4">
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#333333] text-white rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
-                      placeholder={auction.highestBid 
-                        ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
-                        : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
-                      }
-                    />
-                    <button
-                      onClick={handleBid}
-                      className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-                    >
-                      Place Bid
-                    </button>
-                  </div>
-                )}
+                </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Compact auction details - multiple items per row */}
+        <div className="mb-4 space-y-3">
+          <div className="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <span className="text-[#999999]">Reserve:</span>
+              <span className="ml-2 font-medium">
+                {formatEther(BigInt(auction.initialAmount))} ETH
+              </span>
+            </div>
+            <div>
+              <span className="text-[#999999]">Current:</span>
+              <span className="ml-2 font-medium">
+                {auction.highestBid
+                  ? `${formatEther(BigInt(currentPrice))} ETH`
+                  : "No bids"}
+              </span>
+            </div>
+            <div>
+              <span className="text-[#999999]">Bids:</span>
+              <span className="ml-2 font-medium">{bidCount}</span>
+            </div>
+            <div>
+              <span className="text-[#999999]">Status:</span>
+              <span className="ml-2 font-medium">
+                {isActive ? "Active" : "Ended"}
+              </span>
+            </div>
+          </div>
+          <div className="text-xs">
+            <span className="text-[#999999]">Seller:</span>
+            <span className="ml-2 font-medium">
+              {sellerName ? (
+                sellerName
+              ) : (
+                <span className="font-mono">{auction.seller}</span>
+              )}
+            </span>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

@@ -5,7 +5,13 @@ import { type AccountAssociation } from '@farcaster/miniapp-core/src/manifest';
  */
 
 // --- App Configuration ---
-export const APP_URL: string = process.env.NEXT_PUBLIC_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+// Normalize APP_URL to remove trailing slash to prevent double slashes
+const getBaseUrl = (): string => {
+  const url = process.env.NEXT_PUBLIC_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+};
+
+export const APP_URL: string = getBaseUrl();
 
 export const APP_NAME: string = 'MVP Auction';
 

@@ -8,10 +8,18 @@ This document contains all contract addresses used across the cryptoart monorepo
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| Marketplace (Proxy) | `0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9` | Main auctionhouse marketplace contract |
+| Marketplace (Proxy) | `0xBB428171D8B612D7185A5C25118Ef7EdC3089B37` | Main auctionhouse marketplace contract (UUPS Proxy) |
+| Marketplace (Logic) | `0xE1992E8a99bdb97bd9b57092448A6EfcB3849B5D` | Implementation contract |
+| Seller Registry | `0xC485d935009274bC6Fd11d82Dd1C0f4F6fd3eBA9` | MembershipSellerRegistry contract |
+| Mock NFT | `0x4C5c5E94393c1359158B3Ba980c1bd5FB502A7bA` | DummyERC721 for seller registry testing |
 
 **Links:**
-- [Marketplace on BaseScan](https://basescan.org/address/0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9)
+- [Marketplace Proxy on BaseScan](https://basescan.org/address/0xBB428171D8B612D7185A5C25118Ef7EdC3089B37)
+- [Marketplace Logic on BaseScan](https://basescan.org/address/0xE1992E8a99bdb97bd9b57092448A6EfcB3849B5D)
+- [Seller Registry on BaseScan](https://basescan.org/address/0xC485d935009274bC6Fd11d82Dd1C0f4F6fd3eBA9)
+- [Mock NFT on BaseScan](https://basescan.org/address/0x4C5c5E94393c1359158B3Ba980c1bd5FB502A7bA)
+
+**Note**: Always use the Marketplace Proxy address (`0xBB428171D8B612D7185A5C25118Ef7EdC3089B37`) for interactions. See [Auctionhouse Deployments](../packages/auctionhouse-contracts/DEPLOYMENTS.md) for detailed deployment information.
 
 ### LSSVM Contracts
 
@@ -34,6 +42,25 @@ This document contains all contract addresses used across the cryptoart monorepo
 ---
 
 ## Base Sepolia Testnet (Chain ID: 84532)
+
+### Auctionhouse Contracts
+
+| Contract | Address | Description |
+|----------|---------|-------------|
+| Marketplace (Proxy) | `0xfd35bF63448595377d5bc2fCB435239Ba2AFB3ea` | Main auctionhouse marketplace contract (UUPS Proxy) |
+| Marketplace (Logic) | `0x7d4a5787E5fB76B852fa1143cFDD2a1090bd9b55` | Implementation contract |
+| Seller Registry | `0x4C5c5E94393c1359158B3Ba980c1bd5FB502A7bA` | MembershipSellerRegistry contract |
+| Mock NFT | `0xcbFbfA0ABF8E300d3fd7B7c9f316054101278D2B` | DummyERC721 for testing |
+| MarketplaceLib | `0x7CCDa9A722Bc7CfbbAC737043b2B893718519bA8` | Library contract |
+| SettlementLib | `0x4F6f47168DD8f0989279f25E1e8D2350e02aa677` | Library contract |
+
+**Links:**
+- [Marketplace Proxy on BaseScan](https://sepolia.basescan.org/address/0xfd35bF63448595377d5bc2fCB435239Ba2AFB3ea)
+- [Marketplace Logic on BaseScan](https://sepolia.basescan.org/address/0x7d4a5787E5fB76B852fa1143cFDD2a1090bd9b55)
+- [Seller Registry on BaseScan](https://sepolia.basescan.org/address/0x4C5c5E94393c1359158B3Ba980c1bd5FB502A7bA)
+- [Mock NFT on BaseScan](https://sepolia.basescan.org/address/0xcbFbfA0ABF8E300d3fd7B7c9f316054101278D2B)
+
+**Note**: Always use the Marketplace Proxy address (`0xfd35bF63448595377d5bc2fCB435239Ba2AFB3ea`) for interactions. See [Auctionhouse Deployments](../packages/auctionhouse-contracts/DEPLOYMENTS.md) for detailed deployment information.
 
 ### Creator Core Contracts
 

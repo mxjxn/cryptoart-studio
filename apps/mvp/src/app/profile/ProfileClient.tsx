@@ -6,6 +6,7 @@ import { useMiniApp } from "@neynar/react";
 import { useUserAuctions } from "~/hooks/useUserAuctions";
 import { formatEther } from "viem";
 import Link from "next/link";
+import { AuctionCard } from "~/components/AuctionCard";
 
 type TabType = "created" | "collected" | "bids";
 
@@ -13,15 +14,27 @@ export default function ProfileClient() {
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
   const [activeTab, setActiveTab] = useState<TabType>("created");
+  
+  // Get verified addresses from Farcaster if available
+  const farcasterAddress = context?.user
+    ? (context.user as any).verified_addresses?.primary?.eth_address ||
+      (context.user as any).custody_address ||
+      ((context.user as any).verifications?.[0] as string)
+    : null;
+  
+  // Use connected wallet address, or fall back to Farcaster verified address
+  const userAddress = address || farcasterAddress;
+  const hasAddress = !!userAddress;
+  
   const { createdAuctions, activeBids, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
   const collectedAuctions: any[] = [];
 
-  if (!isConnected) {
+  if (!hasAddress) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">Please connect your wallet to view your profile.</p>
+          <p className="text-gray-600 mb-4">Please connect your wallet or sign in with Farcaster to view your profile.</p>
         </div>
       </div>
     );
@@ -54,10 +67,12 @@ export default function ProfileClient() {
             </div>
           )}
 
-          {address && (
+          {userAddress && (
             <div className="mb-6">
-              <p className="text-sm text-gray-600 mb-1">Wallet Address</p>
-              <p className="font-mono text-sm text-gray-900">{address}</p>
+              <p className="text-sm text-gray-600 mb-1">
+                {isConnected ? "Wallet Address" : "Farcaster Verified Address"}
+              </p>
+              <p className="font-mono text-sm text-gray-900">{userAddress}</p>
             </div>
           )}
 
@@ -105,21 +120,23 @@ export default function ProfileClient() {
                   {createdAuctions.length === 0 ? (
                     <p className="text-gray-600">No auctions created yet.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {createdAuctions.map((auction) => (
-                        <Link
-                          key={auction.id}
-                          href={`/auction/${auction.listingId}`}
-                          className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:bg-gray-100 transition-colors"
-                        >
-                          <h4 className="font-semibold text-gray-900 mb-2">
-                            Auction #{auction.listingId}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            Reserve: {formatEther(BigInt(auction.initialAmount || "0"))} ETH
-                          </p>
-                        </Link>
-                      ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {createdAuctions.map((auction, index) => {
+                        // Use a simple gradient for profile view
+                        const gradients = [
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                          "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                          "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                        ];
+                        return (
+                          <AuctionCard
+                            key={auction.id}
+                            auction={auction as any}
+                            gradient={gradients[index % gradients.length]}
+                            index={index}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -147,21 +164,23 @@ export default function ProfileClient() {
                   {activeBids.length === 0 ? (
                     <p className="text-gray-600">No active bids.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {activeBids.map((auction) => (
-                        <Link
-                          key={auction.id}
-                          href={`/auction/${auction.listingId}`}
-                          className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:bg-gray-100 transition-colors"
-                        >
-                          <h4 className="font-semibold text-gray-900 mb-2">
-                            Auction #{auction.listingId}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            Your bid: {auction.currentPrice ? formatEther(BigInt(auction.currentPrice)) : 'N/A'} ETH
-                          </p>
-                        </Link>
-                      ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {activeBids.map((auction, index) => {
+                        // Use a simple gradient for profile view
+                        const gradients = [
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                          "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                          "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                        ];
+                        return (
+                          <AuctionCard
+                            key={auction.id}
+                            auction={auction as any}
+                            gradient={gradients[index % gradients.length]}
+                            index={index}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </div>

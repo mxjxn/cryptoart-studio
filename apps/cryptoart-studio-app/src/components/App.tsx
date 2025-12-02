@@ -85,10 +85,12 @@ export default function App(
 
 
   // --- Render ---
+  const isHomeTab = currentTab === Tab.Home;
+  
   return (
     <AuthWrapper>
       <div
-        className="min-h-screen bg-background text-foreground"
+        className={`min-h-screen ${isHomeTab ? "bg-black text-white" : "bg-background text-foreground"}`}
         style={{
           paddingTop: context?.client.safeAreaInsets?.top ?? 0,
           paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
@@ -96,13 +98,13 @@ export default function App(
           paddingRight: context?.client.safeAreaInsets?.right ?? 0,
         }}
       >
-        {/* Header should be full width */}
-        <Header neynarUser={neynarUser} />
+        {/* Header should be full width - hidden on home tab */}
+        {!isHomeTab && <Header neynarUser={neynarUser} />}
 
         {/* Main content and footer should be centered */}
-        <div className="px-4 py-2 pb-20">
-          {/* Main title */}
-          <h1 className="text-xl font-bold text-center mb-3">{title}</h1>
+        <div className={isHomeTab ? "" : "px-4 py-2 pb-20"}>
+          {/* Main title - hidden on home tab */}
+          {!isHomeTab && <h1 className="text-xl font-bold text-center mb-3">{title}</h1>}
 
           {/* Tab content rendering with Suspense */}
           <Suspense fallback={<div className="flex items-center justify-center py-8"><div className="spinner h-6 w-6"></div></div>}>
@@ -112,8 +114,8 @@ export default function App(
             {currentTab === Tab.Wallet && <WalletTab />}
           </Suspense>
 
-          {/* Footer with navigation */}
-          <Footer activeTab={currentTab as Tab} setActiveTab={setActiveTab} showWallet={USE_WALLET} />
+          {/* Footer with navigation - hidden on home tab */}
+          {!isHomeTab && <Footer activeTab={currentTab as Tab} setActiveTab={setActiveTab} showWallet={USE_WALLET} />}
         </div>
       </div>
     </AuthWrapper>

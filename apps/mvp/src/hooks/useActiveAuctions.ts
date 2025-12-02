@@ -1,34 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { EnrichedAuctionData } from '~/lib/types';
-import { getActiveAuctions } from '~/lib/subgraph';
 
-export function useActiveAuctions() {
-  const [auctions, setAuctions] = useState<EnrichedAuctionData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    async function fetchAuctions() {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getActiveAuctions({ first: 16, skip: 0, enrich: true });
-        setAuctions(data);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch auctions'));
-        setAuctions([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchAuctions();
-    
-    // Poll every 30 seconds for updates
-    const interval = setInterval(fetchAuctions, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
+/**
+ * Hook to use server-rendered auctions data
+ * No client-side fetching - data is fully server-side rendered
+ * @param initialAuctions - Server-rendered auctions data
+ * @returns Object with auctions array, loading state, and error state
+ */
+export function useActiveAuctions(initialAuctions: EnrichedAuctionData[] = []) {
+  // Use server-rendered data directly, no client-side fetching
+  const [auctions] = useState<EnrichedAuctionData[]>(initialAuctions);
+  const loading = initialAuctions.length === 0;
+  const error = null;
 
   return { auctions, loading, error };
 }

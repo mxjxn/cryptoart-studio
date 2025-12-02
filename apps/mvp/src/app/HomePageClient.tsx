@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActiveAuctions } from "~/hooks/useActiveAuctions";
-import { formatEther } from "viem";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { AuctionCard } from "~/components/AuctionCard";
+import type { EnrichedAuctionData } from "~/lib/types";
 
 // Gradient colors for artwork placeholders
 const gradients = [
@@ -15,8 +15,14 @@ const gradients = [
   "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
 ];
 
-export default function HomePageClient() {
-  const { auctions, loading } = useActiveAuctions();
+interface HomePageClientProps {
+  initialAuctions?: EnrichedAuctionData[];
+}
+
+export default function HomePageClient({ initialAuctions = [] }: HomePageClientProps) {
+  // Use server-rendered data directly - no client-side fetching
+  const auctions = initialAuctions;
+  const loading = initialAuctions.length === 0;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -24,12 +30,6 @@ export default function HomePageClient() {
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
         <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/create"
-            className="px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-          >
-            Create Auction
-          </Link>
           <ProfileDropdown />
         </div>
       </header>
@@ -100,53 +100,14 @@ export default function HomePageClient() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {auctions.map((auction, index) => {
-              const gradient = gradients[index % gradients.length];
-              const currentPrice = auction.highestBid?.amount
-                ? formatEther(BigInt(auction.highestBid.amount))
-                : formatEther(BigInt(auction.initialAmount || "0"));
-              
-              const title = auction.title || `Auction #${auction.listingId}`;
-              const artist = auction.artist || 'Unknown Artist';
-              const bidCount = auction.bidCount || 0;
-              
-              return (
-                <Link
-                  key={auction.id}
-                  href={`/auction/${auction.listingId}`}
-                  className="relative w-full cursor-pointer transition-opacity hover:opacity-90"
-                >
-                  <div 
-                    className="w-full h-[280px] relative overflow-hidden"
-                    style={{ 
-                      background: auction.image 
-                        ? `url(${auction.image}) center/cover` 
-                        : gradient 
-                    }}
-                  >
-                    <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 to-transparent">
-                      <div className="text-lg font-normal mb-1 line-clamp-1">
-                        {title}
-                      </div>
-                      <div className="text-xs text-[#cccccc] mb-2">
-                        {artist}
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-xs text-[#999999]">
-                          {bidCount} {bidCount === 1 ? 'bid' : 'bids'}
-                        </div>
-                        <div className="text-base font-medium flex items-baseline gap-1">
-                          <span className="text-[10px] uppercase tracking-[1px] text-[#999999]">
-                            {auction.highestBid ? 'High' : 'Reserve'}
-                          </span>
-                          <span>{currentPrice} ETH</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+            {auctions.map((auction, index) => (
+              <AuctionCard
+                key={auction.id}
+                auction={auction}
+                gradient={gradients[index % gradients.length]}
+                index={index}
+              />
+            ))}
           </div>
         )}
       </section>

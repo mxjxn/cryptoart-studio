@@ -2,7 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { MiniAppProvider } from "@neynar/react";
-import { ANALYTICS_ENABLED, RETURN_URL } from "~/lib/constants";
+import { AuthKitProvider } from "@farcaster/auth-kit";
+import "@farcaster/auth-kit/styles.css";
+import { ANALYTICS_ENABLED, RETURN_URL, APP_URL } from "~/lib/constants";
 import {
   isServer,
   QueryClient,
@@ -15,6 +17,13 @@ const WagmiProvider = dynamic(
     ssr: false,
   }
 );
+
+// AuthKit configuration for web-based Farcaster sign-in
+const authKitConfig = {
+  rpcUrl: process.env.NEXT_PUBLIC_OP_RPC_URL || "https://mainnet.optimism.io",
+  domain: typeof window !== "undefined" ? window.location.host : "localhost:3000",
+  siweUri: APP_URL,
+};
 
 function makeQueryClient() {
   return new QueryClient({
@@ -47,15 +56,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
   return (
     <WagmiProvider>
-      <MiniAppProvider
-        analyticsEnabled={ANALYTICS_ENABLED}
-        backButtonEnabled={true}
-        returnUrl={RETURN_URL}
-      >
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      </MiniAppProvider>
+      <AuthKitProvider config={authKitConfig}>
+        <MiniAppProvider
+          analyticsEnabled={ANALYTICS_ENABLED}
+          backButtonEnabled={true}
+          returnUrl={RETURN_URL}
+        >
+          <QueryClientProvider client={queryClient}>
+            {children}
+          </QueryClientProvider>
+        </MiniAppProvider>
+      </AuthKitProvider>
     </WagmiProvider>
   );
 }
