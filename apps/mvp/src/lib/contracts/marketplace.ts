@@ -166,5 +166,15 @@ export const MARKETPLACE_ABI = [
     outputs: [{ name: '', type: 'uint40', internalType: 'uint40' }],
     stateMutability: 'nonpayable',
   },
+  {
+    type: 'function',
+    name: 'cancel',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'holdbackBPS', type: 'uint16', internalType: 'uint16' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
 ] as const;
 

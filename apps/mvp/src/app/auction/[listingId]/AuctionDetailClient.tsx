@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { formatEther } from "viem";
 import { useRouter } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
@@ -13,6 +13,7 @@ import { CopyButton } from "~/components/CopyButton";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 
 interface AuctionDetailClientProps {
   listingId: string;
@@ -26,6 +27,12 @@ export default function AuctionDetailClient({
   const { isSDKLoaded } = useMiniApp();
   const { auction, loading } = useAuction(listingId);
   const [bidAmount, setBidAmount] = useState("");
+  
+  // Cancel listing transaction
+  const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
+  const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
+    hash: cancelHash,
+  });
 
   // Resolve creator name from contract address (NFT creator, not auction seller)
   // Pass null for address so it only looks up contract creator, not seller
@@ -67,6 +74,30 @@ export default function AuctionDetailClient({
     // TODO: Implement bid functionality
     console.log("Place bid:", bidAmount);
   };
+
+  const handleCancel = async () => {
+    if (!isConnected || !auction) {
+      return;
+    }
+    
+    try {
+      await cancelListing({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'cancel',
+        args: [BigInt(listingId), 0], // holdbackBPS = 0 as per requirements
+      });
+    } catch (err) {
+      console.error("Error cancelling listing:", err);
+    }
+  };
+
+  // Redirect after successful cancellation
+  useEffect(() => {
+    if (isCancelConfirmed) {
+      router.push("/");
+    }
+  }, [isCancelConfirmed, router]);
 
   // Set up back navigation for Farcaster mini-app
   useEffect(() => {
@@ -140,6 +171,10 @@ export default function AuctionDetailClient({
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
     address.toLowerCase() === auction.seller.toLowerCase();
+  
+  // Check if cancellation is allowed (seller can only cancel if no bids)
+  const canCancel = isOwnAuction && bidCount === 0 && isActive;
+  const isCancelLoading = isCancelling || isConfirmingCancel;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -203,6 +238,28 @@ export default function AuctionDetailClient({
             </div>
           )}
         </div>
+
+        {/* Cancel Listing Button (for seller with no bids) */}
+        {canCancel && (
+          <div className="mb-4">
+            <button
+              onClick={handleCancel}
+              disabled={isCancelLoading}
+              className="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCancelLoading
+                ? isConfirmingCancel
+                  ? "Confirming..."
+                  : "Cancelling..."
+                : "Cancel Auction"}
+            </button>
+            {cancelError && (
+              <p className="text-xs text-red-400 mt-2">
+                {cancelError.message || "Failed to cancel auction"}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Place Bid */}
         {isActive && (
