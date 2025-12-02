@@ -344,7 +344,7 @@ export default function AuctionDetailClient({
             <img
               src={auction.image}
               alt={title}
-              className="w-full aspect-square object-cover rounded-lg"
+              className="w-full max-h-[80vh] object-contain rounded-lg"
             />
           ) : (
             <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg" />
@@ -353,11 +353,84 @@ export default function AuctionDetailClient({
 
         {/* Title, Collection, Creator - each on own row */}
         <div className="mb-4">
-          <div className="flex items-start justify-between gap-4 mb-1">
-            <h1 className="text-2xl font-light">{title}</h1>
-            {/* Only show share buttons if auction is not cancelled */}
-            {!isCancelled && (
-              <div className="flex gap-2 flex-shrink-0">
+          <h1 className="text-2xl font-light mb-1">{title}</h1>
+          {contractName && (
+            <div className="text-xs text-[#999999] mb-1">{contractName}</div>
+          )}
+          {displayCreatorName ? (
+            <div className="text-xs text-[#cccccc] mb-1 flex items-center gap-2">
+              <span>by {displayCreatorName}</span>
+              {/* Only show share buttons if auction is not cancelled */}
+              {!isCancelled && (
+                <div className="flex gap-2 items-center">
+                  <LinkShareButton
+                    url={typeof window !== "undefined" ? window.location.href : ""}
+                  />
+                  <ShareButton
+                    url={typeof window !== "undefined" ? window.location.href : ""}
+                    artworkUrl={auction.image || auction.metadata?.image || null}
+                    title={title}
+                    artistName={displayCreatorName || undefined}
+                    artistAddress={displayCreatorAddress || undefined}
+                    sellerAddress={auction.seller}
+                    sellerName={sellerName || undefined}
+                    reservePrice={auction.initialAmount}
+                    currentBid={auction.highestBid?.amount || undefined}
+                    bidderAddress={auction.highestBid?.bidder || undefined}
+                    bidderName={bidderName || undefined}
+                    hasBids={bidCount > 0}
+                  />
+                  <a
+                    href={typeof window !== "undefined" ? window.location.href : ""}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors"
+                    title="Open in browser"
+                  >
+                    open in browser ↗️
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : displayCreatorAddress && !creatorNameLoading ? (
+            <div className="text-xs text-[#cccccc] mb-1 flex items-center gap-2">
+              <span className="font-mono">{displayCreatorAddress}</span>
+              <CopyButton text={displayCreatorAddress} />
+              {/* Only show share buttons if auction is not cancelled */}
+              {!isCancelled && (
+                <div className="flex gap-2 items-center ml-2">
+                  <LinkShareButton
+                    url={typeof window !== "undefined" ? window.location.href : ""}
+                  />
+                  <ShareButton
+                    url={typeof window !== "undefined" ? window.location.href : ""}
+                    artworkUrl={auction.image || auction.metadata?.image || null}
+                    title={title}
+                    artistName={displayCreatorName || undefined}
+                    artistAddress={displayCreatorAddress || undefined}
+                    sellerAddress={auction.seller}
+                    sellerName={sellerName || undefined}
+                    reservePrice={auction.initialAmount}
+                    currentBid={auction.highestBid?.amount || undefined}
+                    bidderAddress={auction.highestBid?.bidder || undefined}
+                    bidderName={bidderName || undefined}
+                    hasBids={bidCount > 0}
+                  />
+                  <a
+                    href={typeof window !== "undefined" ? window.location.href : ""}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors"
+                    title="Open in browser"
+                  >
+                    open in browser ↗️
+                  </a>
+                </div>
+              )}
+            </div>
+          ) : !isCancelled ? (
+            <div className="text-xs mb-1 flex items-center gap-2">
+              <div className="flex gap-2 items-center">
                 <LinkShareButton
                   url={typeof window !== "undefined" ? window.location.href : ""}
                 />
@@ -375,20 +448,16 @@ export default function AuctionDetailClient({
                   bidderName={bidderName || undefined}
                   hasBids={bidCount > 0}
                 />
+                <a
+                  href={typeof window !== "undefined" ? window.location.href : ""}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors"
+                  title="Open in browser"
+                >
+                  open in browser ↗️
+                </a>
               </div>
-            )}
-          </div>
-          {contractName && (
-            <div className="text-xs text-[#999999] mb-1">{contractName}</div>
-          )}
-          {displayCreatorName ? (
-            <div className="text-xs text-[#cccccc] mb-4">
-              by {displayCreatorName}
-            </div>
-          ) : displayCreatorAddress && !creatorNameLoading ? (
-            <div className="text-xs text-[#cccccc] mb-4 flex items-center gap-2">
-              <span className="font-mono">{displayCreatorAddress}</span>
-              <CopyButton text={displayCreatorAddress} />
             </div>
           ) : null}
           {/* Description */}

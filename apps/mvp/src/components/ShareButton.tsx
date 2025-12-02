@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { Share2 } from "lucide-react";
 import { formatEther } from "viem";
 
 interface ShareButtonProps {
@@ -162,10 +161,10 @@ export function ShareButton({
     <button
       onClick={handleShare}
       disabled={isProcessing}
-      className={`flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
+      className={`flex items-center justify-center w-6 h-6 text-lg hover:opacity-70 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${className}`}
+      title="Share a Cast"
     >
-      <Share2 className="h-4 w-4" />
-      {isProcessing ? "Sharing..." : "Share a Cast"}
+      {isProcessing ? "⏳" : "📤"}
     </button>
   );
 }
