@@ -10,6 +10,8 @@ import { useContractName } from "~/hooks/useContractName";
 import { ShareButton } from "~/components/ShareButton";
 import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
+import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { useAuthMode } from "~/hooks/useAuthMode";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
@@ -25,6 +27,7 @@ export default function AuctionDetailClient({
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
+  const { isMiniApp } = useAuthMode();
   const { auction, loading } = useAuction(listingId);
   const [bidAmount, setBidAmount] = useState("");
   
@@ -221,6 +224,15 @@ export default function AuctionDetailClient({
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Header - Only show when not in miniapp */}
+      {!isMiniApp && (
+        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <div className="flex items-center gap-3">
+            <ProfileDropdown />
+          </div>
+        </header>
+      )}
       <div className="container mx-auto px-5 py-4 max-w-4xl">
         {/* Full width artwork */}
         <div className="mb-4">
