@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
+import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { CopyButton } from "~/components/CopyButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
@@ -15,12 +16,45 @@ interface AuctionCardProps {
 }
 
 export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
+  // Fetch ERC20 token info if not ETH
+  const erc20Token = useERC20Token(!isETH(auction.erc20) ? auction.erc20 : undefined);
+  
+  // Determine token symbol (use fetched symbol or fall back to "$TOKEN")
+  const tokenSymbol = isETH(auction.erc20) 
+    ? "ETH" 
+    : erc20Token.isValid && erc20Token.symbol 
+      ? erc20Token.symbol 
+      : "$TOKEN";
+  
+  // Determine decimals for formatting (ETH uses 18, use token's decimals otherwise)
+  const tokenDecimals = isETH(auction.erc20) ? 18 : (erc20Token.decimals || 18);
+  
+  // Format price based on token decimals
+  const formatPrice = (amount: string): string => {
+    const value = BigInt(amount || "0");
+    const divisor = BigInt(10 ** tokenDecimals);
+    const wholePart = value / divisor;
+    const fractionalPart = value % divisor;
+    
+    if (fractionalPart === BigInt(0)) {
+      return wholePart.toString();
+    }
+    
+    let fractionalStr = fractionalPart.toString().padStart(tokenDecimals, "0");
+    fractionalStr = fractionalStr.replace(/0+$/, "");
+    if (fractionalStr.length > 4) {
+      fractionalStr = fractionalStr.slice(0, 4);
+    }
+    
+    return `${wholePart}.${fractionalStr}`;
+  };
+
   // Determine price display based on listing type
   let currentPrice: string;
   let priceLabel: string;
   
   if (auction.listingType === "FIXED_PRICE") {
-    currentPrice = formatEther(BigInt(auction.initialAmount || "0"));
+    currentPrice = formatPrice(auction.initialAmount || "0");
     priceLabel = "Price";
   } else if (auction.listingType === "OFFERS_ONLY") {
     currentPrice = "—";
@@ -28,8 +62,8 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   } else {
     // INDIVIDUAL_AUCTION
     currentPrice = auction.highestBid?.amount
-      ? formatEther(BigInt(auction.highestBid.amount))
-      : formatEther(BigInt(auction.initialAmount || "0"));
+      ? formatPrice(auction.highestBid.amount)
+      : formatPrice(auction.initialAmount || "0");
     priceLabel = auction.highestBid ? "High" : "Reserve";
   }
 
@@ -127,7 +161,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
               <span className="text-[10px] uppercase tracking-[1px] text-[#999999]">
                 {priceLabel}
               </span>
-              <span>{currentPrice} {currentPrice !== "—" && "ETH"}</span>
+              <span>{currentPrice} {currentPrice !== "—" && tokenSymbol}</span>
             </div>
           </div>
         </div>
