@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { formatEther } from "viem";
 import { useRouter } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -12,9 +11,10 @@ import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { type Address } from "viem";
+import { type Address, parseEther, formatEther } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 
 interface AuctionDetailClientProps {
@@ -29,7 +29,10 @@ export default function AuctionDetailClient({
   const { isSDKLoaded } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const { auction, loading } = useAuction(listingId);
+  const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const [bidAmount, setBidAmount] = useState("");
+  const [offerAmount, setOfferAmount] = useState("");
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   
   // Cancel listing transaction
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
@@ -41,6 +44,24 @@ export default function AuctionDetailClient({
   const { writeContract: finalizeAuction, data: finalizeHash, isPending: isFinalizing, error: finalizeError } = useWriteContract();
   const { isLoading: isConfirmingFinalize, isSuccess: isFinalizeConfirmed } = useWaitForTransactionReceipt({
     hash: finalizeHash,
+  });
+
+  // Purchase transaction (for FIXED_PRICE)
+  const { writeContract: purchaseListing, data: purchaseHash, isPending: isPurchasing, error: purchaseError } = useWriteContract();
+  const { isLoading: isConfirmingPurchase, isSuccess: isPurchaseConfirmed } = useWaitForTransactionReceipt({
+    hash: purchaseHash,
+  });
+
+  // Offer transaction (for OFFERS_ONLY)
+  const { writeContract: makeOffer, data: offerHash, isPending: isOffering, error: offerError } = useWriteContract();
+  const { isLoading: isConfirmingOffer, isSuccess: isOfferConfirmed } = useWaitForTransactionReceipt({
+    hash: offerHash,
+  });
+
+  // Accept offer transaction (for sellers)
+  const { writeContract: acceptOffer, data: acceptHash, isPending: isAccepting, error: acceptError } = useWriteContract();
+  const { isLoading: isConfirmingAccept, isSuccess: isAcceptConfirmed } = useWaitForTransactionReceipt({
+    hash: acceptHash,
   });
 
   // Resolve creator name from contract address (NFT creator, not auction seller)
@@ -77,11 +98,76 @@ export default function AuctionDetailClient({
   );
 
   const handleBid = async () => {
-    if (!isConnected || !bidAmount) {
+    if (!isConnected || !bidAmount || !auction) {
       return;
     }
     // TODO: Implement bid functionality
     console.log("Place bid:", bidAmount);
+  };
+
+  const handlePurchase = async () => {
+    if (!isConnected || !auction) {
+      return;
+    }
+
+    try {
+      const price = auction.currentPrice || auction.initialAmount;
+      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
+      
+      await purchaseListing({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'purchase',
+        args: [Number(listingId), purchaseQuantity],
+        value: totalPrice,
+      });
+    } catch (err) {
+      console.error("Error purchasing:", err);
+    }
+  };
+
+  const handleMakeOffer = async () => {
+    if (!isConnected || !offerAmount || !auction) {
+      return;
+    }
+
+    try {
+      const offerAmountWei = parseEther(offerAmount);
+      
+      await makeOffer({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'offer',
+        args: [Number(listingId), false],
+        value: offerAmountWei,
+      });
+    } catch (err) {
+      console.error("Error making offer:", err);
+    }
+  };
+
+  const handleAcceptOffer = async (offererAddress: string, offerAmount: string) => {
+    if (!isConnected || !auction) {
+      return;
+    }
+
+    try {
+      const offerAmountBigInt = BigInt(offerAmount);
+      
+      await acceptOffer({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'accept',
+        args: [
+          Number(listingId),
+          [offererAddress as Address],
+          [offerAmountBigInt],
+          offerAmountBigInt, // maxAmount
+        ],
+      });
+    } catch (err) {
+      console.error("Error accepting offer:", err);
+    }
   };
 
   const handleCancel = async () => {
@@ -139,6 +225,24 @@ export default function AuctionDetailClient({
       }, 100);
     }
   }, [isFinalizeConfirmed, router]);
+
+  // Refetch offers after successful offer or accept
+  useEffect(() => {
+    if (isOfferConfirmed || isAcceptConfirmed) {
+      refetchOffers();
+      router.refresh();
+    }
+  }, [isOfferConfirmed, isAcceptConfirmed, refetchOffers, router]);
+
+  // Redirect after successful purchase
+  useEffect(() => {
+    if (isPurchaseConfirmed) {
+      router.refresh();
+      setTimeout(() => {
+        router.push("/");
+      }, 100);
+    }
+  }, [isPurchaseConfirmed, router]);
 
   // Set up back navigation for Farcaster mini-app
   useEffect(() => {
@@ -348,62 +452,213 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Place Bid - Hidden if cancelled */}
-        {isActive && !isCancelled && (
-          <div className="mb-4">
-            {!isConnected ? (
-              <p className="text-xs text-[#cccccc]">
-                Please connect your wallet to place a bid.
-              </p>
-            ) : isOwnAuction ? (
-              <div className="space-y-3">
-                <input
-                  type="number"
-                  step="0.001"
-                  value={bidAmount}
-                  onChange={(e) => setBidAmount(e.target.value)}
-                  disabled
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
-                  placeholder={
-                    auction.highestBid
-                      ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
-                      : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
-                  }
-                />
-                <button
-                  onClick={handleBid}
-                  disabled
-                  className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
-                >
-                  Place Bid
-                </button>
-                <p className="text-xs text-[#cccccc]">
-                  You cannot bid on your own auction.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <input
-                  type="number"
-                  step="0.001"
-                  value={bidAmount}
-                  onChange={(e) => setBidAmount(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
-                  placeholder={
-                    auction.highestBid
-                      ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
-                      : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
-                  }
-                />
-                <button
-                  onClick={handleBid}
-                  className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-                >
-                  Place Bid
-                </button>
+        {/* Action Buttons - Conditional based on listing type */}
+        {!isCancelled && (
+          <>
+            {/* INDIVIDUAL_AUCTION - Place Bid */}
+            {auction.listingType === "INDIVIDUAL_AUCTION" && isActive && (
+              <div className="mb-4">
+                {!isConnected ? (
+                  <p className="text-xs text-[#cccccc]">
+                    Please connect your wallet to place a bid.
+                  </p>
+                ) : isOwnAuction ? (
+                  <div className="space-y-3">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      disabled
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                      placeholder={
+                        auction.highestBid
+                          ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
+                          : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
+                      }
+                    />
+                    <button
+                      onClick={handleBid}
+                      disabled
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                    >
+                      Place Bid
+                    </button>
+                    <p className="text-xs text-[#cccccc]">
+                      You cannot bid on your own auction.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                      placeholder={
+                        auction.highestBid
+                          ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
+                          : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
+                      }
+                    />
+                    <button
+                      onClick={handleBid}
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                    >
+                      Place Bid
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-          </div>
+
+            {/* FIXED_PRICE - Purchase */}
+            {auction.listingType === "FIXED_PRICE" && isActive && (
+              <div className="mb-4 space-y-3">
+                {auction.tokenSpec === "ERC1155" && (
+                  <div>
+                    <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={Math.max(1, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"))}
+                      value={purchaseQuantity}
+                      onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white"
+                    />
+                    <p className="text-xs text-[#999999] mt-1">
+                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} available
+                    </p>
+                  </div>
+                )}
+                {!isConnected ? (
+                  <p className="text-xs text-[#cccccc]">
+                    Please connect your wallet to purchase.
+                  </p>
+                ) : isOwnAuction ? (
+                  <p className="text-xs text-[#cccccc]">
+                    You cannot purchase your own listing.
+                  </p>
+                ) : (
+                  <>
+                    <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm text-[#cccccc]">Price</span>
+                        <span className="text-lg font-medium text-white">
+                          {formatEther(BigInt(auction.initialAmount))} ETH
+                        </span>
+                      </div>
+                      {auction.tokenSpec === "ERC1155" && (
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-sm text-[#cccccc]">Total</span>
+                          <span className="text-sm font-medium text-white">
+                            {formatEther(BigInt(auction.initialAmount) * BigInt(purchaseQuantity))} ETH
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handlePurchase}
+                      disabled={isPurchasing || isConfirmingPurchase}
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isPurchasing || isConfirmingPurchase
+                        ? "Processing..."
+                        : "Buy Now"}
+                    </button>
+                    {purchaseError && (
+                      <p className="text-xs text-red-400">
+                        {purchaseError.message || "Failed to purchase"}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* OFFERS_ONLY - Make Offer */}
+            {auction.listingType === "OFFERS_ONLY" && isActive && (
+              <div className="mb-4 space-y-4">
+                {!isConnected ? (
+                  <p className="text-xs text-[#cccccc]">
+                    Please connect your wallet to make an offer.
+                  </p>
+                ) : isOwnAuction ? (
+                  <p className="text-xs text-[#cccccc]">
+                    You cannot make an offer on your own listing.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={offerAmount}
+                      onChange={(e) => setOfferAmount(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                      placeholder="0.1"
+                    />
+                    <button
+                      onClick={handleMakeOffer}
+                      disabled={isOffering || isConfirmingOffer || !offerAmount}
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isOffering || isConfirmingOffer
+                        ? "Processing..."
+                        : "Make Offer"}
+                    </button>
+                    {offerError && (
+                      <p className="text-xs text-red-400">
+                        {offerError.message || "Failed to make offer"}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Offers List - Show for seller and buyers */}
+                {activeOffers.length > 0 && (
+                  <div className="mt-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-3">Active Offers</h3>
+                    <div className="space-y-2">
+                      {activeOffers.map((offer, index) => (
+                        <div
+                          key={index}
+                          className="flex justify-between items-center p-2 bg-black rounded border border-[#333333]"
+                        >
+                          <div>
+                            <p className="text-sm text-white font-medium">
+                              {formatEther(BigInt(offer.amount))} ETH
+                            </p>
+                            <p className="text-xs text-[#999999] font-mono">
+                              {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)}
+                            </p>
+                          </div>
+                          {isOwnAuction && (
+                            <button
+                              onClick={() => handleAcceptOffer(offer.offerer, offer.amount)}
+                              disabled={isAccepting || isConfirmingAccept}
+                              className="px-3 py-1 bg-white text-black text-xs font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isAccepting || isConfirmingAccept
+                                ? "Processing..."
+                                : "Accept"}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {acceptError && (
+                      <p className="text-xs text-red-400 mt-2">
+                        {acceptError.message || "Failed to accept offer"}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {/* Compact auction details - multiple items per row - Hidden if cancelled */}

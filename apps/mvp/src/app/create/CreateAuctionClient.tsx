@@ -106,12 +106,16 @@ export default function CreateAuctionClient() {
   const { isSDKLoaded } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const [formData, setFormData] = useState({
+    listingType: "INDIVIDUAL_AUCTION" as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY",
     nftContract: "",
     tokenId: "",
     reservePrice: "",
+    fixedPrice: "",
     startTime: "",
     endTime: getDefaultEndTime(),
     minIncrementBPS: "500",
+    totalAvailable: "1",
+    totalPerSale: "1",
   });
   const [contractPreview, setContractPreview] = useState<ContractPreview>({
     name: null,
@@ -467,15 +471,19 @@ export default function CreateAuctionClient() {
     });
   }, [contractName, contractOwner, loadingName, loadingOwner, isValidContract, alchemyName, nameError, ownerError]);
 
-  // Reset form to create another auction
+  // Reset form to create another listing
   const handleReset = () => {
     setFormData({
+      listingType: "INDIVIDUAL_AUCTION",
       nftContract: "",
       tokenId: "",
       reservePrice: "",
+      fixedPrice: "",
       startTime: "",
       endTime: getDefaultEndTime(),
       minIncrementBPS: "500",
+      totalAvailable: "1",
+      totalPerSale: "1",
     });
     setContractPreview({
       name: null,
@@ -502,38 +510,93 @@ export default function CreateAuctionClient() {
     setIsSubmitting(true);
 
     try {
+      const now = Math.floor(Date.now() / 1000);
+      
       // Convert datetime-local to Unix timestamp (seconds)
       const startTime = formData.startTime 
         ? Math.floor(new Date(formData.startTime).getTime() / 1000)
-        : 0; // 0 means start immediately on first bid
+        : formData.listingType === "OFFERS_ONLY" 
+          ? now + 60 // OFFERS_ONLY requires startTime in future, default to 1 minute from now
+          : 0; // 0 means start immediately on first bid/purchase
       
       const endTime = formData.endTime 
         ? Math.floor(new Date(formData.endTime).getTime() / 1000)
         : 0;
 
-      if (!endTime || endTime <= Math.floor(Date.now() / 1000)) {
+      if (!endTime || endTime <= now) {
         alert("End time must be in the future");
         setIsSubmitting(false);
         return;
       }
 
-      // Convert reserve price from ETH to wei
-      const reservePriceWei = parseEther(formData.reservePrice);
+      // Validate listing type specific requirements
+      if (formData.listingType === "OFFERS_ONLY" && startTime <= now) {
+        alert("Start time must be in the future for offers-only listings");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Determine listing type enum value
+      // 1 = INDIVIDUAL_AUCTION, 2 = FIXED_PRICE, 4 = OFFERS_ONLY
+      let listingType: number;
+      let initialAmount: bigint;
+      let totalAvailable: number;
+      let totalPerSale: number;
+      let extensionInterval: number;
+      let minIncrementBPS: number;
+
+      if (formData.listingType === "INDIVIDUAL_AUCTION") {
+        listingType = 1;
+        initialAmount = parseEther(formData.reservePrice);
+        totalAvailable = 1;
+        totalPerSale = 1;
+        extensionInterval = 0;
+        minIncrementBPS = parseInt(formData.minIncrementBPS);
+      } else if (formData.listingType === "FIXED_PRICE") {
+        listingType = 2;
+        initialAmount = parseEther(formData.fixedPrice);
+        totalAvailable = parseInt(formData.totalAvailable);
+        totalPerSale = parseInt(formData.totalPerSale);
+        extensionInterval = 0; // Must be 0 for FIXED_PRICE
+        minIncrementBPS = 0; // Must be 0 for FIXED_PRICE
+        
+        if (totalAvailable < 1 || totalPerSale < 1) {
+          alert("Total available and total per sale must be at least 1");
+          setIsSubmitting(false);
+          return;
+        }
+        if (totalPerSale > totalAvailable) {
+          alert("Total per sale cannot exceed total available");
+          setIsSubmitting(false);
+          return;
+        }
+        // For ERC721, totalAvailable and totalPerSale must be 1
+        if (tokenType === 'ERC721' && (totalAvailable !== 1 || totalPerSale !== 1)) {
+          alert("ERC721 tokens can only be sold one at a time");
+          setIsSubmitting(false);
+          return;
+        }
+      } else { // OFFERS_ONLY
+        listingType = 4;
+        initialAmount = BigInt(0); // Must be 0 for OFFERS_ONLY
+        totalAvailable = 1;
+        totalPerSale = 1;
+        extensionInterval = 0; // Must be 0 for OFFERS_ONLY
+        minIncrementBPS = 0; // Must be 0 for OFFERS_ONLY
+      }
 
       // Prepare listing details
-      // ListingType.INDIVIDUAL_AUCTION = 1
-      // TokenLib.Spec.ERC721 = 1
       const listingDetails = {
-        initialAmount: reservePriceWei,
-        type_: 1, // INDIVIDUAL_AUCTION
-        totalAvailable: 1,
-        totalPerSale: 1,
-        extensionInterval: 0,
-        minIncrementBPS: parseInt(formData.minIncrementBPS),
+        initialAmount,
+        type_: listingType,
+        totalAvailable,
+        totalPerSale,
+        extensionInterval,
+        minIncrementBPS,
         erc20: "0x0000000000000000000000000000000000000000" as Address,
         identityVerifier: "0x0000000000000000000000000000000000000000" as Address,
-        startTime: startTime,
-        endTime: endTime,
+        startTime,
+        endTime,
       };
 
       const tokenDetails = {
@@ -562,13 +625,13 @@ export default function CreateAuctionClient() {
           deliveryFees,
           listingReceivers,
           false, // enableReferrer
-          false, // acceptOffers
+          false, // acceptOffers (not using offers on auctions)
           "0x", // data (empty bytes)
         ],
       });
     } catch (err) {
-      console.error("Error creating auction:", err);
-      alert("Failed to create auction. Please try again.");
+      console.error("Error creating listing:", err);
+      alert("Failed to create listing. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -645,9 +708,9 @@ export default function CreateAuctionClient() {
             </svg>
             Back
           </Link>
-          <h1 className="text-3xl font-light mb-2">Create Auction</h1>
+          <h1 className="text-3xl font-light mb-2">Create Listing</h1>
           <p className="text-sm text-[#cccccc]">
-            List your NFT for auction. Set a reserve price and auction duration.
+            List your NFT for sale. Choose between auction, fixed price, or offers-only.
           </p>
         </div>
 
@@ -658,6 +721,48 @@ export default function CreateAuctionClient() {
         )}
 
         <form onSubmit={handleSubmit} className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 space-y-6">
+          {/* Listing Type Selector */}
+          <div>
+            <label className="block text-sm font-medium text-[#cccccc] mb-3">
+              Listing Type
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, listingType: "INDIVIDUAL_AUCTION" })}
+                className={`px-4 py-2 text-sm rounded border transition-colors ${
+                  formData.listingType === "INDIVIDUAL_AUCTION"
+                    ? "bg-white text-black border-white"
+                    : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                }`}
+              >
+                Auction
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, listingType: "FIXED_PRICE" })}
+                className={`px-4 py-2 text-sm rounded border transition-colors ${
+                  formData.listingType === "FIXED_PRICE"
+                    ? "bg-white text-black border-white"
+                    : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                }`}
+              >
+                Fixed Price
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, listingType: "OFFERS_ONLY" })}
+                className={`px-4 py-2 text-sm rounded border transition-colors ${
+                  formData.listingType === "OFFERS_ONLY"
+                    ? "bg-white text-black border-white"
+                    : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                }`}
+              >
+                Offers Only
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-[#cccccc] mb-2">
               NFT Contract Address
@@ -839,35 +944,107 @@ export default function CreateAuctionClient() {
           {/* Rest of form - only show if user owns the token */}
           <div className={!canProceed ? 'opacity-50 pointer-events-none' : ''}>
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  Reserve Price (ETH)
-                </label>
-                <input
-                  type="number"
-                  step="0.001"
-                  value={formData.reservePrice}
-                  onChange={(e) => setFormData({ ...formData, reservePrice: e.target.value })}
-                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                  placeholder="0.1"
-                  required
-                  disabled={!canProceed}
-                />
-              </div>
+              {/* Price fields - conditional based on listing type */}
+              {formData.listingType === "INDIVIDUAL_AUCTION" && (
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                    Reserve Price (ETH)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={formData.reservePrice}
+                    onChange={(e) => setFormData({ ...formData, reservePrice: e.target.value })}
+                    className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                    placeholder="0.1"
+                    required
+                    disabled={!canProceed}
+                  />
+                </div>
+              )}
 
+              {formData.listingType === "FIXED_PRICE" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                      Price (ETH)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={formData.fixedPrice}
+                      onChange={(e) => setFormData({ ...formData, fixedPrice: e.target.value })}
+                      className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                      placeholder="0.1"
+                      required
+                      disabled={!canProceed}
+                    />
+                  </div>
+                  
+                  {tokenType === 'ERC1155' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                          Total Available
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={formData.totalAvailable}
+                          onChange={(e) => setFormData({ ...formData, totalAvailable: e.target.value })}
+                          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                          placeholder="100"
+                          required
+                          disabled={!canProceed}
+                        />
+                        <p className="mt-1 text-xs text-[#999999]">
+                          Total number of tokens to list for sale
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                          Per Purchase
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={formData.totalPerSale}
+                          onChange={(e) => setFormData({ ...formData, totalPerSale: e.target.value })}
+                          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                          placeholder="1"
+                          required
+                          disabled={!canProceed}
+                        />
+                        <p className="mt-1 text-xs text-[#999999]">
+                          Number of tokens a buyer can purchase at once
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Start Time - conditional label based on listing type */}
               <div>
                 <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  Start Time (optional, leave empty to start on first bid)
+                  {formData.listingType === "OFFERS_ONLY" 
+                    ? "Start Time (required)"
+                    : formData.listingType === "INDIVIDUAL_AUCTION"
+                    ? "Start Time (optional, leave empty to start on first bid)"
+                    : "Start Time (optional, leave empty to start on first purchase)"}
                 </label>
                 <input
                   type="datetime-local"
                   value={formData.startTime}
                   onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                   className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                  required={formData.listingType === "OFFERS_ONLY"}
                   disabled={!canProceed}
                 />
               </div>
 
+              {/* End Time */}
               <div>
                 <label className="block text-sm font-medium text-[#cccccc] mb-2">
                   End Time
@@ -882,20 +1059,23 @@ export default function CreateAuctionClient() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  Min Increment (basis points, e.g., 500 = 5%)
-                </label>
-                <input
-                  type="number"
-                  value={formData.minIncrementBPS}
-                  onChange={(e) => setFormData({ ...formData, minIncrementBPS: e.target.value })}
-                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                  placeholder="500"
-                  required
-                  disabled={!canProceed}
-                />
-              </div>
+              {/* Min Increment - only for auctions */}
+              {formData.listingType === "INDIVIDUAL_AUCTION" && (
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                    Min Increment (basis points, e.g., 500 = 5%)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.minIncrementBPS}
+                    onChange={(e) => setFormData({ ...formData, minIncrementBPS: e.target.value })}
+                    className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                    placeholder="500"
+                    required
+                    disabled={!canProceed}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -906,7 +1086,7 @@ export default function CreateAuctionClient() {
             isConfirming={isConfirming}
             isSuccess={isSuccess}
             error={error}
-            successMessage="Auction created successfully!"
+            successMessage="Listing created successfully!"
           />
 
           {/* Action Buttons */}
@@ -937,9 +1117,13 @@ export default function CreateAuctionClient() {
                 ? "Waiting for signature..."
                 : isConfirming
                   ? "Confirming transaction..."
-                  : !approvalStatus.isApproved
+                    : !approvalStatus.isApproved
                     ? "Approve marketplace first"
-                    : "Create Auction"}
+                    : formData.listingType === "INDIVIDUAL_AUCTION"
+                    ? "Create Auction"
+                    : formData.listingType === "FIXED_PRICE"
+                    ? "Create Listing"
+                    : "Create Offers Listing"}
             </button>
           )}
         </form>

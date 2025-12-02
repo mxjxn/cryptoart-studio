@@ -185,5 +185,68 @@ export const MARKETPLACE_ABI = [
     outputs: [],
     stateMutability: 'payable',
   },
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'offer',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'increase', type: 'bool', internalType: 'bool' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'accept',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'addresses', type: 'address[]', internalType: 'address[]' },
+      { name: 'amounts', type: 'uint256[]', internalType: 'uint256[]' },
+      { name: 'maxAmount', type: 'uint256', internalType: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'getOffers',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple[]',
+        internalType: 'struct IMarketplaceCore.Offer[]',
+        components: [
+          { name: 'offerer', type: 'address', internalType: 'address' },
+          { name: 'amount', type: 'uint256', internalType: 'uint256' },
+          { name: 'timestamp', type: 'uint48', internalType: 'uint48' },
+          { name: 'accepted', type: 'bool', internalType: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'getListingTotalPrice',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
+    stateMutability: 'view',
+  },
 ] as const;
 

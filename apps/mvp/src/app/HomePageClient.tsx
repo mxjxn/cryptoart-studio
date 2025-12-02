@@ -76,14 +76,14 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             Auctionhouse
           </h1>
           <p className="text-sm text-[#cccccc] mb-8 leading-relaxed">
-            Create and bid on NFT auctions directly from Farcaster. Built for the decentralized social web.
+            Create and trade NFTs directly from Farcaster. Auctions, fixed price, and offers-only listings.
           </p>
           {isPro && (
             <Link
               href="/create"
               className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
             >
-              Create Auction
+              Create Listing
             </Link>
           )}
         </div>
@@ -114,25 +114,25 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         </section>
       )}
 
-      {/* Active Auctions */}
+      {/* Active Listings */}
       <section className="px-5 py-8">
         <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
-          Active Auctions
+          Active Listings
         </h2>
 
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-[#cccccc]">Loading auctions...</p>
+            <p className="text-[#cccccc]">Loading listings...</p>
           </div>
         ) : auctions.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-[#cccccc] mb-4">No active auctions found</p>
+            <p className="text-[#cccccc] mb-4">No active listings found</p>
             {isPro && (
               <Link
                 href="/create"
                 className="text-white hover:underline"
               >
-                Create your first auction
+                Create your first listing
               </Link>
             )}
           </div>

@@ -15,12 +15,50 @@ interface AuctionCardProps {
 }
 
 export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
-  const currentPrice = auction.highestBid?.amount
-    ? formatEther(BigInt(auction.highestBid.amount))
-    : formatEther(BigInt(auction.initialAmount || "0"));
+  // Determine price display based on listing type
+  let currentPrice: string;
+  let priceLabel: string;
+  
+  if (auction.listingType === "FIXED_PRICE") {
+    currentPrice = formatEther(BigInt(auction.initialAmount || "0"));
+    priceLabel = "Price";
+  } else if (auction.listingType === "OFFERS_ONLY") {
+    currentPrice = "—";
+    priceLabel = "Offers";
+  } else {
+    // INDIVIDUAL_AUCTION
+    currentPrice = auction.highestBid?.amount
+      ? formatEther(BigInt(auction.highestBid.amount))
+      : formatEther(BigInt(auction.initialAmount || "0"));
+    priceLabel = auction.highestBid ? "High" : "Reserve";
+  }
 
-  const title = auction.title || `Auction #${auction.listingId}`;
+  const title = auction.title || `Listing #${auction.listingId}`;
   const bidCount = auction.bidCount || 0;
+
+  // Listing type badge colors
+  const getListingTypeBadge = () => {
+    switch (auction.listingType) {
+      case "FIXED_PRICE":
+        return (
+          <span className="absolute top-2 right-2 px-2 py-1 bg-white/90 text-black text-[10px] font-medium tracking-[0.5px] rounded">
+            Buy Now
+          </span>
+        );
+      case "OFFERS_ONLY":
+        return (
+          <span className="absolute top-2 right-2 px-2 py-1 bg-amber-500/90 text-black text-[10px] font-medium tracking-[0.5px] rounded">
+            Offers
+          </span>
+        );
+      default:
+        return (
+          <span className="absolute top-2 right-2 px-2 py-1 bg-purple-500/90 text-black text-[10px] font-medium tracking-[0.5px] rounded">
+            Auction
+          </span>
+        );
+    }
+  };
 
   // Resolve artist name
   const { artistName, isLoading: artistNameLoading, creatorAddress } = useArtistName(
@@ -51,6 +89,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             : gradient,
         }}
       >
+        {getListingTypeBadge()}
         <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 to-transparent">
           <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
           {contractName && (
@@ -69,14 +108,26 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             </div>
           ) : null}
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#999999]">
-              {bidCount} {bidCount === 1 ? "bid" : "bids"}
-            </div>
+            {auction.listingType === "INDIVIDUAL_AUCTION" && (
+              <div className="text-xs text-[#999999]">
+                {bidCount} {bidCount === 1 ? "bid" : "bids"}
+              </div>
+            )}
+            {auction.listingType === "FIXED_PRICE" && auction.tokenSpec === "ERC1155" && (
+              <div className="text-xs text-[#999999]">
+                {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} left
+              </div>
+            )}
+            {auction.listingType === "OFFERS_ONLY" && (
+              <div className="text-xs text-[#999999]">
+                Make offer
+              </div>
+            )}
             <div className="text-base font-medium flex items-baseline gap-1">
               <span className="text-[10px] uppercase tracking-[1px] text-[#999999]">
-                {auction.highestBid ? "High" : "Reserve"}
+                {priceLabel}
               </span>
-              <span>{currentPrice} ETH</span>
+              <span>{currentPrice} {currentPrice !== "—" && "ETH"}</span>
             </div>
           </div>
         </div>

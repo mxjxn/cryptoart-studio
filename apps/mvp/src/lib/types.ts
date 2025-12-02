@@ -69,3 +69,13 @@ export interface EnrichedAuctionData extends AuctionData {
   metadata?: NFTMetadata;
 }
 
+/**
+ * Offer structure from the marketplace contract
+ */
+export interface Offer {
+  offerer: string;
+  amount: string;
+  timestamp: string;
+  accepted: boolean;
+}
+
