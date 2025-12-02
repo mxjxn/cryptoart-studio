@@ -33,6 +33,12 @@ export default function AuctionDetailClient({
   const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
     hash: cancelHash,
   });
+  
+  // Finalize auction transaction
+  const { writeContract: finalizeAuction, data: finalizeHash, isPending: isFinalizing, error: finalizeError } = useWriteContract();
+  const { isLoading: isConfirmingFinalize, isSuccess: isFinalizeConfirmed } = useWaitForTransactionReceipt({
+    hash: finalizeHash,
+  });
 
   // Resolve creator name from contract address (NFT creator, not auction seller)
   // Pass null for address so it only looks up contract creator, not seller
@@ -92,12 +98,37 @@ export default function AuctionDetailClient({
     }
   };
 
+  const handleFinalize = async () => {
+    if (!isConnected || !auction) {
+      return;
+    }
+    
+    try {
+      await finalizeAuction({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'finalize',
+        args: [BigInt(listingId)],
+      });
+    } catch (err) {
+      console.error("Error finalizing auction:", err);
+    }
+  };
+
   // Redirect after successful cancellation
   useEffect(() => {
     if (isCancelConfirmed) {
       router.push("/");
     }
   }, [isCancelConfirmed, router]);
+
+  // Refetch auction data after successful finalization
+  useEffect(() => {
+    if (isFinalizeConfirmed && auction) {
+      // Refetch auction data to update status
+      window.location.reload();
+    }
+  }, [isFinalizeConfirmed, auction]);
 
   // Set up back navigation for Farcaster mini-app
   useEffect(() => {
@@ -175,6 +206,10 @@ export default function AuctionDetailClient({
   // Check if cancellation is allowed (seller can only cancel if no bids)
   const canCancel = isOwnAuction && bidCount === 0 && isActive;
   const isCancelLoading = isCancelling || isConfirmingCancel;
+  
+  // Check if finalization is allowed (auction has ended and not finalized)
+  const canFinalize = isConnected && !isActive && auction.status !== "FINALIZED" && auction.status !== "CANCELLED";
+  const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -256,6 +291,28 @@ export default function AuctionDetailClient({
             {cancelError && (
               <p className="text-xs text-red-400 mt-2">
                 {cancelError.message || "Failed to cancel auction"}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Finalize Auction Button (for ended auctions) */}
+        {canFinalize && (
+          <div className="mb-4">
+            <button
+              onClick={handleFinalize}
+              disabled={isFinalizeLoading}
+              className="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isFinalizeLoading
+                ? isConfirmingFinalize
+                  ? "Confirming..."
+                  : "Finalizing..."
+                : "Finalize Auction"}
+            </button>
+            {finalizeError && (
+              <p className="text-xs text-red-400 mt-2">
+                {finalizeError.message || "Failed to finalize auction"}
               </p>
             )}
           </div>
