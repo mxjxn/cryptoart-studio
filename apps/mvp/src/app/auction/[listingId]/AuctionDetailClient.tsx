@@ -16,6 +16,7 @@ import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address, parseEther, formatEther } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
+import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 
 interface AuctionDetailClientProps {
   listingId: string;
@@ -96,6 +97,35 @@ export default function AuctionDetailClient({
   const { contractName, isLoading: contractNameLoading } = useContractName(
     auction?.tokenAddress as Address | undefined
   );
+
+  // Fetch ERC20 token info and user balance (only if not ETH and not own auction)
+  const isPaymentETH = isETH(auction?.erc20);
+  const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined);
+  const userBalance = useERC20Balance(auction?.erc20, address);
+  
+  // Determine token symbol and decimals for display
+  const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
+  const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
+  
+  // Format price for display
+  const formatPrice = (amount: string): string => {
+    const value = BigInt(amount || "0");
+    const divisor = BigInt(10 ** paymentDecimals);
+    const wholePart = value / divisor;
+    const fractionalPart = value % divisor;
+    
+    if (fractionalPart === BigInt(0)) {
+      return wholePart.toString();
+    }
+    
+    let fractionalStr = fractionalPart.toString().padStart(paymentDecimals, "0");
+    fractionalStr = fractionalStr.replace(/0+$/, "");
+    if (fractionalStr.length > 6) {
+      fractionalStr = fractionalStr.slice(0, 6);
+    }
+    
+    return `${wholePart}.${fractionalStr}`;
+  };
 
   const handleBid = async () => {
     if (!isConnected || !bidAmount || !auction) {
@@ -542,8 +572,8 @@ export default function AuctionDetailClient({
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
                       placeholder={
                         auction.highestBid
-                          ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
-                          : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
+                          ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
+                          : `Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`
                       }
                     />
                     <button
@@ -559,18 +589,26 @@ export default function AuctionDetailClient({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
-                      placeholder={
-                        auction.highestBid
-                          ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
-                          : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
-                      }
-                    />
+                    <div>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={bidAmount}
+                        onChange={(e) => setBidAmount(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                        placeholder={
+                          auction.highestBid
+                            ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
+                            : `Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`
+                        }
+                      />
+                      {/* Show user balance */}
+                      {!userBalance.isLoading && (
+                        <p className="text-xs text-[#666666] mt-1">
+                          Your balance: {userBalance.formatted} {paymentSymbol}
+                        </p>
+                      )}
+                    </div>
                     <button
                       onClick={handleBid}
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
@@ -617,14 +655,23 @@ export default function AuctionDetailClient({
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-sm text-[#cccccc]">Price</span>
                         <span className="text-lg font-medium text-white">
-                          {formatEther(BigInt(auction.initialAmount))} ETH
+                          {formatPrice(auction.initialAmount)} {paymentSymbol}
                         </span>
                       </div>
                       {auction.tokenSpec === "ERC1155" && (
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-sm text-[#cccccc]">Total</span>
                           <span className="text-sm font-medium text-white">
-                            {formatEther(BigInt(auction.initialAmount) * BigInt(purchaseQuantity))} ETH
+                            {formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString())} {paymentSymbol}
+                          </span>
+                        </div>
+                      )}
+                      {/* Show user balance */}
+                      {!userBalance.isLoading && (
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#333333]">
+                          <span className="text-xs text-[#666666]">Your balance</span>
+                          <span className="text-xs text-[#666666]">
+                            {userBalance.formatted} {paymentSymbol}
                           </span>
                         </div>
                       )}
@@ -661,14 +708,22 @@ export default function AuctionDetailClient({
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={offerAmount}
-                      onChange={(e) => setOfferAmount(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
-                      placeholder="0.1"
-                    />
+                    <div>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={offerAmount}
+                        onChange={(e) => setOfferAmount(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                        placeholder={`Enter offer in ${paymentSymbol}`}
+                      />
+                      {/* Show user balance */}
+                      {!userBalance.isLoading && (
+                        <p className="text-xs text-[#666666] mt-1">
+                          Your balance: {userBalance.formatted} {paymentSymbol}
+                        </p>
+                      )}
+                    </div>
                     <button
                       onClick={handleMakeOffer}
                       disabled={isOffering || isConfirmingOffer || !offerAmount}
@@ -698,7 +753,7 @@ export default function AuctionDetailClient({
                         >
                           <div>
                             <p className="text-sm text-white font-medium">
-                              {formatEther(BigInt(offer.amount))} ETH
+                              {formatPrice(offer.amount)} {paymentSymbol}
                             </p>
                             <p className="text-xs text-[#999999] font-mono">
                               {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)}
@@ -739,14 +794,14 @@ export default function AuctionDetailClient({
                   <div>
                     <span className="text-[#999999]">Reserve:</span>
                     <span className="ml-2 font-medium">
-                      {formatEther(BigInt(auction.initialAmount))} ETH
+                      {formatPrice(auction.initialAmount)} {paymentSymbol}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#999999]">Current:</span>
                     <span className="ml-2 font-medium">
                       {auction.highestBid
-                        ? `${formatEther(BigInt(currentPrice))} ETH`
+                        ? `${formatPrice(currentPrice)} ${paymentSymbol}`
                         : "No bids"}
                     </span>
                   </div>
@@ -780,7 +835,7 @@ export default function AuctionDetailClient({
                   <div>
                     <span className="text-[#999999]">Price:</span>
                     <span className="ml-2 font-medium">
-                      {formatEther(BigInt(auction.initialAmount))} ETH
+                      {formatPrice(auction.initialAmount)} {paymentSymbol}
                     </span>
                   </div>
                   <div>

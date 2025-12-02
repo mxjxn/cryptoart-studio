@@ -23,6 +23,18 @@ export interface AuctionData {
   currentPrice?: string;
   createdAt: string;
   createdAtBlock: string;
+  // ERC20 payment token (zero address means ETH)
+  erc20?: string;
+}
+
+/**
+ * ERC20 token info for display
+ */
+export interface ERC20TokenInfo {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
 }
 
 /**
@@ -50,6 +62,8 @@ export interface EnrichedAuctionData extends AuctionData {
   currentPrice?: string;
   createdAt: string;
   createdAtBlock: string;
+  // ERC20 payment token (zero address means ETH)
+  erc20?: string;
   
   // Metadata fields
   title?: string;
@@ -67,6 +81,9 @@ export interface EnrichedAuctionData extends AuctionData {
   
   // Full metadata object
   metadata?: NFTMetadata;
+  
+  // ERC20 token info (populated if erc20 is set and not zero address)
+  erc20TokenInfo?: ERC20TokenInfo;
 }
 
 /**

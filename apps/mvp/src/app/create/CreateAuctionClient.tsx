@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { type Address, parseEther, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
+import { useERC20Token, isETH } from "~/hooks/useERC20Token";
+import { zeroAddress } from "viem";
 import { TransactionStatus } from "~/components/TransactionStatus";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -116,6 +118,8 @@ export default function CreateAuctionClient() {
     minIncrementBPS: "500",
     totalAvailable: "1",
     totalPerSale: "1",
+    paymentType: "ETH" as "ETH" | "ERC20",
+    erc20Address: "",
   });
   const [contractPreview, setContractPreview] = useState<ContractPreview>({
     name: null,
@@ -136,6 +140,11 @@ export default function CreateAuctionClient() {
   const isValidContract = isValidAddressFormat(formData.nftContract);
   const contractAddress = isValidContract ? (formData.nftContract as Address) : undefined;
   const hasValidTokenId = formData.tokenId !== "" && !isNaN(Number(formData.tokenId));
+
+  // ERC20 token validation
+  const erc20Token = useERC20Token(formData.paymentType === "ERC20" ? formData.erc20Address : undefined);
+  const isValidERC20 = formData.paymentType === "ETH" || (formData.paymentType === "ERC20" && erc20Token.isValid);
+  const priceSymbol = formData.paymentType === "ETH" ? "ETH" : (erc20Token.symbol || "TOKEN");
 
   // Check if contract supports ERC721
   const { data: isERC721, isLoading: loadingERC721 } = useReadContract({
@@ -485,6 +494,8 @@ export default function CreateAuctionClient() {
       minIncrementBPS: "500",
       totalAvailable: "1",
       totalPerSale: "1",
+      paymentType: "ETH",
+      erc20Address: "",
     });
     setContractPreview({
       name: null,
@@ -588,6 +599,11 @@ export default function CreateAuctionClient() {
         minIncrementBPS = 0; // Must be 0 for OFFERS_ONLY
       }
 
+      // Determine ERC20 address (zero address for ETH)
+      const erc20Address = formData.paymentType === "ERC20" && formData.erc20Address
+        ? formData.erc20Address as Address
+        : zeroAddress;
+
       // Prepare listing details
       const listingDetails = {
         initialAmount,
@@ -596,7 +612,7 @@ export default function CreateAuctionClient() {
         totalPerSale,
         extensionInterval,
         minIncrementBPS,
-        erc20: "0x0000000000000000000000000000000000000000" as Address,
+        erc20: erc20Address,
         identityVerifier: "0x0000000000000000000000000000000000000000" as Address,
         startTime,
         endTime,
@@ -985,11 +1001,93 @@ export default function CreateAuctionClient() {
           {/* Rest of form - only show if user owns the token */}
           <div className={!canProceed ? 'opacity-50 pointer-events-none' : ''}>
             <div className="space-y-6">
+              {/* Payment Currency Selection */}
+              <div>
+                <label className="block text-sm font-medium text-[#cccccc] mb-3">
+                  Payment Currency
+                </label>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, paymentType: "ETH", erc20Address: "" })}
+                    className={`px-4 py-2 text-sm rounded border transition-colors ${
+                      formData.paymentType === "ETH"
+                        ? "bg-white text-black border-white"
+                        : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                    }`}
+                    disabled={!canProceed}
+                  >
+                    ETH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, paymentType: "ERC20" })}
+                    className={`px-4 py-2 text-sm rounded border transition-colors ${
+                      formData.paymentType === "ERC20"
+                        ? "bg-white text-black border-white"
+                        : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                    }`}
+                    disabled={!canProceed}
+                  >
+                    ERC20 Token
+                  </button>
+                </div>
+
+                {/* ERC20 Token Address Input */}
+                {formData.paymentType === "ERC20" && (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={formData.erc20Address}
+                      onChange={(e) => setFormData({ ...formData, erc20Address: e.target.value })}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black ${
+                        formData.erc20Address && erc20Token.error
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                          : formData.erc20Address && erc20Token.isValid
+                          ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                          : 'border-[#333333]'
+                      }`}
+                      placeholder="0x... (ERC20 Token Address)"
+                      disabled={!canProceed}
+                    />
+                    
+                    {/* ERC20 Token Preview */}
+                    {formData.erc20Address && (
+                      <div className={`rounded-lg p-3 border ${
+                        erc20Token.isLoading 
+                          ? 'bg-[#0a0a0a] border-[#333333]' 
+                          : erc20Token.isValid 
+                            ? 'bg-green-900/20 border-green-700/50'
+                            : 'bg-red-900/20 border-red-700/50'
+                      }`}>
+                        {erc20Token.isLoading ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="h-4 w-4 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-[#cccccc] text-sm">Validating token...</span>
+                          </div>
+                        ) : erc20Token.isValid ? (
+                          <div className="space-y-1">
+                            <p className="text-green-400 text-sm font-medium">
+                              ✓ {erc20Token.name} ({erc20Token.symbol})
+                            </p>
+                            <p className="text-green-300 text-xs">
+                              Decimals: {erc20Token.decimals}
+                            </p>
+                          </div>
+                        ) : erc20Token.error ? (
+                          <p className="text-red-400 text-sm">{erc20Token.error}</p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Price fields - conditional based on listing type */}
               {formData.listingType === "INDIVIDUAL_AUCTION" && (
                 <div>
                   <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                    Reserve Price (ETH)
+                    Reserve Price ({priceSymbol})
                   </label>
                   <input
                     type="number"
@@ -1008,7 +1106,7 @@ export default function CreateAuctionClient() {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                      Price (ETH)
+                      Price ({priceSymbol})
                     </label>
                     <input
                       type="number"
@@ -1161,7 +1259,7 @@ export default function CreateAuctionClient() {
           ) : (
             <button
               type="submit"
-              disabled={!isConnected || !canProceed || !approvalStatus.isApproved || isPending || isConfirming || isSubmitting}
+              disabled={!isConnected || !canProceed || !approvalStatus.isApproved || !isValidERC20 || isPending || isConfirming || isSubmitting}
               className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] disabled:bg-[#333333] disabled:text-[#666666] disabled:cursor-not-allowed transition-colors"
             >
               {isPending
@@ -1170,6 +1268,8 @@ export default function CreateAuctionClient() {
                   ? "Confirming transaction..."
                     : !approvalStatus.isApproved
                     ? "Approve marketplace first"
+                    : !isValidERC20
+                    ? "Select valid payment token"
                     : formData.listingType === "INDIVIDUAL_AUCTION"
                     ? "Create Auction"
                     : formData.listingType === "FIXED_PRICE"
