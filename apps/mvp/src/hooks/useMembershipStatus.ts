@@ -4,29 +4,13 @@ import { STP_V2_CONTRACT_ADDRESS } from '~/lib/constants';
 import { type Address } from 'viem';
 import { useMemo } from 'react';
 
-// STP v2 ABI for subscription status
+// STP v2 ABI for subscription status (ERC721 NFT contract)
 const STP_V2_ABI = [
   {
     type: 'function',
-    name: 'subscriptionOf',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [
-      {
-        name: '',
-        type: 'tuple',
-        components: [
-          { name: 'start', type: 'uint256' },
-          { name: 'expiration', type: 'uint256' },
-        ],
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'isActive',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'bool' }],
+    name: 'balanceOf',
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
   },
 ] as const;
@@ -95,20 +79,12 @@ export function useMembershipStatus(): MembershipStatus {
   const contractReads = useMemo(() => {
     if (verifiedAddresses.length === 0) return [];
     
-    return verifiedAddresses.flatMap((addr) => [
-      {
-        address: STP_V2_CONTRACT_ADDRESS as Address,
-        abi: STP_V2_ABI,
-        functionName: 'isActive' as const,
-        args: [addr as Address],
-      },
-      {
-        address: STP_V2_CONTRACT_ADDRESS as Address,
-        abi: STP_V2_ABI,
-        functionName: 'subscriptionOf' as const,
-        args: [addr as Address],
-      },
-    ]);
+    return verifiedAddresses.map((addr) => ({
+      address: STP_V2_CONTRACT_ADDRESS as Address,
+      abi: STP_V2_ABI,
+      functionName: 'balanceOf' as const,
+      args: [addr as Address],
+    }));
   }, [verifiedAddresses]);
 
   const { data: results, isLoading } = useReadContracts({
@@ -124,33 +100,21 @@ export function useMembershipStatus(): MembershipStatus {
       return { isPro: false, expirationDate: null, membershipAddress: null };
     }
 
-    // Process results in pairs (isActive, subscriptionOf) for each address
+    // Process results - check balanceOf for each address
     for (let i = 0; i < verifiedAddresses.length; i++) {
       const addr = verifiedAddresses[i];
-      const isActiveIndex = i * 2;
-      const subscriptionIndex = i * 2 + 1;
+      const balanceResult = results[i];
       
-      const isActiveResult = results[isActiveIndex];
-      const subscriptionResult = results[subscriptionIndex];
-      
-      if (isActiveResult?.status === 'success' && isActiveResult.result === true) {
-        // Found active membership
-        let expirationDate: Date | null = null;
-        if (subscriptionResult?.status === 'success' && subscriptionResult.result) {
-          const subscription = subscriptionResult.result as { start: bigint; expiration: bigint };
-          if (subscription && typeof subscription === 'object' && 'expiration' in subscription) {
-            const expirationTimestamp = Number(subscription.expiration);
-            if (expirationTimestamp > 0) {
-              expirationDate = new Date(expirationTimestamp * 1000);
-            }
-          }
+      if (balanceResult?.status === 'success' && balanceResult.result) {
+        const balance = balanceResult.result as bigint;
+        // If balance > 0, user owns at least one subscription NFT
+        if (balance > 0n) {
+          return {
+            isPro: true,
+            expirationDate: null, // Cannot determine expiration from balanceOf alone
+            membershipAddress: addr,
+          };
         }
-        
-        return {
-          isPro: true,
-          expirationDate,
-          membershipAddress: addr,
-        };
       }
     }
     
