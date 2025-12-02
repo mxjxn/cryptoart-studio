@@ -13,7 +13,8 @@ const STP_V2_ABI = [
     type: 'function',
     name: 'mint',
     inputs: [
-      { name: 'amount', type: 'uint256' },
+      { name: 'payableAmount', type: 'uint256' },
+      { name: 'numTokens', type: 'uint256' },
     ],
     outputs: [],
     stateMutability: 'payable',
@@ -216,13 +217,13 @@ export default function MembershipClient() {
     }
 
     try {
-      // Use mint function with the total amount in wei
+      // Use mint function with payableAmount (in wei) and numTokens (0 for ETH payment)
       // The contract handles both new subscriptions and renewals based on whether the user already has a subscription
       writeContract({
         address: STP_V2_CONTRACT_ADDRESS as Address,
         abi: STP_V2_ABI,
         functionName: 'mint',
-        args: [totalPriceWei],
+        args: [totalPriceWei, BigInt(0)], // payableAmount in wei, numTokens = 0 for ETH
         value: totalPriceWei,
       });
     } catch (err) {
