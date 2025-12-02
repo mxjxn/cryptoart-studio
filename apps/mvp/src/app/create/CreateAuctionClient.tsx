@@ -869,7 +869,11 @@ export default function CreateAuctionClient() {
                 <p className="text-red-400 text-sm">{ownershipStatus.error}</p>
               ) : ownershipStatus.isOwner ? (
                 <div className="space-y-1">
-                  <p className="text-green-400 text-sm font-medium">✓ You own this token</p>
+                  <p className="text-green-400 text-sm font-medium">
+                    {tokenType === 'ERC1155' && erc1155Balance !== undefined
+                      ? `✓ You own ${erc1155Balance.toString()} of this token`
+                      : '✓ You own this token'}
+                  </p>
                   <p className="text-green-300 text-xs">Token Type: {tokenType}</p>
                 </div>
               ) : (
