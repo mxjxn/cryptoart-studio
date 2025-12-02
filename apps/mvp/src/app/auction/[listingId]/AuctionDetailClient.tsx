@@ -198,7 +198,8 @@ export default function AuctionDetailClient({
   const currentPrice = auction.highestBid?.amount || auction.initialAmount;
   const endTime = parseInt(auction.endTime);
   const now = Math.floor(Date.now() / 1000);
-  const isActive = endTime > now;
+  const isActive = endTime > now && auction.status === "ACTIVE";
+  const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
   // Use metadata artist, then resolved creator name from contract
   const displayCreatorName = auction.artist || creatorName;
@@ -210,12 +211,12 @@ export default function AuctionDetailClient({
   const isOwnAuction = isConnected && address && auction.seller && 
     address.toLowerCase() === auction.seller.toLowerCase();
   
-  // Check if cancellation is allowed (seller can only cancel if no bids)
-  const canCancel = isOwnAuction && bidCount === 0 && isActive;
+  // Check if cancellation is allowed (seller can only cancel if no bids and active)
+  const canCancel = isOwnAuction && bidCount === 0 && isActive && !isCancelled;
   const isCancelLoading = isCancelling || isConfirmingCancel;
   
-  // Check if finalization is allowed (auction has ended and not finalized)
-  const canFinalize = isConnected && !isActive && auction.status !== "FINALIZED" && auction.status !== "CANCELLED";
+  // Check if finalization is allowed (auction has ended and not finalized or cancelled)
+  const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   return (
@@ -238,25 +239,28 @@ export default function AuctionDetailClient({
         <div className="mb-4">
           <div className="flex items-start justify-between gap-4 mb-1">
             <h1 className="text-2xl font-light">{title}</h1>
-            <div className="flex gap-2 flex-shrink-0">
-              <LinkShareButton
-                url={typeof window !== "undefined" ? window.location.href : ""}
-              />
-              <ShareButton
-                url={typeof window !== "undefined" ? window.location.href : ""}
-                artworkUrl={auction.image || auction.metadata?.image || null}
-                title={title}
-                artistName={displayCreatorName || undefined}
-                artistAddress={displayCreatorAddress || undefined}
-                sellerAddress={auction.seller}
-                sellerName={sellerName || undefined}
-                reservePrice={auction.initialAmount}
-                currentBid={auction.highestBid?.amount || undefined}
-                bidderAddress={auction.highestBid?.bidder || undefined}
-                bidderName={bidderName || undefined}
-                hasBids={bidCount > 0}
-              />
-            </div>
+            {/* Only show share buttons if auction is not cancelled */}
+            {!isCancelled && (
+              <div className="flex gap-2 flex-shrink-0">
+                <LinkShareButton
+                  url={typeof window !== "undefined" ? window.location.href : ""}
+                />
+                <ShareButton
+                  url={typeof window !== "undefined" ? window.location.href : ""}
+                  artworkUrl={auction.image || auction.metadata?.image || null}
+                  title={title}
+                  artistName={displayCreatorName || undefined}
+                  artistAddress={displayCreatorAddress || undefined}
+                  sellerAddress={auction.seller}
+                  sellerName={sellerName || undefined}
+                  reservePrice={auction.initialAmount}
+                  currentBid={auction.highestBid?.amount || undefined}
+                  bidderAddress={auction.highestBid?.bidder || undefined}
+                  bidderName={bidderName || undefined}
+                  hasBids={bidCount > 0}
+                />
+              </div>
+            )}
           </div>
           {contractName && (
             <div className="text-xs text-[#999999] mb-1">{contractName}</div>
@@ -281,8 +285,15 @@ export default function AuctionDetailClient({
           )}
         </div>
 
-        {/* Cancel Listing Button (for seller with no bids) */}
-        {canCancel && (
+        {/* Cancelled Auction Message */}
+        {isCancelled && (
+          <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
+            <p className="text-sm text-white font-medium">Auction has been cancelled</p>
+          </div>
+        )}
+
+        {/* Cancel Listing Button (for seller with no bids) - Hidden if cancelled */}
+        {canCancel && !isCancelled && (
           <div className="mb-4">
             <button
               onClick={handleCancel}
@@ -303,8 +314,8 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Finalize Auction Button (for ended auctions) */}
-        {canFinalize && (
+        {/* Finalize Auction Button (for ended auctions) - Hidden if cancelled */}
+        {canFinalize && !isCancelled && (
           <div className="mb-4">
             <button
               onClick={handleFinalize}
@@ -325,8 +336,8 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Place Bid */}
-        {isActive && (
+        {/* Place Bid - Hidden if cancelled */}
+        {isActive && !isCancelled && (
           <div className="mb-4">
             {!isConnected ? (
               <p className="text-xs text-[#cccccc]">
@@ -383,45 +394,47 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Compact auction details - multiple items per row */}
-        <div className="mb-4 space-y-3">
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <span className="text-[#999999]">Reserve:</span>
-              <span className="ml-2 font-medium">
-                {formatEther(BigInt(auction.initialAmount))} ETH
-              </span>
+        {/* Compact auction details - multiple items per row - Hidden if cancelled */}
+        {!isCancelled && (
+          <div className="mb-4 space-y-3">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="text-[#999999]">Reserve:</span>
+                <span className="ml-2 font-medium">
+                  {formatEther(BigInt(auction.initialAmount))} ETH
+                </span>
+              </div>
+              <div>
+                <span className="text-[#999999]">Current:</span>
+                <span className="ml-2 font-medium">
+                  {auction.highestBid
+                    ? `${formatEther(BigInt(currentPrice))} ETH`
+                    : "No bids"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#999999]">Bids:</span>
+                <span className="ml-2 font-medium">{bidCount}</span>
+              </div>
+              <div>
+                <span className="text-[#999999]">Status:</span>
+                <span className="ml-2 font-medium">
+                  {isActive ? "Active" : "Ended"}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-[#999999]">Current:</span>
+            <div className="text-xs">
+              <span className="text-[#999999]">Seller:</span>
               <span className="ml-2 font-medium">
-                {auction.highestBid
-                  ? `${formatEther(BigInt(currentPrice))} ETH`
-                  : "No bids"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[#999999]">Bids:</span>
-              <span className="ml-2 font-medium">{bidCount}</span>
-            </div>
-            <div>
-              <span className="text-[#999999]">Status:</span>
-              <span className="ml-2 font-medium">
-                {isActive ? "Active" : "Ended"}
+                {sellerName ? (
+                  sellerName
+                ) : (
+                  <span className="font-mono">{auction.seller}</span>
+                )}
               </span>
             </div>
           </div>
-          <div className="text-xs">
-            <span className="text-[#999999]">Seller:</span>
-            <span className="ml-2 font-medium">
-              {sellerName ? (
-                sellerName
-              ) : (
-                <span className="font-mono">{auction.seller}</span>
-              )}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
