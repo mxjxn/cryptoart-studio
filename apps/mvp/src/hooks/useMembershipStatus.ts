@@ -34,6 +34,15 @@ export function useMembershipStatus(): MembershipStatus {
     
     // Get verified addresses from context
     if (context?.user) {
+      // Debug: Log user object structure in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useMembershipStatus] User object structure:', {
+          custody_address: (context.user as any).custody_address,
+          verified_addresses: (context.user as any).verified_addresses,
+          verifications: (context.user as any).verifications,
+        });
+      }
+      
       // Check if there's a verified_addresses field
       const verifiedAddrs = (context.user as any).verified_addresses;
       if (verifiedAddrs?.eth_addresses) {
@@ -59,21 +68,33 @@ export function useMembershipStatus(): MembershipStatus {
     return addresses;
   }, [context?.user, connectedAddress]);
 
-  // Get Farcaster custody address (primary wallet)
-  const farcasterWallet = useMemo(() => {
+  // Get Farcaster native wallet addresses (custody + primary)
+  // These are the "native" Farcaster wallets that should NOT show "manage on hypersub"
+  const farcasterNativeWallets = useMemo(() => {
+    const wallets: string[] = [];
+    
     if (context?.user) {
+      // Add custody address (the native Farcaster wallet)
       const custodyAddr = (context.user as any).custody_address;
       if (custodyAddr) {
-        return custodyAddr.toLowerCase();
+        wallets.push(custodyAddr.toLowerCase());
       }
-      // Fallback to primary verified address
+      
+      // Add primary verified address (fallback/alternative native wallet)
       const verifiedAddrs = (context.user as any).verified_addresses;
       if (verifiedAddrs?.primary?.eth_address) {
-        return verifiedAddrs.primary.eth_address.toLowerCase();
+        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+        if (!wallets.includes(primaryAddr)) {
+          wallets.push(primaryAddr);
+        }
       }
     }
-    return null;
+    
+    return wallets;
   }, [context?.user]);
+  
+  // For backward compatibility, keep farcasterWallet as the primary one
+  const farcasterWallet = farcasterNativeWallets[0] || null;
 
   // Create contract read requests for all verified addresses
   const contractReads = useMemo(() => {
@@ -121,7 +142,21 @@ export function useMembershipStatus(): MembershipStatus {
     return { isPro: false, expirationDate: null, membershipAddress: null };
   }, [results, verifiedAddresses]);
 
-  const isFarcasterWallet = membershipData.membershipAddress === farcasterWallet;
+  // Check if membership is on a Farcaster native wallet (custody or primary)
+  // If it's on any other verified address, it's considered "external" and should show "manage on hypersub"
+  const isFarcasterWallet = membershipData.membershipAddress 
+    ? farcasterNativeWallets.includes(membershipData.membershipAddress.toLowerCase())
+    : false;
+  
+  // Debug logging in development
+  if (process.env.NODE_ENV === 'development' && membershipData.membershipAddress) {
+    console.log('[useMembershipStatus] Membership check:', {
+      membershipAddress: membershipData.membershipAddress,
+      farcasterNativeWallets,
+      isFarcasterWallet,
+      allVerifiedAddresses: verifiedAddresses,
+    });
+  }
 
   return {
     isPro: membershipData.isPro,
