@@ -8,7 +8,7 @@ import { formatEther } from "viem";
 import Link from "next/link";
 import { AuctionCard } from "~/components/AuctionCard";
 
-type TabType = "created" | "collected" | "bids";
+type TabType = "created" | "collected" | "bids" | "offers";
 
 export default function ProfileClient() {
   const { address, isConnected } = useAccount();
@@ -26,7 +26,7 @@ export default function ProfileClient() {
   const userAddress = address || farcasterAddress;
   const hasAddress = !!userAddress;
   
-  const { createdAuctions, activeBids, loading } = useUserAuctions();
+  const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
   const collectedAuctions: any[] = [];
 
@@ -107,6 +107,16 @@ export default function ProfileClient() {
             >
               Active Bids ({activeBids.length})
             </button>
+            <button
+              onClick={() => setActiveTab("offers")}
+              className={`px-4 py-2 font-medium transition-colors ${
+                activeTab === "offers"
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Offers ({activeOffers.length})
+            </button>
           </div>
         </div>
 
@@ -166,6 +176,32 @@ export default function ProfileClient() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {activeBids.map((auction, index) => {
+                        // Use a simple gradient for profile view
+                        const gradients = [
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                          "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                          "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                        ];
+                        return (
+                          <AuctionCard
+                            key={auction.id}
+                            auction={auction as any}
+                            gradient={gradients[index % gradients.length]}
+                            index={index}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {activeTab === "offers" && (
+                <div>
+                  {activeOffers.length === 0 ? (
+                    <p className="text-gray-600">No active offers.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {activeOffers.map((auction, index) => {
                         // Use a simple gradient for profile view
                         const gradients = [
                           "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",

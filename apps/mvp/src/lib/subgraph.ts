@@ -107,3 +107,27 @@ export async function getAuctionsWithBids(bidder: Address, options?: { first?: n
   }
 }
 
+/**
+ * Query auctions where user has made offers
+ */
+export async function getAuctionsWithOffers(offerer: Address, options?: { first?: number; skip?: number }): Promise<AuctionData[]> {
+  try {
+    const first = options?.first || 100;
+    const skip = options?.skip || 0;
+    
+    const response = await fetch(`/api/auctions/with-offers/${offerer}?first=${first}&skip=${skip}&enrich=true`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        return [];
+      }
+      throw new Error(`Failed to fetch auctions with offers: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.auctions || [];
+  } catch (error) {
+    console.error('Error fetching auctions with offers:', error);
+    return [];
+  }
+}
+

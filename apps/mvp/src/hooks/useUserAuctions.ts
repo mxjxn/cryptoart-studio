@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { useMiniApp } from '@neynar/react';
 import type { AuctionData } from '~/lib/types';
-import { getAuctionsBySeller, getAuctionsWithBids } from '~/lib/subgraph';
+import { getAuctionsBySeller, getAuctionsWithBids, getAuctionsWithOffers } from '~/lib/subgraph';
 import { Address } from 'viem';
 
 export function useUserAuctions() {
@@ -24,6 +24,7 @@ export function useUserAuctions() {
   
   const [createdAuctions, setCreatedAuctions] = useState<AuctionData[]>([]);
   const [activeBids, setActiveBids] = useState<AuctionData[]>([]);
+  const [activeOffers, setActiveOffers] = useState<AuctionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -38,13 +39,15 @@ export function useUserAuctions() {
         setLoading(true);
         setError(null);
         
-        const [created, bids] = await Promise.all([
+        const [created, bids, offers] = await Promise.all([
           getAuctionsBySeller(userAddress as Address, { first: 100, skip: 0 }),
           getAuctionsWithBids(userAddress as Address, { first: 100, skip: 0 }),
+          getAuctionsWithOffers(userAddress as Address, { first: 100, skip: 0 }),
         ]);
         
         setCreatedAuctions(created);
         setActiveBids(bids);
+        setActiveOffers(offers);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch user auctions'));
       } finally {
@@ -60,6 +63,6 @@ export function useUserAuctions() {
     return () => clearInterval(interval);
   }, [userAddress]);
 
-  return { createdAuctions, activeBids, loading, error };
+  return { createdAuctions, activeBids, activeOffers, loading, error };
 }
 
