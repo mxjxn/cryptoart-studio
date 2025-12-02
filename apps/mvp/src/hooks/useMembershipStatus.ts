@@ -137,9 +137,9 @@ export function useMembershipStatus(): MembershipStatus {
         // Found active membership
         let expirationDate: Date | null = null;
         if (subscriptionResult?.status === 'success' && subscriptionResult.result) {
-          const subscription = subscriptionResult.result as [bigint, bigint];
-          if (subscription && subscription.length >= 2) {
-            const expirationTimestamp = Number(subscription[1]);
+          const subscription = subscriptionResult.result as { start: bigint; expiration: bigint };
+          if (subscription && typeof subscription === 'object' && 'expiration' in subscription) {
+            const expirationTimestamp = Number(subscription.expiration);
             if (expirationTimestamp > 0) {
               expirationDate = new Date(expirationTimestamp * 1000);
             }

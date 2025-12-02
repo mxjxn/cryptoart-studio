@@ -14,6 +14,8 @@ export function useAuction(listingId: string | null) {
     }
 
     async function fetchAuction() {
+      if (!listingId) return;
+      
       try {
         setLoading(true);
         setError(null);

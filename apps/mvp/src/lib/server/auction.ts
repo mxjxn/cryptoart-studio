@@ -1,0 +1,278 @@
+import { request, gql } from "graphql-request";
+import { unstable_cache } from "next/cache";
+import { fetchNFTMetadata } from "~/lib/nft-metadata";
+import type { EnrichedAuctionData } from "~/lib/types";
+import { Address } from "viem";
+
+const getSubgraphEndpoint = (): string => {
+  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
+  if (envEndpoint) {
+    return envEndpoint;
+  }
+  throw new Error(
+    "Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL"
+  );
+};
+
+const LISTING_BY_ID_QUERY = gql`
+  query ListingById($id: ID!) {
+    listing(id: $id) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
+const ACTIVE_LISTINGS_QUERY = gql`
+  query ActiveListings($first: Int!, $skip: Int!) {
+    listings(
+      where: { status: "ACTIVE", finalized: false }
+      first: $first
+      skip: $skip
+      orderBy: createdAt
+      orderDirection: desc
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
+/**
+ * Fetch auction data server-side (for use in route handlers, etc.)
+ */
+export async function getAuctionServer(
+  listingId: string
+): Promise<EnrichedAuctionData | null> {
+  const startTime = Date.now();
+  console.log(`[OG Image] [getAuctionServer] Fetching auction ${listingId}...`);
+  
+  try {
+    const endpoint = getSubgraphEndpoint();
+    console.log(`[OG Image] [getAuctionServer] Using subgraph endpoint: ${endpoint.replace(/\/graphql.*$/, '/graphql')}`);
+
+    const data = await request<{ listing: any | null }>(
+      endpoint,
+      LISTING_BY_ID_QUERY,
+      { id: listingId }
+    );
+
+    if (!data.listing) {
+      console.warn(`[OG Image] [getAuctionServer] No listing found for ID: ${listingId}`);
+      return null;
+    }
+    
+    console.log(`[OG Image] [getAuctionServer] Listing found: status=${data.listing.status}, tokenAddress=${data.listing.tokenAddress}`);
+
+    const listing = data.listing;
+    const bidCount = listing.bids?.length || 0;
+    const highestBid =
+      listing.bids && listing.bids.length > 0
+        ? listing.bids[0] // Already sorted by amount desc
+        : undefined;
+
+    // Fetch NFT metadata
+    let metadata = null;
+    if (listing.tokenAddress && listing.tokenId) {
+      try {
+        console.log(`[OG Image] [getAuctionServer] Fetching NFT metadata for ${listing.tokenAddress}:${listing.tokenId}...`);
+        metadata = await fetchNFTMetadata(
+          listing.tokenAddress as Address,
+          listing.tokenId,
+          listing.tokenSpec
+        );
+        console.log(`[OG Image] [getAuctionServer] Metadata fetched:`, {
+          hasTitle: !!metadata?.title,
+          hasImage: !!metadata?.image,
+          hasArtist: !!metadata?.artist,
+        });
+      } catch (error) {
+        console.error(
+          `[OG Image] [getAuctionServer] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`,
+          error
+        );
+      }
+    } else {
+      console.warn(`[OG Image] [getAuctionServer] No tokenAddress or tokenId, skipping metadata fetch`);
+    }
+
+    const enriched: EnrichedAuctionData = {
+      ...listing,
+      bidCount,
+      highestBid: highestBid
+        ? {
+            amount: highestBid.amount,
+            bidder: highestBid.bidder,
+            timestamp: highestBid.timestamp,
+          }
+        : undefined,
+      title: metadata?.title || metadata?.name,
+      artist: metadata?.artist || metadata?.creator,
+      image: metadata?.image,
+      description: metadata?.description,
+      metadata,
+    };
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[OG Image] [getAuctionServer] Auction data fetched successfully in ${elapsed}ms`);
+    return enriched;
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    console.error(`[OG Image] [getAuctionServer] Error fetching auction server-side (${elapsed}ms):`, error);
+    if (error instanceof Error) {
+      console.error(`[OG Image] [getAuctionServer] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+      });
+    }
+    return null;
+  }
+}
+
+/**
+ * Fetch and enrich auctions from subgraph
+ * This function is cached for 60 seconds to reduce subgraph load
+ */
+async function fetchActiveAuctions(
+  first: number,
+  skip: number,
+  enrich: boolean
+): Promise<EnrichedAuctionData[]> {
+  const endpoint = getSubgraphEndpoint();
+  
+  const data = await request<{ listings: any[] }>(
+    endpoint,
+    ACTIVE_LISTINGS_QUERY,
+    {
+      first: Math.min(first, 1000),
+      skip,
+    }
+  );
+
+  let enrichedAuctions: EnrichedAuctionData[] = data.listings;
+
+  if (enrich) {
+    // Enrich auctions with metadata and bid information
+    enrichedAuctions = await Promise.all(
+      data.listings.map(async (listing) => {
+        const bidCount = listing.bids?.length || 0;
+        const highestBid = listing.bids && listing.bids.length > 0 
+          ? listing.bids[0] // Already sorted by amount desc
+          : undefined;
+
+        // Fetch NFT metadata
+        let metadata = null;
+        if (listing.tokenAddress && listing.tokenId) {
+          try {
+            metadata = await fetchNFTMetadata(
+              listing.tokenAddress as Address,
+              listing.tokenId,
+              listing.tokenSpec
+            );
+          } catch (error) {
+            console.error(`Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);
+          }
+        }
+
+        const enriched: EnrichedAuctionData = {
+          ...listing,
+          bidCount,
+          highestBid: highestBid ? {
+            amount: highestBid.amount,
+            bidder: highestBid.bidder,
+            timestamp: highestBid.timestamp,
+          } : undefined,
+          title: metadata?.title || metadata?.name,
+          artist: metadata?.artist || metadata?.creator,
+          image: metadata?.image,
+          description: metadata?.description,
+          metadata,
+        };
+
+        return enriched;
+      })
+    );
+  }
+
+  return enrichedAuctions;
+}
+
+/**
+ * Cached version of fetchActiveAuctions
+ * Cache TTL: 60 seconds (data can be stale but will be refreshed client-side)
+ * 
+ * This function can be used both in API routes and server components
+ */
+export const getCachedActiveAuctions = unstable_cache(
+  async (first: number, skip: number, enrich: boolean) => {
+    return fetchActiveAuctions(first, skip, enrich);
+  },
+  ['active-auctions'],
+  {
+    revalidate: 60, // Cache for 60 seconds
+    tags: ['auctions'], // Can be invalidated with revalidateTag
+  }
+);
+
+/**
+ * Non-cached version of fetchActiveAuctions
+ * Use this when you need fresh data (e.g., when client polls for updates)
+ */
+export async function fetchActiveAuctionsUncached(
+  first: number,
+  skip: number,
+  enrich: boolean
+): Promise<EnrichedAuctionData[]> {
+  return fetchActiveAuctions(first, skip, enrich);
+}
+
