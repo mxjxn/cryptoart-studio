@@ -87,12 +87,11 @@ export default function AuctionDetailClient({
     }
     
     try {
-      const listingIdBigInt = BigInt(listingId);
       await cancelListing({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'cancel',
-        args: [listingIdBigInt, 0] as readonly [bigint, number], // holdbackBPS = 0 as per requirements
+        args: [Number(listingId), 0], // holdbackBPS = 0 as per requirements
       });
     } catch (err) {
       console.error("Error cancelling listing:", err);
@@ -109,7 +108,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'finalize',
-        args: [BigInt(listingId)],
+        args: [Number(listingId)],
       });
     } catch (err) {
       console.error("Error finalizing auction:", err);
