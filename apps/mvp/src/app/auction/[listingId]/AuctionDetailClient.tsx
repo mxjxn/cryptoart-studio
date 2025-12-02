@@ -136,6 +136,10 @@ export default function AuctionDetailClient({
   // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
   const displayCreatorAddress = creatorAddress || auction.seller;
   const bidCount = auction.bidCount || 0;
+  
+  // Check if the current user is the auction seller
+  const isOwnAuction = isConnected && address && auction.seller && 
+    address.toLowerCase() === auction.seller.toLowerCase();
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -207,6 +211,32 @@ export default function AuctionDetailClient({
               <p className="text-xs text-[#cccccc]">
                 Please connect your wallet to place a bid.
               </p>
+            ) : isOwnAuction ? (
+              <div className="space-y-3">
+                <input
+                  type="number"
+                  step="0.001"
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                  disabled
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                  placeholder={
+                    auction.highestBid
+                      ? `Min: ${formatEther(BigInt(currentPrice))} ETH`
+                      : `Min: ${formatEther(BigInt(auction.initialAmount))} ETH`
+                  }
+                />
+                <button
+                  onClick={handleBid}
+                  disabled
+                  className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                >
+                  Place Bid
+                </button>
+                <p className="text-xs text-[#cccccc]">
+                  You cannot bid on your own auction.
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
                 <input
