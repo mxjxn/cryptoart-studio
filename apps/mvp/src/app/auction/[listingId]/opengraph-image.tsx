@@ -10,7 +10,7 @@ export const alt = "Auction";
 // See: https://miniapps.farcaster.xyz/docs/guides/sharing
 export const size = {
   width: 1200,
-  height: 800, // 3:2 aspect ratio (1200/800 = 1.5)
+  height: 630,
 };
 
 export const contentType = "image/png";

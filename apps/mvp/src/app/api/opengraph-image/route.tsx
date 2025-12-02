@@ -1,14 +1,8 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "MVP Auction";
-export const size = {
-  width: 1200,
-  height: 630,
-};
+export const runtime = "edge";
 
-export const contentType = "image/png";
-
-export default async function Image() {
+export async function GET() {
   return new ImageResponse(
     (
       <div
@@ -52,7 +46,8 @@ export default async function Image() {
       </div>
     ),
     {
-      ...size,
+      width: 1200,
+      height: 630,
       headers: {
         // Following Farcaster miniapp-img reference implementation
         // Use stale-while-revalidate for better performance

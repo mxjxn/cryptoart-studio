@@ -54,7 +54,9 @@ export default async function Image() {
     {
       ...size,
       headers: {
-        'Cache-Control': 'public, max-age=300, s-maxage=300',
+        // Following Farcaster miniapp-img reference implementation
+        // Use stale-while-revalidate for better performance
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
       },
     }
   );
