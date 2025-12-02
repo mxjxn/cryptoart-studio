@@ -489,7 +489,7 @@ export default function AuctionDetailClient({
                 ? isConfirmingCancel
                   ? "Confirming..."
                   : "Cancelling..."
-                : "Cancel Auction"}
+                : "Cancel Listing"}
             </button>
             {cancelError && (
               <p className="text-xs text-red-400 mt-2">
