@@ -19,6 +19,7 @@ export interface MembershipStatus {
   isPro: boolean;
   expirationDate: Date | null;
   membershipAddress: string | null;
+  timeRemainingSeconds: number | null;
   isFarcasterWallet: boolean;
   loading: boolean;
   error: Error | null;
@@ -140,9 +141,10 @@ export function useMembershipStatus(): MembershipStatus {
   });
 
   // Process results to find active membership
+  // Note: balanceOf returns time remaining in seconds for STP v2 contract
   const membershipData = useMemo(() => {
     if (!results || results.length === 0) {
-      return { isPro: false, expirationDate: null, membershipAddress: null };
+      return { isPro: false, expirationDate: null, membershipAddress: null, timeRemainingSeconds: null };
     }
 
     // Process results - check balanceOf for each address
@@ -151,19 +153,24 @@ export function useMembershipStatus(): MembershipStatus {
       const balanceResult = results[i];
       
       if (balanceResult?.status === 'success' && balanceResult.result) {
-        const balance = balanceResult.result as bigint;
-        // If balance > 0, user owns at least one subscription NFT
-        if (balance > 0n) {
+        const timeRemainingSeconds = balanceResult.result as bigint;
+        // If timeRemainingSeconds > 0, user has active subscription
+        if (timeRemainingSeconds > 0n) {
+          const seconds = Number(timeRemainingSeconds);
+          const expirationTimestamp = Math.floor(Date.now() / 1000) + seconds;
+          const expirationDate = new Date(expirationTimestamp * 1000);
+          
           return {
             isPro: true,
-            expirationDate: null, // Cannot determine expiration from balanceOf alone
+            expirationDate,
             membershipAddress: addr,
+            timeRemainingSeconds: seconds,
           };
         }
       }
     }
     
-    return { isPro: false, expirationDate: null, membershipAddress: null };
+    return { isPro: false, expirationDate: null, membershipAddress: null, timeRemainingSeconds: null };
   }, [results, verifiedAddresses]);
 
   // Check if membership is on a Farcaster native wallet (custody or primary)
@@ -218,6 +225,7 @@ export function useMembershipStatus(): MembershipStatus {
     isPro: membershipData.isPro,
     expirationDate: membershipData.expirationDate,
     membershipAddress: membershipData.membershipAddress,
+    timeRemainingSeconds: membershipData.timeRemainingSeconds,
     isFarcasterWallet,
     loading: isLoading,
     error: null,

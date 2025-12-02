@@ -121,20 +121,9 @@ const ERC721_ABI = [
 
 export default function MembershipClient() {
   const { address, isConnected } = useAccount();
-  const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
+  const { isPro, expirationDate, membershipAddress, timeRemainingSeconds, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
   const [periods, setPeriods] = useState(12); // Changed from "months" to "periods"
   const [showAddTime, setShowAddTime] = useState(false);
-  
-  // Get the subscription token ID to calculate time subscribed
-  const { data: tokenId } = useReadContract({
-    address: membershipAddress ? (STP_V2_CONTRACT_ADDRESS as Address) : undefined,
-    abi: ERC721_ABI,
-    functionName: 'tokenOfOwnerByIndex',
-    args: membershipAddress ? [membershipAddress as Address, 0n] : undefined,
-    query: {
-      enabled: !!membershipAddress && isPro,
-    },
-  });
 
   // Read tier detail (tier 1) from contract to get price per period
   // Note: This doesn't require wallet connection, so we can always read it
@@ -275,17 +264,41 @@ export default function MembershipClient() {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Calculate time subscribed (months and days)
-  // TODO: Query actual mint timestamp from token's mint block to get accurate start date
-  // For now, we show a placeholder - in production, query the block where the token was minted
+  // Calculate time subscribed (months and days) from expiration date
+  // We can estimate time subscribed if we know the period duration
   const calculateTimeSubscribed = (): { months: number; days: number } | null => {
-    // Since we don't have the mint timestamp, we can't calculate exact time subscribed
-    // This would require querying the block where the token was minted
-    // For now, return null to show "Active subscription" instead
+    if (!expirationDate || !timeRemainingSeconds || !periodDurationSeconds) {
+      return null;
+    }
+    
+    // Calculate total subscription duration
+    // If we know period duration, we can estimate total time
+    // But we need to know how many periods were purchased
+    // For now, calculate from a rough estimate based on typical subscription length
+    // TODO: Query actual subscription start date from contract or token metadata
+    
+    // Estimate: if time remaining is large, assume it's a long subscription
+    // We can't accurately calculate without start date, so we'll show time remaining instead
     return null;
   };
 
+  // Calculate time remaining from seconds
+  const calculateTimeRemaining = (): { months: number; days: number; hours: number } | null => {
+    if (!timeRemainingSeconds || timeRemainingSeconds <= 0) {
+      return null;
+    }
+    
+    const totalSeconds = timeRemainingSeconds;
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const months = Math.floor(days / 30);
+    const remainingDays = days % 30;
+    
+    return { months, days: remainingDays, hours };
+  };
+
   const timeSubscribed = calculateTimeSubscribed();
+  const timeRemaining = calculateTimeRemaining();
 
   if (!isConnected) {
     return (
@@ -368,17 +381,30 @@ export default function MembershipClient() {
               <h2 className="text-lg font-medium mb-4">Your Subscription</h2>
               <div className="space-y-3">
                 <div className="p-3 bg-black rounded border border-[#333333]">
-                  <p className="text-xs text-[#999999] mb-1">Status</p>
-                  <p className="text-lg text-white font-medium">Active Subscription</p>
-                  {timeSubscribed && (
-                    <p className="text-sm text-[#cccccc] mt-1">
+                  <p className="text-xs text-[#999999] mb-1">Time Remaining</p>
+                  {timeRemaining ? (
+                    <p className="text-lg text-white font-medium">
+                      {timeRemaining.months > 0 && `${timeRemaining.months} month${timeRemaining.months !== 1 ? 's' : ''}`}
+                      {timeRemaining.months > 0 && timeRemaining.days > 0 && ' and '}
+                      {timeRemaining.days > 0 && `${timeRemaining.days} day${timeRemaining.days !== 1 ? 's' : ''}`}
+                      {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours > 0 && `${timeRemaining.hours} hour${timeRemaining.hours !== 1 ? 's' : ''}`}
+                      {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours === 0 && 'Less than 1 hour'}
+                    </p>
+                  ) : (
+                    <p className="text-lg text-white font-medium">Calculating...</p>
+                  )}
+                </div>
+                {timeSubscribed && (
+                  <div className="p-3 bg-black rounded border border-[#333333]">
+                    <p className="text-xs text-[#999999] mb-1">Time Subscribed</p>
+                    <p className="text-sm text-white">
                       {timeSubscribed.months > 0 && `${timeSubscribed.months} month${timeSubscribed.months !== 1 ? 's' : ''}`}
                       {timeSubscribed.months > 0 && timeSubscribed.days > 0 && ' and '}
                       {timeSubscribed.days > 0 && `${timeSubscribed.days} day${timeSubscribed.days !== 1 ? 's' : ''}`}
                       {timeSubscribed.months === 0 && timeSubscribed.days === 0 && 'Less than 1 day'}
                     </p>
-                  )}
-                </div>
+                  </div>
+                )}
                 {expirationDate && (
                   <div className="p-3 bg-black rounded border border-[#333333]">
                     <p className="text-xs text-[#999999] mb-1">Expires</p>
