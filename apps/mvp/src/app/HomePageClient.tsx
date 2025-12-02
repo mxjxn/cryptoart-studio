@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { AuctionCard } from "~/components/AuctionCard";
+import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { getActiveAuctions } from "~/lib/subgraph";
 
@@ -26,6 +27,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const router = useRouter();
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
+  const { isPro, loading: membershipLoading } = useMembershipStatus();
 
   // Refetch auctions when component mounts
   // This ensures fresh data after navigation from cancel/finalize actions
@@ -76,37 +78,41 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <p className="text-sm text-[#cccccc] mb-8 leading-relaxed">
             Create and bid on NFT auctions directly from Farcaster. Built for the decentralized social web.
           </p>
-          <Link
-            href="/create"
-            className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-          >
-            Create Auction
-          </Link>
+          {isPro && (
+            <Link
+              href="/create"
+              className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+            >
+              Create Auction
+            </Link>
+          )}
         </div>
       </section>
 
-      {/* Membership Banner */}
-      <section className="border-b border-[#333333] bg-[#0a0a0a]">
-        <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
-              Creator Access
+      {/* Membership Banner - Only show if not a member */}
+      {!membershipLoading && !isPro && (
+        <section className="border-b border-[#333333] bg-[#0a0a0a]">
+          <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+            <div className="flex flex-col gap-1">
+              <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
+                Creator Access
+              </div>
+              <div className="text-sm font-normal text-[#cccccc]">
+                Mint to create your own auctions
+              </div>
             </div>
-            <div className="text-sm font-normal text-[#cccccc]">
-              Mint to create your own auctions
+            <div className="flex items-center gap-4">
+              <div className="text-base font-normal text-white">0.5 ETH</div>
+              <Link
+                href="/membership"
+                className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
+              >
+                Mint Pass
+              </Link>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-base font-normal text-white">0.5 ETH</div>
-            <Link
-              href="/membership"
-              className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
-            >
-              Mint Pass
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Active Auctions */}
       <section className="px-5 py-8">
@@ -121,12 +127,14 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         ) : auctions.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-[#cccccc] mb-4">No active auctions found</p>
-            <Link
-              href="/create"
-              className="text-white hover:underline"
-            >
-              Create your first auction
-            </Link>
+            {isPro && (
+              <Link
+                href="/create"
+                className="text-white hover:underline"
+              >
+                Create your first auction
+              </Link>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
