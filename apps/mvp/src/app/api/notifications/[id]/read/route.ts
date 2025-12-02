@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { markAsRead } from '~/lib/server/notifications.js';
+import { markAsRead } from '~/lib/server/notifications';
 
 /**
  * POST /api/notifications/[id]/read

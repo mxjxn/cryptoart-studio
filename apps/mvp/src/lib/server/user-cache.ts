@@ -22,7 +22,7 @@ export async function getUserFromCache(
   
   // Check if cache is expired
   if (cached && cached.expiresAt > new Date()) {
-    return cached;
+    return cached as UserCacheData;
   }
   
   // Cache expired or doesn't exist
@@ -74,7 +74,7 @@ export async function cacheUserInfo(
       .where(eq(userCache.ethAddress, normalizedAddress))
       .returning();
     
-    return updated;
+    return updated as UserCacheData;
   } else {
     // Insert new record
     const [inserted] = await db.insert(userCache).values({
@@ -91,7 +91,7 @@ export async function cacheUserInfo(
       refreshedAt: new Date(),
     }).returning();
     
-    return inserted;
+    return inserted as UserCacheData;
   }
 }
 

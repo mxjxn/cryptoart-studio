@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runNotificationWorker } from '~/lib/server/notification-worker.js';
+import { runNotificationWorker } from '~/lib/server/notification-worker';
 
 /**
  * GET /api/cron/notifications
  * Vercel Cron Job endpoint for processing notifications
  * 
- * Configure in vercel.json:
- * {
- *   "crons": [{
- *     "path": "/api/cron/notifications",
- *     "schedule": "*/1 * * * *"  // Every minute
- *   }]
- * }
+ * Configure in vercel.json with schedule "every minute"
+ * See vercel.json for the actual cron configuration
  */
 export async function GET(req: NextRequest) {
   try {

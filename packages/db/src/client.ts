@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { userCache, contractCache, notifications, notificationPreferences, notificationWorkerState } from './schema.js';
+import { userCache, contractCache, notifications, notificationPreferences, notificationWorkerState } from './schema';
 
 // Database client singleton
 let db: ReturnType<typeof drizzle> | null = null;
@@ -26,7 +26,7 @@ export {
   notifications,
   notificationPreferences,
   notificationWorkerState
-} from './schema.js';
+} from './schema';
 export type { 
   UserCacheData, 
   ContractCacheData,
@@ -34,4 +34,4 @@ export type {
   NotificationPreferencesData,
   NotificationType,
   NotificationWorkerStateData
-} from './schema.js';
+} from './schema';

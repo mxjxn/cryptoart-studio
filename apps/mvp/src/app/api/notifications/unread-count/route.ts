@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUnreadCount } from '~/lib/server/notifications.js';
+import { getUnreadCount } from '~/lib/server/notifications';
 
 /**
  * GET /api/notifications/unread-count

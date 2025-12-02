@@ -149,7 +149,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             )}
             {auction.listingType === "FIXED_PRICE" && auction.tokenSpec === "ERC1155" && (
               <div className="text-xs text-[#999999]">
-                {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} left
+                {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")}/{parseInt(auction.totalAvailable)} available
               </div>
             )}
             {auction.listingType === "OFFERS_ONLY" && (

@@ -1,7 +1,7 @@
 import { request, gql } from 'graphql-request';
-import { createNotification } from './notifications.js';
-import { lookupNeynarByAddress } from '~/lib/artist-name-resolution.js';
-import { fetchNFTMetadata } from '~/lib/nft-metadata.js';
+import { createNotification } from './notifications';
+import { lookupNeynarByAddress } from '~/lib/artist-name-resolution';
+import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import { Address } from 'viem';
 
 const getSubgraphEndpoint = (): string => {
@@ -142,10 +142,16 @@ async function getArtworkName(
   tokenSpec: string
 ): Promise<string> {
   try {
+    // Convert tokenSpec string to proper type
+    const tokenSpecType: 'ERC721' | 'ERC1155' | number = 
+      tokenSpec === 'ERC721' ? 'ERC721' :
+      tokenSpec === 'ERC1155' ? 'ERC1155' :
+      parseInt(tokenSpec) || 0;
+    
     const metadata = await fetchNFTMetadata(
       tokenAddress as Address,
       tokenId,
-      tokenSpec
+      tokenSpecType
     );
     return metadata?.title || metadata?.name || `Token #${tokenId}`;
   } catch {

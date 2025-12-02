@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserNotifications } from '~/lib/server/notifications.js';
+import { getUserNotifications } from '~/lib/server/notifications';
 
 /**
  * GET /api/notifications
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const { createNotification } = await import('~/lib/server/notifications.js');
+    const { createNotification } = await import('~/lib/server/notifications');
     const notification = await createNotification(
       userAddress,
       type,

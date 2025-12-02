@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createNotification } from '~/lib/server/notifications.js';
+import { createNotification } from '~/lib/server/notifications';
 
 /**
  * POST /api/notifications/create

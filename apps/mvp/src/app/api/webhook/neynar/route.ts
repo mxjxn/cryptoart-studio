@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleNotificationWebhook } from '~/lib/server/neynar-notifications.js';
-import { updateNotificationPreferences } from '~/lib/server/notifications.js';
+import { handleNotificationWebhook } from '~/lib/server/neynar-notifications';
+import { updateNotificationPreferences } from '~/lib/server/notifications';
 
 /**
  * POST /api/webhook/neynar

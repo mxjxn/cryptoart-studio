@@ -42,7 +42,7 @@ async function checkDuplicateNotification(
     .orderBy(desc(notifications.createdAt))
     .limit(1);
   
-  return existing || null;
+  return (existing as NotificationData | undefined) || null;
 }
 
 /**
@@ -119,7 +119,7 @@ export async function createNotification(
       pushed: false,
     }).returning();
     
-    notification = result;
+    notification = result as NotificationData;
   }
   
   // Send push notification if enabled and requested
@@ -192,7 +192,7 @@ export async function getUserNotifications(
   ]);
   
   return {
-    notifications: results,
+    notifications: results as NotificationData[],
     total: countResult.length,
   };
 }

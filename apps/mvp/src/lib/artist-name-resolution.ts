@@ -1,6 +1,6 @@
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
-import { getUserFromCache, cacheUserInfo } from "~/lib/server/user-cache.js";
+import { getUserFromCache, cacheUserInfo } from "~/lib/server/user-cache";
 
 /**
  * Shared artist name resolution utilities.

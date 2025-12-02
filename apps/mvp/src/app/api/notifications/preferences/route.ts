@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   getNotificationPreferences, 
   updateNotificationPreferences 
-} from '~/lib/server/notifications.js';
+} from '~/lib/server/notifications';
 
 /**
  * GET /api/notifications/preferences
