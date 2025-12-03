@@ -1360,6 +1360,9 @@ export default function AuctionDetailClient({
                     )}
                   </span>
                 </div>
+                <div className="text-xs pt-2 border-t border-[#333333]">
+                  <span className="text-[#666666]">Platform fee: 5%</span>
+                </div>
               </>
             )}
 
@@ -1420,6 +1423,9 @@ export default function AuctionDetailClient({
                     )}
                   </span>
                 </div>
+                <div className="text-xs pt-2 border-t border-[#333333]">
+                  <span className="text-[#666666]">Platform fee: 5%</span>
+                </div>
               </>
             )}
 
@@ -1458,6 +1464,9 @@ export default function AuctionDetailClient({
                     )}
                   </span>
                 </div>
+                <div className="text-xs pt-2 border-t border-[#333333]">
+                  <span className="text-[#666666]">Platform fee: 5%</span>
+                </div>
               </>
             )}
 
@@ -1495,6 +1504,9 @@ export default function AuctionDetailClient({
                       <span className="font-mono">{auction.seller}</span>
                     )}
                   </span>
+                </div>
+                <div className="text-xs pt-2 border-t border-[#333333]">
+                  <span className="text-[#666666]">Platform fee: 5%</span>
                 </div>
               </>
             )}
