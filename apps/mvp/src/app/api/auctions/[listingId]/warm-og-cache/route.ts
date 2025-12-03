@@ -52,7 +52,7 @@ export async function POST(
           ? `https://${process.env.VERCEL_URL}`
           : "http://localhost:3000";
 
-      const ogImageUrl = `${baseUrl}/auction/${listingId}/opengraph-image`;
+      const ogImageUrl = `${baseUrl}/listing/${listingId}/opengraph-image`;
 
       try {
         // Fetch the OG image to trigger generation and cache it

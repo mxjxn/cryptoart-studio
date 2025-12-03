@@ -1,0 +1,332 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { AuctionCard } from "~/components/AuctionCard";
+import type { EnrichedAuctionData } from "~/lib/types";
+import Link from "next/link";
+
+interface UserProfileClientProps {
+  fname: string;
+}
+
+interface UserProfileData {
+  user: {
+    ethAddress: string;
+    fid?: number | null;
+    username?: string | null;
+    displayName?: string | null;
+    pfpUrl?: string | null;
+    verifiedWallets?: string[] | null;
+    ensName?: string | null;
+  } | null;
+  primaryAddress: string;
+  verifiedWallets: string[];
+  listingsCreated: EnrichedAuctionData[];
+  purchases: Array<{
+    id: string;
+    listing: any;
+    buyer: string;
+    amount: string;
+    count: number;
+    timestamp: string;
+    metadata: any;
+  }>;
+  collectedFrom: Array<{
+    seller: string;
+    count: number;
+    username?: string | null;
+    displayName?: string | null;
+    pfpUrl?: string | null;
+  }>;
+  artworksCreated: Array<{
+    contractAddress: string;
+    name?: string | null;
+    symbol?: string | null;
+    creatorAddress?: string | null;
+  }>;
+}
+
+const gradients = [
+  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+  "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+  "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
+  "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+];
+
+export default function UserProfileClient({ fname }: UserProfileClientProps) {
+  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections'>('wallets');
+
+  useEffect(() => {
+    async function fetchProfile() {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/user/${encodeURIComponent(fname)}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+        const data = await response.json();
+        setProfileData(data);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProfile();
+  }, [fname]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <div className="flex items-center gap-3">
+            <ProfileDropdown />
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-[#cccccc]">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <div className="flex items-center gap-3">
+            <ProfileDropdown />
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-[#cccccc]">Profile not found</p>
+        </div>
+      </div>
+    );
+  }
+
+  const displayName = profileData.user?.displayName || 
+                      profileData.user?.username || 
+                      profileData.user?.ensName ||
+                      `${profileData.primaryAddress.slice(0, 6)}...${profileData.primaryAddress.slice(-4)}`;
+  
+  const isFarcasterProfile = !!profileData.user?.username;
+  const walletsToShow = isFarcasterProfile 
+    ? profileData.verifiedWallets 
+    : [profileData.primaryAddress];
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+        <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+        <div className="flex items-center gap-3">
+          <ProfileDropdown />
+        </div>
+      </header>
+
+      <div className="px-5 py-8">
+        {/* Profile Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            {profileData.user?.pfpUrl ? (
+              <img
+                src={profileData.user.pfpUrl}
+                alt={displayName}
+                className="w-20 h-20 rounded-full"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+            )}
+            <div>
+              <h1 className="text-2xl font-light mb-1">{displayName}</h1>
+              {profileData.user?.username && (
+                <p className="text-sm text-[#999999]">@{profileData.user.username}</p>
+              )}
+              {profileData.user?.ensName && (
+                <p className="text-sm text-[#999999]">{profileData.user.ensName}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-4 border-b border-[#333333] mb-6">
+            <button
+              onClick={() => setActiveTab('wallets')}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === 'wallets'
+                  ? 'border-b-2 border-white text-white'
+                  : 'text-[#999999] hover:text-[#cccccc]'
+              }`}
+            >
+              Wallets ({walletsToShow.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('artworks')}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === 'artworks'
+                  ? 'border-b-2 border-white text-white'
+                  : 'text-[#999999] hover:text-[#cccccc]'
+              }`}
+            >
+              Artworks ({profileData.artworksCreated.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('listings')}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === 'listings'
+                  ? 'border-b-2 border-white text-white'
+                  : 'text-[#999999] hover:text-[#cccccc]'
+              }`}
+            >
+              Listings ({profileData.listingsCreated.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('collections')}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === 'collections'
+                  ? 'border-b-2 border-white text-white'
+                  : 'text-[#999999] hover:text-[#cccccc]'
+              }`}
+            >
+              Collected ({profileData.purchases.length})
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'wallets' && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-light mb-4">Verified Wallets</h2>
+            {walletsToShow.map((wallet, index) => {
+              const walletUser = profileData.user?.ethAddress.toLowerCase() === wallet.toLowerCase()
+                ? profileData.user
+                : null;
+              const walletUsername = walletUser?.username;
+              
+              return (
+                <div
+                  key={wallet}
+                  className="p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-mono text-sm">{wallet}</p>
+                      {walletUsername && (
+                        <Link
+                          href={`/user/${walletUsername}`}
+                          className="text-xs text-[#999999] hover:text-[#cccccc] mt-1"
+                        >
+                          @{walletUsername}
+                        </Link>
+                      )}
+                    </div>
+                    {wallet.toLowerCase() === profileData.primaryAddress.toLowerCase() && (
+                      <span className="text-xs text-[#999999]">Primary</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {activeTab === 'artworks' && (
+          <div>
+            <h2 className="text-lg font-light mb-4">Artworks Created</h2>
+            {profileData.artworksCreated.length === 0 ? (
+              <p className="text-[#999999]">No artworks found</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {profileData.artworksCreated.map((artwork, index) => (
+                  <Link
+                    key={artwork.contractAddress}
+                    href={`/market?contract=${artwork.contractAddress}`}
+                    className="p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg hover:border-[#666666] transition-colors"
+                  >
+                    <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded mb-2" />
+                    <p className="text-sm font-medium line-clamp-1">
+                      {artwork.name || artwork.symbol || 'Unnamed'}
+                    </p>
+                    <p className="text-xs text-[#999999] font-mono mt-1">
+                      {artwork.contractAddress.slice(0, 6)}...{artwork.contractAddress.slice(-4)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'listings' && (
+          <div>
+            <h2 className="text-lg font-light mb-4">Listings Created</h2>
+            {profileData.listingsCreated.length === 0 ? (
+              <p className="text-[#999999]">No listings found</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {profileData.listingsCreated.map((listing, index) => (
+                  <AuctionCard
+                    key={listing.listingId}
+                    auction={listing}
+                    gradient={gradients[index % gradients.length]}
+                    index={index}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'collections' && (
+          <div>
+            <h2 className="text-lg font-light mb-4">Collected From</h2>
+            {profileData.collectedFrom.length === 0 ? (
+              <p className="text-[#999999]">No collections found</p>
+            ) : (
+              <div className="space-y-4">
+                {profileData.collectedFrom.map((item) => (
+                  <div
+                    key={item.seller}
+                    className="p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      {item.pfpUrl ? (
+                        <img
+                          src={item.pfpUrl}
+                          alt={item.displayName || item.username || item.seller}
+                          className="w-12 h-12 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+                      )}
+                      <div className="flex-1">
+                        <Link
+                          href={item.username ? `/user/${item.username}` : `/user/${item.seller}`}
+                          className="text-sm font-medium hover:text-[#cccccc]"
+                        >
+                          {item.displayName || item.username || `${item.seller.slice(0, 6)}...${item.seller.slice(-4)}`}
+                        </Link>
+                        <p className="text-xs text-[#999999]">
+                          {item.count} {item.count === 1 ? 'artwork' : 'artworks'} collected
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

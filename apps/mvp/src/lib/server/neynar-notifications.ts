@@ -58,7 +58,7 @@ export async function sendPushNotification(
     
     // Build target URL - use listing page if listingId provided, otherwise use home
     const targetUrl = options?.targetUrl || 
-      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/auction/${options.listingId}` : 
+      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
        `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}`);
     
     // According to docs, notification object should have: title, body, target_url

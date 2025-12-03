@@ -5,6 +5,7 @@ import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
+import { useUsername } from "~/hooks/useUsername";
 import { CopyButton } from "~/components/CopyButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
@@ -109,10 +110,13 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   const showArtist = displayArtist && !artistNameLoading;
   // Use creator address if found, otherwise fall back to seller
   const addressToShow = creatorAddress || auction.seller;
+  
+  // Get username for linking to profile
+  const { username: creatorUsername } = useUsername(addressToShow || null);
 
   return (
     <Link
-      href={`/auction/${auction.listingId}`}
+      href={`/listing/${auction.listingId}`}
       className="relative w-full cursor-pointer transition-opacity hover:opacity-90"
     >
       <div
@@ -132,12 +136,37 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             </div>
           )}
           {showArtist ? (
-            <div className="text-xs text-[#cccccc] mb-2">by {displayArtist}</div>
+            <div className="text-xs text-[#cccccc] mb-2">
+              by{" "}
+              {creatorUsername ? (
+                <Link
+                  href={`/user/${creatorUsername}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:underline"
+                >
+                  {displayArtist}
+                </Link>
+              ) : addressToShow ? (
+                <Link
+                  href={`/user/${addressToShow}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:underline"
+                >
+                  {displayArtist}
+                </Link>
+              ) : (
+                displayArtist
+              )}
+            </div>
           ) : addressToShow && !artistNameLoading ? (
             <div className="text-xs text-[#cccccc] mb-2 flex items-center gap-1.5">
-              <span className="font-mono text-[10px]">
+              <Link
+                href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
+                onClick={(e) => e.stopPropagation()}
+                className="font-mono text-[10px] hover:underline"
+              >
                 {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
-              </span>
+              </Link>
               <CopyButton text={addressToShow} size="sm" />
             </div>
           ) : null}

@@ -11,6 +11,7 @@ import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { getActiveAuctions } from "~/lib/subgraph";
+import Image from "next/image";
 
 // Gradient colors for artwork placeholders
 const gradients = [
@@ -30,6 +31,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const router = useRouter();
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
+  const [recentlyConcluded, setRecentlyConcluded] = useState<EnrichedAuctionData[]>([]);
+  const [recentArtists, setRecentArtists] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
+  const [recentBidders, setRecentBidders] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
+  const [recentCollectors, setRecentCollectors] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const { actions, added } = useMiniApp();
   const { isMiniApp } = useAuthMode();
@@ -59,6 +64,43 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     // Always refetch on mount to ensure we have the latest data
     // This is especially important after cancel/finalize actions
     fetchFreshAuctions();
+
+    // Fetch additional homepage data
+    async function fetchHomepageData() {
+      try {
+        // Recently concluded
+        const concludedRes = await fetch('/api/listings/recently-concluded?first=8&enrich=true');
+        if (concludedRes.ok) {
+          const concludedData = await concludedRes.json();
+          setRecentlyConcluded(concludedData.listings || []);
+        }
+
+        // Recent artists
+        const artistsRes = await fetch('/api/users/recent-artists?first=6');
+        if (artistsRes.ok) {
+          const artistsData = await artistsRes.json();
+          setRecentArtists(artistsData.artists || []);
+        }
+
+        // Recent bidders
+        const biddersRes = await fetch('/api/users/recent-bidders?first=6');
+        if (biddersRes.ok) {
+          const biddersData = await biddersRes.json();
+          setRecentBidders(biddersData.bidders || []);
+        }
+
+        // Recent collectors
+        const collectorsRes = await fetch('/api/users/recent-collectors?first=6');
+        if (collectorsRes.ok) {
+          const collectorsData = await collectorsRes.json();
+          setRecentCollectors(collectorsData.collectors || []);
+        }
+      } catch (error) {
+        console.error('Error fetching homepage data:', error);
+      }
+    }
+
+    fetchHomepageData();
   }, []); // Empty deps - only run on mount
 
   return (
@@ -184,6 +226,118 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         )}
       </section>
+
+      {/* Recently Concluded */}
+      {recentlyConcluded.length > 0 && (
+        <section className="px-5 py-8 border-t border-[#333333]">
+          <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
+            Recently Concluded
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {recentlyConcluded.map((listing, index) => (
+              <AuctionCard
+                key={listing.listingId}
+                auction={listing}
+                gradient={gradients[index % gradients.length]}
+                index={index}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Recent Artists */}
+      {recentArtists.length > 0 && (
+        <section className="px-5 py-8 border-t border-[#333333]">
+          <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
+            Recent Artists
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {recentArtists.map((artist) => (
+              <Link
+                key={artist.address}
+                href={artist.username ? `/user/${artist.username}` : `/user/${artist.address}`}
+                className="flex flex-col items-center gap-2 min-w-[80px]"
+              >
+                {artist.pfpUrl ? (
+                  <img
+                    src={artist.pfpUrl}
+                    alt={artist.displayName || artist.username || artist.address}
+                    className="w-16 h-16 rounded-full"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+                )}
+                <p className="text-xs text-center text-[#cccccc] line-clamp-1">
+                  {artist.displayName || artist.username || `${artist.address.slice(0, 6)}...${artist.address.slice(-4)}`}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Recent Bidders */}
+      {recentBidders.length > 0 && (
+        <section className="px-5 py-8 border-t border-[#333333]">
+          <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
+            Recent Bidders
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {recentBidders.map((bidder) => (
+              <Link
+                key={bidder.address}
+                href={bidder.username ? `/user/${bidder.username}` : `/user/${bidder.address}`}
+                className="flex flex-col items-center gap-2 min-w-[80px]"
+              >
+                {bidder.pfpUrl ? (
+                  <img
+                    src={bidder.pfpUrl}
+                    alt={bidder.displayName || bidder.username || bidder.address}
+                    className="w-16 h-16 rounded-full"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+                )}
+                <p className="text-xs text-center text-[#cccccc] line-clamp-1">
+                  {bidder.displayName || bidder.username || `${bidder.address.slice(0, 6)}...${bidder.address.slice(-4)}`}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Recent Collectors */}
+      {recentCollectors.length > 0 && (
+        <section className="px-5 py-8 border-t border-[#333333]">
+          <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
+            Recent Collectors
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {recentCollectors.map((collector) => (
+              <Link
+                key={collector.address}
+                href={collector.username ? `/user/${collector.username}` : `/user/${collector.address}`}
+                className="flex flex-col items-center gap-2 min-w-[80px]"
+              >
+                {collector.pfpUrl ? (
+                  <img
+                    src={collector.pfpUrl}
+                    alt={collector.displayName || collector.username || collector.address}
+                    className="w-16 h-16 rounded-full"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+                )}
+                <p className="text-xs text-center text-[#cccccc] line-clamp-1">
+                  {collector.displayName || collector.username || `${collector.address.slice(0, 6)}...${collector.address.slice(-4)}`}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

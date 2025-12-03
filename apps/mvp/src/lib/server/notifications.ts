@@ -127,7 +127,7 @@ export async function createNotification(
     try {
       // Build target URL for the notification
       const targetUrl = options?.listingId 
-        ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/auction/${options.listingId}`
+        ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}`
         : `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/notifications`;
       
       await sendPushNotification(userAddress, fid, title, message, {
