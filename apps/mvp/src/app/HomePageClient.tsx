@@ -107,7 +107,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">
+        <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono text-[15px]">
           cryptoart.social
         </Link>
         <div className="flex items-center gap-3">
@@ -119,11 +119,11 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       <section className="border-b border-[#333333]">
         <div className="px-5 py-6">
           <div className="text-[13px] uppercase tracking-[2px] text-[#999999] mb-0 font-mek-mono">cryptoart.social v1</div>
-          <h1 className="text-[32px] font-light leading-tight mb-3">
+          <h1 className="text-[24px] font-light leading-tight mb-3">
             Auctionhouse & Marketplace
           </h1>
           <p className="text-sm text-[#cccccc] mb-8 leading-relaxed">
-          Auction and collect directly from Farcaster. Become a cryptoart tastemaker.
+          A multi-modal marketplace for artists and collectors on Farcaster.
           </p>
           {isPro && (
             <div className="flex justify-center">
