@@ -112,14 +112,53 @@ interface ImageProps {
   params: Promise<{ listingId: string }>;
 }
 
+// Helper to add timeout to promises
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+  ]);
+}
+
 export default async function Image({ params }: ImageProps) {
   const { listingId } = await params;
 
-  // Load font
-  const fontPath = join(process.cwd(), "public", "MEK-Mono.otf");
-  const fontData = await readFile(fontPath);
+  // Load font - this should always succeed
+  let fontData: Buffer;
+  try {
+    const fontPath = join(process.cwd(), "public", "MEK-Mono.otf");
+    fontData = await readFile(fontPath);
+  } catch (error) {
+    console.error(`[OG Image] Error loading font:`, error);
+    // Return a simple error image if font can't be loaded
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            background: 'linear-gradient(to bottom right, #000000, #333333)',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '80px',
+            color: 'white',
+          }}
+        >
+          <div style={{ fontSize: 64, fontWeight: 'bold' }}>
+            cryptoart.social
+          </div>
+          <div style={{ fontSize: 32, marginTop: '24px' }}>
+            Listing #{listingId}
+          </div>
+        </div>
+      ),
+      { ...size }
+    );
+  }
 
-  // Fetch listing data
+  // Fetch listing data with timeout to prevent hanging
   let auction: EnrichedAuctionData | null = null;
   let artistName: string | null = null;
   let contractName: string | null = null;
@@ -127,7 +166,12 @@ export default async function Image({ params }: ImageProps) {
   let tokenDecimals = 18;
 
   try {
-    auction = await getAuctionServer(listingId);
+    // Add timeout to auction fetch (5 seconds max)
+    auction = await withTimeout(
+      getAuctionServer(listingId),
+      5000,
+      null
+    );
 
     if (!auction) {
       // Return default image if listing not found
@@ -182,33 +226,47 @@ export default async function Image({ params }: ImageProps) {
       );
     }
 
-    // Fetch artist name and contract name in parallel
-    // Priority: metadata artist > contract creator name
-    const [artistResult, contractNameResult] = await Promise.all([
-      // Only fetch contract creator if metadata doesn't have artist
-      !auction.artist && auction.tokenAddress && auction.tokenId
-        ? getArtistNameServer(auction.tokenAddress, auction.tokenId)
-        : Promise.resolve({ name: null, source: null }),
-      auction.tokenAddress
-        ? getContractNameServer(auction.tokenAddress)
-        : Promise.resolve(null),
-    ]);
+    if (auction) {
+      // Fetch artist name and contract name in parallel with timeouts
+      // Priority: metadata artist > contract creator name
+      const [artistResult, contractNameResult] = await Promise.all([
+        // Only fetch contract creator if metadata doesn't have artist
+        !auction.artist && auction.tokenAddress && auction.tokenId
+          ? withTimeout(
+              getArtistNameServer(auction.tokenAddress, auction.tokenId),
+              3000,
+              { name: null, source: null }
+            )
+          : Promise.resolve({ name: null, source: null }),
+        auction.tokenAddress
+          ? withTimeout(
+              getContractNameServer(auction.tokenAddress),
+              3000,
+              null
+            )
+          : Promise.resolve(null),
+      ]);
 
-    // Use metadata artist first, then fallback to contract creator
-    artistName = auction.artist || artistResult.name;
-    contractName = contractNameResult;
+      // Use metadata artist first, then fallback to contract creator
+      artistName = auction.artist || artistResult.name;
+      contractName = contractNameResult;
 
-    // Fetch ERC20 token info if applicable
-    if (auction.erc20 && !isETH(auction.erc20)) {
-      const tokenInfo = await getERC20TokenInfo(auction.erc20);
-      if (tokenInfo) {
-        tokenSymbol = tokenInfo.symbol;
-        tokenDecimals = tokenInfo.decimals;
+      // Fetch ERC20 token info if applicable (with timeout)
+      if (auction.erc20 && !isETH(auction.erc20)) {
+        const tokenInfo = await withTimeout(
+          getERC20TokenInfo(auction.erc20),
+          3000,
+          null
+        );
+        if (tokenInfo) {
+          tokenSymbol = tokenInfo.symbol;
+          tokenDecimals = tokenInfo.decimals;
+        }
       }
     }
   } catch (error) {
     console.error(`[OG Image] Error fetching listing data:`, error);
-    // Continue with partial data
+    // Continue with partial data - we'll render what we have
   }
 
   // Prepare display data
