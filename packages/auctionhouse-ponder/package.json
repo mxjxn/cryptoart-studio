@@ -1,0 +1,23 @@
+{
+  "name": "@cryptoart/auctionhouse-ponder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "serve": "ponder serve",
+    "codegen": "ponder codegen",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ponder": "^0.10.8",
+    "viem": "^2.31.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
