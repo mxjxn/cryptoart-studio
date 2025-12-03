@@ -30,7 +30,11 @@ export const APP_SPLASH_URL: string = `${APP_URL}/splash.png`;
 
 export const APP_SPLASH_BACKGROUND_COLOR: string = '#f7f7f7';
 
-export const APP_ACCOUNT_ASSOCIATION: AccountAssociation | undefined = undefined;
+export const APP_ACCOUNT_ASSOCIATION: AccountAssociation | undefined = {
+  header: "eyJmaWQiOjQ5MDUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRTQzYTJBQ2IyRkIzZDlCYWE1MjIyYjE4M2UwNDMyYkVlMmM2NUFCIn0",
+  payload: "eyJkb21haW4iOiJjcnlwdG9hcnQuc29jaWFsIn0",
+  signature: "IkPegubbCMgyek/MWXcv2KFFI5Wq6jUQFocWpBCh3V5mKbbKFvNuwrUBHTWoySM0atW0WglNvfUBmMr1tNj3zhw="
+};
 
 // --- UI Configuration ---
 export const APP_BUTTON_TEXT: string = 'Browse Auctions';
