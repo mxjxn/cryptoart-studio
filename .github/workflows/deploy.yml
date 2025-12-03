@@ -36,22 +36,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-studio-app
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer
           tags: |
             type=ref,event=branch
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Studio App image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.studio-app
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-studio-app:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-studio-app:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push Indexer image
         uses: docker/build-push-action@v5
@@ -81,24 +70,17 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             
-            # Update docker-compose to use registry images
-            # Replace build sections with image references
-            sed -i 's|build:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-studio-app:latest|g' docker-compose.prod.yml || true
-            sed -i 's|dockerfile:.*||g' docker-compose.prod.yml || true
-            
             # Pull latest images
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-studio-app:latest || true
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer:latest || true
             
             # Restart services with new images
             docker compose -f docker-compose.prod.yml pull || true
-            docker compose -f docker-compose.prod.yml up -d --no-deps studio-app indexer || docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml up -d --no-deps indexer || docker compose -f docker-compose.prod.yml up -d
             
             # Wait for services to be healthy
             sleep 10
             
             # Run database migrations if needed (optional, can be done manually)
-            # docker compose -f docker-compose.prod.yml exec -T studio-app node -e "console.log('Migration check')" || true
             
             # Clean up old images
             docker image prune -f
