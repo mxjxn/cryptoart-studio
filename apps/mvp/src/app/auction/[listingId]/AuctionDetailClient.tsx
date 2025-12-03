@@ -14,7 +14,7 @@ import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { type Address, parseEther, formatEther } from "viem";
+import { type Address } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 
@@ -139,15 +139,16 @@ export default function AuctionDetailClient({
     }
 
     try {
-      const bidAmountWei = parseEther(bidAmount);
+      // Parse bid amount using the correct decimals for the payment token
+      const bidAmountBigInt = BigInt(Math.floor(parseFloat(bidAmount) * 10 ** paymentDecimals));
       const currentPrice = auction.highestBid?.amount || auction.initialAmount;
       
       // Calculate minimum bid (default 5% increment if not specified)
       const minIncrementBPS = 500; // Default 5% increment
       const minBid = BigInt(currentPrice) + (BigInt(currentPrice) * BigInt(minIncrementBPS)) / BigInt(10000);
       
-      if (bidAmountWei < minBid) {
-        alert(`Bid must be at least ${formatEther(minBid)} ETH`);
+      if (bidAmountBigInt < minBid) {
+        alert(`Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`);
         return;
       }
       
@@ -157,7 +158,7 @@ export default function AuctionDetailClient({
         abi: MARKETPLACE_ABI,
         functionName: 'bid',
         args: [Number(listingId), false],
-        value: bidAmountWei,
+        value: bidAmountBigInt,
       });
     } catch (err) {
       console.error("Error placing bid:", err);
@@ -192,14 +193,15 @@ export default function AuctionDetailClient({
     }
 
     try {
-      const offerAmountWei = parseEther(offerAmount);
+      // Parse offer amount using the correct decimals for the payment token
+      const offerAmountBigInt = BigInt(Math.floor(parseFloat(offerAmount) * 10 ** paymentDecimals));
       
       await makeOffer({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'offer',
         args: [Number(listingId), false],
-        value: offerAmountWei,
+        value: offerAmountBigInt,
       });
     } catch (err) {
       console.error("Error making offer:", err);
@@ -290,7 +292,8 @@ export default function AuctionDetailClient({
   useEffect(() => {
     if (isBidConfirmed && address && auction) {
       const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
-      const bidAmountEth = bidAmount ? formatEther(parseEther(bidAmount)) : '0';
+      // Format bid amount using the correct token decimals and symbol
+      const bidAmountFormatted = bidAmount || '0';
       const previousBidder = auction.highestBid?.bidder;
       
       // Notify bidder
@@ -318,7 +321,7 @@ export default function AuctionDetailClient({
           userAddress: auction.seller,
           type: 'NEW_BID',
           title: 'New Bid',
-          message: `New bid on ${artworkName} from ${address.slice(0, 6)}...${address.slice(-4)} for ${bidAmountEth} ETH`,
+          message: `New bid on ${artworkName} from ${address.slice(0, 6)}...${address.slice(-4)} for ${bidAmountFormatted} ${paymentSymbol}`,
           listingId: listingId,
           metadata: {
             bidder: address,
@@ -351,7 +354,7 @@ export default function AuctionDetailClient({
       router.refresh();
       setBidAmount(''); // Clear bid input
     }
-  }, [isBidConfirmed, address, auction, listingId, bidAmount, router]);
+  }, [isBidConfirmed, address, auction, listingId, bidAmount, router, paymentSymbol]);
 
   // Refetch offers after successful offer or accept and create notifications
   useEffect(() => {
@@ -359,8 +362,8 @@ export default function AuctionDetailClient({
       // Create notification for seller about new offer
       const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
       
-      // Parse offer amount for display
-      const offerAmountEth = offerAmount ? formatEther(parseEther(offerAmount)) : '0';
+      // Format offer amount using the correct token decimals and symbol
+      const offerAmountFormatted = offerAmount || '0';
       
       fetch('/api/notifications', {
         method: 'POST',
@@ -369,7 +372,7 @@ export default function AuctionDetailClient({
           userAddress: auction.seller,
           type: 'NEW_OFFER',
           title: 'New Offer',
-          message: `New offer on ${artworkName} for ${offerAmountEth} ETH from ${address.slice(0, 6)}...${address.slice(-4)}`,
+          message: `New offer on ${artworkName} for ${offerAmountFormatted} ${paymentSymbol} from ${address.slice(0, 6)}...${address.slice(-4)}`,
           listingId: listingId,
           metadata: {
             offerer: address,
@@ -382,7 +385,7 @@ export default function AuctionDetailClient({
       refetchOffers();
       router.refresh();
     }
-  }, [isOfferConfirmed, refetchOffers, router, address, auction, listingId, offerAmount]);
+  }, [isOfferConfirmed, refetchOffers, router, address, auction, listingId, offerAmount, paymentSymbol]);
   
   useEffect(() => {
     if (isAcceptConfirmed && address && auction && offers) {
@@ -612,16 +615,7 @@ export default function AuctionDetailClient({
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
-                    title={title}
-                    artistName={displayCreatorName || undefined}
-                    artistAddress={displayCreatorAddress || undefined}
-                    sellerAddress={auction.seller}
-                    sellerName={sellerName || undefined}
-                    reservePrice={auction.initialAmount}
-                    currentBid={auction.highestBid?.amount || undefined}
-                    bidderAddress={auction.highestBid?.bidder || undefined}
-                    bidderName={bidderName || undefined}
-                    hasBids={bidCount > 0}
+                    text={`Check out ${title}!`}
                   />
                   <a
                     href={typeof window !== "undefined" ? window.location.href : ""}
@@ -648,16 +642,7 @@ export default function AuctionDetailClient({
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
-                    title={title}
-                    artistName={displayCreatorName || undefined}
-                    artistAddress={displayCreatorAddress || undefined}
-                    sellerAddress={auction.seller}
-                    sellerName={sellerName || undefined}
-                    reservePrice={auction.initialAmount}
-                    currentBid={auction.highestBid?.amount || undefined}
-                    bidderAddress={auction.highestBid?.bidder || undefined}
-                    bidderName={bidderName || undefined}
-                    hasBids={bidCount > 0}
+                    text={`Check out ${title}!`}
                   />
                   <a
                     href={typeof window !== "undefined" ? window.location.href : ""}
@@ -680,16 +665,7 @@ export default function AuctionDetailClient({
                 <ShareButton
                   url={typeof window !== "undefined" ? window.location.href : ""}
                   artworkUrl={auction.image || auction.metadata?.image || null}
-                  title={title}
-                  artistName={displayCreatorName || undefined}
-                  artistAddress={displayCreatorAddress || undefined}
-                  sellerAddress={auction.seller}
-                  sellerName={sellerName || undefined}
-                  reservePrice={auction.initialAmount}
-                  currentBid={auction.highestBid?.amount || undefined}
-                  bidderAddress={auction.highestBid?.bidder || undefined}
-                  bidderName={bidderName || undefined}
-                  hasBids={bidCount > 0}
+                  text={`Check out ${title}!`}
                 />
                 <a
                   href={typeof window !== "undefined" ? window.location.href : ""}

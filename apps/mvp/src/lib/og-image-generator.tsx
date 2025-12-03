@@ -1,7 +1,7 @@
-import { formatEther } from "viem";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getArtistNameServer } from "~/lib/server/artist-name";
+import { getERC20TokenInfoServer } from "~/lib/server/erc20-token";
 
 /**
  * Convert IPFS URL to HTTP gateway URL
@@ -114,9 +114,9 @@ export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
   const startTime = Date.now();
   console.log(`[OG Image] [prepareAuctionOGImageData] Starting data preparation for auction ${auction.listingId}`);
   
-  // Fetch contract name and artist name
-  console.log(`[OG Image] [prepareAuctionOGImageData] Fetching contract name and artist name...`);
-  const [contractName, artistResult] = await Promise.all([
+  // Fetch contract name, artist name, and ERC20 token info
+  console.log(`[OG Image] [prepareAuctionOGImageData] Fetching contract name, artist name, and ERC20 token info...`);
+  const [contractName, artistResult, tokenInfo] = await Promise.all([
     auction.tokenAddress
       ? getContractNameServer(auction.tokenAddress)
       : Promise.resolve(null),
@@ -126,10 +126,12 @@ export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
           auction.tokenId ? BigInt(auction.tokenId) : undefined
         )
       : Promise.resolve({ name: null, source: null }),
+    getERC20TokenInfoServer(auction.erc20),
   ]);
   
   console.log(`[OG Image] [prepareAuctionOGImageData] Contract name: ${contractName || 'null'}`);
   console.log(`[OG Image] [prepareAuctionOGImageData] Artist name: ${artistResult.name || 'null'} (source: ${artistResult.source || 'null'})`);
+  console.log(`[OG Image] [prepareAuctionOGImageData] ERC20 token: ${tokenInfo.symbol || 'ETH'} (${tokenInfo.decimals} decimals)`);
 
   // Prepare text content
   const title = truncate(
@@ -147,6 +149,29 @@ export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
     BigInt(currentPrice) > BigInt(reservePrice) ? currentPrice : reservePrice;
   const priceLabel =
     BigInt(currentPrice) > BigInt(reservePrice) ? "Current Bid" : "Reserve";
+
+  // Format price using the correct token decimals
+  const formatPrice = (amount: string, decimals: number): string => {
+    const value = BigInt(amount || "0");
+    const divisor = BigInt(10 ** decimals);
+    const wholePart = value / divisor;
+    const fractionalPart = value % divisor;
+    
+    if (fractionalPart === BigInt(0)) {
+      return wholePart.toString();
+    }
+    
+    let fractionalStr = fractionalPart.toString().padStart(decimals, "0");
+    fractionalStr = fractionalStr.replace(/0+$/, "");
+    if (fractionalStr.length > 6) {
+      fractionalStr = fractionalStr.slice(0, 6);
+    }
+    
+    return `${wholePart}.${fractionalStr}`;
+  };
+
+  const formattedPrice = formatPrice(displayPrice, tokenInfo.decimals);
+  const priceSymbol = tokenInfo.symbol || "ETH";
 
   // Format end time
   const endTime = parseInt(auction.endTime || "0");
@@ -173,7 +198,8 @@ export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
     collectionName,
     artistName,
     priceLabel,
-    price: formatEther(BigInt(displayPrice)),
+    price: formattedPrice,
+    priceSymbol,
     timeText,
     imageUrl, // Pass URL directly - ImageResponse will fetch it
     listingId: auction.listingId,
@@ -190,6 +216,7 @@ export function getAuctionOGImageJSX(data: {
   artistName: string | null;
   priceLabel: string;
   price: string;
+  priceSymbol: string;
   timeText: string;
   imageUrl: string | null;
   listingId: string;
@@ -200,6 +227,7 @@ export function getAuctionOGImageJSX(data: {
     artistName,
     priceLabel,
     price,
+    priceSymbol,
     timeText,
     imageUrl,
   } = data;
@@ -263,7 +291,7 @@ export function getAuctionOGImageJSX(data: {
           color: "white",
         }}
       >
-        {priceLabel}: {price} ETH
+        {priceLabel}: {price} {priceSymbol}
       </div>
 
       {/* End Time */}
