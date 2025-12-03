@@ -13,7 +13,8 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import Link from "next/link";
+import { TransitionLink } from "~/components/TransitionLink";
+import { transitionNavigate } from "~/lib/view-transitions";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -741,7 +742,7 @@ export default function CreateAuctionClient() {
           // Also set up a custom handler for back navigation
           sdk.back.onback = () => {
             // Navigate back to home page
-            router.push('/');
+            transitionNavigate(router, '/');
           };
 
           // Show the back button
@@ -756,7 +757,7 @@ export default function CreateAuctionClient() {
 
     // Listen for back navigation events
     const handleBackNavigation = () => {
-      router.push('/');
+      transitionNavigate(router, '/');
     };
 
     sdk.on('backNavigationTriggered', handleBackNavigation);
@@ -782,7 +783,7 @@ export default function CreateAuctionClient() {
 
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="mb-8">
-          <Link
+          <TransitionLink
             href="/"
             className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2 mb-6"
           >
@@ -790,7 +791,7 @@ export default function CreateAuctionClient() {
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Back
-          </Link>
+          </TransitionLink>
           <h1 className="text-3xl font-light mb-2">Create Listing</h1>
           <p className="text-sm text-[#cccccc]">
             List your NFT for sale. Choose between auction, fixed price, or offers-only.
@@ -1269,7 +1270,7 @@ export default function CreateAuctionClient() {
               {createdListingId !== null ? (
                 <button
                   type="button"
-                  onClick={() => router.push(`/auction/${createdListingId}`)}
+                  onClick={() => transitionNavigate(router, `/auction/${createdListingId}`)}
                   className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
                 >
                   View Listing
@@ -1277,7 +1278,7 @@ export default function CreateAuctionClient() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => router.push("/")}
+                  onClick={() => transitionNavigate(router, "/")}
                   className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
                 >
                   View Listings

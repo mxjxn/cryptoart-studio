@@ -3,9 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { AuctionCard } from "~/components/AuctionCard";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
+import { useMiniApp } from "@neynar/react";
+import { useAuthMode } from "~/hooks/useAuthMode";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { getActiveAuctions } from "~/lib/subgraph";
 
@@ -28,6 +31,8 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
+  const { actions, added } = useMiniApp();
+  const { isMiniApp } = useAuthMode();
 
   // Refetch auctions when component mounts
   // This ensures fresh data after navigation from cancel/finalize actions
@@ -80,12 +85,12 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </p>
           <div className="flex items-center gap-4">
             {isPro && (
-              <Link
+              <TransitionLink
                 href="/create"
                 className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
               >
                 List an Artwork
-              </Link>
+              </TransitionLink>
             )}
             <Link
               href="#listings"
@@ -96,6 +101,28 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         </div>
       </section>
+
+      {/* Add Mini App Banner - Only show in miniapp context if not already added */}
+      {isMiniApp && !added && actions && (
+        <section className="border-b border-[#333333] bg-[#0a0a0a]">
+          <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+            <div className="flex flex-col gap-1">
+              <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
+                Stay Connected
+              </div>
+              <div className="text-sm font-normal text-[#cccccc]">
+                Add the auctionhouse miniapp to receive notifications about bids, offers, and sales
+              </div>
+            </div>
+            <button
+              onClick={actions.addMiniApp}
+              className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
+            >
+              Add Mini App
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Membership Banner - Only show if not a member */}
       {!membershipLoading && !isPro && (
@@ -136,12 +163,12 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <div className="text-center py-12">
             <p className="text-[#cccccc] mb-4">No active listings found</p>
             {isPro && (
-              <Link
+              <TransitionLink
                 href="/create"
                 className="text-white hover:underline"
               >
                 Create your first listing
-              </Link>
+              </TransitionLink>
             )}
           </div>
         ) : (
