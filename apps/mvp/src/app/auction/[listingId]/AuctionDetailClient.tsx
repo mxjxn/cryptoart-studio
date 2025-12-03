@@ -51,7 +51,7 @@ export default function AuctionDetailClient({
 }: AuctionDetailClientProps) {
   const { address, isConnected } = useAccount();
   const router = useRouter();
-  const { isSDKLoaded } = useMiniApp();
+  const { isSDKLoaded, actions, added } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const { auction, loading } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
@@ -716,6 +716,27 @@ export default function AuctionDetailClient({
         </header>
       )}
       <div className="container mx-auto px-5 py-4 max-w-4xl">
+        {/* Add Mini App Banner - Only show in miniapp context if not already added */}
+        {isMiniApp && !added && actions && (
+          <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#333333] rounded-lg">
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+              <div className="flex flex-col gap-1">
+                <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
+                  Stay Connected
+                </div>
+                <div className="text-sm font-normal text-[#cccccc]">
+                  Add the auctionhouse miniapp to receive notifications about bids, offers, and sales
+                </div>
+              </div>
+              <button
+                onClick={actions.addMiniApp}
+                className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
+              >
+                Add Mini App
+              </button>
+            </div>
+          </div>
+        )}
         {/* Full width artwork */}
         <div className="mb-4">
           {auction.image ? (

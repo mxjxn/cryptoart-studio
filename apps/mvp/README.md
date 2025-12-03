@@ -1,4 +1,4 @@
-# MVP Auction Mini-App
+# Cryptoart.social MVP release
 
 A minimal Farcaster mini-app for creating and bidding on NFT auctions.
 

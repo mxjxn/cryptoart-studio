@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "MVP Auction";
+export const alt = "cryptoart.social";
 export const size = {
   width: 1200,
   height: 630,

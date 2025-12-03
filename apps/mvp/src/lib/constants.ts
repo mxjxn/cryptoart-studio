@@ -13,13 +13,13 @@ const getBaseUrl = (): string => {
 
 export const APP_URL: string = getBaseUrl();
 
-export const APP_NAME: string = 'MVP Auction';
+export const APP_NAME: string = 'Cryptoart';
 
-export const APP_DESCRIPTION: string = 'A minimal auction mini-app for Farcaster';
+export const APP_DESCRIPTION: string = 'Create NFT auctions, place bids, and collect digital art. A multi-modal marketplace for artists and collectors on Farcaster.';
 
 export const APP_PRIMARY_CATEGORY: string = 'art-creativity';
 
-export const APP_TAGS: string[] = ['nft', 'auction', 'art'];
+export const APP_TAGS: string[] = ['nft', 'auction', 'art', 'cryptoart', 'marketplace', 'artists', 'collectors', 'curation'];
 
 // --- Asset URLs ---
 export const APP_ICON_URL: string = `${APP_URL}/icon.png`;
