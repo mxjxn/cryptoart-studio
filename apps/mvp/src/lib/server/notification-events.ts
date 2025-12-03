@@ -16,6 +16,19 @@ const getSubgraphEndpoint = (): string => {
 };
 
 /**
+ * Get headers for subgraph requests, including API key if available
+ */
+const getSubgraphHeaders = (): Record<string, string> => {
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  if (apiKey) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+  return {};
+};
+
+/**
  * Query for new listings since a timestamp
  */
 const NEW_LISTINGS_QUERY = gql`
@@ -200,7 +213,8 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
     const data = await request<{ listings: any[] }>(
       endpoint,
       NEW_LISTINGS_QUERY,
-      { since: sinceBlock.toString() }
+      { since: sinceBlock.toString() },
+      getSubgraphHeaders()
     );
     
     for (const listing of data.listings || []) {
@@ -246,7 +260,8 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
     const data = await request<{ bids: any[] }>(
       endpoint,
       NEW_BIDS_QUERY,
-      { since: sinceTimestamp.toString() }
+      { since: sinceTimestamp.toString() },
+      getSubgraphHeaders()
     );
     
     for (const bid of data.bids || []) {
@@ -308,7 +323,8 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         const bidsData = await request<{ bids: any[] }>(
           endpoint,
           LISTING_BIDS_QUERY,
-          { listingId: listing.listingId }
+          { listingId: listing.listingId },
+          getSubgraphHeaders()
         );
         
         if (!bidsData.bids || bidsData.bids.length < 2) {
@@ -388,7 +404,8 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
     const data = await request<{ purchases: any[] }>(
       endpoint,
       NEW_PURCHASES_QUERY,
-      { since: sinceTimestamp.toString() }
+      { since: sinceTimestamp.toString() },
+      getSubgraphHeaders()
     );
     
     for (const purchase of data.purchases || []) {
@@ -466,7 +483,8 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
     const data = await request<{ listings: any[] }>(
       endpoint,
       FINALIZED_LISTINGS_QUERY,
-      { since: sinceBlock.toString() }
+      { since: sinceBlock.toString() },
+      getSubgraphHeaders()
     );
     
     for (const listing of data.listings || []) {

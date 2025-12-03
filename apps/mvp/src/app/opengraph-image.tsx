@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-export const alt = "cryptoart.social";
+export const alt = "Cryptoart";
 export const size = {
   width: 1200,
   height: 630,

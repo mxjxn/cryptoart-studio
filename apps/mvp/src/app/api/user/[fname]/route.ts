@@ -24,6 +24,19 @@ const getSubgraphEndpoint = (): string => {
   throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
 };
 
+/**
+ * Get headers for subgraph requests, including API key if available
+ */
+const getSubgraphHeaders = (): Record<string, string> => {
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  if (apiKey) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+  return {};
+};
+
 const LISTINGS_BY_SELLER_QUERY = gql`
   query ListingsBySeller($seller: String!, $first: Int!, $skip: Int!) {
     listings(

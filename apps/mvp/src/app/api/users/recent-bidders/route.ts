@@ -11,6 +11,19 @@ const getSubgraphEndpoint = (): string => {
   throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
 };
 
+/**
+ * Get headers for subgraph requests, including API key if available
+ */
+const getSubgraphHeaders = (): Record<string, string> => {
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  if (apiKey) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+  return {};
+};
+
 const RECENT_BIDS_QUERY = gql`
   query RecentBids($first: Int!) {
     bids(
@@ -36,7 +49,8 @@ export async function GET(req: NextRequest) {
     const bidsData = await request<{ bids: Array<{ bidder: string; timestamp: string }> }>(
       endpoint,
       RECENT_BIDS_QUERY,
-      { first: first * 2 } // Get more to find unique bidders
+      { first: first * 2 }, // Get more to find unique bidders
+      getSubgraphHeaders()
     );
 
     // Get unique bidder addresses (most recent first)

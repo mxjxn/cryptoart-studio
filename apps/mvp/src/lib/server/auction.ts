@@ -14,6 +14,19 @@ const getSubgraphEndpoint = (): string => {
   );
 };
 
+/**
+ * Get headers for subgraph requests, including API key if available
+ */
+const getSubgraphHeaders = (): Record<string, string> => {
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  if (apiKey) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+  return {};
+};
+
 const LISTING_BY_ID_QUERY = gql`
   query ListingById($id: ID!) {
     listing(id: $id) {
@@ -156,7 +169,8 @@ export async function getAuctionServer(
     const data = await request<{ listing: any | null }>(
       endpoint,
       LISTING_BY_ID_QUERY,
-      { id: listingId }
+      { id: listingId },
+      getSubgraphHeaders()
     );
 
     if (!data.listing) {
@@ -249,7 +263,8 @@ async function fetchActiveAuctions(
     {
       first: Math.min(first, 1000),
       skip,
-    }
+    },
+    getSubgraphHeaders()
   );
 
   // Filter out listings that are fully sold (even if subgraph hasn't marked them as finalized yet)

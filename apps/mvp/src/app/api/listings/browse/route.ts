@@ -15,6 +15,19 @@ const getSubgraphEndpoint = (): string => {
   throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
 };
 
+/**
+ * Get headers for subgraph requests, including API key if available
+ */
+const getSubgraphHeaders = (): Record<string, string> => {
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  if (apiKey) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+  return {};
+};
+
 const BROWSE_LISTINGS_QUERY = gql`
   query BrowseListings($first: Int!, $skip: Int!, $orderBy: String!, $orderDirection: String!) {
     listings(
@@ -80,7 +93,8 @@ export async function GET(req: NextRequest) {
         skip,
         orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
         orderDirection: orderDirection === "asc" ? "asc" : "desc",
-      }
+      },
+      getSubgraphHeaders()
     );
 
     let enrichedListings: EnrichedAuctionData[] = data.listings;

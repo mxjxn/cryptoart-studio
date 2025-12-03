@@ -13,6 +13,19 @@ const getSubgraphEndpoint = (): string => {
   throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
 };
 
+/**
+ * Get headers for subgraph requests, including API key if available
+ */
+const getSubgraphHeaders = (): Record<string, string> => {
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  if (apiKey) {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+  return {};
+};
+
 const LISTINGS_WITH_OFFERS_QUERY = gql`
   query ListingsWithOffers($offerer: String!, $first: Int!, $skip: Int!) {
     offers(
@@ -79,7 +92,8 @@ export async function GET(
         offerer: address.toLowerCase(),
         first: Math.min(first, 1000),
         skip,
-      }
+      },
+      getSubgraphHeaders()
     );
 
     // Extract unique listings from offers (a user might have multiple offers on same listing)
