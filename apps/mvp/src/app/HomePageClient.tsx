@@ -118,7 +118,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       {/* Hero Section */}
       <section className="border-b border-[#333333]">
         <div className="px-5 py-6">
-          <div className="text-[13px] uppercase tracking-[2px] text-[#999999] mb-0 font-mek-mono">cryptoart.social v1</div>
+          <div className="text-[16px] uppercase tracking-[2px] text-[#999999] mb-0 font-mek-mono">cryptoart.social v1</div>
           <h1 className="text-[24px] font-light leading-tight mb-3">
             Auctionhouse & Marketplace
           </h1>
@@ -146,7 +146,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <div className="px-5 py-3 flex justify-end">
             <button
               onClick={actions.addMiniApp}
-              className="text-[13px] font-mek-mono text-[#999999] hover:text-[#cccccc] transition-colors underline"
+              className="text-[16px] font-mek-mono text-[#999999] hover:text-[#cccccc] transition-colors underline"
             >
               Add mini-app to Farcaster
             </button>
