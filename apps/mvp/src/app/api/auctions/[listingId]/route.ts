@@ -80,12 +80,21 @@ export async function GET(
 
     const listing = data.listing;
     
-    // Discover seller and all bidders in background
-    discoverAndCacheUserBackground(listing.seller);
-    if (listing.bids && listing.bids.length > 0) {
-      listing.bids.forEach((bid: any) => {
-        discoverAndCacheUserBackground(bid.bidder);
-      });
+    // Discover seller and all bidders in background (validate addresses first, wrapped in try-catch to not block response)
+    try {
+      if (listing.seller && /^0x[a-fA-F0-9]{40}$/i.test(listing.seller)) {
+        discoverAndCacheUserBackground(listing.seller);
+      }
+      if (listing.bids && listing.bids.length > 0) {
+        listing.bids.forEach((bid: any) => {
+          if (bid.bidder && /^0x[a-fA-F0-9]{40}$/i.test(bid.bidder)) {
+            discoverAndCacheUserBackground(bid.bidder);
+          }
+        });
+      }
+    } catch (error) {
+      // Don't let user discovery errors break the API response
+      console.error('[auctions API] Error in background user discovery:', error);
     }
     
     const bidCount = listing.bids?.length || 0;

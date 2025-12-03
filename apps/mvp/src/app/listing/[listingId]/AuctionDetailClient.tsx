@@ -666,6 +666,15 @@ export default function AuctionDetailClient({
     };
   }, [isSDKLoaded, router]);
 
+  // Calculate derived values for username lookups (before conditional returns)
+  // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
+  const displayCreatorAddress = creatorAddress || auction?.seller || null;
+  
+  // Get usernames for linking to profiles (must be called before conditional returns)
+  const { username: creatorUsername } = useUsername(displayCreatorAddress);
+  const { username: sellerUsername } = useUsername(auction?.seller || null);
+  const { username: bidderUsername } = useUsername(auction?.highestBid?.bidder || null);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -682,22 +691,15 @@ export default function AuctionDetailClient({
     );
   }
 
-  const currentPrice = auction.highestBid?.amount || auction.initialAmount;
-  const endTime = parseInt(auction.endTime);
+  const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";
+  const endTime = auction.endTime ? parseInt(auction.endTime) : 0;
   const now = Math.floor(Date.now() / 1000);
   const isActive = endTime > now && auction.status === "ACTIVE";
   const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
   // Use metadata artist, then resolved creator name from contract
   const displayCreatorName = auction.artist || creatorName;
-  // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
-  const displayCreatorAddress = creatorAddress || auction.seller;
   const bidCount = auction.bidCount || 0;
-  
-  // Get usernames for linking to profiles
-  const { username: creatorUsername } = useUsername(displayCreatorAddress || null);
-  const { username: sellerUsername } = useUsername(auction?.seller || null);
-  const { username: bidderUsername } = useUsername(auction?.highestBid?.bidder || null);
   
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
@@ -716,7 +718,9 @@ export default function AuctionDetailClient({
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity">
+            cryptoart.social
+          </Link>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -725,23 +729,13 @@ export default function AuctionDetailClient({
       <div className="container mx-auto px-5 py-4 max-w-4xl">
         {/* Add Mini App Banner - Only show in miniapp context if not already added */}
         {isMiniApp && !added && actions && (
-          <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#333333] rounded-lg">
-            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
-              <div className="flex flex-col gap-1">
-                <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
-                  Stay Connected
-                </div>
-                <div className="text-sm font-normal text-[#cccccc]">
-                  Add the auctionhouse miniapp to receive notifications about bids, offers, and sales
-                </div>
-              </div>
-              <button
-                onClick={actions.addMiniApp}
-                className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
-              >
-                Add Mini App
-              </button>
-            </div>
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={actions.addMiniApp}
+              className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors underline"
+            >
+              Add to Farcaster
+            </button>
           </div>
         )}
         {/* Full width artwork */}
@@ -1045,7 +1039,7 @@ export default function AuctionDetailClient({
                           <div className="flex justify-between items-center mt-2">
                             <span className="text-sm text-[#cccccc]">Total Price</span>
                             <span className="text-sm font-medium text-white">
-                              {formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString())} {paymentSymbol}
+                              {auction.initialAmount ? formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString()) : '—'} {auction.initialAmount ? paymentSymbol : ''}
                             </span>
                           </div>
                         </>

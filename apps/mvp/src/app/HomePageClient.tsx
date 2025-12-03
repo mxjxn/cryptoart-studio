@@ -107,7 +107,9 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+        <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity">
+          cryptoart.social
+        </Link>
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>
@@ -125,42 +127,30 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <p className="text-sm text-[#cccccc] mb-8 leading-relaxed">
           Auction and collect directly from Farcaster. Become a cryptoart tastemaker.
           </p>
-          <div className="flex items-center gap-4">
-            {isPro && (
-              <TransitionLink
-                href="/create"
-                className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-              >
-                List an Artwork
-              </TransitionLink>
-            )}
-            <Link
-              href="#listings"
-              className="inline-block px-8 py-3.5 bg-transparent border border-white text-white text-sm font-medium tracking-[0.5px] hover:bg-white hover:text-black transition-colors"
-            >
-              Browse the Art
-            </Link>
-          </div>
+          {isPro && (
+            <div className="flex justify-center">
+              <div className="w-[80vw]">
+                <TransitionLink
+                  href="/create"
+                  className="block w-full px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors text-center"
+                >
+                  List an Artwork
+                </TransitionLink>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
       {isMiniApp && !added && actions && (
-        <section className="border-b border-[#333333] bg-[#0a0a0a]">
-          <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
-            <div className="flex flex-col gap-1">
-              <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
-                Stay Connected
-              </div>
-              <div className="text-sm font-normal text-[#cccccc]">
-                Add the auctionhouse miniapp to receive notifications about bids, offers, and sales
-              </div>
-            </div>
+        <section className="border-b border-[#333333]">
+          <div className="px-5 py-3 flex justify-end">
             <button
               onClick={actions.addMiniApp}
-              className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
+              className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors underline"
             >
-              Add Mini App
+              Add to Farcaster
             </button>
           </div>
         </section>
