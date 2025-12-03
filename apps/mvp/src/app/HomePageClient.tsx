@@ -122,9 +122,6 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <h1 className="text-[24px] font-light leading-tight mb-3">
             Auctionhouse & Marketplace
           </h1>
-          <p className="text-sm text-[#cccccc] mb-8 leading-relaxed">
-          A multi-modal marketplace for artists and collectors on Farcaster.
-          </p>
           {isPro && (
             <div className="flex justify-center">
               <div className="w-[80vw]">
