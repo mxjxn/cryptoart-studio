@@ -1,0 +1,20 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Ponder generated files
+.ponder
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
