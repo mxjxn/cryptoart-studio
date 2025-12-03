@@ -39,31 +39,38 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const { actions, added } = useMiniApp();
   const { isMiniApp } = useAuthMode();
 
-  // Refetch auctions when component mounts
-  // This ensures fresh data after navigation from cancel/finalize actions
+  // Use server-side cached data initially
+  // Only refetch if we don't have initial data (e.g., after navigation)
+  // This reduces subgraph load - cache is managed server-side and revalidated every 15 minutes
   useEffect(() => {
-    async function fetchFreshAuctions() {
-      setLoading(true);
-      try {
-        const freshAuctions = await getActiveAuctions({ 
-          first: 16, 
-          skip: 0, 
-          enrich: true,
-          cache: false // Bypass cache to get fresh data
-        });
-        setAuctions(freshAuctions);
-      } catch (error) {
-        console.error('Error fetching fresh auctions:', error);
-        // Keep using initialAuctions on error
-        setAuctions(initialAuctions);
-      } finally {
-        setLoading(false);
+    // If we have initial auctions from server, use them (they're cached server-side)
+    // Only fetch if we don't have any initial data
+    if (initialAuctions.length === 0) {
+      async function fetchAuctions() {
+        setLoading(true);
+        try {
+          // Use cached data from server (cache: true is default)
+          // Server-side cache is 15 minutes, which reduces subgraph rate limiting
+          const cachedAuctions = await getActiveAuctions({ 
+            first: 16, 
+            skip: 0, 
+            enrich: true,
+            cache: true // Use server-side cache to avoid rate limiting
+          });
+          setAuctions(cachedAuctions);
+        } catch (error) {
+          console.error('Error fetching auctions:', error);
+          // Keep using initialAuctions on error
+          setAuctions(initialAuctions);
+        } finally {
+          setLoading(false);
+        }
       }
+      fetchAuctions();
+    } else {
+      // We have initial data from server, use it
+      setAuctions(initialAuctions);
     }
-
-    // Always refetch on mount to ensure we have the latest data
-    // This is especially important after cancel/finalize actions
-    fetchFreshAuctions();
 
     // Fetch additional homepage data
     async function fetchHomepageData() {

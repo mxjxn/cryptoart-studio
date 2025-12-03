@@ -555,6 +555,10 @@ export default function AuctionDetailClient({
   // Redirect after successful cancellation
   useEffect(() => {
     if (isCancelConfirmed) {
+      // Invalidate cache so homepage shows updated listings
+      fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
+        console.error('Error invalidating cache:', err)
+      );
       // Refresh router to get fresh data, then navigate to home
       router.refresh();
       setTimeout(() => {
@@ -566,6 +570,10 @@ export default function AuctionDetailClient({
   // Redirect after successful finalization
   useEffect(() => {
     if (isFinalizeConfirmed) {
+      // Invalidate cache so homepage shows updated listings
+      fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
+        console.error('Error invalidating cache:', err)
+      );
       // Refresh router to get fresh data, then navigate to home
       router.refresh();
       setTimeout(() => {
@@ -725,6 +733,11 @@ export default function AuctionDetailClient({
   // Redirect after successful purchase and create notifications
   useEffect(() => {
     if (isPurchaseConfirmed && address && auction) {
+      // Invalidate cache so homepage shows updated listings (purchase may have sold out listing)
+      fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
+        console.error('Error invalidating cache:', err)
+      );
+      
       // Create real-time notifications for buyer and seller
       const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
       const isERC1155 = auction.tokenSpec === 'ERC1155' || String(auction.tokenSpec) === '2';

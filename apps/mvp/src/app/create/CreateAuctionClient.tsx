@@ -684,6 +684,11 @@ export default function CreateAuctionClient() {
             const listingId = Number(decoded.args.listingId);
             setCreatedListingId(listingId);
             
+            // Invalidate cache so homepage shows new listing immediately
+            fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
+              console.error('Error invalidating cache:', err)
+            );
+            
             // Create real-time notification
             const listingType = formData.listingType === 'INDIVIDUAL_AUCTION' ? 'auction' 
               : formData.listingType === 'FIXED_PRICE' ? 'fixed price listing'
