@@ -758,7 +758,7 @@ export default function AuctionDetailClient({
             <div className="text-xs text-[#999999] mb-1">{contractName}</div>
           )}
           {displayCreatorName ? (
-            <div className="text-xs text-[#cccccc] mb-1 flex items-center gap-2">
+            <div className="text-xs text-[#cccccc] mb-1 flex items-center justify-between">
               <span>
                 by{" "}
                 {creatorUsername ? (
@@ -790,30 +790,23 @@ export default function AuctionDetailClient({
                     artworkUrl={auction.image || auction.metadata?.image || null}
                     text={`Check out ${title}!`}
                   />
-                  <a
-                    href={typeof window !== "undefined" ? window.location.href : ""}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors"
-                    title="Open in browser"
-                  >
-                    open in browser ↗️
-                  </a>
                 </div>
               )}
             </div>
           ) : displayCreatorAddress && !creatorNameLoading ? (
-            <div className="text-xs text-[#cccccc] mb-1 flex items-center gap-2">
-              <Link
-                href={creatorUsername ? `/user/${creatorUsername}` : `/user/${displayCreatorAddress}`}
-                className="font-mono hover:underline"
-              >
-                {displayCreatorAddress}
-              </Link>
-              <CopyButton text={displayCreatorAddress} />
+            <div className="text-xs text-[#cccccc] mb-1 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={creatorUsername ? `/user/${creatorUsername}` : `/user/${displayCreatorAddress}`}
+                  className="font-mono hover:underline"
+                >
+                  {displayCreatorAddress}
+                </Link>
+                <CopyButton text={displayCreatorAddress} />
+              </div>
               {/* Only show share buttons if auction is not cancelled */}
               {!isCancelled && (
-                <div className="flex gap-2 items-center ml-2">
+                <div className="flex gap-2 items-center">
                   <LinkShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                   />
@@ -822,39 +815,19 @@ export default function AuctionDetailClient({
                     artworkUrl={auction.image || auction.metadata?.image || null}
                     text={`Check out ${title}!`}
                   />
-                  <a
-                    href={typeof window !== "undefined" ? window.location.href : ""}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors"
-                    title="Open in browser"
-                  >
-                    open in browser ↗️
-                  </a>
                 </div>
               )}
             </div>
           ) : !isCancelled ? (
-            <div className="text-xs mb-1 flex items-center gap-2">
-              <div className="flex gap-2 items-center">
-                <LinkShareButton
-                  url={typeof window !== "undefined" ? window.location.href : ""}
-                />
-                <ShareButton
-                  url={typeof window !== "undefined" ? window.location.href : ""}
-                  artworkUrl={auction.image || auction.metadata?.image || null}
-                  text={`Check out ${title}!`}
-                />
-                <a
-                  href={typeof window !== "undefined" ? window.location.href : ""}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors"
-                  title="Open in browser"
-                >
-                  open in browser ↗️
-                </a>
-              </div>
+            <div className="text-xs mb-1 flex items-center justify-end gap-3">
+              <LinkShareButton
+                url={typeof window !== "undefined" ? window.location.href : ""}
+              />
+              <ShareButton
+                url={typeof window !== "undefined" ? window.location.href : ""}
+                artworkUrl={auction.image || auction.metadata?.image || null}
+                text={`Check out ${title}!`}
+              />
             </div>
           ) : null}
           {/* Description */}

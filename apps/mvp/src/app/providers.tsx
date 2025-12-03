@@ -10,6 +10,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
+import { ColorSchemeProvider } from "~/contexts/ColorSchemeContext";
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -55,18 +56,20 @@ function getQueryClient() {
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
   return (
-    <WagmiProvider>
-      <AuthKitProvider config={authKitConfig}>
-        <MiniAppProvider
-          analyticsEnabled={ANALYTICS_ENABLED}
-          backButtonEnabled={true}
-          returnUrl={RETURN_URL}
-        >
-          <QueryClientProvider client={queryClient}>
-            {children}
-          </QueryClientProvider>
-        </MiniAppProvider>
-      </AuthKitProvider>
-    </WagmiProvider>
+    <ColorSchemeProvider>
+      <WagmiProvider>
+        <AuthKitProvider config={authKitConfig}>
+          <MiniAppProvider
+            analyticsEnabled={ANALYTICS_ENABLED}
+            backButtonEnabled={true}
+            returnUrl={RETURN_URL}
+          >
+            <QueryClientProvider client={queryClient}>
+              {children}
+            </QueryClientProvider>
+          </MiniAppProvider>
+        </AuthKitProvider>
+      </WagmiProvider>
+    </ColorSchemeProvider>
   );
 }

@@ -27,7 +27,7 @@ export function LinkShareButton({ url, className = "" }: LinkShareButtonProps) {
     <button
       onClick={handleShare}
       disabled={copied}
-      className={`flex items-center justify-center w-6 h-6 text-lg hover:opacity-70 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${className}`}
+      className={`flex items-center justify-center w-6 h-6 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
       title={copied ? "Copied!" : "Copy link"}
     >
       {copied ? "✓" : "🔗"}

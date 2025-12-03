@@ -7,6 +7,7 @@ import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useProfile, SignInButton } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { ThemeToggle } from "~/components/ThemeToggle";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
   pfpUrl: string | undefined; 
@@ -258,6 +259,11 @@ export function ProfileDropdown() {
                 Mint Membership
               </Link>
             )}
+
+            {/* Theme Toggle */}
+            <div className="border-t border-[#333333] mt-1">
+              <ThemeToggle />
+            </div>
 
             {/* Disconnect option for web users */}
             {!isMiniApp && isConnected && (

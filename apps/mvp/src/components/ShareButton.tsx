@@ -49,10 +49,11 @@ export function ShareButton({ url, artworkUrl, text, className = "" }: ShareButt
     <button
       onClick={handleShare}
       disabled={isProcessing}
-      className={`flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
+      title={isProcessing ? "Sharing..." : "Share a Cast"}
     >
-      <Share2 className="h-4 w-4" />
-      {isProcessing ? "Sharing..." : "Share a Cast"}
+      <Share2 className="h-3 w-3" />
+      {isProcessing ? "..." : "Share"}
     </button>
   );
 }
