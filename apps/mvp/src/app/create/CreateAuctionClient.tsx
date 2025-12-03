@@ -1270,7 +1270,7 @@ export default function CreateAuctionClient() {
               {createdListingId !== null ? (
                 <button
                   type="button"
-                  onClick={() => transitionNavigate(router, `/auction/${createdListingId}`)}
+                  onClick={() => transitionNavigate(router, `/listing/${createdListingId}`)}
                   className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
                 >
                   View Listing

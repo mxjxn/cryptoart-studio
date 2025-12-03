@@ -112,7 +112,7 @@ export default function NotificationsClient() {
                     </span>
                     {notification.listingId && (
                       <Link
-                        href={`/auction/${notification.listingId}`}
+                        href={`/listing/${notification.listingId}`}
                         className="text-blue-600 hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
