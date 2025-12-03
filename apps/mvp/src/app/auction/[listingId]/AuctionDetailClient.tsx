@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { useRouter } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -17,6 +17,30 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
+
+// ERC20 ABI for approval functions
+const ERC20_ABI = [
+  {
+    type: "function",
+    name: "approve",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "allowance",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
 
 interface AuctionDetailClientProps {
   listingId: string;
@@ -34,6 +58,7 @@ export default function AuctionDetailClient({
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+  const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   
   // Cancel listing transaction
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
@@ -69,6 +94,12 @@ export default function AuctionDetailClient({
   const { writeContract: placeBid, data: bidHash, isPending: isBidding, error: bidError } = useWriteContract();
   const { isLoading: isConfirmingBid, isSuccess: isBidConfirmed } = useWaitForTransactionReceipt({
     hash: bidHash,
+  });
+
+  // ERC20 approval transaction
+  const { writeContract: approveERC20, data: approveHash, isPending: isApproving, error: approveError } = useWriteContract();
+  const { isLoading: isConfirmingApprove, isSuccess: isApproveConfirmed } = useWaitForTransactionReceipt({
+    hash: approveHash,
   });
 
   // Resolve creator name from contract address (NFT creator, not auction seller)
@@ -109,6 +140,17 @@ export default function AuctionDetailClient({
   const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined);
   const userBalance = useERC20Balance(auction?.erc20, address);
   
+  // Check ERC20 allowance (only for ERC20 payments)
+  const { data: erc20Allowance, refetch: refetchAllowance } = useReadContract({
+    address: !isPaymentETH && auction?.erc20 ? (auction.erc20 as Address) : undefined,
+    abi: ERC20_ABI,
+    functionName: "allowance",
+    args: address && !isPaymentETH && auction?.erc20 ? [address, MARKETPLACE_ADDRESS] : undefined,
+    query: {
+      enabled: !isPaymentETH && !!auction?.erc20 && !!address,
+    },
+  });
+  
   // Determine token symbol and decimals for display
   const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
@@ -134,7 +176,7 @@ export default function AuctionDetailClient({
   };
 
   const handleBid = async () => {
-    if (!isConnected || !bidAmount || !auction) {
+    if (!isConnected || !bidAmount || !auction || !address) {
       return;
     }
 
@@ -152,13 +194,32 @@ export default function AuctionDetailClient({
         return;
       }
       
+      // For ERC20 payments, check and handle approval
+      if (!isPaymentETH && auction.erc20) {
+        const tokenAddress = auction.erc20 as Address;
+        const currentAllowance = erc20Allowance as bigint | undefined;
+        
+        // Check if approval is needed
+        if (!currentAllowance || currentAllowance < bidAmountBigInt) {
+          // Approve the marketplace to spend the tokens
+          await approveERC20({
+            address: tokenAddress,
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [MARKETPLACE_ADDRESS, bidAmountBigInt],
+          });
+          // Wait for approval to be confirmed before proceeding
+          return;
+        }
+      }
+      
       // Use increase=false to bid the exact amount sent
       await placeBid({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'bid',
         args: [Number(listingId), false],
-        value: bidAmountBigInt,
+        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
       });
     } catch (err) {
       console.error("Error placing bid:", err);
@@ -167,7 +228,7 @@ export default function AuctionDetailClient({
   };
 
   const handlePurchase = async () => {
-    if (!isConnected || !auction) {
+    if (!isConnected || !auction || !address) {
       return;
     }
 
@@ -175,20 +236,71 @@ export default function AuctionDetailClient({
       const price = auction.currentPrice || auction.initialAmount;
       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
       
+      // For ERC20 payments, check and handle approval
+      if (!isPaymentETH && auction.erc20) {
+        const tokenAddress = auction.erc20 as Address;
+        const currentAllowance = erc20Allowance as bigint | undefined;
+        
+        // Check if approval is needed
+        if (!currentAllowance || currentAllowance < totalPrice) {
+          // Set flag to auto-purchase after approval
+          setPendingPurchaseAfterApproval(true);
+          // Approve the marketplace to spend the tokens
+          await approveERC20({
+            address: tokenAddress,
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [MARKETPLACE_ADDRESS, totalPrice],
+          });
+          // Wait for approval to be confirmed before proceeding
+          return;
+        }
+      }
+
+      // Purchase with correct value (0 for ERC20, totalPrice for ETH)
       await purchaseListing({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'purchase',
         args: [Number(listingId), purchaseQuantity],
-        value: totalPrice,
+        value: isPaymentETH ? totalPrice : BigInt(0),
       });
     } catch (err) {
       console.error("Error purchasing:", err);
     }
   };
 
+  // After approval is confirmed, refetch allowance and proceed with pending purchase if needed
+  useEffect(() => {
+    if (isApproveConfirmed && pendingPurchaseAfterApproval && !isPaymentETH && auction && address) {
+      // Refetch allowance to ensure it's updated
+      refetchAllowance().then(() => {
+        // Small delay to ensure allowance is updated
+        setTimeout(() => {
+          try {
+            const price = auction.currentPrice || auction.initialAmount;
+            const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
+            
+            purchaseListing({
+              address: MARKETPLACE_ADDRESS,
+              abi: MARKETPLACE_ABI,
+              functionName: 'purchase',
+              args: [Number(listingId), purchaseQuantity],
+              value: BigInt(0),
+            });
+            
+            setPendingPurchaseAfterApproval(false);
+          } catch (err) {
+            console.error("Error purchasing after approval:", err);
+            setPendingPurchaseAfterApproval(false);
+          }
+        }, 1000);
+      });
+    }
+  }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing]);
+
   const handleMakeOffer = async () => {
-    if (!isConnected || !offerAmount || !auction) {
+    if (!isConnected || !offerAmount || !auction || !address) {
       return;
     }
 
@@ -196,12 +308,32 @@ export default function AuctionDetailClient({
       // Parse offer amount using the correct decimals for the payment token
       const offerAmountBigInt = BigInt(Math.floor(parseFloat(offerAmount) * 10 ** paymentDecimals));
       
+      // For ERC20 payments, check and handle approval
+      if (!isPaymentETH && auction.erc20) {
+        const tokenAddress = auction.erc20 as Address;
+        const currentAllowance = erc20Allowance as bigint | undefined;
+        
+        // Check if approval is needed
+        if (!currentAllowance || currentAllowance < offerAmountBigInt) {
+          // Approve the marketplace to spend the tokens
+          await approveERC20({
+            address: tokenAddress,
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [MARKETPLACE_ADDRESS, offerAmountBigInt],
+          });
+          // Wait for approval to be confirmed before proceeding
+          return;
+        }
+      }
+
+      // Make offer with correct value (0 for ERC20, offerAmountBigInt for ETH)
       await makeOffer({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'offer',
         args: [Number(listingId), false],
-        value: offerAmountBigInt,
+        value: isPaymentETH ? offerAmountBigInt : BigInt(0),
       });
     } catch (err) {
       console.error("Error making offer:", err);
@@ -865,15 +997,40 @@ export default function AuctionDetailClient({
                         </div>
                       )}
                     </div>
+                    {/* Check if ERC20 approval is needed */}
+                    {!isPaymentETH && auction.erc20 && address && (() => {
+                      const price = auction.currentPrice || auction.initialAmount;
+                      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
+                      const currentAllowance = erc20Allowance as bigint | undefined;
+                      const needsApproval = !currentAllowance || currentAllowance < totalPrice;
+                      
+                      if (needsApproval && !isApproving && !isConfirmingApprove) {
+                        return (
+                          <p className="text-xs text-yellow-400 mb-2">
+                            You need to approve {paymentSymbol} spending first. Click "Buy Now" to approve.
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
                     <button
                       onClick={handlePurchase}
-                      disabled={isPurchasing || isConfirmingPurchase}
+                      disabled={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isPurchasing || isConfirmingPurchase
+                      {isApproving || isConfirmingApprove
+                        ? "Approving..."
+                        : pendingPurchaseAfterApproval
+                        ? "Completing purchase..."
+                        : isPurchasing || isConfirmingPurchase
                         ? "Processing..."
                         : "Buy Now"}
                     </button>
+                    {approveError && (
+                      <p className="text-xs text-red-400">
+                        {approveError.message || "Failed to approve token"}
+                      </p>
+                    )}
                     {purchaseError && (
                       <p className="text-xs text-red-400">
                         {purchaseError.message || "Failed to purchase"}
