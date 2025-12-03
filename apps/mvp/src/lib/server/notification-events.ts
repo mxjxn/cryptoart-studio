@@ -123,6 +123,25 @@ const FINALIZED_LISTINGS_QUERY = gql`
 `;
 
 /**
+ * Query for listing bids to find previous highest bidder
+ */
+const LISTING_BIDS_QUERY = gql`
+  query ListingBids($listingId: BigInt!) {
+    bids(
+      where: { listingId: $listingId }
+      orderBy: amount
+      orderDirection: desc
+      first: 2
+    ) {
+      id
+      bidder
+      amount
+      timestamp
+    }
+  }
+`;
+
+/**
  * Get user name for notification
  */
 async function getUserName(address: string): Promise<string> {
@@ -273,9 +292,75 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         }
       );
       
-      // Check for previous bidder to notify of outbid
-      // This would require querying previous bids - simplified for now
-      // TODO: Query previous highest bidder and notify them
+      // Notify previous highest bidder if they were outbid
+      try {
+        // Query all bids for this listing, sorted by amount descending
+        // We fetch the top 2 to efficiently get the highest and second-highest bids
+        const bidsData = await request<{ bids: any[] }>(
+          endpoint,
+          LISTING_BIDS_QUERY,
+          { listingId: listing.listingId }
+        );
+        
+        if (!bidsData.bids || bidsData.bids.length < 2) {
+          // First bid on this listing, no one to outbid
+          continue;
+        }
+        
+        const newBidAmount = BigInt(bid.amount);
+        const currentBidderLower = bid.bidder.toLowerCase();
+        
+        // Find the previous highest bidder (the highest bid that's NOT from the current bidder)
+        // Since bids are sorted by amount desc, we iterate to find the first bid
+        // from a different bidder that's less than the new bid amount
+        let previousHighestBid = null;
+        for (const existingBid of bidsData.bids) {
+          const existingBidAmount = BigInt(existingBid.amount);
+          const isCurrentBidder = existingBid.bidder.toLowerCase() === currentBidderLower;
+          
+          // Skip if this is the current bidder's bid
+          if (isCurrentBidder) {
+            continue;
+          }
+          
+          // If this bid is less than the new bid, this bidder was outbid
+          // Since bids are sorted desc, this is the previous highest bidder
+          if (existingBidAmount < newBidAmount) {
+            previousHighestBid = existingBid;
+            break; // Found the previous highest bidder
+          }
+        }
+        
+        // If we found a previous highest bidder who was outbid, notify them
+        if (previousHighestBid) {
+          const previousBidderNeynar = await lookupNeynarByAddress(previousHighestBid.bidder);
+          const newBidAmountStr = newBidAmount.toString();
+          const previousBidAmountStr = BigInt(previousHighestBid.amount).toString();
+          
+          await createNotification(
+            previousHighestBid.bidder,
+            'OUTBID',
+            'You\'ve Been Outbid',
+            `You've been outbid on ${artworkName}. New highest bid: ${newBidAmountStr} (your bid: ${previousBidAmountStr})`,
+            {
+              fid: previousBidderNeynar?.fid,
+              listingId: listing.listingId,
+              metadata: {
+                newHighestBid: bid.amount,
+                previousBid: previousHighestBid.amount,
+                artworkName,
+              },
+            }
+          );
+        }
+      } catch (error) {
+        // Don't fail the whole process if outbid notification fails
+        // Log the error for debugging but continue processing other bids
+        console.error(
+          `[notification-events] Error notifying previous bidder for listing ${listing.listingId}:`,
+          error
+        );
+      }
     }
   } catch (error) {
     console.error('[notification-events] Error processing new bids:', error);

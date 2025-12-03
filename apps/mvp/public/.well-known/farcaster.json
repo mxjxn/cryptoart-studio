@@ -1,15 +1,18 @@
 {
-  "accountAssociation": null,
+  "accountAssociation": {
+    "header": "eyJmaWQiOjQ5MDUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRTQzYTJBQ2IyRkIzZDlCYWE1MjIyYjE4M2UwNDMyYkVlMmM2NUFCIn0",
+    "payload": "eyJkb21haW4iOiJjcnlwdG9hcnQuc29jaWFsIn0",
+    "signature": "IkPegubbCMgyek/MWXcv2KFFI5Wq6jUQFocWpBCh3V5mKbbKFvNuwrUBHTWoySM0atW0WglNvfUBmMr1tNj3zhw="
+  },
   "miniapp": {
     "version": "1",
     "name": "MVP Auction",
-    "homeUrl": "http://localhost:3000",
-    "iconUrl": "http://localhost:3000/icon.png",
-    "imageUrl": "http://localhost:3000/api/opengraph-image",
+    "homeUrl": "http://cryptoart.social",
+    "iconUrl": "http://cryptoart.social/icon.png",
+    "imageUrl": "http://cryptoart.social/api/opengraph-image",
     "buttonTitle": "Browse Auctions",
-    "splashImageUrl": "http://localhost:3000/splash.png",
+    "splashImageUrl": "http://cryptoart.social/splash.png",
     "splashBackgroundColor": "#f7f7f7",
-    "webhookUrl": "http://localhost:3000/api/webhook"
+    "webhookUrl": "https://api.neynar.com/f/app/7886fe21-f136-475e-95c5-9b34d654343d/event"
   }
 }
-
