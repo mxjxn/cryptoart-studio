@@ -718,7 +718,7 @@ export default function AuctionDetailClient({
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity">
+          <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">
             cryptoart.social
           </Link>
           <div className="flex items-center gap-3">

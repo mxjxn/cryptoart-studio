@@ -85,7 +85,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -101,7 +101,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>

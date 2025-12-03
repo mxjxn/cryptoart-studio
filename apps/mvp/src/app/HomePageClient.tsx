@@ -107,7 +107,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity">
+        <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">
           cryptoart.social
         </Link>
         <div className="flex items-center gap-3">
@@ -118,7 +118,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       {/* Hero Section */}
       <section className="border-b border-[#333333]">
         <div className="px-5 py-6">
-          <div className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-0">
+          <div className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-0 font-mek-mono">
             Farcaster Native
           </div>
           <h1 className="text-[32px] font-light leading-tight mb-3">
@@ -183,7 +183,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
       {/* Active Listings */}
       <section id="listings" className="px-5 py-8">
-        <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
+        <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6 font-mek-mono">
           Active Listings
         </h2>
 
