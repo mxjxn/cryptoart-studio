@@ -11,7 +11,7 @@ import type { EnrichedAuctionData } from "~/lib/types";
 export const alt = "Auction Listing";
 export const size = {
   width: 1200,
-  height: 630,
+  height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
 };
 
 export const contentType = "image/png";
@@ -286,7 +286,7 @@ export default async function Image({ params }: ImageProps) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          padding: '80px',
+          padding: '100px 80px', // More vertical padding for 3:2 aspect ratio
           color: 'white',
           fontFamily: 'MEK-Mono',
         }}
