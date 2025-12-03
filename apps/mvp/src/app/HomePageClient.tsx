@@ -107,7 +107,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono text-[15px]">
+        <Link href="/" className="font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono text-[15px]">
           cryptoart.social
         </Link>
         <div className="flex items-center gap-3">
