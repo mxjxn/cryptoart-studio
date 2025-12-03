@@ -172,8 +172,9 @@ export default function AuctionDetailClient({
   );
 
   // Fetch ERC20 token info and user balance (only if not ETH and not own auction)
-  const isPaymentETH = isETH(auction?.erc20);
-  const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined);
+  // Check if payment is ETH - only true if auction is loaded and erc20 is zero/undefined
+  const isPaymentETH = auction ? isETH(auction.erc20) : false;
+  const erc20Token = useERC20Token(!isPaymentETH && auction?.erc20 ? auction.erc20 : undefined);
   const userBalance = useERC20Balance(auction?.erc20, address);
   
   // Check ERC20 allowance (only for ERC20 payments)
@@ -188,7 +189,15 @@ export default function AuctionDetailClient({
   });
   
   // Determine token symbol and decimals for display
-  const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
+  // Only show ETH if we're certain it's ETH (auction loaded and erc20 is zero/undefined)
+  // Otherwise, show the ERC20 token symbol, or fallback to $TOKEN if still loading
+  const paymentSymbol = useMemo(() => {
+    if (!auction) return "$TOKEN"; // Auction not loaded yet
+    if (isPaymentETH) return "ETH";
+    if (erc20Token.isLoading) return "$TOKEN"; // Token info still loading
+    return erc20Token.symbol || "$TOKEN";
+  }, [auction, isPaymentETH, erc20Token.isLoading, erc20Token.symbol]);
+  
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
   
   // Helper function to convert token address to CAIP-19 format
