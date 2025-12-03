@@ -5,13 +5,13 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --studio cryptoart-auctionhouse",
+    "deploy": "graph deploy --ipfs https://ipfs.thegraph.com/ cryptoart-auctionhouse",
     "create-local": "graph create --node http://localhost:8020/ cryptoart-auctionhouse-subgraph",
     "remove-local": "graph remove --node http://localhost:8020/ cryptoart-auctionhouse-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 cryptoart-auctionhouse-subgraph"
   },
   "dependencies": {
-    "@graphprotocol/graph-cli": "^0.68.0",
+    "@graphprotocol/graph-cli": "^0.60.0",
     "@graphprotocol/graph-ts": "^0.32.0"
   },
   "devDependencies": {
