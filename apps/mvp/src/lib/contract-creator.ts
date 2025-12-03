@@ -1,6 +1,7 @@
 import { type Address, createPublicClient, http, isAddress } from "viem";
 import { base } from "viem/chains";
 import { CHAIN_ID } from "./contracts/marketplace";
+import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 
 /**
  * Contract creator lookup utilities.
@@ -145,6 +146,8 @@ export async function getContractCreator(
     console.log(`[getContractCreator] Etherscan API result:`, etherscanCreator);
     if (etherscanCreator && etherscanCreator !== "0x0000000000000000000000000000000000000000") {
       console.log(`[getContractCreator] Returning creator from Etherscan:`, etherscanCreator);
+      // Discover and cache user data for the creator (non-blocking)
+      discoverAndCacheUserBackground(etherscanCreator);
       return { creator: etherscanCreator, source: "etherscan" };
     }
   } catch (error) {
@@ -164,6 +167,8 @@ export async function getContractCreator(
         functionName: "owner",
       });
       if (owner && owner !== "0x0000000000000000000000000000000000000000") {
+        // Discover and cache user data for the creator (non-blocking)
+        discoverAndCacheUserBackground(owner);
         return { creator: owner as Address, source: "owner" };
       }
     } catch (error) {
@@ -179,6 +184,8 @@ export async function getContractCreator(
         functionName: "creator",
       });
       if (creator && creator !== "0x0000000000000000000000000000000000000000") {
+        // Discover and cache user data for the creator (non-blocking)
+        discoverAndCacheUserBackground(creator);
         return { creator: creator as Address, source: "creator" };
       }
     } catch (error) {
@@ -196,6 +203,8 @@ export async function getContractCreator(
         args: [tokenIdBigInt, 1000000n], // Use 1 ETH as sale price for lookup
       });
       if (receiver && receiver !== "0x0000000000000000000000000000000000000000") {
+        // Discover and cache user data for the creator (non-blocking)
+        discoverAndCacheUserBackground(receiver);
         return { creator: receiver as Address, source: "royalty" };
       }
     } catch (error) {

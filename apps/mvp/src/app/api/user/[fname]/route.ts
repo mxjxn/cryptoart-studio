@@ -14,6 +14,7 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { type Address } from "viem";
 import { normalizeListingType } from "~/lib/server/auction";
+import { discoverAndCacheUser } from "~/lib/server/user-discovery";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -143,6 +144,28 @@ async function resolveUserAddresses(fname: string): Promise<{
       };
     }
     
+    // User not in cache - try to discover them
+    // This will look up via Neynar/ENS and cache the result
+    await discoverAndCacheUser(normalizedAddress, { failSilently: true });
+    
+    // Re-fetch from cache after discovery attempt
+    const [discoveredUser] = await db.select()
+      .from(userCache)
+      .where(eq(userCache.ethAddress, normalizedAddress))
+      .limit(1);
+    
+    if (discoveredUser) {
+      const verifiedWallets = (discoveredUser.verifiedWallets as string[] | null) || [];
+      const allAddresses = [normalizedAddress, ...verifiedWallets.map(w => w.toLowerCase())]
+        .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
+      
+      return {
+        primaryAddress: normalizedAddress,
+        allAddresses,
+        userData: discoveredUser as UserCacheData,
+      };
+    }
+    
     return {
       primaryAddress: normalizedAddress,
       allAddresses: [normalizedAddress],
@@ -168,6 +191,8 @@ async function resolveUserAddresses(fname: string): Promise<{
       };
     }
     
+    // Username not found - could be a new user or invalid username
+    // We can't discover by username alone, need the address
     return {
       primaryAddress: null,
       allAddresses: [],

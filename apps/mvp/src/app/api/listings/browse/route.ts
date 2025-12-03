@@ -4,6 +4,8 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { type Address } from "viem";
 import { normalizeListingType } from "~/lib/server/auction";
+import { discoverAndCacheUserBackground, discoverAndCacheUsers } from "~/lib/server/user-discovery";
+import { getContractCreator } from "~/lib/contract-creator";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -84,6 +86,21 @@ export async function GET(req: NextRequest) {
     let enrichedListings: EnrichedAuctionData[] = data.listings;
 
     if (enrich) {
+      // Collect all addresses that need user discovery
+      const addressesToDiscover = new Set<string>();
+      
+      // Add seller addresses
+      data.listings.forEach(listing => {
+        if (listing.seller) {
+          addressesToDiscover.add(listing.seller.toLowerCase());
+        }
+      });
+
+      // Discover users for sellers (non-blocking background)
+      addressesToDiscover.forEach(address => {
+        discoverAndCacheUserBackground(address);
+      });
+
       enrichedListings = await Promise.all(
         data.listings.map(async (listing) => {
           const bidCount = listing.bids?.length || 0;
@@ -91,6 +108,22 @@ export async function GET(req: NextRequest) {
             listing.bids && listing.bids.length > 0
               ? listing.bids[0]
               : undefined;
+
+          // Discover contract creator if we have token info
+          if (listing.tokenAddress && listing.tokenId) {
+            try {
+              const creatorResult = await getContractCreator(
+                listing.tokenAddress,
+                listing.tokenId
+              );
+              if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
+                // Discover creator in background (non-blocking)
+                discoverAndCacheUserBackground(creatorResult.creator);
+              }
+            } catch (error) {
+              console.error(`Error discovering contract creator for ${listing.tokenAddress}:`, error);
+            }
+          }
 
           let metadata = null;
           if (listing.tokenAddress && listing.tokenId) {
