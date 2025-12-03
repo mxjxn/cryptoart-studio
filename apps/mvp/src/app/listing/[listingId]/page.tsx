@@ -28,13 +28,15 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
     listingImageUrl, // imageUrl for the embed card
     listingPageUrl,  // action.url where button navigates
     false,           // use launch_miniapp type
-    listingImageUrl  // splashImageUrl - use listing-specific image
+    listingImageUrl, // splashImageUrl - use listing-specific image
+    "View Listing"   // buttonText - custom text for listing pages
   );
   const frameMetadata = getMiniAppEmbedMetadata(
     listingImageUrl,
     listingPageUrl,
     true,            // use launch_frame type for backward compatibility
-    listingImageUrl  // splashImageUrl - use listing-specific image
+    listingImageUrl, // splashImageUrl - use listing-specific image
+    "View Listing"   // buttonText - custom text for listing pages
   );
   
   console.log(`[OG Image] [generateMetadata] MiniApp embed metadata:`, JSON.stringify(miniappMetadata, null, 2));

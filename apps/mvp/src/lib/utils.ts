@@ -22,6 +22,7 @@ type AccountAssociation = {
   signature: string;
 };
 
+// Updated Manifest type definition with all optional fields
 type Manifest = {
   accountAssociation: AccountAssociation | null;
   miniapp: {
@@ -29,11 +30,27 @@ type Manifest = {
     name: string;
     homeUrl: string;
     iconUrl: string;
-    imageUrl: string;
-    buttonTitle: string;
+    // Deprecated fields (keep for backward compatibility)
+    imageUrl?: string;
+    buttonTitle?: string;
     splashImageUrl: string;
     splashBackgroundColor: string;
     webhookUrl: string;
+    // New recommended fields
+    subtitle?: string;
+    description?: string;
+    screenshotUrls?: string[];
+    primaryCategory?: string;
+    tags?: string[];
+    heroImageUrl?: string;
+    tagline?: string;
+    ogTitle?: string;
+    ogDescription?: string;
+    ogImageUrl?: string;
+    requiredChains?: string[];
+    requiredCapabilities?: string[];
+    canonicalDomain?: string;
+    noindex?: boolean;
   };
 };
 
@@ -67,17 +84,21 @@ export function normalizeUrl(base: string, path: string): string {
  * @param actionUrl - URL where the button should navigate (defaults to current page)
  * @param useFrameType - If true, use "launch_frame" for backward compatibility (fc:frame tag)
  * @param splashImageUrl - URL of splash screen image (defaults to ogImageUrl for auction-specific splash)
+ * @param buttonText - Optional custom button text (defaults to APP_BUTTON_TEXT)
  */
 export function getMiniAppEmbedMetadata(
   ogImageUrl?: string,
   actionUrl?: string,
   useFrameType: boolean = false,
-  splashImageUrl?: string
+  splashImageUrl?: string,
+  buttonText?: string
 ) {
+  // Use custom button text if provided, otherwise use default
+  const buttonTitleText = buttonText || APP_BUTTON_TEXT;
   // Ensure button title doesn't exceed 32 characters
-  const buttonTitle = APP_BUTTON_TEXT.length > 32
-    ? APP_BUTTON_TEXT.slice(0, 29) + '...'
-    : APP_BUTTON_TEXT;
+  const buttonTitle = buttonTitleText.length > 32
+    ? buttonTitleText.slice(0, 29) + '...'
+    : buttonTitleText;
 
   // Use ogImageUrl as splash screen if not provided (auction-specific splash)
   const finalSplashUrl = splashImageUrl ?? ogImageUrl ?? APP_SPLASH_URL;
@@ -101,9 +122,28 @@ export function getMiniAppEmbedMetadata(
 /**
  * Get Farcaster domain manifest for /.well-known/farcaster.json
  * This manifest is used by Farcaster clients to identify and configure the Mini App
- * See: https://miniapps.farcaster.xyz/docs/guides/manifest
+ * See: https://miniapps.farcaster.xyz/docs/guides/publishing
  */
 export async function getFarcasterDomainManifest(): Promise<Manifest> {
+  // Format tags: lowercase, no spaces, max 20 chars each, max 5 tags
+  const formattedTags = APP_TAGS
+    .map(tag => tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 20))
+    .filter(tag => tag.length > 0)
+    .slice(0, 5);
+
+  // Extract domain from APP_URL (remove protocol and path)
+  const canonicalDomain = APP_URL.replace(/^https?:\/\//, '').split('/')[0];
+
+  // Truncate description to max 170 chars (for description field)
+  const truncatedDescription = APP_DESCRIPTION.length > 170
+    ? APP_DESCRIPTION.slice(0, 167) + '...'
+    : APP_DESCRIPTION;
+
+  // Truncate OG description to max 100 chars
+  const ogDescription = APP_DESCRIPTION.length > 100
+    ? APP_DESCRIPTION.slice(0, 97) + '...'
+    : APP_DESCRIPTION;
+
   return {
     accountAssociation: APP_ACCOUNT_ASSOCIATION ?? null,
     miniapp: {
@@ -111,11 +151,36 @@ export async function getFarcasterDomainManifest(): Promise<Manifest> {
       name: APP_NAME,
       homeUrl: APP_URL,
       iconUrl: APP_ICON_URL,
+      // Deprecated fields (keep for backward compatibility)
       imageUrl: APP_OG_IMAGE_URL,
       buttonTitle: APP_BUTTON_TEXT,
       splashImageUrl: APP_SPLASH_URL,
       splashBackgroundColor: APP_SPLASH_BACKGROUND_COLOR,
       webhookUrl: APP_WEBHOOK_URL,
+      // New recommended fields for better discovery
+      subtitle: 'NFT marketplace & auctions', // Max 30 chars, no emojis
+      description: truncatedDescription, // Max 170 chars, no emojis
+      screenshotUrls: [
+        // TODO: Add portrait screenshots (1284x2778px) when available
+        // `${APP_URL}/screenshots/screenshot1.png`,
+        // `${APP_URL}/screenshots/screenshot2.png`,
+        // `${APP_URL}/screenshots/screenshot3.png`,
+      ],
+      primaryCategory: APP_PRIMARY_CATEGORY, // 'art-creativity'
+      tags: formattedTags.length > 0 ? formattedTags : undefined,
+      heroImageUrl: APP_OG_IMAGE_URL, // 1200x630px - using your OG image
+      tagline: 'Auctionhouse & Marketplace', // Max 30 chars
+      ogTitle: APP_NAME, // Max 30 chars
+      ogDescription: ogDescription, // Max 100 chars
+      ogImageUrl: APP_OG_IMAGE_URL, // 1200x630px PNG - using your OG image route
+      requiredChains: ['eip155:8453'], // Base Mainnet
+      requiredCapabilities: [
+        'wallet.getEthereumProvider',
+        'actions.swapToken', // For your top-up feature
+        'actions.signIn',
+      ],
+      canonicalDomain: canonicalDomain,
+      noindex: false, // Include in search results
     },
   };
 }
