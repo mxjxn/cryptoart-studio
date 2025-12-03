@@ -27,17 +27,20 @@ export function ShareButton({ url, artworkUrl, text, className = "" }: ShareButt
     try {
       setIsProcessing(true);
       
-      // Add referrer parameter to URL if user has a primary wallet
+      // Add referralId parameter to URL if user has a primary wallet
       let shareUrl = url;
       if (primaryWallet) {
         try {
           const urlObj = new URL(url);
-          urlObj.searchParams.set('ref', primaryWallet);
+          // Ensure address has 0x prefix
+          const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+          urlObj.searchParams.set('referralId', referralId);
           shareUrl = urlObj.toString();
         } catch (e) {
           // If URL parsing fails, append query parameter manually
           const separator = url.includes('?') ? '&' : '?';
-          shareUrl = `${url}${separator}ref=${primaryWallet}`;
+          const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+          shareUrl = `${url}${separator}referralId=${referralId}`;
         }
       }
       
