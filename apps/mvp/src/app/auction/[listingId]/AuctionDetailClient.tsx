@@ -15,7 +15,7 @@ import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address, isAddress } from "viem";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 
 // ERC20 ABI for approval functions
@@ -190,6 +190,82 @@ export default function AuctionDetailClient({
   // Determine token symbol and decimals for display
   const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
+  
+  // Helper function to convert token address to CAIP-19 format
+  const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
+    if (!tokenAddress || isETH(tokenAddress)) return undefined;
+    return `eip155:${CHAIN_ID}/erc20:${tokenAddress}`;
+  };
+
+  // Calculate required amount based on listing type and user input
+  const getRequiredAmount = useMemo(() => {
+    if (!auction || isPaymentETH) return BigInt(0);
+    
+    if (auction.listingType === "FIXED_PRICE") {
+      const price = auction.currentPrice || auction.initialAmount;
+      return BigInt(price) * BigInt(purchaseQuantity);
+    } else if (auction.listingType === "INDIVIDUAL_AUCTION") {
+      if (!bidAmount) return BigInt(0);
+      try {
+        return BigInt(Math.floor(parseFloat(bidAmount) * 10 ** paymentDecimals));
+      } catch {
+        return BigInt(0);
+      }
+    } else if (auction.listingType === "OFFERS_ONLY") {
+      if (!offerAmount) return BigInt(0);
+      try {
+        return BigInt(Math.floor(parseFloat(offerAmount) * 10 ** paymentDecimals));
+      } catch {
+        return BigInt(0);
+      }
+    }
+    return BigInt(0);
+  }, [auction, bidAmount, offerAmount, purchaseQuantity, paymentDecimals, isPaymentETH]);
+
+  // Check if user has insufficient balance
+  const hasInsufficientBalance = useMemo(() => {
+    if (isPaymentETH || !auction || !isConnected || !address) return false;
+    
+    // For FIXED_PRICE, always check against the purchase price
+    if (auction.listingType === "FIXED_PRICE") {
+      const price = auction.currentPrice || auction.initialAmount;
+      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
+      return userBalance.balance < totalPrice;
+    }
+    
+    // For INDIVIDUAL_AUCTION and OFFERS_ONLY, only check if user has entered an amount
+    if (auction.listingType === "INDIVIDUAL_AUCTION" || auction.listingType === "OFFERS_ONLY") {
+      if (getRequiredAmount === BigInt(0)) return false;
+      return userBalance.balance < getRequiredAmount;
+    }
+    
+    return false;
+  }, [isPaymentETH, auction, isConnected, address, getRequiredAmount, userBalance.balance, purchaseQuantity]);
+
+  // Handle top-up action
+  const handleTopUp = async () => {
+    if (!isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
+    
+    try {
+      const buyToken = getCAIP19TokenId(auction.erc20);
+      if (!buyToken) return;
+
+      // Open swap interface with the buy token pre-filled
+      // User can choose what to sell and how much
+      const result = await sdk.actions.swapToken({
+        buyToken,
+      });
+
+      if (result.success) {
+        // Refresh balance after successful swap
+        setTimeout(() => {
+          router.refresh();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error opening swap:", error);
+    }
+  };
   
   // Format price for display
   const formatPrice = (amount: string): string => {
@@ -992,6 +1068,15 @@ export default function AuctionDetailClient({
                           Your balance: {userBalance.formatted} {paymentSymbol}
                         </p>
                       )}
+                      {/* Top-up button for insufficient balance */}
+                      {isMiniApp && isSDKLoaded && hasInsufficientBalance && !isPaymentETH && (
+                        <button
+                          onClick={handleTopUp}
+                          className="w-full mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-blue-700 transition-colors"
+                        >
+                          Top-up {paymentSymbol}
+                        </button>
+                      )}
                     </div>
                     <button
                       onClick={handleBid}
@@ -1071,6 +1156,15 @@ export default function AuctionDetailClient({
                         </div>
                       )}
                     </div>
+                    {/* Top-up button for insufficient balance */}
+                    {isMiniApp && isSDKLoaded && hasInsufficientBalance && !isPaymentETH && (
+                      <button
+                        onClick={handleTopUp}
+                        className="w-full mb-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-blue-700 transition-colors"
+                      >
+                        Top-up {paymentSymbol}
+                      </button>
+                    )}
                     {/* Check if ERC20 approval is needed */}
                     {!isPaymentETH && auction.erc20 && address && (() => {
                       const price = auction.currentPrice || auction.initialAmount;
@@ -1144,6 +1238,15 @@ export default function AuctionDetailClient({
                         <p className="text-xs text-[#666666] mt-1">
                           Your balance: {userBalance.formatted} {paymentSymbol}
                         </p>
+                      )}
+                      {/* Top-up button for insufficient balance */}
+                      {isMiniApp && isSDKLoaded && hasInsufficientBalance && !isPaymentETH && (
+                        <button
+                          onClick={handleTopUp}
+                          className="w-full mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-blue-700 transition-colors"
+                        >
+                          Top-up {paymentSymbol}
+                        </button>
                       )}
                     </div>
                     <button
