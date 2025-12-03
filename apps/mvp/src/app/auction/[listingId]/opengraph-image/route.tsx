@@ -7,6 +7,8 @@ import { createPublicClient, http, type Address, isAddress, zeroAddress } from "
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
 
+export const dynamic = 'force-dynamic';
+
 // ERC20 ABI for fetching token info
 const ERC20_ABI = [
   {
@@ -111,51 +113,52 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ listingId: string }> }
 ) {
-  const { listingId } = await params;
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  const fontUrl = `${baseUrl}/MEK-Mono.otf`;
-  
-  // Load font from URL (edge runtime compatible)
-  let fontData: ArrayBuffer;
   try {
-    const fontResponse = await fetch(fontUrl);
-    if (!fontResponse.ok) {
-      throw new Error(`Failed to fetch font: ${fontResponse.statusText}`);
-    }
-    fontData = await fontResponse.arrayBuffer();
-  } catch (error) {
-    console.error(`[OG Image] Error loading font:`, error);
-    // Return a simple error image if font can't be loaded
-    return new ImageResponse(
-      (
-        <div
-          style={{
-            background: 'linear-gradient(to bottom right, #000000, #333333)',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '80px',
-            color: 'white',
-          }}
-        >
-          <div style={{ fontSize: 64, fontWeight: 'bold' }}>
-            cryptoart.social
-          </div>
-          <div style={{ fontSize: 32, marginTop: '24px' }}>
-            Listing #{listingId}
-          </div>
-        </div>
-      ),
-      {
-        width: 1200,
-        height: 800,
+    const { listingId } = await params;
+    const url = new URL(request.url);
+    const baseUrl = `${url.protocol}//${url.host}`;
+    const fontUrl = `${baseUrl}/MEK-Mono.otf`;
+    
+    // Load font from URL (edge runtime compatible)
+    let fontData: ArrayBuffer;
+    try {
+      const fontResponse = await fetch(fontUrl);
+      if (!fontResponse.ok) {
+        throw new Error(`Failed to fetch font: ${fontResponse.statusText}`);
       }
-    );
-  }
+      fontData = await fontResponse.arrayBuffer();
+    } catch (error) {
+      console.error(`[OG Image] Error loading font:`, error);
+      // Return a simple error image if font can't be loaded
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              background: 'linear-gradient(to bottom right, #000000, #333333)',
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '80px',
+              color: 'white',
+            }}
+          >
+            <div style={{ fontSize: 64, fontWeight: 'bold' }}>
+              cryptoart.social
+            </div>
+            <div style={{ fontSize: 32, marginTop: '24px' }}>
+              Listing #{listingId}
+            </div>
+          </div>
+        ),
+        {
+          width: 1200,
+          height: 800,
+        }
+      );
+    }
 
   // Fetch listing data with timeout to prevent hanging
   let auction: EnrichedAuctionData | null = null;
@@ -434,5 +437,43 @@ export async function GET(
       },
     }
   );
+  } catch (error) {
+    console.error(`[OG Image] Fatal error in auction OG image route:`, error);
+    if (error instanceof Error) {
+      console.error(`[OG Image] Error stack:`, error.stack);
+    }
+    // Return a fallback image on any error
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            background: 'linear-gradient(to bottom right, #000000, #333333)',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '80px',
+            color: 'white',
+          }}
+        >
+          <div style={{ fontSize: 64, fontWeight: 'bold' }}>
+            cryptoart.social
+          </div>
+          <div style={{ fontSize: 32, marginTop: '24px' }}>
+            Error loading auction
+          </div>
+        </div>
+      ),
+      {
+        width: 1200,
+        height: 800,
+        headers: {
+          'Cache-Control': 'public, max-age=300, s-maxage=300',
+        },
+      }
+    );
+  }
 }
 
