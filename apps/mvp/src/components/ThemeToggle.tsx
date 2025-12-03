@@ -3,20 +3,20 @@
 import { useColorScheme } from '../contexts/ColorSchemeContext'
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useColorScheme()
+  const { mode, setMode } = useColorScheme()
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
+  const toggleMode = () => {
+    setMode(mode === 'minimal' ? 'colorful' : 'minimal')
   }
 
   return (
     <button
-      onClick={toggleTheme}
+      onClick={toggleMode}
       className="flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors w-full text-left"
-      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      aria-label={`Switch to ${mode === 'minimal' ? 'colorful' : 'minimal'} mode`}
     >
-      <span className="text-base">{theme === 'dark' ? '☀' : '☾'}</span>
-      <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+      <span className="text-base">{mode === 'minimal' ? '🎨' : '⚫'}</span>
+      <span>{mode === 'minimal' ? 'Colorful Mode' : 'Minimal Mode'}</span>
     </button>
   )
 }

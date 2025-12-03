@@ -33,26 +33,29 @@ function hsl(h: number, s: number, l: number): string {
   return `hsl(${normalizeHue(h)}, ${s}%, ${l}%)`;
 }
 
+export type ColorMode = 'minimal' | 'colorful'
+
 /**
- * Generate color scheme from base hue and theme
+ * Generate color scheme from base hue and mode
  */
-export function generateColorScheme(baseHue: number, theme: 'light' | 'dark' = 'dark'): ColorScheme {
-  if (theme === 'light') {
+export function generateColorScheme(baseHue: number, mode: ColorMode = 'minimal'): ColorScheme {
+  if (mode === 'minimal') {
+    // Minimalist black/white with no color
     return {
-      primary: hsl(baseHue, 60, 40),
-      secondary: hsl(baseHue + 60, 60, 40),
-      tertiary: hsl(baseHue + 120, 60, 40),
-      success: hsl(baseHue + 90, 60, 40),
-      warning: hsl(baseHue + 30, 60, 40),
-      error: hsl(baseHue - 30, 60, 40),
-      background: hsl(baseHue, 15, 95),
-      backgroundGradient: `linear-gradient(135deg, ${hsl(baseHue, 15, 95)}, ${hsl(baseHue, 15, 92)})`,
-      text: hsl(baseHue, 20, 15),
-      border: hsl(baseHue, 25, 70),
-      accent: hsl(baseHue, 70, 35),
+      primary: hsl(0, 0, 100),
+      secondary: hsl(0, 0, 60),
+      tertiary: hsl(0, 0, 40),
+      success: hsl(0, 0, 60),
+      warning: hsl(0, 0, 60),
+      error: hsl(0, 0, 60),
+      background: hsl(0, 0, 0), // Pure black
+      backgroundGradient: `linear-gradient(135deg, ${hsl(0, 0, 0)}, ${hsl(0, 0, 3)})`,
+      text: hsl(0, 0, 85), // Light gray text
+      border: hsl(0, 0, 20), // Dark gray borders
+      accent: hsl(0, 0, 100), // White accent
     };
   } else {
-    // Dark mode (default) - minimalist black/white with subtle accents
+    // Colorful mode - uses hue rotation like docs app
     return {
       primary: hsl(baseHue, 70, 60),
       secondary: hsl(baseHue + 60, 70, 60),
@@ -60,17 +63,17 @@ export function generateColorScheme(baseHue: number, theme: 'light' | 'dark' = '
       success: hsl(baseHue + 90, 70, 60),
       warning: hsl(baseHue + 30, 70, 60),
       error: hsl(baseHue - 30, 70, 60),
-      background: hsl(0, 0, 0), // Pure black for minimalist
-      backgroundGradient: `linear-gradient(135deg, ${hsl(0, 0, 0)}, ${hsl(0, 0, 3)})`,
-      text: hsl(0, 0, 85), // Light gray text
-      border: hsl(0, 0, 20), // Dark gray borders
-      accent: hsl(0, 0, 100), // White accent
+      background: hsl(baseHue, 20, 8),
+      backgroundGradient: `linear-gradient(135deg, ${hsl(baseHue, 20, 8)}, ${hsl(baseHue, 20, 12)})`,
+      text: hsl(baseHue, 10, 85),
+      border: hsl(baseHue, 30, 25),
+      accent: hsl(baseHue, 80, 50),
     };
   }
 }
 
 /**
- * Default hue value (minimalist - no color)
+ * Default hue value for colorful mode
  */
-export const DEFAULT_HUE = 0;
+export const DEFAULT_HUE = 200;
 

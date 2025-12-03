@@ -8,6 +8,8 @@ import { useProfile, SignInButton } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { ThemeToggle } from "~/components/ThemeToggle";
+import { HueSlider } from "~/components/HueSlider";
+import { useColorScheme } from "~/contexts/ColorSchemeContext";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
   pfpUrl: string | undefined; 
@@ -56,6 +58,7 @@ export function ProfileDropdown() {
   const { disconnect } = useDisconnect();
   const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading } = useMembershipStatus();
+  const { mode } = useColorScheme();
   const [isOpen, setIsOpen] = useState(false);
   const [showSignInOptions, setShowSignInOptions] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -263,6 +266,8 @@ export function ProfileDropdown() {
             {/* Theme Toggle */}
             <div className="border-t border-[#333333] mt-1">
               <ThemeToggle />
+              {/* Show hue slider when in colorful mode */}
+              {mode === 'colorful' && <HueSlider />}
             </div>
 
             {/* Disconnect option for web users */}

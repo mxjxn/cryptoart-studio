@@ -1,26 +1,24 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { generateColorScheme, ColorScheme, DEFAULT_HUE } from '../lib/colorScheme'
-
-export type Theme = 'light' | 'dark'
+import { generateColorScheme, ColorScheme, DEFAULT_HUE, ColorMode } from '../lib/colorScheme'
 
 interface ColorSchemeContextType {
   hue: number
   setHue: (hue: number) => void
-  theme: Theme
-  setTheme: (theme: Theme) => void
+  mode: ColorMode
+  setMode: (mode: ColorMode) => void
   colors: ColorScheme
 }
 
 const ColorSchemeContext = createContext<ColorSchemeContextType | undefined>(undefined)
 
 const STORAGE_KEY_HUE = 'cryptoart-mvp-hue'
-const STORAGE_KEY_THEME = 'cryptoart-mvp-theme'
+const STORAGE_KEY_MODE = 'cryptoart-mvp-mode'
 
 export function ColorSchemeProvider({ children }: { children: ReactNode }) {
   const [hue, setHueState] = useState<number>(DEFAULT_HUE)
-  const [theme, setThemeState] = useState<Theme>('dark')
+  const [mode, setModeState] = useState<ColorMode>('minimal')
   const [mounted, setMounted] = useState(false)
 
   // Load from localStorage on mount
@@ -33,9 +31,9 @@ export function ColorSchemeProvider({ children }: { children: ReactNode }) {
         setHueState(parsed)
       }
     }
-    const storedTheme = localStorage.getItem(STORAGE_KEY_THEME)
-    if (storedTheme === 'light' || storedTheme === 'dark') {
-      setThemeState(storedTheme)
+    const storedMode = localStorage.getItem(STORAGE_KEY_MODE)
+    if (storedMode === 'minimal' || storedMode === 'colorful') {
+      setModeState(storedMode)
     }
   }, [])
 
@@ -48,15 +46,15 @@ export function ColorSchemeProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Update localStorage when theme changes
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme)
+  // Update localStorage when mode changes
+  const setMode = (newMode: ColorMode) => {
+    setModeState(newMode)
     if (mounted) {
-      localStorage.setItem(STORAGE_KEY_THEME, newTheme)
+      localStorage.setItem(STORAGE_KEY_MODE, newMode)
     }
   }
 
-  const colors = generateColorScheme(hue, theme)
+  const colors = generateColorScheme(hue, mode)
 
   // Apply CSS variables to root immediately and on color changes
   useEffect(() => {
@@ -79,7 +77,7 @@ export function ColorSchemeProvider({ children }: { children: ReactNode }) {
   // Also set initial values on mount (before colors are calculated)
   useEffect(() => {
     if (typeof document !== 'undefined' && !mounted) {
-      const initialColors = generateColorScheme(hue, theme)
+      const initialColors = generateColorScheme(hue, mode)
       const root = document.documentElement
       root.style.setProperty('--color-primary', initialColors.primary)
       root.style.setProperty('--color-secondary', initialColors.secondary)
@@ -93,10 +91,10 @@ export function ColorSchemeProvider({ children }: { children: ReactNode }) {
       root.style.setProperty('--color-border', initialColors.border)
       root.style.setProperty('--color-accent', initialColors.accent)
     }
-  }, [hue, theme, mounted])
+  }, [hue, mode, mounted])
 
   return (
-    <ColorSchemeContext.Provider value={{ hue, setHue, theme, setTheme, colors }}>
+    <ColorSchemeContext.Provider value={{ hue, setHue, mode, setMode, colors }}>
       {children}
     </ColorSchemeContext.Provider>
   )
