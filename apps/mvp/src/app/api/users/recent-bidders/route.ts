@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { request, gql } from "graphql-request";
 import { getDatabase, userCache, eq, inArray } from '@cryptoart/db';
+import { discoverAndCacheUsers } from "~/lib/server/user-discovery";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -59,6 +60,17 @@ export async function GET(req: NextRequest) {
             inArray(userCache.ethAddress, bidderAddresses)
           )
       : [];
+
+    // Find addresses that aren't in cache and discover them in background
+    const missingAddresses = bidderAddresses.filter(
+      address => !users.find(u => u.ethAddress.toLowerCase() === address.toLowerCase())
+    );
+    if (missingAddresses.length > 0) {
+      // Discover missing users in background (non-blocking)
+      discoverAndCacheUsers(missingAddresses, { failSilently: true }).catch((error) => {
+        console.error("Error discovering missing bidders:", error);
+      });
+    }
 
     // Map bidders to user data
     const recentBidders = bidderAddresses.map(address => {

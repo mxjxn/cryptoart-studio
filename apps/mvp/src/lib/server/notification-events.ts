@@ -3,6 +3,7 @@ import { createNotification } from './notifications';
 import { lookupNeynarByAddress } from '~/lib/artist-name-resolution';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import { Address } from 'viem';
+import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -203,6 +204,9 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
     );
     
     for (const listing of data.listings || []) {
+      // Discover seller in background
+      discoverAndCacheUserBackground(listing.seller);
+      
       const artworkName = await getArtworkName(
         listing.tokenAddress,
         listing.tokenId,
@@ -249,6 +253,11 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
       if (!bid.listing) continue;
       
       const listing = bid.listing;
+      
+      // Discover bidder and seller in background
+      discoverAndCacheUserBackground(bid.bidder);
+      discoverAndCacheUserBackground(listing.seller);
+      
       const artworkName = await getArtworkName(
         listing.tokenAddress,
         listing.tokenId,
@@ -333,6 +342,8 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         
         // If we found a previous highest bidder who was outbid, notify them
         if (previousHighestBid) {
+          // Discover previous bidder in background
+          discoverAndCacheUserBackground(previousHighestBid.bidder);
           const previousBidderNeynar = await lookupNeynarByAddress(previousHighestBid.bidder);
           const newBidAmountStr = newBidAmount.toString();
           const previousBidAmountStr = BigInt(previousHighestBid.amount).toString();
@@ -384,6 +395,11 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
       if (!purchase.listing) continue;
       
       const listing = purchase.listing;
+      
+      // Discover buyer and seller in background
+      discoverAndCacheUserBackground(purchase.buyer);
+      discoverAndCacheUserBackground(listing.seller);
+      
       const artworkName = await getArtworkName(
         listing.tokenAddress,
         listing.tokenId,
@@ -463,6 +479,11 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
       if (listing.hasBid && listing.bids && listing.bids.length > 0) {
         // Auction won
         const winningBid = listing.bids[0];
+        
+        // Discover winner and seller in background
+        discoverAndCacheUserBackground(winningBid.bidder);
+        discoverAndCacheUserBackground(listing.seller);
+        
         const winnerName = await getUserName(winningBid.bidder);
         const amount = BigInt(winningBid.amount).toString();
         

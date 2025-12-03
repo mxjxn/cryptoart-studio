@@ -5,6 +5,7 @@ import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
 import { normalizeListingType } from '~/lib/server/auction';
+import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -78,6 +79,15 @@ export async function GET(
     }
 
     const listing = data.listing;
+    
+    // Discover seller and all bidders in background
+    discoverAndCacheUserBackground(listing.seller);
+    if (listing.bids && listing.bids.length > 0) {
+      listing.bids.forEach((bid: any) => {
+        discoverAndCacheUserBackground(bid.bidder);
+      });
+    }
+    
     const bidCount = listing.bids?.length || 0;
     const highestBid = listing.bids && listing.bids.length > 0 
       ? listing.bids[0] // Already sorted by amount desc
