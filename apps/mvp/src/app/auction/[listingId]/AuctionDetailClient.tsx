@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
@@ -14,7 +14,7 @@ import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { type Address } from "viem";
+import { type Address, isAddress } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 
@@ -51,6 +51,7 @@ export default function AuctionDetailClient({
 }: AuctionDetailClientProps) {
   const { address, isConnected } = useAccount();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isSDKLoaded, actions, added } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const { auction, loading } = useAuction(listingId);
@@ -59,6 +60,41 @@ export default function AuctionDetailClient({
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
+
+  // Get referrerBPS from contract to check if listing supports referrers
+  const { data: listingData } = useReadContract({
+    address: MARKETPLACE_ADDRESS,
+    abi: MARKETPLACE_ABI,
+    functionName: "getListing",
+    args: [Number(listingId)],
+    query: {
+      enabled: !!listingId,
+    },
+  });
+  
+  // Extract referrerBPS from listing data
+  const referrerBPS = listingData ? (listingData as any).referrerBPS : undefined;
+
+  // Extract and validate referrer from URL
+  const referrer = useMemo(() => {
+    const refParam = searchParams.get('ref');
+    if (!refParam) {
+      return null;
+    }
+    
+    // Validate that it's a valid Ethereum address
+    if (!isAddress(refParam)) {
+      console.warn('Invalid referrer address in URL:', refParam);
+      return null;
+    }
+    
+    // Only use referrer if listing supports referrers (referrerBPS > 0)
+    if (referrerBPS && referrerBPS > 0) {
+      return refParam.toLowerCase() as Address;
+    }
+    
+    return null;
+  }, [searchParams, referrerBPS]);
   
   // Cancel listing transaction
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
@@ -214,13 +250,24 @@ export default function AuctionDetailClient({
       }
       
       // Use increase=false to bid the exact amount sent
-      await placeBid({
-        address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
-        functionName: 'bid',
-        args: [Number(listingId), false],
-        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-      });
+      // Pass referrer if available and listing supports referrers
+      if (referrer) {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          args: [referrer, Number(listingId), false] as const,
+          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
+        });
+      } else {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          args: [Number(listingId), false] as const,
+          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
+        });
+      }
     } catch (err) {
       console.error("Error placing bid:", err);
       alert("Failed to place bid. Please try again.");
@@ -258,13 +305,24 @@ export default function AuctionDetailClient({
       }
 
       // Purchase with correct value (0 for ERC20, totalPrice for ETH)
-      await purchaseListing({
-        address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
-        functionName: 'purchase',
-        args: [Number(listingId), purchaseQuantity],
-        value: isPaymentETH ? totalPrice : BigInt(0),
-      });
+      // Pass referrer if available and listing supports referrers
+      if (referrer) {
+        await purchaseListing({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'purchase',
+          args: [referrer, Number(listingId), purchaseQuantity] as const,
+          value: isPaymentETH ? totalPrice : BigInt(0),
+        });
+      } else {
+        await purchaseListing({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'purchase',
+          args: [Number(listingId), purchaseQuantity] as const,
+          value: isPaymentETH ? totalPrice : BigInt(0),
+        });
+      }
     } catch (err) {
       console.error("Error purchasing:", err);
     }
@@ -281,13 +339,24 @@ export default function AuctionDetailClient({
             const price = auction.currentPrice || auction.initialAmount;
             const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
             
-            purchaseListing({
-              address: MARKETPLACE_ADDRESS,
-              abi: MARKETPLACE_ABI,
-              functionName: 'purchase',
-              args: [Number(listingId), purchaseQuantity],
-              value: BigInt(0),
-            });
+            // Pass referrer if available and listing supports referrers
+            if (referrer) {
+              purchaseListing({
+                address: MARKETPLACE_ADDRESS,
+                abi: MARKETPLACE_ABI,
+                functionName: 'purchase',
+                args: [referrer, Number(listingId), purchaseQuantity] as const,
+                value: BigInt(0),
+              });
+            } else {
+              purchaseListing({
+                address: MARKETPLACE_ADDRESS,
+                abi: MARKETPLACE_ABI,
+                functionName: 'purchase',
+                args: [Number(listingId), purchaseQuantity] as const,
+                value: BigInt(0),
+              });
+            }
             
             setPendingPurchaseAfterApproval(false);
           } catch (err) {
@@ -297,7 +366,7 @@ export default function AuctionDetailClient({
         }, 1000);
       });
     }
-  }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing]);
+  }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing, referrer]);
 
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {

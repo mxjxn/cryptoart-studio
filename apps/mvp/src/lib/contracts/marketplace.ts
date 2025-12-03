@@ -111,6 +111,29 @@ export const MARKETPLACE_ABI = [
   },
   {
     type: 'function',
+    name: 'bid',
+    inputs: [
+      { name: 'referrer', type: 'address', internalType: 'address payable' },
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'increase', type: 'bool', internalType: 'bool' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'bid',
+    inputs: [
+      { name: 'referrer', type: 'address', internalType: 'address payable' },
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'bidAmount', type: 'uint256', internalType: 'uint256' },
+      { name: 'increase', type: 'bool', internalType: 'bool' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
     name: 'createListing',
     inputs: [
       {
@@ -189,6 +212,27 @@ export const MARKETPLACE_ABI = [
     type: 'function',
     name: 'purchase',
     inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'referrer', type: 'address', internalType: 'address' },
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'referrer', type: 'address', internalType: 'address' },
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
       { name: 'count', type: 'uint24', internalType: 'uint24' },
     ],
