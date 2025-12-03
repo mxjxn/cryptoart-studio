@@ -1,20 +1,11 @@
 import { ImageResponse } from "next/og";
-import { readFile } from "fs/promises";
-import { join } from "path";
+import { NextRequest } from "next/server";
 import { getAuctionServer } from "~/lib/server/auction";
 import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
-
-export const alt = "Auction Listing";
-export const size = {
-  width: 1200,
-  height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
-};
-
-export const contentType = "image/png";
 
 // ERC20 ABI for fetching token info
 const ERC20_ABI = [
@@ -108,10 +99,6 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-interface ImageProps {
-  params: Promise<{ listingId: string }>;
-}
-
 // Helper to add timeout to promises
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
   return Promise.race([
@@ -120,14 +107,23 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Pr
   ]);
 }
 
-export default async function Image({ params }: ImageProps) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ listingId: string }> }
+) {
   const { listingId } = await params;
-
-  // Load font - this should always succeed
-  let fontData: Buffer;
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  const fontUrl = `${baseUrl}/MEK-Mono.otf`;
+  
+  // Load font from URL (edge runtime compatible)
+  let fontData: ArrayBuffer;
   try {
-    const fontPath = join(process.cwd(), "public", "MEK-Mono.otf");
-    fontData = await readFile(fontPath);
+    const fontResponse = await fetch(fontUrl);
+    if (!fontResponse.ok) {
+      throw new Error(`Failed to fetch font: ${fontResponse.statusText}`);
+    }
+    fontData = await fontResponse.arrayBuffer();
   } catch (error) {
     console.error(`[OG Image] Error loading font:`, error);
     // Return a simple error image if font can't be loaded
@@ -154,7 +150,10 @@ export default async function Image({ params }: ImageProps) {
           </div>
         </div>
       ),
-      { ...size }
+      {
+        width: 1200,
+        height: 800,
+      }
     );
   }
 
@@ -211,7 +210,8 @@ export default async function Image({ params }: ImageProps) {
           </div>
         ),
         {
-          ...size,
+          width: 1200,
+          height: 800,
           fonts: [
             {
               name: 'MEK-Mono',
@@ -420,7 +420,8 @@ export default async function Image({ params }: ImageProps) {
       </div>
     ),
     {
-      ...size,
+      width: 1200,
+      height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
       fonts: [
         {
           name: 'MEK-Mono',
@@ -434,3 +435,4 @@ export default async function Image({ params }: ImageProps) {
     }
   );
 }
+
