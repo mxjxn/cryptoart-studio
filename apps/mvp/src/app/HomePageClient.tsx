@@ -68,24 +68,32 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
       {/* Hero Section */}
       <section className="border-b border-[#333333]">
-        <div className="px-5 py-12">
-          <div className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-4">
+        <div className="px-5 py-6">
+          <div className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-0">
             Farcaster Native
           </div>
           <h1 className="text-[32px] font-light leading-tight mb-3">
             Auctionhouse
           </h1>
           <p className="text-sm text-[#cccccc] mb-8 leading-relaxed">
-            Create and trade NFTs directly from Farcaster. Auctions, fixed price, and offers-only listings.
+          Auction and collect directly from Farcaster. Become a cryptoart tastemaker.
           </p>
-          {isPro && (
+          <div className="flex items-center gap-4">
+            {isPro && (
+              <Link
+                href="/create"
+                className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+              >
+                List an Artwork
+              </Link>
+            )}
             <Link
-              href="/create"
-              className="inline-block px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+              href="#listings"
+              className="inline-block px-8 py-3.5 bg-transparent border border-white text-white text-sm font-medium tracking-[0.5px] hover:bg-white hover:text-black transition-colors"
             >
-              Create Listing
+              Browse the Art
             </Link>
-          )}
+          </div>
         </div>
       </section>
 
@@ -115,7 +123,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       )}
 
       {/* Active Listings */}
-      <section className="px-5 py-8">
+      <section id="listings" className="px-5 py-8">
         <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
           Active Listings
         </h2>
