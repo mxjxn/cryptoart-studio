@@ -1136,7 +1136,7 @@ export default function CreateAuctionClient() {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                      Price ({priceSymbol})
+                      Price Per Copy ({priceSymbol})
                     </label>
                     <input
                       type="number"
@@ -1148,6 +1148,11 @@ export default function CreateAuctionClient() {
                       required
                       disabled={!canProceed}
                     />
+                    {tokenType === 'ERC1155' && formData.totalAvailable && formData.totalPerSale && formData.fixedPrice && (
+                      <p className="mt-1 text-xs text-[#999999]">
+                        Each purchase of {formData.totalPerSale} copy{parseInt(formData.totalPerSale) !== 1 ? 'ies' : ''} will cost {parseFloat(formData.fixedPrice || '0') * parseInt(formData.totalPerSale || '1')} {priceSymbol}
+                      </p>
+                    )}
                   </div>
                   
                   {tokenType === 'ERC1155' && (
@@ -1186,7 +1191,7 @@ export default function CreateAuctionClient() {
                           disabled={!canProceed}
                         />
                         <p className="mt-1 text-xs text-[#999999]">
-                          Number of tokens a buyer can purchase at once
+                          Number of copies included in each purchase (e.g., if set to 10, buying "1" purchase gives you 10 copies)
                         </p>
                       </div>
                     </>

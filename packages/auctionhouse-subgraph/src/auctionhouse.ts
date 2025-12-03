@@ -134,7 +134,9 @@ export function handlePurchaseEvent(event: PurchaseEvent): void {
   );
   
   // Update listing total sold
-  listing.totalSold = listing.totalSold + event.params.count;
+  // Note: event.params.count is the purchase count, but the contract actually sells count * totalPerSale copies
+  // The contract does: listing.totalSold += count * listing.details.totalPerSale;
+  listing.totalSold = listing.totalSold + event.params.count * listing.totalPerSale;
   listing.updatedAt = event.block.timestamp;
   listing.updatedAtBlock = event.block.number;
   listing.save();

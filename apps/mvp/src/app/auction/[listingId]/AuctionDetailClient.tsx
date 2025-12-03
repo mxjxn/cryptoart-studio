@@ -947,18 +947,21 @@ export default function AuctionDetailClient({
                 {auction.tokenSpec === "ERC1155" && (
                   <div>
                     <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                      Quantity
+                      Number of Purchases
                     </label>
                     <input
                       type="number"
                       min="1"
-                      max={Math.max(1, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"))}
+                      max={Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))}
                       value={purchaseQuantity}
                       onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white"
                     />
                     <p className="text-xs text-[#999999] mt-1">
-                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} available
+                      You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {auction.totalPerSale} copies per purchase)
+                    </p>
+                    <p className="text-xs text-[#666666] mt-0.5">
+                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} copies remaining ({Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))} purchase{Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1")) !== 1 ? 's' : ''} available)
                     </p>
                   </div>
                 )}
@@ -974,18 +977,26 @@ export default function AuctionDetailClient({
                   <>
                     <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm text-[#cccccc]">Price</span>
+                        <span className="text-sm text-[#cccccc]">Price Per Copy</span>
                         <span className="text-lg font-medium text-white">
                           {formatPrice(auction.initialAmount)} {paymentSymbol}
                         </span>
                       </div>
                       {auction.tokenSpec === "ERC1155" && (
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-sm text-[#cccccc]">Total</span>
-                          <span className="text-sm font-medium text-white">
-                            {formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString())} {paymentSymbol}
-                          </span>
-                        </div>
+                        <>
+                          <div className="flex justify-between items-center mt-2">
+                            <span className="text-sm text-[#cccccc]">Copies Purchased</span>
+                            <span className="text-sm font-medium text-white">
+                              {purchaseQuantity * parseInt(auction.totalPerSale || "1")} ({purchaseQuantity} × {auction.totalPerSale})
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <span className="text-sm text-[#cccccc]">Total Price</span>
+                            <span className="text-sm font-medium text-white">
+                              {formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString())} {paymentSymbol}
+                            </span>
+                          </div>
+                        </>
                       )}
                       {/* Show user balance */}
                       {!userBalance.isLoading && (
@@ -1000,6 +1011,8 @@ export default function AuctionDetailClient({
                     {/* Check if ERC20 approval is needed */}
                     {!isPaymentETH && auction.erc20 && address && (() => {
                       const price = auction.currentPrice || auction.initialAmount;
+                      // Price is per copy, multiplied by purchase quantity (not by copies)
+                      // The contract sells purchaseQuantity * totalPerSale copies for price * purchaseQuantity
                       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
                       const currentAllowance = erc20Allowance as bigint | undefined;
                       const needsApproval = !currentAllowance || currentAllowance < totalPrice;
@@ -1179,7 +1192,7 @@ export default function AuctionDetailClient({
               <>
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="text-[#999999]">Price:</span>
+                    <span className="text-[#999999]">Price Per Copy:</span>
                     <span className="ml-2 font-medium">
                       {formatPrice(auction.initialAmount)} {paymentSymbol}
                     </span>
@@ -1187,22 +1200,30 @@ export default function AuctionDetailClient({
                   <div>
                     <span className="text-[#999999]">For sale:</span>
                     <span className="ml-2 font-medium">
-                      {parseInt(auction.totalAvailable)}
+                      {parseInt(auction.totalAvailable)} {auction.tokenSpec === "ERC1155" ? "copies" : ""}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#999999]">Remaining:</span>
                     <span className="ml-2 font-medium">
-                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")}
+                      {Math.max(0, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"))} {auction.tokenSpec === "ERC1155" ? "copies" : ""}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#999999]">Status:</span>
                     <span className="ml-2 font-medium">
-                      {isActive ? "Active" : "Ended"}
+                      {isActive && (parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0") > 0) ? "Active" : "Sold Out"}
                     </span>
                   </div>
                 </div>
+                {auction.tokenSpec === "ERC1155" && parseInt(auction.totalPerSale || "1") > 1 && (
+                  <div className="text-xs mt-2">
+                    <span className="text-[#999999]">Per Purchase:</span>
+                    <span className="ml-2 font-medium">
+                      {auction.totalPerSale} copies per purchase
+                    </span>
+                  </div>
+                )}
                 {endTime > 0 && (
                   <div className="text-xs">
                     <span className="text-[#999999]">On sale until:</span>
