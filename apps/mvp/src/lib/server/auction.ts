@@ -252,12 +252,30 @@ async function fetchActiveAuctions(
     }
   );
 
-  let enrichedAuctions: EnrichedAuctionData[] = data.listings;
+  // Filter out listings that are fully sold (even if subgraph hasn't marked them as finalized yet)
+  // This ensures sold-out listings don't appear in active listings
+  let activeListings = data.listings.filter((listing) => {
+    const totalAvailable = parseInt(listing.totalAvailable || "0");
+    const totalSold = parseInt(listing.totalSold || "0");
+    const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
+    
+    // Exclude if finalized or fully sold
+    if (listing.finalized || isFullySold) {
+      console.log(`[Active Listings] Filtering out listing ${listing.listingId}: finalized=${listing.finalized}, totalSold=${totalSold}, totalAvailable=${totalAvailable}, isFullySold=${isFullySold}`);
+      return false;
+    }
+    
+    return true;
+  });
+  
+  console.log(`[Active Listings] Filtered ${data.listings.length} listings down to ${activeListings.length} active listings`);
+
+  let enrichedAuctions: EnrichedAuctionData[] = activeListings;
 
   if (enrich) {
     // Enrich auctions with metadata and bid information
     enrichedAuctions = await Promise.all(
-      data.listings.map(async (listing) => {
+      activeListings.map(async (listing) => {
         const bidCount = listing.bids?.length || 0;
         const highestBid = listing.bids && listing.bids.length > 0 
           ? listing.bids[0] // Already sorted by amount desc
