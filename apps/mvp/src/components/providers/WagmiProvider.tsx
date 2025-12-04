@@ -1,5 +1,5 @@
 import { createConfig, http, WagmiProvider } from "wagmi";
-import { base } from "wagmi/chains";
+import { base, mainnet } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/miniapp-wagmi-connector";
 import { coinbaseWallet, metaMask } from 'wagmi/connectors';
@@ -8,9 +8,10 @@ import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
 import React, { useEffect } from "react";
 
 export const config = createConfig({
-  chains: [base],
+  chains: [base, mainnet],
   transports: {
     [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
+    [mainnet.id]: http(process.env.NEXT_PUBLIC_MAINNET_RPC_URL || 'https://eth.llamarpc.com'),
   },
   connectors: [
     farcasterFrame(),

@@ -7,6 +7,7 @@ import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useProfile, SignInButton } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { ThemeToggle } from "~/components/ThemeToggle";
 import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
@@ -63,6 +64,10 @@ export function ProfileDropdown() {
   const [showSignInOptions, setShowSignInOptions] = useState(false);
   const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Resolve ENS name for address when not logged in via Farcaster mini-app
+  const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
+  const ensName = useEnsNameForAddress(address, shouldResolveEns);
 
   // Determine the profile URL based on auth mode
   const pfpUrl = isMiniApp
@@ -82,7 +87,7 @@ export function ProfileDropdown() {
     : isFarcasterAuth
     ? farcasterProfile?.displayName || farcasterProfile?.username
     : address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    ? (ensName || `${address.slice(0, 6)}...${address.slice(-4)}`)
     : undefined;
   
   const formatAddress = (addr: string | null) => {

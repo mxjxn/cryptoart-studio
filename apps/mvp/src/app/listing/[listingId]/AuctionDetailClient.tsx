@@ -185,11 +185,20 @@ export default function AuctionDetailClient({
     try {
       // Parse bid amount using the correct decimals for the payment token
       const bidAmountBigInt = BigInt(Math.floor(parseFloat(bidAmount) * 10 ** paymentDecimals));
-      const currentPrice = auction.highestBid?.amount || auction.initialAmount;
       
-      // Calculate minimum bid (default 5% increment if not specified)
-      const minIncrementBPS = 500; // Default 5% increment
-      const minBid = BigInt(currentPrice) + (BigInt(currentPrice) * BigInt(minIncrementBPS)) / BigInt(10000);
+      // Calculate minimum bid
+      // If there's no existing bid, minimum is just the initial amount (no increment needed)
+      // If there is an existing bid, we need to add the increment
+      let minBid: bigint;
+      if (!auction.highestBid) {
+        // No existing bid - minimum is the initial amount
+        minBid = BigInt(auction.initialAmount);
+      } else {
+        // There's an existing bid - need to add increment
+        const currentPrice = BigInt(auction.highestBid.amount);
+        const minIncrementBPS = 500; // Default 5% increment
+        minBid = currentPrice + (currentPrice * BigInt(minIncrementBPS)) / BigInt(10000);
+      }
       
       if (bidAmountBigInt < minBid) {
         alert(`Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`);

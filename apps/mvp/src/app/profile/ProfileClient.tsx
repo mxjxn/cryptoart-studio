@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useMiniApp } from "@neynar/react";
 import { useUserAuctions } from "~/hooks/useUserAuctions";
+import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { formatEther } from "viem";
 import Link from "next/link";
 import { AuctionCard } from "~/components/AuctionCard";
@@ -25,6 +26,11 @@ export default function ProfileClient() {
   // Use connected wallet address, or fall back to Farcaster verified address
   const userAddress = address || farcasterAddress;
   const hasAddress = !!userAddress;
+  
+  // Resolve ENS name for address when not logged in via Farcaster mini-app
+  const isMiniApp = !!context?.user;
+  const shouldResolveEns = !isMiniApp && isConnected && !!address;
+  const ensName = useEnsNameForAddress(address, shouldResolveEns);
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
@@ -72,7 +78,12 @@ export default function ProfileClient() {
               <p className="text-sm text-gray-600 mb-1">
                 {isConnected ? "Wallet Address" : "Farcaster Verified Address"}
               </p>
-              <p className="font-mono text-sm text-gray-900">{userAddress}</p>
+              <p className="font-mono text-sm text-gray-900">
+                {ensName || userAddress}
+              </p>
+              {ensName && (
+                <p className="text-xs text-gray-500 mt-1">{userAddress}</p>
+              )}
             </div>
           )}
 

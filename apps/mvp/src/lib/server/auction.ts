@@ -24,6 +24,10 @@ const getSubgraphHeaders = (): Record<string, string> => {
       Authorization: `Bearer ${apiKey}`,
     };
   }
+  // Log warning in build environment if API key is missing
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    console.warn('[Subgraph] GRAPH_STUDIO_API_KEY not set - requests may fail authentication');
+  }
   return {};
 };
 
