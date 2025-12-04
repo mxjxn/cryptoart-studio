@@ -19,13 +19,13 @@ function ProfileIcon({ pfpUrl, imageError, setImageError }: {
   setImageError: (error: boolean) => void;
 }) {
   return (
-    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
+    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
       {pfpUrl && !imageError ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={pfpUrl}
           alt="Profile"
-          className="w-8 h-8 rounded-full object-cover"
+          className="w-full h-full object-cover"
           onError={() => setImageError(true)}
         />
       ) : (
