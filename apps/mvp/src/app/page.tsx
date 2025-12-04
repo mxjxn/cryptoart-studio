@@ -10,13 +10,17 @@ import HomePageClient from "./HomePageClient";
 export const revalidate = false; // Disable automatic revalidation, use cron job instead
 
 export async function generateMetadata(): Promise<Metadata> {
+  // Use the opengraph-image route that shows recent listings with images
+  // (not the /api/opengraph-image which is just text)
+  const ogImageUrl = `${APP_URL}/opengraph-image`;
+  
   return {
     title: APP_NAME,
     description: APP_DESCRIPTION,
     openGraph: {
       title: APP_NAME,
       description: APP_DESCRIPTION,
-      images: [APP_OG_IMAGE_URL],
+      images: [ogImageUrl],
     },
     other: {
       "fc:miniapp": JSON.stringify(getMiniAppEmbedMetadata()),

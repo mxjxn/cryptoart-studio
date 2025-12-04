@@ -7,7 +7,19 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const baseUrl = `${url.protocol}//${url.host}`;
   const fontUrl = `${baseUrl}/MEK-Mono.otf`;
-  const fontData = await fetch(fontUrl).then((res) => res.arrayBuffer());
+  
+  // Load font from URL (edge runtime compatible)
+  let fontData: ArrayBuffer | null = null;
+  try {
+    const fontResponse = await fetch(fontUrl);
+    if (!fontResponse.ok) {
+      throw new Error(`Failed to fetch font: ${fontResponse.statusText}`);
+    }
+    fontData = await fontResponse.arrayBuffer();
+  } catch (error) {
+    console.error(`[OG Image] Error loading font:`, error);
+    // Continue without font - will use default system font
+  }
 
   return new ImageResponse(
     (
@@ -60,13 +72,13 @@ export async function GET(request: NextRequest) {
     {
       width: 1200,
       height: 630,
-      fonts: [
+      fonts: fontData ? [
         {
           name: 'MEK-Mono',
           data: fontData,
           style: 'normal',
         },
-      ],
+      ] : undefined,
       headers: {
         // Following Farcaster miniapp-img reference implementation
         // Use stale-while-revalidate for better performance
