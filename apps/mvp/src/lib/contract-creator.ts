@@ -56,7 +56,7 @@ const ROYALTY_INFO_ABI = [
 const getPublicClient = () => {
   return createPublicClient({
     chain: base,
-    transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"),
+    transport: http(process.env.RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"),
   });
 };
 

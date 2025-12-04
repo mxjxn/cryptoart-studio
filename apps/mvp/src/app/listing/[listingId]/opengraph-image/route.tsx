@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getAuctionServer } from "~/lib/server/auction";
 import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getContractNameServer } from "~/lib/server/contract-name";
+import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
@@ -44,7 +45,7 @@ async function getERC20TokenInfo(tokenAddress: string): Promise<{ symbol: string
     const publicClient = createPublicClient({
       chain: base,
       transport: http(
-        process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"
+        process.env.RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"
       ),
     });
 
@@ -145,10 +146,10 @@ export async function GET(
               color: 'white',
             }}
           >
-            <div style={{ fontSize: 64, fontWeight: 'bold' }}>
+            <div style={{ display: 'flex', fontSize: 192, fontWeight: 'bold' }}>
               cryptoart.social
             </div>
-            <div style={{ fontSize: 32, marginTop: '24px' }}>
+            <div style={{ display: 'flex', fontSize: 96, marginTop: '72px' }}>
               Listing #{listingId}
             </div>
           </div>
@@ -195,16 +196,18 @@ export async function GET(
           >
             <div
               style={{
-                fontSize: 64,
+                display: 'flex',
+                fontSize: 192,
                 fontWeight: 'bold',
-                marginBottom: '24px',
+                marginBottom: '72px',
               }}
             >
               Listing Not Found
             </div>
             <div
               style={{
-                fontSize: 32,
+                display: 'flex',
+                fontSize: 96,
                 opacity: 0.7,
               }}
             >
@@ -285,6 +288,118 @@ export async function GET(
     artistDisplay = truncateAddress(auction.tokenAddress);
   }
 
+  // Get artwork image URL and convert to data URL for ImageResponse
+  let artworkImageDataUrl: string | null = null;
+  if (auction?.image || auction?.metadata?.image) {
+    const originalImageUrl = auction.image || auction.metadata?.image || null;
+    if (originalImageUrl) {
+      // Check cache first
+      const cached = await getCachedImage(originalImageUrl);
+      if (cached) {
+        artworkImageDataUrl = cached;
+        console.log(`[OG Image] Using cached image for ${originalImageUrl}`);
+      } else {
+        // Not in cache, fetch and cache it
+        let imageUrl = originalImageUrl;
+        
+        // Convert IPFS URLs to HTTP gateway URLs
+        if (imageUrl.startsWith('ipfs://')) {
+          const hash = imageUrl.replace('ipfs://', '');
+          const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
+          imageUrl = `${gateway}/ipfs/${hash}`;
+        } else if (imageUrl.includes('/ipfs/')) {
+          // Already has /ipfs/ in path, just ensure it uses a gateway
+          const hash = imageUrl.split('/ipfs/')[1]?.split('/')[0];
+          if (hash) {
+            const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
+            imageUrl = `${gateway}/ipfs/${hash}`;
+          }
+        }
+
+        // Fetch image and convert to data URL for ImageResponse
+        try {
+          console.log(`[OG Image] Fetching artwork image from: ${imageUrl}`);
+          const gateways = [
+            process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://cloudflare-ipfs.com",
+            "https://ipfs.io",
+            "https://gateway.pinata.cloud",
+          ];
+          
+          // Check if it's an IPFS URL and try multiple gateways
+          let urlsToTry = [imageUrl];
+          if (imageUrl.includes('/ipfs/')) {
+            const ipfsHash = imageUrl.split('/ipfs/')[1]?.split('/')[0];
+            if (ipfsHash) {
+              urlsToTry = gateways.map(gw => `${gw}/ipfs/${ipfsHash}`);
+            }
+          }
+          
+          let fetchedContentType: string | null = null;
+          
+          for (const url of urlsToTry) {
+            try {
+              const response = await fetch(url, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (compatible; OG-Image-Bot/1.0)',
+                },
+                signal: AbortSignal.timeout(5000), // 5 second timeout
+              });
+              
+              if (!response.ok) {
+                console.warn(`[OG Image] Gateway returned ${response.status} ${response.statusText} for ${url}, trying next...`);
+                continue;
+              }
+              
+              // Check content-type - must be an image
+              const contentType = response.headers.get('content-type') || '';
+              if (!contentType.startsWith('image/')) {
+                console.warn(`[OG Image] Response is not an image (content-type: ${contentType}) for ${url}, trying next gateway...`);
+                continue;
+              }
+              
+              const arrayBuffer = await response.arrayBuffer();
+              const buffer = Buffer.from(arrayBuffer);
+              
+              // Validate it's actually image data (check magic bytes)
+              const magicBytes = buffer.subarray(0, 4);
+              const isValidImage = 
+                magicBytes[0] === 0xFF && magicBytes[1] === 0xD8 && magicBytes[2] === 0xFF || // JPEG
+                magicBytes[0] === 0x89 && magicBytes[1] === 0x50 && magicBytes[2] === 0x4E && magicBytes[3] === 0x47 || // PNG
+                magicBytes[0] === 0x47 && magicBytes[1] === 0x49 && magicBytes[2] === 0x46; // GIF
+              
+              if (!isValidImage) {
+                console.warn(`[OG Image] Response doesn't appear to be valid image data for ${url}, trying next gateway...`);
+                continue;
+              }
+              
+              const base64 = buffer.toString('base64');
+              fetchedContentType = contentType;
+              artworkImageDataUrl = `data:${contentType};base64,${base64}`;
+              
+              console.log(`[OG Image] Image fetched successfully from ${url}, size: ${buffer.length} bytes, type: ${contentType}`);
+              
+              // Cache the image for future use
+              if (fetchedContentType) {
+                await cacheImage(originalImageUrl, artworkImageDataUrl, fetchedContentType);
+              }
+              
+              break; // Success, exit loop
+            } catch (error) {
+              console.warn(`[OG Image] Error fetching from ${url}:`, error instanceof Error ? error.message : String(error));
+              continue;
+            }
+          }
+          
+          if (!artworkImageDataUrl) {
+            console.error(`[OG Image] All gateways failed for image. Tried: ${urlsToTry.join(', ')}`);
+          }
+        } catch (error) {
+          console.error(`[OG Image] Error processing artwork image:`, error);
+        }
+      }
+    }
+  }
+
   // Determine listing type specific information
   const listingType = auction?.listingType || "INDIVIDUAL_AUCTION";
   const endTime = auction?.endTime ? parseInt(auction.endTime) : 0;
@@ -345,80 +460,138 @@ export async function GET(
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '100px 80px', // More vertical padding for 3:2 aspect ratio
+          flexDirection: 'row',
+          padding: '80px',
           color: 'white',
           fontFamily: 'MEK-Mono',
         }}
       >
-        {/* Top section: Title, Collection, Artist */}
+        {/* Left half: Text content */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
+            width: '50%',
+            paddingRight: '40px',
+            justifyContent: 'space-between',
           }}
         >
+          {/* Top section: Title, Collection, Artist */}
           <div
             style={{
-              fontSize: 64,
-              fontWeight: 'bold',
-              lineHeight: '1.1',
-              letterSpacing: '2px',
-              marginBottom: '8px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
             }}
           >
-            {title.length > 50 ? `${title.slice(0, 47)}...` : title}
-          </div>
-          
-          {collectionName && (
             <div
-              style={{
-                fontSize: 32,
-                opacity: 0.8,
-                letterSpacing: '1px',
-              }}
-            >
-              {collectionName}
-            </div>
-          )}
-          
-          <div
-            style={{
-              fontSize: 28,
-              opacity: 0.7,
-              letterSpacing: '1px',
-            }}
-          >
-            by {artistDisplay}
-          </div>
-        </div>
-
-        {/* Bottom section: Listing details */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            marginTop: 'auto',
-          }}
-        >
-          {listingDetails.map((detail, index) => (
-            <div
-              key={index}
               style={{
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontSize: 24,
-                letterSpacing: '0.5px',
+                fontSize: 85, // 2/3 of 128
+                fontWeight: 'bold',
+                lineHeight: '1.1',
+                letterSpacing: '3px',
               }}
             >
-              <span style={{ opacity: 0.6 }}>{detail.label}:</span>
-              <span style={{ fontWeight: 'bold', opacity: 0.9 }}>{detail.value}</span>
+              {title.length > 50 ? `${title.slice(0, 47)}...` : title}
             </div>
-          ))}
+            
+            {collectionName ? (
+              <div
+                style={{
+                  display: 'flex',
+                  fontSize: 64, // 2/3 of 96
+                  opacity: 0.8,
+                  letterSpacing: '2px',
+                  lineHeight: '1.1',
+                }}
+              >
+                {collectionName}
+              </div>
+            ) : null}
+            
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 56, // 2/3 of 84
+                opacity: 0.7,
+                letterSpacing: '2px',
+                lineHeight: '1.1',
+              }}
+            >
+              by {artistDisplay}
+            </div>
+          </div>
+
+          {/* Bottom section: Listing details */}
+          {listingDetails.length > 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px', // 2/3 of 36px
+                marginTop: 'auto',
+              }}
+            >
+              {listingDetails.map((detail, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: 48, // 2/3 of 72
+                    letterSpacing: '1px',
+                  }}
+                >
+                  <span style={{ display: 'flex', opacity: 0.6 }}>{detail.label}:</span>
+                  <span style={{ display: 'flex', fontWeight: 'bold', opacity: 0.9 }}>{detail.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Right half: Artwork image */}
+        <div
+          style={{
+            display: 'flex',
+            width: '50%',
+            paddingLeft: '40px',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {artworkImageDataUrl ? (
+            <img
+              src={artworkImageDataUrl}
+              alt={title}
+              width={520}
+              height={640}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                borderRadius: '8px',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                height: '100%',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '8px',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 48,
+                opacity: 0.5,
+              }}
+            >
+              No Image
+            </div>
+          )}
         </div>
       </div>
     ),
@@ -458,10 +631,10 @@ export async function GET(
             color: 'white',
           }}
         >
-          <div style={{ fontSize: 64, fontWeight: 'bold' }}>
+          <div style={{ display: 'flex', fontSize: 192, fontWeight: 'bold' }}>
             cryptoart.social
           </div>
-          <div style={{ fontSize: 32, marginTop: '24px' }}>
+          <div style={{ display: 'flex', fontSize: 96, marginTop: '72px' }}>
             Error loading listing
           </div>
         </div>

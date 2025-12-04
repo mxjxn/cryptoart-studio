@@ -27,12 +27,14 @@ if (!connectionString) {
   process.exit(1);
 }
 
-// MVP-only tables
+// MVP-only tables (must match schema.ts)
 const expectedTables = [
   'user_cache',
   'contract_cache',
   'notifications',
   'notification_preferences',
+  'notification_worker_state',
+  'image_cache',
 ];
 
 async function verifyTables() {

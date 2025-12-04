@@ -38,10 +38,14 @@ npm run dev
 - `NEXT_PUBLIC_CHAIN_ID` - Chain ID (default: 8453)
 - `NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL` - Subgraph endpoint
 - `NEYNAR_API_KEY` - Neynar API key (optional)
+- `STORAGE_POSTGRES_URL` or `POSTGRES_URL` - PostgreSQL connection string (optional, for caching user info)
 
 ## Notes
 
-- All data comes from the subgraph (no database needed)
+- All data comes from the subgraph (primary data source)
+- Database is optional but recommended for caching user info (artist names, Farcaster usernames)
+  - If `STORAGE_POSTGRES_URL` or `POSTGRES_URL` is not set, the app will work without caching
+  - Caching improves performance and reduces API calls to Neynar
 - Cast embed images are generated for every page
 - Uses Farcaster mini-app SDK for wallet integration
 

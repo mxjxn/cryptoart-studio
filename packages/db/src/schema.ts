@@ -162,3 +162,25 @@ export interface NotificationWorkerStateData {
   lastProcessedTimestamp: number;
   updatedAt: Date;
 }
+
+/**
+ * Image cache table - Cache artwork images as data URLs for OG image generation
+ * Primary key: image_url (normalized)
+ */
+export const imageCache = pgTable('image_cache', {
+  imageUrl: text('image_url').primaryKey().notNull(), // Original image URL (normalized)
+  dataUrl: text('data_url').notNull(), // Base64 data URL
+  contentType: text('content_type').notNull(), // MIME type (e.g., image/png)
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // TTL: 3 days
+}, (table) => ({
+  expiresAtIdx: index('image_cache_expires_at_idx').on(table.expiresAt),
+}));
+
+export interface ImageCacheData {
+  imageUrl: string;
+  dataUrl: string;
+  contentType: string;
+  cachedAt: Date;
+  expiresAt: Date;
+}
