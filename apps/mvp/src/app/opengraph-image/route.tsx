@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
       fetch(`${baseUrl}/MEKSans-Regular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
     ]);
 
-    // Fetch 3 most recent listings
+    // Fetch 5 most recent listings
     let recentListings: EnrichedAuctionData[] = [];
     try {
       const endpoint = getSubgraphEndpoint();
@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
         graphqlRequest<{ listings: any[] }>(
           endpoint,
           RECENT_LISTINGS_QUERY,
-          { first: 3 },
+          { first: 5 },
           getSubgraphHeaders()
         ),
         5000,
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
 
       // Enrich listings with metadata
       recentListings = await Promise.all(
-        data.listings.slice(0, 3).map(async (listing) => {
+        data.listings.slice(0, 5).map(async (listing) => {
           const bidCount = listing.bids?.length || 0;
           const highestBid = listing.bids && listing.bids.length > 0 
             ? listing.bids[0]
@@ -409,62 +409,28 @@ export async function GET(request: NextRequest) {
       const endTime = listing.endTime ? parseInt(listing.endTime) : 0;
       const isActive = endTime > now && listing.status === "ACTIVE";
       const listingType = listing.listingType || "INDIVIDUAL_AUCTION";
-      const tokenSymbol = (listing as any).tokenSymbol || "ETH";
-      const tokenDecimals = (listing as any).tokenDecimals || 18;
-      const contractName = (listing as any).contractName || null;
-
-      let priceText = "";
-      let availableText = "";
-      
-      if (listingType === "INDIVIDUAL_AUCTION") {
-        const reservePrice = listing.initialAmount ? formatPrice(listing.initialAmount, tokenDecimals) : "0";
-        priceText = `Reserve: ${reservePrice} ${tokenSymbol}`;
-        availableText = "1";
-      } else if (listingType === "FIXED_PRICE") {
-        const price = listing.initialAmount ? formatPrice(listing.initialAmount, tokenDecimals) : "0";
-        priceText = `${price} ${tokenSymbol}`;
-        const totalAvailable = listing.totalAvailable ? parseInt(listing.totalAvailable) : 0;
-        const totalSold = listing.totalSold ? parseInt(listing.totalSold) : 0;
-        const remaining = Math.max(0, totalAvailable - totalSold);
-        availableText = listing.tokenSpec === "ERC1155" ? `${remaining} available` : "1";
-      } else if (listingType === "OFFERS_ONLY") {
-        priceText = "Offers Only";
-        availableText = "1";
-      } else if (listingType === "DYNAMIC_PRICE") {
-        priceText = "Dynamic Price";
-        const totalAvailable = listing.totalAvailable ? parseInt(listing.totalAvailable) : 0;
-        const totalSold = listing.totalSold ? parseInt(listing.totalSold) : 0;
-        const remaining = Math.max(0, totalAvailable - totalSold);
-        availableText = listing.tokenSpec === "ERC1155" ? `${remaining} available` : "1";
-      }
 
       const title = listing.title || "Untitled";
       const artistName = listing.artist || null;
       const artistDisplay = artistName ? (artistName.startsWith("@") ? artistName : `@${artistName}`) : (listing.tokenAddress ? truncateAddress(listing.tokenAddress) : "—");
 
       return {
-        title: truncateText(title, 30),
+        title: truncateText(title, 25),
         artist: artistDisplay,
         listingType,
-        priceText,
-        availableText,
         isActive,
         image: listingImages[index] || null,
-        contractName,
       };
     });
 
-    // Fill empty slots if we have fewer than 3 listings
-    while (cardData.length < 3) {
+    // Fill empty slots if we have fewer than 5 listings
+    while (cardData.length < 5) {
       cardData.push({
         title: "—",
         artist: "—",
         listingType: "INDIVIDUAL_AUCTION",
-        priceText: "—",
-        availableText: "—",
         isActive: false,
         image: null,
-        contractName: null,
       });
     }
 
@@ -481,31 +447,32 @@ export async function GET(request: NextRequest) {
             fontFamily: 'MEK-Mono',
           }}
         >
-          {/* Top 1/5: Title section */}
+          {/* Top: Title section */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              height: '100px',
-              paddingTop: '20px',
+              paddingTop: '30px',
+              paddingBottom: '30px',
             }}
           >
             <div
               style={{
-                fontSize: 80,
+                fontSize: 96,
                 fontWeight: 'bold',
-                marginBottom: '8px',
+                marginBottom: '20px',
                 letterSpacing: '4px',
                 lineHeight: '1.1',
+                fontFamily: 'MEKSans-Regular',
               }}
             >
-              cryptoart.social
+              CRYPTOART.SOCIAL
             </div>
             <div
               style={{
-                fontSize: 40,
+                fontSize: 48,
                 fontWeight: 'bold',
                 letterSpacing: '2px',
                 opacity: 1,
@@ -515,34 +482,36 @@ export async function GET(request: NextRequest) {
             </div>
           </div>
 
-          {/* Middle 4/5: Recent listings cards */}
+          {/* Middle: Recent listings section */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              height: '467px',
-              padding: '16px 40px',
+              padding: '0 20px',
+              flex: 1,
+              minHeight: 0,
             }}
           >
             {/* "recent listings" label */}
             <div
               style={{
-                fontSize: 28,
-                opacity: 0.6,
-                marginBottom: '12px',
+                fontSize: 24,
+                color: '#999999',
+                marginBottom: '16px',
                 letterSpacing: '1px',
               }}
             >
               recent listings
             </div>
 
-            {/* Three cards in a row */}
+            {/* Five cards in a row */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'row',
-                gap: '16px',
-                height: '419px',
+                gap: '10px',
+                flex: 1,
+                minHeight: 0,
               }}
             >
               {cardData.map((card, index) => (
@@ -552,47 +521,32 @@ export async function GET(request: NextRequest) {
                     display: 'flex',
                     flexDirection: 'column',
                     flex: 1,
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    overflow: 'hidden',
                     position: 'relative',
+                    overflow: 'hidden',
+                    borderRadius: '4px',
                   }}
                 >
-                  {/* Green dot for active listings */}
-                  {card.isActive && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '8px',
-                        right: '8px',
-                        width: '16px',
-                        height: '16px',
-                        backgroundColor: '#00ff00',
-                        borderRadius: '50%',
-                        zIndex: 10,
-                      }}
-                    />
-                  )}
-
-                  {/* Artwork image */}
+                  {/* Artwork image - full height */}
                   <div
                     style={{
                       width: '100%',
-                      height: '180px',
+                      height: '100%',
                       backgroundColor: 'rgba(255, 255, 255, 0.1)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
                     }}
                   >
                     {card.image ? (
                       <img
                         src={card.image}
                         alt={card.title}
-                        width={360}
-                        height={180}
+                        width={232}
+                        height={280}
                         style={{
                           width: '100%',
                           height: '100%',
@@ -602,7 +556,7 @@ export async function GET(request: NextRequest) {
                     ) : (
                       <div
                         style={{
-                          fontSize: 24,
+                          fontSize: 20,
                           opacity: 0.5,
                         }}
                       >
@@ -611,116 +565,83 @@ export async function GET(request: NextRequest) {
                     )}
                   </div>
 
-                  {/* Card content */}
+                  {/* Lower-third data pane overlay */}
                   <div
                     style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: '70px',
+                      background: 'linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 100%)',
                       display: 'flex',
                       flexDirection: 'column',
-                      padding: '16px',
-                      flex: 1,
-                      gap: '8px',
+                      padding: '8px',
+                      gap: '4px',
                     }}
                   >
                     {/* Title */}
                     <div
                       style={{
-                        fontSize: 24,
+                        fontSize: 16,
                         fontWeight: 'bold',
                         lineHeight: '1.2',
-                        marginBottom: '3px',
+                        marginBottom: '2px',
                       }}
                     >
                       {card.title}
                     </div>
 
-                    {/* Artist */}
+                    {/* Artist and Listing type */}
                     <div
                       style={{
-                        fontSize: 18,
-                        opacity: 0.8,
-                        marginBottom: '3px',
+                        display: 'flex',
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: 14,
+                        opacity: 0.9,
                       }}
                     >
-                      {card.artist}
-                    </div>
-
-                    {/* Contract name if available */}
-                    {card.contractName && (
-                      <div
-                        style={{
-                          fontSize: 16,
-                          opacity: 0.6,
-                          marginBottom: '3px',
-                        }}
-                      >
-                        {truncateText(card.contractName, 20)}
+                      <div>{card.artist}</div>
+                      <div>
+                        {card.listingType === "INDIVIDUAL_AUCTION" ? "Auction" :
+                         card.listingType === "FIXED_PRICE" ? "Fixed Price" :
+                         card.listingType === "OFFERS_ONLY" ? "Offers Only" :
+                         card.listingType === "DYNAMIC_PRICE" ? "Dynamic Price" :
+                         "Listing"}
                       </div>
-                    )}
-
-                    {/* Listing type */}
-                    <div
-                      style={{
-                        fontSize: 16,
-                        opacity: 0.7,
-                        marginBottom: '3px',
-                      }}
-                    >
-                      {card.listingType === "INDIVIDUAL_AUCTION" ? "Auction" :
-                       card.listingType === "FIXED_PRICE" ? "Fixed Price" :
-                       card.listingType === "OFFERS_ONLY" ? "Offers Only" :
-                       card.listingType === "DYNAMIC_PRICE" ? "Dynamic Price" :
-                       "Listing"}
                     </div>
-
-                    {/* Price */}
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 'bold',
-                        marginBottom: '3px',
-                      }}
-                    >
-                      {card.priceText}
-                    </div>
-
-                    {/* Available */}
-                    <div
-                      style={{
-                        fontSize: 16,
-                        opacity: 0.8,
-                        marginBottom: '6px',
-                      }}
-                    >
-                      {card.availableText}
-                    </div>
-
-                    {/* LIVE badge */}
-                    {card.isActive && (
-                      <div
-                        style={{
-                          fontSize: 20,
-                          fontWeight: 'bold',
-                          color: '#00ff00',
-                          marginTop: 'auto',
-                        }}
-                      >
-                        LIVE
-                      </div>
-                    )}
                   </div>
+
+                  {/* Green dot for active listings */}
+                  {card.isActive && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '6px',
+                        right: '6px',
+                        width: '12px',
+                        height: '12px',
+                        backgroundColor: '#00ff00',
+                        borderRadius: '50%',
+                        zIndex: 10,
+                      }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Bottom 1/10: Membership text */}
+          {/* Bottom: Membership text */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              height: '63px',
-              paddingBottom: '10px',
+              paddingTop: '20px',
+              paddingBottom: '20px',
             }}
           >
             <div
@@ -756,7 +677,18 @@ export async function GET(request: NextRequest) {
     // Return a fallback image on any error
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
-    const mekMonoFont = await fetch(`${baseUrl}/MEK-Mono.otf`).then((res) => res.arrayBuffer()).catch(() => null);
+    const [mekMonoFont, mekSansFont] = await Promise.all([
+      fetch(`${baseUrl}/MEK-Mono.otf`).then((res) => res.arrayBuffer()).catch(() => null),
+      fetch(`${baseUrl}/MEKSans-Regular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
+    ]);
+    
+    const fallbackFonts: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }> = [];
+    if (mekMonoFont) {
+      fallbackFonts.push({ name: 'MEK-Mono', data: mekMonoFont, style: 'normal' as const });
+    }
+    if (mekSansFont) {
+      fallbackFonts.push({ name: 'MEKSans-Regular', data: mekSansFont, style: 'normal' as const });
+    }
     
     return new ImageResponse(
       (
@@ -781,9 +713,10 @@ export async function GET(request: NextRequest) {
               marginBottom: '24px',
               letterSpacing: '4px',
               lineHeight: '1.1',
+              fontFamily: 'MEKSans-Regular',
             }}
           >
-            cryptoart.social
+            CRYPTOART.SOCIAL
           </div>
           <div
             style={{
@@ -800,7 +733,7 @@ export async function GET(request: NextRequest) {
       {
         width: 1200,
         height: 630,
-        fonts: mekMonoFont ? [{ name: 'MEK-Mono', data: mekMonoFont, style: 'normal' }] : undefined,
+        fonts: fallbackFonts.length > 0 ? fallbackFonts : undefined,
         headers: {
           'Cache-Control': 'public, max-age=300, s-maxage=300',
         },
