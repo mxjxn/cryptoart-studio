@@ -10,3 +10,6 @@
 [submodule "apps/such-gallery"]
 	path = apps/such-gallery
 	url = https://github.com/mxjxn/such-gallery.git
+[submodule "packages/stp-v2"]
+	path = packages/stp-v2
+	url = https://github.com/mxjxn/stp-v2.git
