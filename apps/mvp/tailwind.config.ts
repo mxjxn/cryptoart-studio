@@ -10,12 +10,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: "#8b5cf6",
-        "primary-light": "#a78bfa",
-        "primary-dark": "#7c3aed",
-        secondary: "#f8fafc",
-        "secondary-dark": "#334155",
-        background: 'var(--background)',
+        // CSS variables for dynamic colors (colorful mode)
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+        tertiary: 'var(--color-tertiary)',
+        success: 'var(--color-success)',
+        warning: 'var(--color-warning)',
+        error: 'var(--color-error)',
+        background: 'var(--color-background)',
+        text: 'var(--color-text)',
+        border: 'var(--color-border)',
+        accent: 'var(--color-accent)',
+        // Legacy variables for compatibility
         foreground: 'var(--foreground)'
       },
       borderRadius: {

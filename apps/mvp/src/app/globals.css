@@ -25,7 +25,7 @@
 }
 
 body {
-  background: var(--color-background);
+  background: var(--color-background-gradient, var(--color-background));
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   min-height: 100vh;
@@ -50,6 +50,41 @@ body {
 /* Smooth transitions */
 * {
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Global color overrides - make all text and borders use CSS variables */
+/* This ensures colorful mode affects all text and borders, even when hardcoded colors are used */
+
+/* Override Tailwind arbitrary text color classes */
+/* Pattern: text-[#hex] - match classes that contain both "text-[" and "#" */
+[class*="text-["][class*="#"] {
+  color: var(--color-text) !important;
+}
+
+/* Override Tailwind arbitrary border color classes */
+/* Pattern: border-[#hex], border-t-[#hex], etc. - match classes with "border" and "[" and "#" */
+[class*="border"][class*="["][class*="#"] {
+  border-color: var(--color-border) !important;
+}
+
+/* Ensure all text elements use the CSS variable color by default */
+p, span, div, h1, h2, h3, h4, h5, h6, label, input, textarea, select {
+  color: var(--color-text);
+}
+
+/* Links should use primary color but can be overridden */
+a {
+  color: var(--color-primary);
+}
+
+/* Buttons inherit text color */
+button {
+  color: var(--color-text);
+}
+
+/* Ensure all borders use the CSS variable by default */
+*[class*="border"] {
+  border-color: var(--color-border);
 }
 
 @view-transition {

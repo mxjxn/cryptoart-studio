@@ -724,6 +724,18 @@ export default function AuctionDetailClient({
   const { username: sellerUsername } = useUsername(auction?.seller || null);
   const { username: bidderUsername } = useUsername(auction?.highestBid?.bidder || null);
 
+  // State for current time (must be called before conditional returns)
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
+  
+  // Update countdown every minute (must be called before conditional returns)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -743,7 +755,6 @@ export default function AuctionDetailClient({
   const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";
   const endTime = auction.endTime ? parseInt(auction.endTime) : 0;
   const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
-  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   const isActive = endTime > now && auction.status === "ACTIVE";
   const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
@@ -751,15 +762,6 @@ export default function AuctionDetailClient({
   const displayCreatorName = auction.artist || creatorName;
   const bidCount = auction.bidCount || 0;
   const hasBid = bidCount > 0 || !!auction.highestBid;
-  
-  // Update countdown every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Math.floor(Date.now() / 1000));
-    }, 60000); // Update every minute
-    
-    return () => clearInterval(interval);
-  }, []);
   
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
