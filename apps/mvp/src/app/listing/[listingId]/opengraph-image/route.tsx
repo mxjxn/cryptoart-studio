@@ -155,7 +155,7 @@ export async function GET(
         ),
         {
           width: 1200,
-          height: 800,
+          height: 630,
         }
       );
     }
@@ -214,7 +214,7 @@ export async function GET(
         ),
         {
           width: 1200,
-          height: 800,
+          height: 630,
           fonts: [
             {
               name: 'MEK-Mono',
@@ -424,7 +424,7 @@ export async function GET(
     ),
     {
       width: 1200,
-      height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
+      height: 630, // 3:2 aspect ratio required by Farcaster Mini App spec
       fonts: [
         {
           name: 'MEK-Mono',
@@ -468,7 +468,7 @@ export async function GET(
       ),
       {
         width: 1200,
-        height: 800,
+        height: 630,
         headers: {
           'Cache-Control': 'public, max-age=300, s-maxage=300',
         },
