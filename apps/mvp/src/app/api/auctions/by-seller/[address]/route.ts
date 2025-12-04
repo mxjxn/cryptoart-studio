@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { request, gql } from "graphql-request";
+import { unstable_cache } from "next/cache";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { type Address } from "viem";
@@ -66,6 +67,104 @@ const LISTINGS_BY_SELLER_QUERY = gql`
   }
 `;
 
+/**
+ * Fetch and enrich auctions by seller from subgraph
+ * This function is cached for 60 seconds to reduce subgraph load
+ */
+async function fetchAuctionsBySeller(
+  normalizedSeller: string,
+  first: number,
+  skip: number,
+  enrich: boolean
+): Promise<EnrichedAuctionData[]> {
+  const endpoint = getSubgraphEndpoint();
+
+  console.log(`[BySeller] Fetching auctions for seller: ${normalizedSeller}`);
+  console.log(`[BySeller] Using subgraph endpoint: ${endpoint}`);
+
+  const data = await request<{ listings: any[] }>(
+    endpoint,
+    LISTINGS_BY_SELLER_QUERY,
+    {
+      seller: normalizedSeller,
+      first: Math.min(first, 1000),
+      skip,
+    },
+    getSubgraphHeaders()
+  );
+
+  console.log(`[BySeller] Found ${data.listings?.length || 0} listings for seller ${normalizedSeller}`);
+
+  let enrichedAuctions: EnrichedAuctionData[] = data.listings;
+
+  if (enrich) {
+    // Enrich auctions with metadata and bid information
+    enrichedAuctions = await Promise.all(
+      data.listings.map(async (listing) => {
+        const bidCount = listing.bids?.length || 0;
+        const highestBid =
+          listing.bids && listing.bids.length > 0
+            ? listing.bids[0] // Already sorted by amount desc
+            : undefined;
+
+        // Fetch NFT metadata
+        let metadata = null;
+        if (listing.tokenAddress && listing.tokenId) {
+          try {
+            metadata = await fetchNFTMetadata(
+              listing.tokenAddress as Address,
+              listing.tokenId,
+              listing.tokenSpec
+            );
+          } catch (error) {
+            console.error(
+              `Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`,
+              error
+            );
+          }
+        }
+
+        const enriched: EnrichedAuctionData = {
+          ...listing,
+          listingType: normalizeListingType(listing.listingType, listing),
+          bidCount,
+          highestBid: highestBid
+            ? {
+                amount: highestBid.amount,
+                bidder: highestBid.bidder,
+                timestamp: highestBid.timestamp,
+              }
+            : undefined,
+          title: metadata?.title || metadata?.name,
+          artist: metadata?.artist || metadata?.creator,
+          image: metadata?.image,
+          description: metadata?.description,
+          metadata,
+        };
+
+        return enriched;
+      })
+    );
+  }
+
+  return enrichedAuctions;
+}
+
+/**
+ * Cached version of fetchAuctionsBySeller
+ * Cache TTL: 60 seconds to reduce subgraph rate limiting while maintaining freshness
+ */
+const getCachedAuctionsBySeller = unstable_cache(
+  async (normalizedSeller: string, first: number, skip: number, enrich: boolean) => {
+    return fetchAuctionsBySeller(normalizedSeller, first, skip, enrich);
+  },
+  ['auctions-by-seller'],
+  {
+    revalidate: 60, // Cache for 60 seconds
+    tags: ['user-auctions'], // Can be invalidated with revalidateTag('user-auctions')
+  }
+);
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ address: string }> }
@@ -84,76 +183,15 @@ export async function GET(
       );
     }
 
-    const endpoint = getSubgraphEndpoint();
     const normalizedSeller = address.toLowerCase();
 
-    console.log(`[BySeller] Fetching auctions for seller: ${normalizedSeller}`);
-    console.log(`[BySeller] Using subgraph endpoint: ${endpoint}`);
-
-    const data = await request<{ listings: any[] }>(
-      endpoint,
-      LISTINGS_BY_SELLER_QUERY,
-      {
-        seller: normalizedSeller,
-        first: Math.min(first, 1000),
-        skip,
-      },
-      getSubgraphHeaders()
+    // Fetch cached auctions
+    const enrichedAuctions = await getCachedAuctionsBySeller(
+      normalizedSeller,
+      first,
+      skip,
+      enrich
     );
-
-    console.log(`[BySeller] Found ${data.listings?.length || 0} listings for seller ${normalizedSeller}`);
-
-    let enrichedAuctions: EnrichedAuctionData[] = data.listings;
-
-    if (enrich) {
-      // Enrich auctions with metadata and bid information
-      enrichedAuctions = await Promise.all(
-        data.listings.map(async (listing) => {
-          const bidCount = listing.bids?.length || 0;
-          const highestBid =
-            listing.bids && listing.bids.length > 0
-              ? listing.bids[0] // Already sorted by amount desc
-              : undefined;
-
-          // Fetch NFT metadata
-          let metadata = null;
-          if (listing.tokenAddress && listing.tokenId) {
-            try {
-              metadata = await fetchNFTMetadata(
-                listing.tokenAddress as Address,
-                listing.tokenId,
-                listing.tokenSpec
-              );
-            } catch (error) {
-              console.error(
-                `Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`,
-                error
-              );
-            }
-          }
-
-          const enriched: EnrichedAuctionData = {
-            ...listing,
-            listingType: normalizeListingType(listing.listingType, listing),
-            bidCount,
-            highestBid: highestBid
-              ? {
-                  amount: highestBid.amount,
-                  bidder: highestBid.bidder,
-                  timestamp: highestBid.timestamp,
-                }
-              : undefined,
-            title: metadata?.title || metadata?.name,
-            artist: metadata?.artist || metadata?.creator,
-            image: metadata?.image,
-            description: metadata?.description,
-            metadata,
-          };
-
-          return enriched;
-        })
-      );
-    }
 
     return NextResponse.json({
       success: true,

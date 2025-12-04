@@ -57,8 +57,9 @@ export function useUserAuctions() {
 
     fetchUserAuctions();
     
-    // Poll every 30 seconds for updates
-    const interval = setInterval(fetchUserAuctions, 30000);
+    // Poll every 180 seconds (3 minutes) for updates
+    // Reduced from 30s to reduce subgraph load while maintaining reasonable freshness
+    const interval = setInterval(fetchUserAuctions, 180000);
     
     return () => clearInterval(interval);
   }, [userAddress]);
