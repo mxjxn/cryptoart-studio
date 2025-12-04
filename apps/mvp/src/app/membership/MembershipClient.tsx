@@ -126,6 +126,20 @@ export default function MembershipClient() {
   const [periods, setPeriods] = useState(12); // Changed from "months" to "periods"
   const [showAddTime, setShowAddTime] = useState(false);
 
+  // Log membership status and wallet info
+  useEffect(() => {
+    console.log('[MembershipClient] Component state:', {
+      address,
+      isConnected,
+      isPro,
+      membershipAddress,
+      isFarcasterWallet,
+      expirationDate: expirationDate?.toISOString(),
+      timeRemainingSeconds,
+      statusLoading,
+    });
+  }, [address, isConnected, isPro, membershipAddress, isFarcasterWallet, expirationDate, timeRemainingSeconds, statusLoading]);
+
   // Read tier detail (tier 1) from contract to get price per period
   // Note: This doesn't require wallet connection, so we can always read it
   const { data: tierDetailResult, isLoading: loadingPrice, error: priceError } = useReadContract({
@@ -182,6 +196,17 @@ export default function MembershipClient() {
     hash,
   });
 
+  // Log transaction state changes
+  useEffect(() => {
+    console.log('[MembershipClient] Transaction state:', {
+      hash,
+      isPending,
+      isConfirming,
+      isSuccess,
+      error: error?.message,
+    });
+  }, [hash, isPending, isConfirming, isSuccess, error]);
+
   // Reset form on success
   useEffect(() => {
     if (isSuccess) {
@@ -206,19 +231,62 @@ export default function MembershipClient() {
   const pricePerPeriodEth = pricePerPeriodWei ? formatEther(pricePerPeriodWei) : "0";
 
   const handleSubscribe = async () => {
+    console.log('[MembershipClient] handleSubscribe called', {
+      address,
+      isConnected,
+      isPro,
+      membershipAddress,
+      isFarcasterWallet,
+      pricePerPeriodWei: pricePerPeriodWei?.toString(),
+      totalPriceWei: totalPriceWei.toString(),
+      totalPriceEth,
+      periods,
+    });
+
     if (!address || !isConnected) {
+      console.error('[MembershipClient] No wallet connected');
       alert("Please connect your wallet");
       return;
     }
 
     if (!pricePerPeriodWei) {
+      console.error('[MembershipClient] No price available');
       alert("Unable to fetch price. Please try again.");
       return;
     }
 
+    // Check if user has membership on a different wallet
+    if (isPro && membershipAddress && membershipAddress.toLowerCase() !== address.toLowerCase()) {
+      console.error('[MembershipClient] Wallet mismatch:', {
+        connectedWallet: address.toLowerCase(),
+        membershipWallet: membershipAddress.toLowerCase(),
+        isFarcasterWallet,
+      });
+      
+      // If membership is on Farcaster wallet but user is connected with MetaMask, warn them
+      if (isFarcasterWallet) {
+        alert(`Your membership is on your Farcaster wallet (${formatAddress(membershipAddress)}). Please switch to that wallet to add time, or manage your subscription on Hypersub.`);
+        return;
+      } else {
+        // Membership is on external wallet, should have shown "manage on hypersub" link
+        alert(`Your membership is on a different wallet (${formatAddress(membershipAddress)}). Please manage your subscription on Hypersub.`);
+        return;
+      }
+    }
+
+    console.log('[MembershipClient] Preparing transaction:', {
+      contractAddress: STP_V2_CONTRACT_ADDRESS,
+      functionName: 'mint',
+      payableAmount: totalPriceWei.toString(),
+      numTokens: '0',
+      value: totalPriceWei.toString(),
+      isRenewal: isPro,
+    });
+
     try {
       // Use mint function with payableAmount (in wei) and numTokens (0 for ETH payment)
       // The contract handles both new subscriptions and renewals based on whether the user already has a subscription
+      console.log('[MembershipClient] Calling writeContract...');
       writeContract({
         address: STP_V2_CONTRACT_ADDRESS as Address,
         abi: STP_V2_ABI,
@@ -226,8 +294,10 @@ export default function MembershipClient() {
         args: [totalPriceWei, BigInt(0)], // payableAmount in wei, numTokens = 0 for ETH
         value: totalPriceWei,
       });
+      console.log('[MembershipClient] writeContract called successfully');
     } catch (err) {
-      console.error("Error subscribing:", err);
+      console.error('[MembershipClient] Error in handleSubscribe:', err);
+      alert(`Transaction error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
