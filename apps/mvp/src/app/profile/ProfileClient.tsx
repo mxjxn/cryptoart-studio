@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useMiniApp } from "@neynar/react";
 import { useProfile } from "@farcaster/auth-kit";
@@ -36,17 +36,38 @@ export default function ProfileClient() {
   // Use connected wallet address, or fall back to Farcaster verified address
   const userAddress = address || farcasterMiniAppAddress || farcasterWebAddress;
   
-  // User is authenticated if they have an address OR are authenticated via Farcaster web auth
-  const isAuthenticated = !!userAddress || isFarcasterAuth || !!context?.user;
+  // Determine if we're in mini-app context
+  const isMiniApp = !!context?.user;
+  
+  // Determine if user is authenticated (matching ProfileDropdown logic)
+  // Check farcasterProfile first as it's the most reliable indicator of authentication
+  const isAuthenticated = isMiniApp
+    ? !!context?.user
+    : !!farcasterProfile || isFarcasterAuth || isConnected;
   
   // Resolve ENS name and avatar for address when not logged in via Farcaster
-  const isMiniApp = !!context?.user;
   const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
   const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
   
   // Determine avatar URL: Farcaster pfp (mini-app) > Farcaster pfp (web) > ENS avatar > undefined
   const avatarUrl = context?.user?.pfpUrl || farcasterProfile?.pfpUrl || ensAvatar || undefined;
+  
+  // Debug logging (remove in production)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[ProfileClient] Auth state:', {
+        isMiniApp,
+        hasContextUser: !!context?.user,
+        isFarcasterAuth,
+        hasFarcasterProfile: !!farcasterProfile,
+        isConnected,
+        hasAddress: !!address,
+        userAddress,
+        isAuthenticated,
+      });
+    }
+  }, [isMiniApp, context?.user, isFarcasterAuth, farcasterProfile, isConnected, address, userAddress, isAuthenticated]);
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
