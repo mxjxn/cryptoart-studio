@@ -6,19 +6,22 @@ export const runtime = "edge";
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const baseUrl = `${url.protocol}//${url.host}`;
-  const fontUrl = `${baseUrl}/MEK-Mono.otf`;
+  const mekMonoUrl = `${baseUrl}/MEK-Mono.otf`;
+  const mekSansUrl = `${baseUrl}/MEKSans-Regular.otf`;
   
-  // Load font from URL (edge runtime compatible)
-  let fontData: ArrayBuffer | null = null;
-  try {
-    const fontResponse = await fetch(fontUrl);
-    if (!fontResponse.ok) {
-      throw new Error(`Failed to fetch font: ${fontResponse.statusText}`);
-    }
-    fontData = await fontResponse.arrayBuffer();
-  } catch (error) {
-    console.error(`[OG Image] Error loading font:`, error);
-    // Continue without font - will use default system font
+  // Load fonts from URL (edge runtime compatible)
+  const [mekMonoFont, mekSansFont] = await Promise.all([
+    fetch(mekMonoUrl).then((res) => res.ok ? res.arrayBuffer() : null).catch(() => null),
+    fetch(mekSansUrl).then((res) => res.ok ? res.arrayBuffer() : null).catch(() => null),
+  ]);
+  
+  // Build fonts array
+  const fonts: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }> = [];
+  if (mekMonoFont) {
+    fonts.push({ name: 'MEK-Mono', data: mekMonoFont, style: 'normal' });
+  }
+  if (mekSansFont) {
+    fonts.push({ name: 'MEKSans-Regular', data: mekSansFont, style: 'normal' });
   }
 
   return new ImageResponse(
@@ -52,9 +55,10 @@ export async function GET(request: NextRequest) {
               marginBottom: '24px',
               letterSpacing: '4px',
               lineHeight: '1.1',
+              fontFamily: 'MEKSans-Regular',
             }}
           >
-            cryptoart.social
+            CRYPTOART.SOCIAL
           </div>
           <div
             style={{
@@ -72,13 +76,7 @@ export async function GET(request: NextRequest) {
     {
       width: 1200,
       height: 630,
-      fonts: fontData ? [
-        {
-          name: 'MEK-Mono',
-          data: fontData,
-          style: 'normal',
-        },
-      ] : undefined,
+      fonts: fonts.length > 0 ? fonts : undefined,
       headers: {
         // Following Farcaster miniapp-img reference implementation
         // Use stale-while-revalidate for better performance

@@ -62,7 +62,7 @@ const getSubgraphHeaders = (): Record<string, string> => {
 };
 
 /**
- * Query for most recent listings
+ * Query for most recent listings (excluding cancelled)
  */
 const RECENT_LISTINGS_QUERY = gql`
   query RecentListings($first: Int!) {
@@ -70,6 +70,7 @@ const RECENT_LISTINGS_QUERY = gql`
       first: $first
       orderBy: listingId
       orderDirection: desc
+      where: { status_not: "CANCELLED" }
     ) {
       id
       listingId
@@ -438,7 +439,7 @@ export async function GET(request: NextRequest) {
       (
         <div
           style={{
-            background: 'linear-gradient(to bottom right, #000000, #333333)',
+            background: 'linear-gradient(to bottom right, #000000, #171717)',
             width: '100%',
             height: '100%',
             display: 'flex',
@@ -653,7 +654,7 @@ export async function GET(request: NextRequest) {
                 padding: '0 40px',
               }}
             >
-              30¢ monthly membership
+              Membership: 0.0001 ETH/month
             </div>
           </div>
         </div>
