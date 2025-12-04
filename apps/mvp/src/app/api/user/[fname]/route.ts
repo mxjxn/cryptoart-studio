@@ -250,7 +250,8 @@ export async function GET(
           seller: address.toLowerCase(),
           first: 100,
           skip: 0,
-        }
+        },
+        getSubgraphHeaders()
       )
     );
     
