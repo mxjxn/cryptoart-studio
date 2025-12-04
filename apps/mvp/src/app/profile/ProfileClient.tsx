@@ -10,6 +10,7 @@ import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { formatEther } from "viem";
 import Link from "next/link";
 import { AuctionCard } from "~/components/AuctionCard";
+import { ProfileDropdown } from "~/components/ProfileDropdown";
 
 type TabType = "created" | "collected" | "bids" | "offers";
 
@@ -73,122 +74,113 @@ export default function ProfileClient() {
   // TODO: Implement collected auctions (won auctions)
   const collectedAuctions: any[] = [];
 
+  // Get display name
+  const displayName = context?.user
+    ? context.user.displayName || context.user.username
+    : farcasterProfile
+    ? farcasterProfile.displayName || farcasterProfile.username
+    : ensName || `${userAddress?.slice(0, 6)}...${userAddress?.slice(-4)}`;
+
+  const gradients = [
+    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+    "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+    "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+    "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
+    "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+  ];
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Please connect your wallet or sign in with Farcaster to view your profile.</p>
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+          <div className="flex items-center gap-3">
+            <ProfileDropdown />
+          </div>
+        </header>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-[#cccccc]">Please connect your wallet or sign in with Farcaster to view your profile.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <div className="mb-6">
-          <Link
-            href="/"
-            className="text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-2 mb-4"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back
-          </Link>
+    <div className="min-h-screen bg-black text-white">
+      <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+        <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+        <div className="flex items-center gap-3">
+          <ProfileDropdown />
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Profile</h1>
-          
-          {(context?.user || farcasterProfile || avatarUrl) && (
-            <div className="flex items-center gap-4 mb-6">
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarUrl}
-                  alt="Profile"
-                  className="w-16 h-16 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
-                  </svg>
-                </div>
-              )}
-              <div>
-                {context?.user ? (
-                  <>
-                    <p className="font-semibold text-gray-900">{context.user.username}</p>
-                    <p className="text-sm text-gray-600">@{context.user.username}</p>
-                  </>
-                ) : farcasterProfile ? (
-                  <>
-                    <p className="font-semibold text-gray-900">{farcasterProfile.displayName || farcasterProfile.username}</p>
-                    <p className="text-sm text-gray-600">@{farcasterProfile.username}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-semibold text-gray-900">{ensName || `${userAddress?.slice(0, 6)}...${userAddress?.slice(-4)}`}</p>
-                    {ensName && <p className="text-sm text-gray-600">{userAddress}</p>}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+      </header>
 
-          {userAddress && (
-            <div className="mb-6">
-              <p className="text-sm text-gray-600 mb-1">
-                {isConnected ? "Wallet Address" : "Farcaster Verified Address"}
-              </p>
-              <p className="font-mono text-sm text-gray-900">
-                {ensName || userAddress}
-              </p>
+      <div className="px-5 py-8">
+        {/* Profile Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="w-20 h-20 rounded-full"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+            )}
+            <div>
+              <h1 className="text-2xl font-light mb-1">{displayName}</h1>
+              {context?.user?.username && (
+                <p className="text-sm text-[#999999]">@{context.user.username}</p>
+              )}
+              {farcasterProfile?.username && (
+                <p className="text-sm text-[#999999]">@{farcasterProfile.username}</p>
+              )}
               {ensName && (
-                <p className="text-xs text-gray-500 mt-1">{userAddress}</p>
+                <p className="text-sm text-[#999999]">{ensName}</p>
               )}
             </div>
-          )}
+          </div>
 
-          <div className="flex gap-4 border-b border-gray-200">
+          {/* Tabs */}
+          <div className="flex gap-4 border-b border-[#333333] mb-6">
             <button
               onClick={() => setActiveTab("created")}
-              className={`px-4 py-2 font-medium transition-colors ${
+              className={`pb-2 px-2 text-sm ${
                 activeTab === "created"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-white text-white"
+                  : "text-[#999999] hover:text-[#cccccc]"
               }`}
             >
               Created ({createdAuctions.length})
             </button>
             <button
               onClick={() => setActiveTab("collected")}
-              className={`px-4 py-2 font-medium transition-colors ${
+              className={`pb-2 px-2 text-sm ${
                 activeTab === "collected"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-white text-white"
+                  : "text-[#999999] hover:text-[#cccccc]"
               }`}
             >
               Collected ({collectedAuctions.length})
             </button>
             <button
               onClick={() => setActiveTab("bids")}
-              className={`px-4 py-2 font-medium transition-colors ${
+              className={`pb-2 px-2 text-sm ${
                 activeTab === "bids"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-white text-white"
+                  : "text-[#999999] hover:text-[#cccccc]"
               }`}
             >
               Active Bids ({activeBids.length})
             </button>
             <button
               onClick={() => setActiveTab("offers")}
-              className={`px-4 py-2 font-medium transition-colors ${
+              className={`pb-2 px-2 text-sm ${
                 activeTab === "offers"
-                  ? "text-primary border-b-2 border-primary"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "border-b-2 border-white text-white"
+                  : "text-[#999999] hover:text-[#cccccc]"
               }`}
             >
               Offers ({activeOffers.length})
@@ -196,110 +188,85 @@ export default function ProfileClient() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          {loading ? (
-            <p className="text-gray-600">Loading...</p>
-          ) : (
-            <div>
-              {activeTab === "created" && (
-                <div>
-                  {createdAuctions.length === 0 ? (
-                    <p className="text-gray-600">No auctions created yet.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {createdAuctions.map((auction, index) => {
-                        // Use a simple gradient for profile view
-                        const gradients = [
-                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                          "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                          "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                        ];
-                        return (
-                          <AuctionCard
-                            key={auction.id}
-                            auction={auction as any}
-                            gradient={gradients[index % gradients.length]}
-                            index={index}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-              {activeTab === "collected" && (
-                <div>
-                  {collectedAuctions.length === 0 ? (
-                    <p className="text-gray-600">No NFTs collected yet.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {collectedAuctions.map((auction) => (
-                        <div key={auction.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                          <h4 className="font-semibold text-gray-900 mb-2">
-                            Auction #{auction.listingId}
-                          </h4>
-                          <p className="text-sm text-gray-600">Won</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {activeTab === "bids" && (
-                <div>
-                  {activeBids.length === 0 ? (
-                    <p className="text-gray-600">No active bids.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {activeBids.map((auction, index) => {
-                        // Use a simple gradient for profile view
-                        const gradients = [
-                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                          "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                          "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                        ];
-                        return (
-                          <AuctionCard
-                            key={auction.id}
-                            auction={auction as any}
-                            gradient={gradients[index % gradients.length]}
-                            index={index}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-              {activeTab === "offers" && (
-                <div>
-                  {activeOffers.length === 0 ? (
-                    <p className="text-gray-600">No active offers.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {activeOffers.map((auction, index) => {
-                        // Use a simple gradient for profile view
-                        const gradients = [
-                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                          "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                          "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                        ];
-                        return (
-                          <AuctionCard
-                            key={auction.id}
-                            auction={auction as any}
-                            gradient={gradients[index % gradients.length]}
-                            index={index}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Tab Content */}
+        {loading ? (
+          <p className="text-[#999999]">Loading...</p>
+        ) : (
+          <div>
+            {activeTab === "created" && (
+              <div>
+                {createdAuctions.length === 0 ? (
+                  <p className="text-[#999999]">No auctions created yet.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {createdAuctions.map((auction, index) => (
+                      <AuctionCard
+                        key={auction.id}
+                        auction={auction as any}
+                        gradient={gradients[index % gradients.length]}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "collected" && (
+              <div>
+                {collectedAuctions.length === 0 ? (
+                  <p className="text-[#999999]">No NFTs collected yet.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {collectedAuctions.map((auction, index) => (
+                      <AuctionCard
+                        key={auction.id}
+                        auction={auction as any}
+                        gradient={gradients[index % gradients.length]}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "bids" && (
+              <div>
+                {activeBids.length === 0 ? (
+                  <p className="text-[#999999]">No active bids.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {activeBids.map((auction, index) => (
+                      <AuctionCard
+                        key={auction.id}
+                        auction={auction as any}
+                        gradient={gradients[index % gradients.length]}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "offers" && (
+              <div>
+                {activeOffers.length === 0 ? (
+                  <p className="text-[#999999]">No active offers.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {activeOffers.map((auction, index) => (
+                      <AuctionCard
+                        key={auction.id}
+                        auction={auction as any}
+                        gradient={gradients[index % gradients.length]}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
