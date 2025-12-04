@@ -296,6 +296,45 @@ export default function AuctionDetailClient({
     return `${wholePart}.${fractionalStr}`;
   };
 
+  // Calculate minimum bid amount
+  const calculateMinBid = useMemo(() => {
+    if (!auction) return BigInt(0);
+    
+    if (!auction.highestBid) {
+      // No existing bid - minimum is the initial amount
+      return BigInt(auction.initialAmount);
+    } else {
+      // There's an existing bid - need to add increment
+      const currentPrice = BigInt(auction.highestBid.amount);
+      const minIncrementBPS = 500; // Default 5% increment
+      return currentPrice + (currentPrice * BigInt(minIncrementBPS)) / BigInt(10000);
+    }
+  }, [auction]);
+
+  // Pre-fill bid amount with minimum bid when auction data is available
+  useEffect(() => {
+    if (auction && calculateMinBid > BigInt(0) && !bidAmount) {
+      // Format the minimum bid inline to avoid dependency issues
+      const value = calculateMinBid;
+      const divisor = BigInt(10 ** paymentDecimals);
+      const wholePart = value / divisor;
+      const fractionalPart = value % divisor;
+      
+      let minBidFormatted: string;
+      if (fractionalPart === BigInt(0)) {
+        minBidFormatted = wholePart.toString();
+      } else {
+        let fractionalStr = fractionalPart.toString().padStart(paymentDecimals, "0");
+        fractionalStr = fractionalStr.replace(/0+$/, "");
+        if (fractionalStr.length > 6) {
+          fractionalStr = fractionalStr.slice(0, 6);
+        }
+        minBidFormatted = `${wholePart}.${fractionalStr}`;
+      }
+      setBidAmount(minBidFormatted);
+    }
+  }, [auction, calculateMinBid, bidAmount, paymentDecimals]);
+
   const handleBid = async () => {
     if (!isConnected || !bidAmount || !auction || !address) {
       return;
@@ -303,22 +342,18 @@ export default function AuctionDetailClient({
 
     try {
       // Parse bid amount using the correct decimals for the payment token
-      const bidAmountBigInt = BigInt(Math.floor(parseFloat(bidAmount) * 10 ** paymentDecimals));
+      // Use a more precise parsing method to avoid floating point issues
+      const bidAmountBigInt = (() => {
+        const parts = bidAmount.split('.');
+        const wholePart = BigInt(parts[0] || '0');
+        const fractionalPart = parts[1] ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals)) : BigInt(0);
+        return wholePart * BigInt(10 ** paymentDecimals) + fractionalPart;
+      })();
       
-      // Calculate minimum bid
-      // If there's no existing bid, minimum is just the initial amount (no increment needed)
-      // If there is an existing bid, we need to add the increment
-      let minBid: bigint;
-      if (!auction.highestBid) {
-        // No existing bid - minimum is the initial amount
-        minBid = BigInt(auction.initialAmount);
-      } else {
-        // There's an existing bid - need to add increment
-        const currentPrice = BigInt(auction.highestBid.amount);
-        const minIncrementBPS = 500; // Default 5% increment
-        minBid = currentPrice + (currentPrice * BigInt(minIncrementBPS)) / BigInt(10000);
-      }
+      // Use the calculated minimum bid
+      const minBid = calculateMinBid;
       
+      // Allow bids that are exactly equal to or greater than the minimum
       if (bidAmountBigInt < minBid) {
         alert(`Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`);
         return;
@@ -1084,14 +1119,11 @@ export default function AuctionDetailClient({
                       <input
                         type="number"
                         step="0.001"
+                        min={formatPrice(calculateMinBid.toString())}
                         value={bidAmount}
                         onChange={(e) => setBidAmount(e.target.value)}
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
-                        placeholder={
-                          auction.highestBid
-                            ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
-                            : `Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`
-                        }
+                        placeholder={`Min: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                       />
                       {/* Show user balance */}
                       {!userBalance.isLoading && (
