@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useMiniApp } from "@neynar/react";
+import { useProfile } from "@farcaster/auth-kit";
 import { useUserAuctions } from "~/hooks/useUserAuctions";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
@@ -15,33 +16,43 @@ type TabType = "created" | "collected" | "bids" | "offers";
 export default function ProfileClient() {
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
+  const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const [activeTab, setActiveTab] = useState<TabType>("created");
   
-  // Get verified addresses from Farcaster if available
-  const farcasterAddress = context?.user
+  // Get verified addresses from Farcaster if available (mini-app context)
+  const farcasterMiniAppAddress = context?.user
     ? (context.user as any).verified_addresses?.primary?.eth_address ||
       (context.user as any).custody_address ||
       ((context.user as any).verifications?.[0] as string)
     : null;
   
-  // Use connected wallet address, or fall back to Farcaster verified address
-  const userAddress = address || farcasterAddress;
-  const hasAddress = !!userAddress;
+  // Get verified address from Farcaster web auth profile if available
+  const farcasterWebAddress = farcasterProfile
+    ? (farcasterProfile as any).verified_addresses?.primary?.eth_address ||
+      (farcasterProfile as any).custody_address ||
+      ((farcasterProfile as any).verifications?.[0] as string)
+    : null;
   
-  // Resolve ENS name and avatar for address when not logged in via Farcaster mini-app
+  // Use connected wallet address, or fall back to Farcaster verified address
+  const userAddress = address || farcasterMiniAppAddress || farcasterWebAddress;
+  
+  // User is authenticated if they have an address OR are authenticated via Farcaster web auth
+  const isAuthenticated = !!userAddress || isFarcasterAuth || !!context?.user;
+  
+  // Resolve ENS name and avatar for address when not logged in via Farcaster
   const isMiniApp = !!context?.user;
-  const shouldResolveEns = !isMiniApp && isConnected && !!address;
+  const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
   const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
   
-  // Determine avatar URL: Farcaster pfp > ENS avatar > undefined
-  const avatarUrl = context?.user?.pfpUrl || ensAvatar || undefined;
+  // Determine avatar URL: Farcaster pfp (mini-app) > Farcaster pfp (web) > ENS avatar > undefined
+  const avatarUrl = context?.user?.pfpUrl || farcasterProfile?.pfpUrl || ensAvatar || undefined;
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
   const collectedAuctions: any[] = [];
 
-  if (!hasAddress) {
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -68,7 +79,7 @@ export default function ProfileClient() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Profile</h1>
           
-          {(context?.user || avatarUrl) && (
+          {(context?.user || farcasterProfile || avatarUrl) && (
             <div className="flex items-center gap-4 mb-6">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -90,6 +101,11 @@ export default function ProfileClient() {
                   <>
                     <p className="font-semibold text-gray-900">{context.user.username}</p>
                     <p className="text-sm text-gray-600">@{context.user.username}</p>
+                  </>
+                ) : farcasterProfile ? (
+                  <>
+                    <p className="font-semibold text-gray-900">{farcasterProfile.displayName || farcasterProfile.username}</p>
+                    <p className="text-sm text-gray-600">@{farcasterProfile.username}</p>
                   </>
                 ) : (
                   <>
