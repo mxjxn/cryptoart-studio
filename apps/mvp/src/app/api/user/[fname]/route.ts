@@ -15,6 +15,7 @@ import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { type Address } from "viem";
 import { normalizeListingType } from "~/lib/server/auction";
 import { discoverAndCacheUser } from "~/lib/server/user-discovery";
+import { lookupNeynarByUsername } from "~/lib/artist-name-resolution";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -204,8 +205,47 @@ async function resolveUserAddresses(fname: string): Promise<{
       };
     }
     
+    // Username not found in cache - try to discover via Neynar API
+    console.log(`[resolveUserAddresses] Username not in cache, looking up via Neynar: ${fname}`);
+    const neynarUser = await lookupNeynarByUsername(fname);
+    
+    if (neynarUser) {
+      // User found via Neynar - re-fetch from cache (it should be cached now)
+      const [discoveredUser] = await db.select()
+        .from(userCache)
+        .where(eq(userCache.ethAddress, neynarUser.address))
+        .limit(1);
+      
+      if (discoveredUser) {
+        const verifiedWallets = (discoveredUser.verifiedWallets as string[] | null) || [];
+        const allAddresses = [neynarUser.address, ...verifiedWallets.map(w => w.toLowerCase())]
+          .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
+        
+        return {
+          primaryAddress: neynarUser.address,
+          allAddresses,
+          userData: discoveredUser as UserCacheData,
+        };
+      }
+      
+      // If cache lookup failed but we have Neynar data, return it anyway
+      return {
+        primaryAddress: neynarUser.address,
+        allAddresses: neynarUser.verifiedWallets.length > 0 
+          ? [neynarUser.address, ...neynarUser.verifiedWallets]
+          : [neynarUser.address],
+        userData: {
+          ethAddress: neynarUser.address,
+          fid: neynarUser.fid,
+          username: neynarUser.username,
+          displayName: neynarUser.displayName,
+          pfpUrl: neynarUser.pfpUrl,
+          verifiedWallets: neynarUser.verifiedWallets,
+        } as UserCacheData,
+      };
+    }
+    
     // Username not found - could be a new user or invalid username
-    // We can't discover by username alone, need the address
     return {
       primaryAddress: null,
       allAddresses: [],

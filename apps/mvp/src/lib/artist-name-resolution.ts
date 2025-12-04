@@ -157,6 +157,120 @@ export async function lookupNeynarByAddress(
 }
 
 /**
+ * Lookup user by username using Neynar API
+ * Returns user data including address, which can then be cached
+ */
+export async function lookupNeynarByUsername(
+  username: string
+): Promise<{
+  address: string;
+  fid: number;
+  username: string;
+  displayName: string | null;
+  pfpUrl: string | null;
+  verifiedWallets: string[];
+} | null> {
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) {
+    console.warn(
+      "[lookupNeynarByUsername] NEYNAR_API_KEY not configured, skipping Neynar lookup"
+    );
+    return null;
+  }
+
+  try {
+    // Remove @ if present
+    const cleanUsername = username.replace(/^@/, '').toLowerCase();
+    const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(cleanUsername)}`;
+    console.log("[lookupNeynarByUsername] Fetching from URL:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "x-api-key": apiKey,
+        "x-neynar-experimental": "false",
+      },
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    });
+
+    console.log(
+      "[lookupNeynarByUsername] Response status:",
+      response.status,
+      response.statusText
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(
+          "[lookupNeynarByUsername] No user found with this username (404)"
+        );
+        return null;
+      }
+      const errorText = await response.text();
+      console.error(
+        "[lookupNeynarByUsername] Neynar API error:",
+        response.status,
+        errorText
+      );
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(
+      "[lookupNeynarByUsername] Response data:",
+      JSON.stringify(data, null, 2)
+    );
+
+    // The by_username endpoint returns a user object directly
+    // Response format: { result: { user: { fid, username, display_name, pfp_url, verified_addresses, ... } } }
+    const user = data.result?.user || data.user;
+    
+    if (user && user.fid) {
+      const primaryAddress = user.verified_addresses?.eth_addresses?.[0];
+      if (!primaryAddress) {
+        console.log("[lookupNeynarByUsername] User found but no verified ETH address");
+        return null;
+      }
+
+      const result = {
+        address: primaryAddress.toLowerCase(),
+        fid: user.fid,
+        username: user.username,
+        displayName: user.display_name || null,
+        pfpUrl: user.pfp_url || null,
+        verifiedWallets: (user.verified_addresses?.eth_addresses || []).map((addr: string) => addr.toLowerCase()),
+      };
+
+      // Cache the result for future use
+      try {
+        await cacheUserInfo(result.address, {
+          fid: result.fid,
+          username: result.username,
+          displayName: result.displayName,
+          pfpUrl: result.pfpUrl,
+          verifiedWallets: result.verifiedWallets,
+          source: 'neynar',
+        });
+      } catch (error) {
+        // Database connection failure - log but don't fail the lookup
+        console.warn("[lookupNeynarByUsername] Failed to cache user info:", error instanceof Error ? error.message : String(error));
+      }
+
+      return result;
+    }
+
+    console.log("[lookupNeynarByUsername] No valid user found, returning null");
+    return null;
+  } catch (error) {
+    console.error(
+      "[lookupNeynarByUsername] Error looking up Neynar user by username:",
+      error
+    );
+    return null;
+  }
+}
+
+/**
  * Reverse resolve ENS name from address
  * Now checks cache first before making RPC calls
  */
