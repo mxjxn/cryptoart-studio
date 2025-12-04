@@ -7,7 +7,7 @@ import { useContractName } from "~/hooks/useContractName";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { useUsername } from "~/hooks/useUsername";
 import { CopyButton } from "~/components/CopyButton";
-import { FavoriteButton } from "~/components/FavoriteButton";
+// import { FavoriteButton } from "~/components/FavoriteButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 
@@ -129,9 +129,10 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
         }}
       >
         {getListingTypeBadge()}
-        <div className="absolute top-2 left-2">
+        {/* FavoriteButton hidden - will reconsider placement later */}
+        {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />
-        </div>
+        </div> */}
         <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 to-transparent">
           <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
           {contractName && (

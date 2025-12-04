@@ -80,6 +80,10 @@ export default function ProfileClient() {
   const [savedListings, setSavedListings] = useState<EnrichedAuctionData[]>([]);
   const [savedListingsLoading, setSavedListingsLoading] = useState(false);
   
+  // FIXME: Infinite loop bug - savedListings.length is in the dependency array (line 104),
+  // which causes the effect to re-run when listings are fetched, creating an infinite loop.
+  // The condition `savedListings.length === 0` in the if statement doesn't prevent this
+  // because the dependency array still triggers when length changes from 0 to >0.
   // Fetch saved listings when tab is active
   useEffect(() => {
     if (activeTab === "saved" && userAddress && !savedListingsLoading && savedListings.length === 0) {
@@ -214,7 +218,8 @@ export default function ProfileClient() {
             >
               Offers ({activeOffers.length})
             </button>
-            <button
+            {/* Saved tab hidden - was glitching with infinite loop */}
+            {/* <button
               onClick={() => setActiveTab("saved")}
               className={`pb-2 px-2 text-sm ${
                 activeTab === "saved"
@@ -223,7 +228,7 @@ export default function ProfileClient() {
               }`}
             >
               Saved ({savedListings.length})
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -304,7 +309,8 @@ export default function ProfileClient() {
                 )}
               </div>
             )}
-            {activeTab === "saved" && (
+            {/* Saved tab content hidden - was glitching with infinite loop */}
+            {/* {activeTab === "saved" && (
               <div>
                 {savedListingsLoading ? (
                   <p className="text-[#999999]">Loading saved listings...</p>
@@ -323,7 +329,7 @@ export default function ProfileClient() {
                   </div>
                 )}
               </div>
-            )}
+            )} */}
           </div>
         )}
       </div>
