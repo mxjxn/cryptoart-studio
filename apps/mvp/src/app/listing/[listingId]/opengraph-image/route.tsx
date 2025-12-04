@@ -155,7 +155,7 @@ export async function GET(
         ),
         {
           width: 1200,
-          height: 630,
+          height: 800,
         }
       );
     }
@@ -214,7 +214,7 @@ export async function GET(
         ),
         {
           width: 1200,
-          height: 630,
+          height: 800,
           fonts: [
             {
               name: 'MEK-Mono',
@@ -422,20 +422,20 @@ export async function GET(
         </div>
       </div>
     ),
-    {
-      width: 1200,
-      height: 630, // 3:2 aspect ratio required by Farcaster Mini App spec
-      fonts: [
         {
-          name: 'MEK-Mono',
-          data: fontData,
-          style: 'normal',
-        },
-      ],
-      headers: {
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
-      },
-    }
+          width: 1200,
+          height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
+          fonts: [
+            {
+              name: 'MEK-Mono',
+              data: fontData,
+              style: 'normal',
+            },
+          ],
+          headers: {
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
+          },
+        }
   );
   } catch (error) {
     console.error(`[OG Image] Fatal error in listing OG image route:`, error);
@@ -468,7 +468,7 @@ export async function GET(
       ),
       {
         width: 1200,
-        height: 630,
+        height: 800,
         headers: {
           'Cache-Control': 'public, max-age=300, s-maxage=300',
         },

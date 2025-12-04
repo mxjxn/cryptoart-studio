@@ -21,17 +21,22 @@ export const publicClient = createPublicClient({
 export async function lookupNeynarByAddress(
   address: string
 ): Promise<{ name: string; fid: number } | null> {
-  // Check cache first
-  const cached = await getUserFromCache(address);
-  if (cached && cached.expiresAt > new Date() && cached.fid) {
-    const name = cached.username || cached.displayName || cached.ensName;
-    if (name) {
-      console.log("[lookupNeynarByAddress] Using cached data for:", address);
-      return {
-        name,
-        fid: cached.fid,
-      };
+  // Check cache first (wrap in try-catch to handle database connection failures)
+  try {
+    const cached = await getUserFromCache(address);
+    if (cached && cached.expiresAt > new Date() && cached.fid) {
+      const name = cached.username || cached.displayName || cached.ensName;
+      if (name) {
+        console.log("[lookupNeynarByAddress] Using cached data for:", address);
+        return {
+          name,
+          fid: cached.fid,
+        };
+      }
     }
+  } catch (error) {
+    // Database connection failure - log but continue to API lookup
+    console.warn("[lookupNeynarByAddress] Cache lookup failed, falling back to API:", error instanceof Error ? error.message : String(error));
   }
   
   // Cache miss or expired - fetch from API
@@ -118,15 +123,20 @@ export async function lookupNeynarByAddress(
         const name = user.username || user.display_name || `@${user.username}`;
         console.log("[lookupNeynarByAddress] Returning name:", name);
         
-        // Cache the result for future use
-        await cacheUserInfo(address, {
-          fid: user.fid,
-          username: user.username,
-          displayName: user.display_name,
-          pfpUrl: user.pfp_url,
-          verifiedWallets: user.verified_addresses?.eth_addresses || [],
-          source: 'neynar',
-        });
+        // Cache the result for future use (wrap in try-catch to handle database connection failures)
+        try {
+          await cacheUserInfo(address, {
+            fid: user.fid,
+            username: user.username,
+            displayName: user.display_name,
+            pfpUrl: user.pfp_url,
+            verifiedWallets: user.verified_addresses?.eth_addresses || [],
+            source: 'neynar',
+          });
+        } catch (error) {
+          // Database connection failure - log but don't fail the lookup
+          console.warn("[lookupNeynarByAddress] Failed to cache user info:", error instanceof Error ? error.message : String(error));
+        }
         
         return {
           name,
@@ -151,11 +161,16 @@ export async function lookupNeynarByAddress(
  * Now checks cache first before making RPC calls
  */
 export async function resolveEnsName(address: string): Promise<string | null> {
-  // Check cache first
-  const cached = await getUserFromCache(address);
-  if (cached && cached.expiresAt > new Date() && cached.ensName) {
-    console.log("[resolveEnsName] Using cached ENS name for:", address);
-    return cached.ensName;
+  // Check cache first (wrap in try-catch to handle database connection failures)
+  try {
+    const cached = await getUserFromCache(address);
+    if (cached && cached.expiresAt > new Date() && cached.ensName) {
+      console.log("[resolveEnsName] Using cached ENS name for:", address);
+      return cached.ensName;
+    }
+  } catch (error) {
+    // Database connection failure - log but continue to ENS lookup
+    console.warn("[resolveEnsName] Cache lookup failed, falling back to ENS lookup:", error instanceof Error ? error.message : String(error));
   }
   
   try {
@@ -163,12 +178,17 @@ export async function resolveEnsName(address: string): Promise<string | null> {
       address: address as `0x${string}`,
     });
     
-    // Cache the result if found
+    // Cache the result if found (wrap in try-catch to handle database connection failures)
     if (ensName) {
-      await cacheUserInfo(address, {
-        ensName,
-        source: 'ens',
-      });
+      try {
+        await cacheUserInfo(address, {
+          ensName,
+          source: 'ens',
+        });
+      } catch (error) {
+        // Database connection failure - log but don't fail the lookup
+        console.warn("[resolveEnsName] Failed to cache ENS name:", error instanceof Error ? error.message : String(error));
+      }
     }
     
     return ensName;
