@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { APP_NAME, APP_DESCRIPTION, APP_OG_IMAGE_URL } from "~/lib/constants";
+import { APP_NAME, APP_DESCRIPTION, APP_URL } from "~/lib/constants";
 import { getMiniAppEmbedMetadata } from "~/lib/utils";
 import { getCachedActiveAuctions } from "~/lib/server/auction";
 import type { EnrichedAuctionData } from "~/lib/types";
