@@ -120,7 +120,11 @@ export type NotificationType =
   | 'OFFER_ACCEPTED'
   | 'OFFER_RESCINDED'
   | 'LISTING_CANCELLED'
-  | 'LISTING_MODIFIED';
+  | 'LISTING_MODIFIED'
+  | 'FOLLOWED_USER_NEW_LISTING'
+  | 'FAVORITE_LOW_STOCK'
+  | 'FAVORITE_NEW_BID'
+  | 'FAVORITE_ENDING_SOON';
 
 export interface NotificationData {
   id: number;
@@ -183,4 +187,47 @@ export interface ImageCacheData {
   contentType: string;
   cachedAt: Date;
   expiresAt: Date;
+}
+
+/**
+ * Follows table - Track user follows
+ * followerAddress follows followingAddress
+ */
+export const follows = pgTable('follows', {
+  id: serial('id').primaryKey(),
+  followerAddress: text('follower_address').notNull(), // User who is following
+  followingAddress: text('following_address').notNull(), // User being followed
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  followerAddressIdx: index('follows_follower_address_idx').on(table.followerAddress),
+  followingAddressIdx: index('follows_following_address_idx').on(table.followingAddress),
+  uniqueFollowIdx: index('follows_unique_follow_idx').on(table.followerAddress, table.followingAddress),
+}));
+
+export interface FollowData {
+  id: number;
+  followerAddress: string;
+  followingAddress: string;
+  createdAt: Date;
+}
+
+/**
+ * Favorites table - Track user favorite listings
+ */
+export const favorites = pgTable('favorites', {
+  id: serial('id').primaryKey(),
+  userAddress: text('user_address').notNull(), // User who favorited
+  listingId: text('listing_id').notNull(), // Listing ID
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userAddressIdx: index('favorites_user_address_idx').on(table.userAddress),
+  listingIdIdx: index('favorites_listing_id_idx').on(table.listingId),
+  uniqueFavoriteIdx: index('favorites_unique_favorite_idx').on(table.userAddress, table.listingId),
+}));
+
+export interface FavoriteData {
+  id: number;
+  userAddress: string;
+  listingId: string;
+  createdAt: Date;
 }

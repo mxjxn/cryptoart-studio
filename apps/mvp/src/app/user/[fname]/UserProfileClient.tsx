@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { TransitionLink } from "~/components/TransitionLink";
 import { AuctionCard } from "~/components/AuctionCard";
+import { FollowButton } from "~/components/FollowButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 
@@ -85,7 +87,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -101,7 +103,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -126,7 +128,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <div className="text-base font-normal tracking-[0.5px]">cryptoart.social</div>
+        <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>
@@ -145,7 +147,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
             ) : (
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
             )}
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-light mb-1">{displayName}</h1>
               {profileData.user?.username && (
                 <p className="text-sm text-[#999999]">@{profileData.user.username}</p>
@@ -154,6 +156,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
                 <p className="text-sm text-[#999999]">{profileData.user.ensName}</p>
               )}
             </div>
+            <FollowButton followingAddress={profileData.primaryAddress} />
           </div>
 
           {/* Tabs */}

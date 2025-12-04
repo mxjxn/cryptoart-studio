@@ -5,7 +5,9 @@ export {
   notifications,
   notificationPreferences,
   notificationWorkerState,
-  imageCache
+  imageCache,
+  follows,
+  favorites
 } from './client';
 export type { 
   UserCacheData, 
@@ -14,7 +16,9 @@ export type {
   NotificationPreferencesData,
   NotificationType,
   NotificationWorkerStateData,
-  ImageCacheData
+  ImageCacheData,
+  FollowData,
+  FavoriteData
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

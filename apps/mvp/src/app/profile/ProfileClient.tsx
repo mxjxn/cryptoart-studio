@@ -9,10 +9,12 @@ import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { formatEther } from "viem";
 import Link from "next/link";
+import { TransitionLink } from "~/components/TransitionLink";
 import { AuctionCard } from "~/components/AuctionCard";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import type { EnrichedAuctionData } from "~/lib/types";
 
-type TabType = "created" | "collected" | "bids" | "offers";
+type TabType = "created" | "collected" | "bids" | "offers" | "saved";
 
 export default function ProfileClient() {
   const { address, isConnected } = useAccount();
@@ -73,6 +75,33 @@ export default function ProfileClient() {
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
   const collectedAuctions: any[] = [];
+  
+  // Saved listings state
+  const [savedListings, setSavedListings] = useState<EnrichedAuctionData[]>([]);
+  const [savedListingsLoading, setSavedListingsLoading] = useState(false);
+  
+  // Fetch saved listings when tab is active
+  useEffect(() => {
+    if (activeTab === "saved" && userAddress && !savedListingsLoading && savedListings.length === 0) {
+      async function fetchSavedListings() {
+        setSavedListingsLoading(true);
+        try {
+          const response = await fetch(
+            `/api/favorites/listings?userAddress=${encodeURIComponent(userAddress)}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setSavedListings(data.listings || []);
+          }
+        } catch (error) {
+          console.error('Error fetching saved listings:', error);
+        } finally {
+          setSavedListingsLoading(false);
+        }
+      }
+      fetchSavedListings();
+    }
+  }, [activeTab, userAddress, savedListingsLoading, savedListings.length]);
 
   // Get display name
   const displayName = context?.user
@@ -94,7 +123,7 @@ export default function ProfileClient() {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -109,7 +138,7 @@ export default function ProfileClient() {
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+        <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>
@@ -185,6 +214,16 @@ export default function ProfileClient() {
             >
               Offers ({activeOffers.length})
             </button>
+            <button
+              onClick={() => setActiveTab("saved")}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === "saved"
+                  ? "border-b-2 border-white text-white"
+                  : "text-[#999999] hover:text-[#cccccc]"
+              }`}
+            >
+              Saved ({savedListings.length})
+            </button>
           </div>
         </div>
 
@@ -257,6 +296,26 @@ export default function ProfileClient() {
                       <AuctionCard
                         key={auction.id}
                         auction={auction as any}
+                        gradient={gradients[index % gradients.length]}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "saved" && (
+              <div>
+                {savedListingsLoading ? (
+                  <p className="text-[#999999]">Loading saved listings...</p>
+                ) : savedListings.length === 0 ? (
+                  <p className="text-[#999999]">No saved listings yet.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {savedListings.map((auction, index) => (
+                      <AuctionCard
+                        key={auction.listingId}
+                        auction={auction}
                         gradient={gradients[index % gradients.length]}
                         index={index}
                       />

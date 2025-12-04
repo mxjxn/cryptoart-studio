@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
+import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { useUsername } from "~/hooks/useUsername";
 import { CopyButton } from "~/components/CopyButton";
+import { FavoriteButton } from "~/components/FavoriteButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 
@@ -115,7 +116,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   const { username: creatorUsername } = useUsername(addressToShow || null);
 
   return (
-    <Link
+    <TransitionLink
       href={`/listing/${auction.listingId}`}
       className="relative w-full cursor-pointer transition-opacity hover:opacity-90"
     >
@@ -128,6 +129,9 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
         }}
       >
         {getListingTypeBadge()}
+        <div className="absolute top-2 left-2">
+          <FavoriteButton listingId={auction.listingId} />
+        </div>
         <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 to-transparent">
           <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
           {contractName && (
@@ -139,34 +143,34 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             <div className="text-xs text-[#cccccc] mb-2">
               by{" "}
               {creatorUsername ? (
-                <Link
+                <TransitionLink
                   href={`/user/${creatorUsername}`}
                   onClick={(e) => e.stopPropagation()}
                   className="hover:underline"
                 >
                   {displayArtist}
-                </Link>
+                </TransitionLink>
               ) : addressToShow ? (
-                <Link
+                <TransitionLink
                   href={`/user/${addressToShow}`}
                   onClick={(e) => e.stopPropagation()}
                   className="hover:underline"
                 >
                   {displayArtist}
-                </Link>
+                </TransitionLink>
               ) : (
                 displayArtist
               )}
             </div>
           ) : addressToShow && !artistNameLoading ? (
             <div className="text-xs text-[#cccccc] mb-2 flex items-center gap-1.5">
-              <Link
+              <TransitionLink
                 href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
                 onClick={(e) => e.stopPropagation()}
                 className="font-mono text-[10px] hover:underline"
               >
                 {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
-              </Link>
+              </TransitionLink>
               <CopyButton text={addressToShow} size="sm" />
             </div>
           ) : null}
@@ -195,7 +199,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
           </div>
         </div>
       </div>
-    </Link>
+    </TransitionLink>
   );
 }
 

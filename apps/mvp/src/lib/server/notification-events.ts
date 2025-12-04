@@ -208,6 +208,7 @@ function formatListingType(listingType: string | number): string {
  */
 export async function processNewListings(sinceBlock: number): Promise<void> {
   const endpoint = getSubgraphEndpoint();
+  const { getDatabase, follows, eq } = await import('@cryptoart/db');
   
   try {
     const data = await request<{ listings: any[] }>(
@@ -244,6 +245,39 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
           },
         }
       );
+      
+      // Notify followers of the seller
+      try {
+        const db = getDatabase();
+        const normalizedSeller = listing.seller.toLowerCase();
+        const followers = await db.select()
+          .from(follows)
+          .where(eq(follows.followingAddress, normalizedSeller));
+        
+        const sellerName = await getUserName(listing.seller);
+        
+        for (const follow of followers) {
+          const followerNeynar = await lookupNeynarByAddress(follow.followerAddress);
+          await createNotification(
+            follow.followerAddress,
+            'FOLLOWED_USER_NEW_LISTING',
+            'New Listing from Followed User',
+            `${sellerName} created a new ${listingType}: ${artworkName}`,
+            {
+              fid: followerNeynar?.fid,
+              listingId: listing.listingId,
+              metadata: {
+                seller: listing.seller,
+                listingType: listing.listingType,
+                artworkName,
+              },
+            }
+          );
+        }
+      } catch (error) {
+        console.error('[notification-events] Error notifying followers:', error);
+        // Don't fail the whole process if follower notifications fail
+      }
     }
   } catch (error) {
     console.error('[notification-events] Error processing new listings:', error);
@@ -315,6 +349,56 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
           },
         }
       );
+      
+      // Notify users who favorited this listing
+      try {
+        const { getDatabase, favorites, eq } = await import('@cryptoart/db');
+        const db = getDatabase();
+        const favoritedUsers = await db.select()
+          .from(favorites)
+          .where(eq(favorites.listingId, listing.listingId));
+        
+        // Format amount for display
+        const formatAmount = (amount: string): string => {
+          try {
+            const value = BigInt(amount);
+            const ethValue = Number(value) / 1e18;
+            return ethValue.toFixed(4);
+          } catch {
+            return amount;
+          }
+        };
+        
+        const formattedAmount = formatAmount(bid.amount);
+        
+        for (const favorite of favoritedUsers) {
+          // Don't notify the bidder or seller (they already got notifications)
+          if (favorite.userAddress.toLowerCase() === bid.bidder.toLowerCase() ||
+              favorite.userAddress.toLowerCase() === listing.seller.toLowerCase()) {
+            continue;
+          }
+          
+          const favoriterNeynar = await lookupNeynarByAddress(favorite.userAddress);
+          await createNotification(
+            favorite.userAddress,
+            'FAVORITE_NEW_BID',
+            'New Bid on Favorited Listing',
+            `${artworkName} received a new bid: ${formattedAmount} ETH`,
+            {
+              fid: favoriterNeynar?.fid,
+              listingId: listing.listingId,
+              metadata: {
+                bidder: bid.bidder,
+                amount: bid.amount,
+                artworkName,
+              },
+            }
+          );
+        }
+      } catch (error) {
+        console.error('[notification-events] Error notifying favorited users:', error);
+        // Don't fail the whole process if favorite notifications fail
+      }
       
       // Notify previous highest bidder if they were outbid
       try {
@@ -467,6 +551,70 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
           },
         }
       );
+      
+      // For ERC1155 listings, check if stock is running low and notify favorited users
+      if (isERC1155) {
+        try {
+          // Get current listing state to check remaining stock
+          const listingData = await request<{ listing: any }>(
+            endpoint,
+            gql`
+              query GetListing($listingId: BigInt!) {
+                listing(id: $listingId) {
+                  totalAvailable
+                  totalSold
+                }
+              }
+            `,
+            { listingId: listing.listingId },
+            getSubgraphHeaders()
+          );
+          
+          if (listingData.listing) {
+            const totalAvailable = parseInt(listingData.listing.totalAvailable || '0');
+            const totalSold = parseInt(listingData.listing.totalSold || '0');
+            const remaining = totalAvailable - totalSold;
+            
+            // Notify favorited users if only 1 left
+            if (remaining === 1) {
+              const { getDatabase, favorites, eq } = await import('@cryptoart/db');
+              const db = getDatabase();
+              const favoritedUsers = await db.select()
+                .from(favorites)
+                .where(eq(favorites.listingId, listing.listingId));
+              
+              for (const favorite of favoritedUsers) {
+                // Don't notify the buyer or seller
+                if (favorite.userAddress.toLowerCase() === purchase.buyer.toLowerCase() ||
+                    favorite.userAddress.toLowerCase() === listing.seller.toLowerCase()) {
+                  continue;
+                }
+                
+                const favoriterNeynar = await lookupNeynarByAddress(favorite.userAddress);
+                const sellerName = await getUserName(listing.seller);
+                await createNotification(
+                  favorite.userAddress,
+                  'FAVORITE_LOW_STOCK',
+                  'Low Stock Alert',
+                  `Only one ${artworkName} by ${sellerName} left!`,
+                  {
+                    fid: favoriterNeynar?.fid,
+                    listingId: listing.listingId,
+                    metadata: {
+                      artworkName,
+                      seller: listing.seller,
+                      remaining: 1,
+                    },
+                  }
+                );
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[notification-events] Error checking low stock:', error);
+          // Don't fail the whole process if low stock check fails
+        }
+      }
     }
   } catch (error) {
     console.error('[notification-events] Error processing purchases:', error);
@@ -541,6 +689,145 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
     }
   } catch (error) {
     console.error('[notification-events] Error processing finalized listings:', error);
+  }
+}
+
+/**
+ * Check for listings ending soon and notify favorited users
+ * This should be called periodically (e.g., every 15 minutes)
+ */
+export async function processEndingSoonListings(): Promise<void> {
+  const endpoint = getSubgraphEndpoint();
+  const { getDatabase, favorites, eq, inArray } = await import('@cryptoart/db');
+  
+  try {
+    // Get current time and 1 hour from now (in seconds)
+    const now = Math.floor(Date.now() / 1000);
+    const oneHourFromNow = now + 3600;
+    
+    // Query active listings ending within the next hour
+    const data = await request<{ listings: any[] }>(
+      endpoint,
+      gql`
+        query EndingSoonListings($now: BigInt!, $oneHourFromNow: BigInt!) {
+          listings(
+            where: {
+              status: "ACTIVE"
+              finalized: false
+              endTime_gte: $now
+              endTime_lte: $oneHourFromNow
+            }
+            first: 1000
+          ) {
+            id
+            listingId
+            seller
+            endTime
+            listingType
+            tokenAddress
+            tokenId
+            tokenSpec
+            highestBid {
+              amount
+            }
+          }
+        }
+      `,
+      {
+        now: now.toString(),
+        oneHourFromNow: oneHourFromNow.toString(),
+      },
+      getSubgraphHeaders()
+    );
+    
+    if (!data.listings || data.listings.length === 0) {
+      return;
+    }
+    
+    const listingIds = data.listings.map(l => l.listingId);
+    const db = getDatabase();
+    
+    // Get all favorites for these listings
+    const allFavorites = await db.select()
+      .from(favorites)
+      .where(inArray(favorites.listingId, listingIds));
+    
+    // Group favorites by listingId
+    const favoritesByListing = new Map<string, typeof allFavorites>();
+    for (const favorite of allFavorites) {
+      if (!favoritesByListing.has(favorite.listingId)) {
+        favoritesByListing.set(favorite.listingId, []);
+      }
+      favoritesByListing.get(favorite.listingId)!.push(favorite);
+    }
+    
+    // Process each listing
+    for (const listing of data.listings) {
+      const listingFavorites = favoritesByListing.get(listing.listingId) || [];
+      if (listingFavorites.length === 0) continue;
+      
+      const artworkName = await getArtworkName(
+        listing.tokenAddress,
+        listing.tokenId,
+        listing.tokenSpec
+      );
+      
+      // Calculate time remaining
+      const endTime = parseInt(listing.endTime);
+      const timeRemaining = endTime - now;
+      const hoursRemaining = Math.floor(timeRemaining / 3600);
+      const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+      
+      let timeString = '';
+      if (hoursRemaining > 0) {
+        timeString = `${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''}`;
+      } else {
+        timeString = `${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''}`;
+      }
+      
+      // Format current bid
+      let bidInfo = '';
+      if (listing.highestBid && listing.highestBid.amount) {
+        try {
+          const bidAmount = BigInt(listing.highestBid.amount);
+          const ethValue = Number(bidAmount) / 1e18;
+          bidInfo = ` (current bid ${ethValue.toFixed(4)} ETH)`;
+        } catch {
+          bidInfo = '';
+        }
+      }
+      
+      const sellerName = await getUserName(listing.seller);
+      
+      // Notify each user who favorited this listing
+      for (const favorite of listingFavorites) {
+        // Don't notify the seller
+        if (favorite.userAddress.toLowerCase() === listing.seller.toLowerCase()) {
+          continue;
+        }
+        
+        const favoriterNeynar = await lookupNeynarByAddress(favorite.userAddress);
+        await createNotification(
+          favorite.userAddress,
+          'FAVORITE_ENDING_SOON',
+          'Favorited Listing Ending Soon',
+          `${artworkName} by ${sellerName} ends in ${timeString}${bidInfo}`,
+          {
+            fid: favoriterNeynar?.fid,
+            listingId: listing.listingId,
+            metadata: {
+              artworkName,
+              seller: listing.seller,
+              endTime: listing.endTime,
+              timeRemaining,
+              currentBid: listing.highestBid?.amount || null,
+            },
+          }
+        );
+      }
+    }
+  } catch (error) {
+    console.error('[notification-events] Error processing ending soon listings:', error);
   }
 }
 
