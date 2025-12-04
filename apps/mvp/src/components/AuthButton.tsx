@@ -5,6 +5,7 @@ import { useConnect, useAccount, useDisconnect } from "wagmi";
 import { SignInButton, useProfile } from "@farcaster/auth-kit";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
+import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { useMiniApp } from "@neynar/react";
 
 /**
@@ -21,9 +22,10 @@ export function AuthButton() {
   const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const [showOptions, setShowOptions] = useState(false);
   
-  // Resolve ENS name for address when not logged in via Farcaster mini-app
+  // Resolve ENS name and avatar for address when not logged in via Farcaster mini-app
   const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
+  const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
 
   // Loading state while detecting context
   if (authModeLoading) {
@@ -79,7 +81,16 @@ export function AuthButton() {
       const displayName = ensName || `${address.slice(0, 6)}...${address.slice(-4)}`;
       return (
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500" />
+          {ensAvatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={ensAvatar}
+              alt="Profile"
+              className="w-8 h-8 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500" />
+          )}
           <span className="text-sm text-white">
             {displayName}
           </span>

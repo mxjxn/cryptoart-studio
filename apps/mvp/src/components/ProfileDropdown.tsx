@@ -8,6 +8,7 @@ import { useProfile, SignInButton } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
+import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { ThemeToggle } from "~/components/ThemeToggle";
 import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
@@ -65,16 +66,18 @@ export function ProfileDropdown() {
   const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // Resolve ENS name for address when not logged in via Farcaster mini-app
+  // Resolve ENS name and avatar for address when not logged in via Farcaster mini-app
   const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
+  const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
 
   // Determine the profile URL based on auth mode
+  // Priority: Farcaster pfp > ENS avatar > undefined
   const pfpUrl = isMiniApp
     ? context?.user?.pfpUrl
     : isFarcasterAuth
     ? farcasterProfile?.pfpUrl
-    : undefined;
+    : ensAvatar || undefined;
 
   // Determine if user is authenticated
   const isAuthenticated = isMiniApp

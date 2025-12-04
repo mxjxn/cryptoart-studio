@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { useMiniApp } from "@neynar/react";
 import { useUserAuctions } from "~/hooks/useUserAuctions";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
+import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { formatEther } from "viem";
 import Link from "next/link";
 import { AuctionCard } from "~/components/AuctionCard";
@@ -27,10 +28,14 @@ export default function ProfileClient() {
   const userAddress = address || farcasterAddress;
   const hasAddress = !!userAddress;
   
-  // Resolve ENS name for address when not logged in via Farcaster mini-app
+  // Resolve ENS name and avatar for address when not logged in via Farcaster mini-app
   const isMiniApp = !!context?.user;
   const shouldResolveEns = !isMiniApp && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
+  const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
+  
+  // Determine avatar URL: Farcaster pfp > ENS avatar > undefined
+  const avatarUrl = context?.user?.pfpUrl || ensAvatar || undefined;
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   // TODO: Implement collected auctions (won auctions)
@@ -63,12 +68,35 @@ export default function ProfileClient() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Profile</h1>
           
-          {context?.user && (
+          {(context?.user || avatarUrl) && (
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-full bg-gray-200" />
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+                  </svg>
+                </div>
+              )}
               <div>
-                <p className="font-semibold text-gray-900">{context.user.username}</p>
-                <p className="text-sm text-gray-600">@{context.user.username}</p>
+                {context?.user ? (
+                  <>
+                    <p className="font-semibold text-gray-900">{context.user.username}</p>
+                    <p className="text-sm text-gray-600">@{context.user.username}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-gray-900">{ensName || `${userAddress?.slice(0, 6)}...${userAddress?.slice(-4)}`}</p>
+                    {ensName && <p className="text-sm text-gray-600">{userAddress}</p>}
+                  </>
+                )}
               </div>
             </div>
           )}
