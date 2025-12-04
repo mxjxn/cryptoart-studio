@@ -95,12 +95,15 @@ async function fetchAuctionsBySeller(
 
   console.log(`[BySeller] Found ${data.listings?.length || 0} listings for seller ${normalizedSeller}`);
 
-  let enrichedAuctions: EnrichedAuctionData[] = data.listings;
+  // Filter out cancelled auctions before processing
+  const activeListings = data.listings.filter((listing) => listing.status !== "CANCELLED");
+
+  let enrichedAuctions: EnrichedAuctionData[] = activeListings;
 
   if (enrich) {
     // Enrich auctions with metadata and bid information
     enrichedAuctions = await Promise.all(
-      data.listings.map(async (listing) => {
+      activeListings.map(async (listing) => {
         const bidCount = listing.bids?.length || 0;
         const highestBid =
           listing.bids && listing.bids.length > 0

@@ -295,9 +295,12 @@ export async function GET(
       // For now, we'll enrich the artwork data with listings later if needed
     }
 
+    // Filter out cancelled auctions before enriching
+    const activeListings = allListings.filter((listing) => listing.status !== "CANCELLED");
+
     // Enrich listings with metadata
     const enrichedListings: EnrichedAuctionData[] = await Promise.all(
-      allListings.map(async (listing) => {
+      activeListings.map(async (listing) => {
         const bidCount = listing.bids?.length || 0;
         const highestBid =
           listing.bids && listing.bids.length > 0

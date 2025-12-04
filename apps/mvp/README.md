@@ -8,6 +8,8 @@ A minimal Farcaster mini-app for creating and bidding on NFT auctions.
 - **Create Auction**: List your NFT for auction
 - **Auction Detail**: View auction details and place bids
 - **Profile**: View your created auctions, collected NFTs, and active bids
+  - Cancelled auctions are automatically filtered out from profile history
+- **Public Profiles**: View other users' auction history and collections
 
 ## Setup
 
