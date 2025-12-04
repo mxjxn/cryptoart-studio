@@ -24,7 +24,7 @@ export const APP_TAGS: string[] = ['nft', 'auction', 'art', 'cryptoart', 'market
 // --- Asset URLs ---
 export const APP_ICON_URL: string = `${APP_URL}/icon.png`;
 
-export const APP_OG_IMAGE_URL: string = `${APP_URL}/api/opengraph-image`;
+export const APP_OG_IMAGE_URL: string = `${APP_URL}/opengraph-image`;
 
 export const APP_SPLASH_URL: string = `${APP_URL}/splash.png`;
 

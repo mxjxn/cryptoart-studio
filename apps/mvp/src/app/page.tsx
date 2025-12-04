@@ -23,8 +23,8 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [ogImageUrl],
     },
     other: {
-      "fc:miniapp": JSON.stringify(getMiniAppEmbedMetadata()),
-      "fc:frame": JSON.stringify(getMiniAppEmbedMetadata()),
+      "fc:miniapp": JSON.stringify(getMiniAppEmbedMetadata(ogImageUrl)),
+      "fc:frame": JSON.stringify(getMiniAppEmbedMetadata(ogImageUrl)),
     },
   };
 }
