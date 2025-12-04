@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { AuctionCard } from "~/components/AuctionCard";
@@ -36,8 +35,11 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [recentBidders, setRecentBidders] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
   const [recentCollectors, setRecentCollectors] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
-  const { actions, added } = useMiniApp();
+  const { actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  
+  // Check if mini-app is installed using context.client.added from Farcaster SDK
+  const isMiniAppInstalled = context?.client?.added ?? false;
 
   // Use server-side cached data initially
   // Only refetch if we don't have initial data (e.g., after navigation)
@@ -114,9 +116,9 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <Link href="/" className="font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono text-[15px]">
+        <TransitionLink href="/" className="font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono text-[15px]">
           cryptoart.social
-        </Link>
+        </TransitionLink>
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>
@@ -145,7 +147,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       </section>
 
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
-      {isMiniApp && !added && actions && (
+      {isMiniApp && !isMiniAppInstalled && actions && (
         <section className="border-b border-[#333333]">
           <div className="px-5 py-3 flex justify-end">
             <button
@@ -172,12 +174,12 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             </div>
             <div className="flex items-center gap-4">
               <div className="text-base font-normal text-white">0.5 ETH</div>
-              <Link
+              <TransitionLink
                 href="/membership"
                 className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
               >
                 Mint Pass
-              </Link>
+              </TransitionLink>
             </div>
           </div>
         </section>
@@ -246,7 +248,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </h2>
           <div className="flex gap-4 overflow-x-auto pb-2">
             {recentArtists.map((artist) => (
-              <Link
+              <TransitionLink
                 key={artist.address}
                 href={artist.username ? `/user/${artist.username}` : `/user/${artist.address}`}
                 className="flex flex-col items-center gap-2 min-w-[80px]"
@@ -263,7 +265,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 <p className="text-xs text-center text-[#cccccc] line-clamp-1">
                   {artist.displayName || artist.username || `${artist.address.slice(0, 6)}...${artist.address.slice(-4)}`}
                 </p>
-              </Link>
+              </TransitionLink>
             ))}
           </div>
         </section>
@@ -277,7 +279,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </h2>
           <div className="flex gap-4 overflow-x-auto pb-2">
             {recentBidders.map((bidder) => (
-              <Link
+              <TransitionLink
                 key={bidder.address}
                 href={bidder.username ? `/user/${bidder.username}` : `/user/${bidder.address}`}
                 className="flex flex-col items-center gap-2 min-w-[80px]"
@@ -294,7 +296,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 <p className="text-xs text-center text-[#cccccc] line-clamp-1">
                   {bidder.displayName || bidder.username || `${bidder.address.slice(0, 6)}...${bidder.address.slice(-4)}`}
                 </p>
-              </Link>
+              </TransitionLink>
             ))}
           </div>
         </section>
@@ -308,7 +310,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </h2>
           <div className="flex gap-4 overflow-x-auto pb-2">
             {recentCollectors.map((collector) => (
-              <Link
+              <TransitionLink
                 key={collector.address}
                 href={collector.username ? `/user/${collector.username}` : `/user/${collector.address}`}
                 className="flex flex-col items-center gap-2 min-w-[80px]"
@@ -325,7 +327,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 <p className="text-xs text-center text-[#cccccc] line-clamp-1">
                   {collector.displayName || collector.username || `${collector.address.slice(0, 6)}...${collector.address.slice(-4)}`}
                 </p>
-              </Link>
+              </TransitionLink>
             ))}
           </div>
         </section>

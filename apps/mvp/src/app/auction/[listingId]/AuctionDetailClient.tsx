@@ -10,6 +10,7 @@ import { ShareButton } from "~/components/ShareButton";
 import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { TransitionLink } from "~/components/TransitionLink";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
@@ -17,6 +18,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address, isAddress } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
+import { generateListingShareText } from "~/lib/share-text";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -52,8 +54,11 @@ export default function AuctionDetailClient({
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isSDKLoaded, actions, added } = useMiniApp();
+  const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  
+  // Check if mini-app is installed using context.client.added from Farcaster SDK
+  const isMiniAppInstalled = context?.client?.added ?? false;
   const { auction, loading } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const [bidAmount, setBidAmount] = useState("");
@@ -915,12 +920,26 @@ export default function AuctionDetailClient({
   const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
+  // Generate share text
+  const shareText = useMemo(() => {
+    if (!auction || isCancelled) return "";
+    return generateListingShareText(
+      auction,
+      contractName || undefined,
+      displayCreatorName || undefined,
+      displayCreatorAddress || undefined,
+      undefined, // creatorUsername not available in this file
+      paymentSymbol,
+      paymentDecimals
+    );
+  }, [auction, contractName, displayCreatorName, displayCreatorAddress, paymentSymbol, paymentDecimals, isCancelled]);
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <div className="text-base font-normal tracking-[0.5px] font-mek-mono">cryptoart.social</div>
+          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -928,7 +947,7 @@ export default function AuctionDetailClient({
       )}
       <div className="container mx-auto px-5 py-4 max-w-4xl">
         {/* Add Mini App Banner - Only show in miniapp context if not already added */}
-        {isMiniApp && !added && actions && (
+        {isMiniApp && !isMiniAppInstalled && actions && (
           <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#333333] rounded-lg">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
               <div className="flex flex-col gap-1">
@@ -979,7 +998,7 @@ export default function AuctionDetailClient({
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
-                    text={`Check out ${title}!`}
+                    text={shareText}
                   />
                 </div>
               )}
@@ -999,7 +1018,7 @@ export default function AuctionDetailClient({
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
-                    text={`Check out ${title}!`}
+                    text={shareText}
                   />
                 </div>
               )}

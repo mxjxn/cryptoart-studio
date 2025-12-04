@@ -11,7 +11,7 @@ import { ShareButton } from "~/components/ShareButton";
 import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
-import Link from "next/link";
+import { TransitionLink } from "~/components/TransitionLink";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
@@ -19,6 +19,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
+import { generateListingShareText } from "~/lib/share-text";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -53,8 +54,11 @@ export default function AuctionDetailClient({
 }: AuctionDetailClientProps) {
   const { address, isConnected } = useAccount();
   const router = useRouter();
-  const { isSDKLoaded, actions, added } = useMiniApp();
+  const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  
+  // Check if mini-app is installed using context.client.added from Farcaster SDK
+  const isMiniAppInstalled = context?.client?.added ?? false;
   const { auction, loading } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const [bidAmount, setBidAmount] = useState("");
@@ -757,14 +761,28 @@ export default function AuctionDetailClient({
   const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
+  // Generate share text
+  const shareText = useMemo(() => {
+    if (!auction || isCancelled) return "";
+    return generateListingShareText(
+      auction,
+      contractName || undefined,
+      displayCreatorName || undefined,
+      displayCreatorAddress || undefined,
+      creatorUsername || undefined,
+      paymentSymbol,
+      paymentDecimals
+    );
+  }, [auction, contractName, displayCreatorName, displayCreatorAddress, creatorUsername, paymentSymbol, paymentDecimals, isCancelled]);
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <Link href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">
+          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">
             cryptoart.social
-          </Link>
+          </TransitionLink>
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -772,7 +790,7 @@ export default function AuctionDetailClient({
       )}
       <div className="container mx-auto px-5 py-4 max-w-4xl">
         {/* Add Mini App Banner - Only show in miniapp context if not already added */}
-        {isMiniApp && !added && actions && (
+        {isMiniApp && !isMiniAppInstalled && actions && (
           <div className="mb-4 flex justify-end">
             <button
               onClick={actions.addMiniApp}
@@ -806,19 +824,19 @@ export default function AuctionDetailClient({
               <span>
                 by{" "}
                 {creatorUsername ? (
-                  <Link
+                  <TransitionLink
                     href={`/user/${creatorUsername}`}
                     className="hover:underline"
                   >
                     {displayCreatorName}
-                  </Link>
+                  </TransitionLink>
                 ) : displayCreatorAddress ? (
-                  <Link
+                  <TransitionLink
                     href={`/user/${displayCreatorAddress}`}
                     className="hover:underline"
                   >
                     {displayCreatorName}
-                  </Link>
+                  </TransitionLink>
                 ) : (
                   displayCreatorName
                 )}
@@ -832,7 +850,7 @@ export default function AuctionDetailClient({
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
-                    text={`Check out ${title}!`}
+                    text={shareText}
                   />
                 </div>
               )}
@@ -840,12 +858,12 @@ export default function AuctionDetailClient({
           ) : displayCreatorAddress && !creatorNameLoading ? (
             <div className="text-xs text-[#cccccc] mb-1 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Link
+                <TransitionLink
                   href={creatorUsername ? `/user/${creatorUsername}` : `/user/${displayCreatorAddress}`}
                   className="font-mono hover:underline"
                 >
                   {displayCreatorAddress}
-                </Link>
+                </TransitionLink>
                 <CopyButton text={displayCreatorAddress} />
               </div>
               {/* Only show share buttons if auction is not cancelled */}
@@ -857,7 +875,7 @@ export default function AuctionDetailClient({
                   <ShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
-                    text={`Check out ${title}!`}
+                    text={shareText}
                   />
                 </div>
               )}
@@ -1240,20 +1258,20 @@ export default function AuctionDetailClient({
                   <span className="ml-2 font-medium">
                     {sellerName ? (
                       sellerUsername ? (
-                        <Link href={`/user/${sellerUsername}`} className="hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : auction.seller ? (
-                        <Link href={`/user/${auction.seller}`} className="hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : (
                         sellerName
                       )
                     ) : auction.seller ? (
-                      <Link href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
                         {auction.seller}
-                      </Link>
+                      </TransitionLink>
                     ) : null}
                   </span>
                 </div>
@@ -1312,20 +1330,20 @@ export default function AuctionDetailClient({
                   <span className="ml-2 font-medium">
                     {sellerName ? (
                       sellerUsername ? (
-                        <Link href={`/user/${sellerUsername}`} className="hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : auction.seller ? (
-                        <Link href={`/user/${auction.seller}`} className="hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : (
                         sellerName
                       )
                     ) : auction.seller ? (
-                      <Link href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
                         {auction.seller}
-                      </Link>
+                      </TransitionLink>
                     ) : null}
                   </span>
                 </div>
@@ -1362,20 +1380,20 @@ export default function AuctionDetailClient({
                   <span className="ml-2 font-medium">
                     {sellerName ? (
                       sellerUsername ? (
-                        <Link href={`/user/${sellerUsername}`} className="hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : auction.seller ? (
-                        <Link href={`/user/${auction.seller}`} className="hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : (
                         sellerName
                       )
                     ) : auction.seller ? (
-                      <Link href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
                         {auction.seller}
-                      </Link>
+                      </TransitionLink>
                     ) : null}
                   </span>
                 </div>
@@ -1412,20 +1430,20 @@ export default function AuctionDetailClient({
                   <span className="ml-2 font-medium">
                     {sellerName ? (
                       sellerUsername ? (
-                        <Link href={`/user/${sellerUsername}`} className="hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : auction.seller ? (
-                        <Link href={`/user/${auction.seller}`} className="hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
                           {sellerName}
-                        </Link>
+                        </TransitionLink>
                       ) : (
                         sellerName
                       )
                     ) : auction.seller ? (
-                      <Link href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
                         {auction.seller}
-                      </Link>
+                      </TransitionLink>
                     ) : null}
                   </span>
                 </div>

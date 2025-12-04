@@ -23,3 +23,4 @@ export default async function UserProfilePage({ params }: UserProfilePageProps) 
   return <UserProfileClient fname={fname} />;
 }
 
+

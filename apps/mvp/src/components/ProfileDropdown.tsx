@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { TransitionLink } from "~/components/TransitionLink";
 import { useState, useRef, useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
@@ -203,13 +203,13 @@ export function ProfileDropdown() {
               </div>
             )}
 
-            <Link
+            <TransitionLink
               href="/profile"
               onClick={() => setIsOpen(false)}
               className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
             >
               View Profile
-            </Link>
+            </TransitionLink>
             
             {loading ? (
               <div className="px-4 py-2 text-sm text-[#999999]">
@@ -253,22 +253,22 @@ export function ProfileDropdown() {
                     Manage on Hypersub →
                   </a>
                 )}
-                <Link
+                <TransitionLink
                   href="/membership"
                   onClick={() => setIsOpen(false)}
                   className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
                 >
                   Renew Membership
-                </Link>
+                </TransitionLink>
               </>
             ) : (
-              <Link
+              <TransitionLink
                 href="/membership"
                 onClick={() => setIsOpen(false)}
                 className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors border-t border-[#333333] mt-1"
               >
                 Mint Membership
-              </Link>
+              </TransitionLink>
             )}
 
             {/* Theme Toggle */}
