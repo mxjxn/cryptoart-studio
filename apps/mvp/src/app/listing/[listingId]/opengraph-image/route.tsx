@@ -135,7 +135,7 @@ export async function GET(
         (
           <div
             style={{
-              background: 'linear-gradient(to bottom right, #000000, #333333)',
+              background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
               width: '100%',
               height: '100%',
               display: 'flex',
@@ -182,7 +182,7 @@ export async function GET(
         (
           <div
             style={{
-              background: 'linear-gradient(to bottom right, #000000, #333333)',
+              background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
               width: '100%',
               height: '100%',
               display: 'flex',
@@ -303,12 +303,13 @@ export async function GET(
         let imageUrl = originalImageUrl;
         
         // Convert IPFS URLs to HTTP gateway URLs
+        // Note: If the URL is already a gateway URL (from fetchNFTMetadata), use it as-is
         if (imageUrl.startsWith('ipfs://')) {
           const hash = imageUrl.replace('ipfs://', '');
           const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
           imageUrl = `${gateway}/ipfs/${hash}`;
-        } else if (imageUrl.includes('/ipfs/')) {
-          // Already has /ipfs/ in path, just ensure it uses a gateway
+        } else if (imageUrl.includes('/ipfs/') && !imageUrl.startsWith('http')) {
+          // Only convert if it's not already an HTTP URL
           const hash = imageUrl.split('/ipfs/')[1]?.split('/')[0];
           if (hash) {
             const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
@@ -326,11 +327,15 @@ export async function GET(
           ];
           
           // Check if it's an IPFS URL and try multiple gateways
+          // If it's already a full HTTP URL, try it first, then try other gateways
           let urlsToTry = [imageUrl];
           if (imageUrl.includes('/ipfs/')) {
             const ipfsHash = imageUrl.split('/ipfs/')[1]?.split('/')[0];
             if (ipfsHash) {
-              urlsToTry = gateways.map(gw => `${gw}/ipfs/${ipfsHash}`);
+              // If the original URL is already a gateway URL, try it first
+              // Then try other gateways as fallbacks
+              const otherGateways = gateways.filter(gw => !imageUrl.startsWith(gw));
+              urlsToTry = [imageUrl, ...otherGateways.map(gw => `${gw}/ipfs/${ipfsHash}`)];
             }
           }
           
@@ -456,12 +461,12 @@ export async function GET(
     (
       <div
         style={{
-          background: 'linear-gradient(to bottom right, #000000, #333333)',
+          background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
           width: '100%',
           height: '100%',
           display: 'flex',
           flexDirection: 'row',
-          padding: '80px',
+          padding: '80px 40px',
           color: 'white',
           fontFamily: 'MEK-Mono',
         }}
@@ -472,7 +477,7 @@ export async function GET(
             display: 'flex',
             flexDirection: 'column',
             width: '50%',
-            paddingRight: '40px',
+            paddingRight: '20px',
             justifyContent: 'space-between',
           }}
         >
@@ -557,7 +562,7 @@ export async function GET(
           style={{
             display: 'flex',
             width: '50%',
-            paddingLeft: '40px',
+            paddingLeft: '20px',
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -620,7 +625,7 @@ export async function GET(
       (
         <div
           style={{
-            background: 'linear-gradient(to bottom right, #000000, #333333)',
+            background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
             width: '100%',
             height: '100%',
             display: 'flex',
