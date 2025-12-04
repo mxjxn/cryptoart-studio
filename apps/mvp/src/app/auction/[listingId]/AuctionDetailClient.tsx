@@ -19,6 +19,7 @@ import { type Address, isAddress } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
+import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -898,7 +899,8 @@ export default function AuctionDetailClient({
 
   const currentPrice = auction.highestBid?.amount || auction.initialAmount;
   const endTime = parseInt(auction.endTime);
-  const now = Math.floor(Date.now() / 1000);
+  const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   const isActive = endTime > now && auction.status === "ACTIVE";
   const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
@@ -907,6 +909,16 @@ export default function AuctionDetailClient({
   // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
   const displayCreatorAddress = creatorAddress || auction.seller;
   const bidCount = auction.bidCount || 0;
+  const hasBid = bidCount > 0 || !!auction.highestBid;
+  
+  // Update countdown every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, []);
   
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
@@ -1395,49 +1407,69 @@ export default function AuctionDetailClient({
         {/* Listing details - Different display based on listing type - Hidden if cancelled */}
         {!isCancelled && (
           <div className="mb-4 space-y-3">
-            {auction.listingType === "INDIVIDUAL_AUCTION" && (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[#999999]">Reserve:</span>
+            {auction.listingType === "INDIVIDUAL_AUCTION" && (() => {
+              const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid, now);
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <span className="text-[#999999]">Reserve:</span>
+                      <span className="ml-2 font-medium">
+                        {formatPrice(auction.initialAmount)} {paymentSymbol}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#999999]">Current:</span>
+                      <span className="ml-2 font-medium">
+                        {auction.highestBid
+                          ? `${formatPrice(currentPrice)} ${paymentSymbol}`
+                          : "No bids"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[#999999]">Bids:</span>
+                      <span className="ml-2 font-medium">{bidCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[#999999]">Status:</span>
+                      <span className="ml-2 font-medium">
+                        {timeStatus.status === "Not started" ? "Not started" : isActive ? "Active" : "Ended"}
+                      </span>
+                    </div>
+                  </div>
+                  {timeStatus.status === "Not started" ? (
+                    <div className="text-xs">
+                      <span className="text-[#999999]">Auction status:</span>
+                      <span className="ml-2 font-medium">Not started</span>
+                    </div>
+                  ) : timeStatus.endDate && timeStatus.timeRemaining ? (
+                    <div className="text-xs">
+                      <div>
+                        <span className="text-[#999999]">Ends:</span>
+                        <span className="ml-2 font-medium">{timeStatus.endDate}</span>
+                      </div>
+                      <div className="mt-1">
+                        <span className="text-[#999999]">Time remaining:</span>
+                        <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="text-xs">
+                    <span className="text-[#999999]">Seller:</span>
                     <span className="ml-2 font-medium">
-                      {formatPrice(auction.initialAmount)} {paymentSymbol}
+                      {sellerName ? (
+                        sellerName
+                      ) : (
+                        <span className="font-mono">{auction.seller}</span>
+                      )}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[#999999]">Current:</span>
-                    <span className="ml-2 font-medium">
-                      {auction.highestBid
-                        ? `${formatPrice(currentPrice)} ${paymentSymbol}`
-                        : "No bids"}
-                    </span>
+                  <div className="text-xs pt-2 border-t border-[#333333]">
+                    <span className="text-[#666666]">Platform fee: 5%</span>
                   </div>
-                  <div>
-                    <span className="text-[#999999]">Bids:</span>
-                    <span className="ml-2 font-medium">{bidCount}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#999999]">Status:</span>
-                    <span className="ml-2 font-medium">
-                      {isActive ? "Active" : "Ended"}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-xs">
-                  <span className="text-[#999999]">Seller:</span>
-                  <span className="ml-2 font-medium">
-                    {sellerName ? (
-                      sellerName
-                    ) : (
-                      <span className="font-mono">{auction.seller}</span>
-                    )}
-                  </span>
-                </div>
-                <div className="text-xs pt-2 border-t border-[#333333]">
-                  <span className="text-[#666666]">Platform fee: 5%</span>
-                </div>
-              </>
-            )}
+                </>
+              );
+            })()}
 
             {auction.listingType === "FIXED_PRICE" && (
               <>
@@ -1475,17 +1507,27 @@ export default function AuctionDetailClient({
                     </span>
                   </div>
                 )}
-                {endTime > 0 && (
-                  <div className="text-xs">
-                    <span className="text-[#999999]">On sale until:</span>
-                    <span className="ml-2 font-medium">
-                      {new Date(endTime * 1000).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const timeStatus = getFixedPriceTimeStatus(endTime, now);
+                  if (timeStatus.neverExpires) {
+                    return null;
+                  }
+                  if (timeStatus.endDate && timeStatus.timeRemaining) {
+                    return (
+                      <div className="text-xs">
+                        <div>
+                          <span className="text-[#999999]">Ends:</span>
+                          <span className="ml-2 font-medium">{timeStatus.endDate}</span>
+                        </div>
+                        <div className="mt-1">
+                          <span className="text-[#999999]">Time remaining:</span>
+                          <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div className="text-xs">
                   <span className="text-[#999999]">Seller:</span>
                   <span className="ml-2 font-medium">
@@ -1516,17 +1558,27 @@ export default function AuctionDetailClient({
                     </span>
                   </div>
                 </div>
-                {endTime > 0 && (
-                  <div className="text-xs">
-                    <span className="text-[#999999]">Accepts offers until:</span>
-                    <span className="ml-2 font-medium">
-                      {new Date(endTime * 1000).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const timeStatus = getFixedPriceTimeStatus(endTime, now);
+                  if (timeStatus.neverExpires) {
+                    return null;
+                  }
+                  if (timeStatus.endDate && timeStatus.timeRemaining) {
+                    return (
+                      <div className="text-xs">
+                        <div>
+                          <span className="text-[#999999]">Accepts offers until:</span>
+                          <span className="ml-2 font-medium">{timeStatus.endDate}</span>
+                        </div>
+                        <div className="mt-1">
+                          <span className="text-[#999999]">Time remaining:</span>
+                          <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div className="text-xs">
                   <span className="text-[#999999]">Seller:</span>
                   <span className="ml-2 font-medium">
@@ -1557,17 +1609,27 @@ export default function AuctionDetailClient({
                     </span>
                   </div>
                 </div>
-                {endTime > 0 && (
-                  <div className="text-xs">
-                    <span className="text-[#999999]">On sale until:</span>
-                    <span className="ml-2 font-medium">
-                      {new Date(endTime * 1000).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const timeStatus = getFixedPriceTimeStatus(endTime, now);
+                  if (timeStatus.neverExpires) {
+                    return null;
+                  }
+                  if (timeStatus.endDate && timeStatus.timeRemaining) {
+                    return (
+                      <div className="text-xs">
+                        <div>
+                          <span className="text-[#999999]">Ends:</span>
+                          <span className="ml-2 font-medium">{timeStatus.endDate}</span>
+                        </div>
+                        <div className="mt-1">
+                          <span className="text-[#999999]">Time remaining:</span>
+                          <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div className="text-xs">
                   <span className="text-[#999999]">Seller:</span>
                   <span className="ml-2 font-medium">

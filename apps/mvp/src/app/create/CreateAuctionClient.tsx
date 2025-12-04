@@ -534,14 +534,47 @@ export default function CreateAuctionClient() {
           ? now + 60 // OFFERS_ONLY requires startTime in future, default to 1 minute from now
           : 0; // 0 means start immediately on first bid/purchase
       
-      const endTime = formData.endTime 
-        ? Math.floor(new Date(formData.endTime).getTime() / 1000)
-        : 0;
+      // Handle endTime based on listing type
+      let endTime: number;
+      if (formData.listingType === "FIXED_PRICE" && !formData.endTime) {
+        // For FIXED_PRICE with no end time, set to max uint48 (never expires)
+        endTime = 281474976710655; // type(uint48).max
+      } else if (formData.endTime) {
+        endTime = Math.floor(new Date(formData.endTime).getTime() / 1000);
+      } else {
+        endTime = 0;
+      }
 
-      if (!endTime || endTime <= now) {
-        alert("End time must be in the future");
-        setIsSubmitting(false);
-        return;
+      // Validate endTime based on listing type and startTime
+      if (formData.listingType === "FIXED_PRICE") {
+        // FIXED_PRICE: endTime can be max uint48 (never expires) or a future timestamp
+        if (endTime !== 281474976710655 && endTime <= now) {
+          alert("End time must be in the future");
+          setIsSubmitting(false);
+          return;
+        }
+      } else {
+        // For other listing types
+        if (startTime === 0) {
+          // If startTime is 0, endTime represents duration from first bid/purchase
+          if (!endTime || endTime <= 0) {
+            alert("Duration must be a positive value");
+            setIsSubmitting(false);
+            return;
+          }
+        } else {
+          // If startTime is set, endTime must be an absolute timestamp in the future
+          if (!endTime || endTime <= now) {
+            alert("End time must be in the future");
+            setIsSubmitting(false);
+            return;
+          }
+          if (endTime <= startTime) {
+            alert("End time must be after start time");
+            setIsSubmitting(false);
+            return;
+          }
+        }
       }
 
       // Validate listing type specific requirements
@@ -1227,16 +1260,30 @@ export default function CreateAuctionClient() {
               {/* End Time */}
               <div>
                 <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  End Time
+                  {formData.listingType === "FIXED_PRICE"
+                    ? "End Time (optional)"
+                    : formData.startTime === ""
+                    ? "Duration (from first bid/purchase)"
+                    : "End Time"}
                 </label>
                 <input
                   type="datetime-local"
                   value={formData.endTime}
                   onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                   className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                  required
+                  required={formData.listingType !== "FIXED_PRICE"}
                   disabled={!canProceed}
                 />
+                {formData.listingType === "FIXED_PRICE" && (
+                  <p className="mt-1 text-xs text-[#999999]">
+                    Leave empty to create a listing that never expires
+                  </p>
+                )}
+                {formData.listingType !== "FIXED_PRICE" && formData.startTime === "" && (
+                  <p className="mt-1 text-xs text-[#999999]">
+                    When start time is empty, this represents the duration from the first bid/purchase, not an absolute timestamp
+                  </p>
+                )}
               </div>
 
               {/* Min Increment - only for auctions */}

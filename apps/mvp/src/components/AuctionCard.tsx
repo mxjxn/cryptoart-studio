@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -10,6 +11,7 @@ import { CopyButton } from "~/components/CopyButton";
 // import { FavoriteButton } from "~/components/FavoriteButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
+import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
 
 interface AuctionCardProps {
   auction: EnrichedAuctionData;
@@ -71,6 +73,41 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
 
   const title = auction.title || `Listing #${auction.listingId}`;
   const bidCount = auction.bidCount || 0;
+  
+  // Get time status for display
+  const startTime = parseInt(auction.startTime || "0");
+  const endTime = parseInt(auction.endTime || "0");
+  const hasBid = bidCount > 0 || !!auction.highestBid;
+  
+  let timeStatusDisplay: React.ReactElement | null = null;
+  
+  if (auction.listingType === "INDIVIDUAL_AUCTION") {
+    const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid);
+    if (timeStatus.status === "Not started") {
+      timeStatusDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          Not started
+        </div>
+      );
+    } else if (timeStatus.endDate && timeStatus.timeRemaining) {
+      timeStatusDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          <div>ends {timeStatus.endDate}</div>
+          <div>{timeStatus.timeRemaining}</div>
+        </div>
+      );
+    }
+  } else if (auction.listingType === "FIXED_PRICE") {
+    const timeStatus = getFixedPriceTimeStatus(endTime);
+    if (!timeStatus.neverExpires && timeStatus.endDate && timeStatus.timeRemaining) {
+      timeStatusDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          <div>ends {timeStatus.endDate}</div>
+          <div>{timeStatus.timeRemaining}</div>
+        </div>
+      );
+    }
+  }
 
   // Listing type badge colors
   const getListingTypeBadge = () => {
@@ -198,6 +235,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
               <span>{currentPrice} {currentPrice !== "—" && tokenSymbol}</span>
             </div>
           </div>
+          {timeStatusDisplay}
         </div>
       </div>
     </TransitionLink>
