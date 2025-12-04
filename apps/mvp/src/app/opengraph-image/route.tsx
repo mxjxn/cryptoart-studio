@@ -646,14 +646,14 @@ export async function GET(request: NextRequest) {
           >
             <div
               style={{
-                fontSize: 20,
+                fontSize: 32,
                 opacity: 0.7,
                 textAlign: 'center',
                 letterSpacing: '0.5px',
                 padding: '0 40px',
               }}
             >
-              0.0001 eth (30 cents) for membership in the channel and access to listing NFTs and editions in the marketplace.
+              30¢ monthly membership
             </div>
           </div>
         </div>
