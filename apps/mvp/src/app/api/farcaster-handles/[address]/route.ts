@@ -9,10 +9,10 @@ export async function GET(
   try {
     const { address } = await params;
     
-    console.log(`[GET /api/user/${address}/farcaster-handles] Request received`);
+    console.log(`[GET /api/farcaster-handles/${address}] Request received`);
     
     if (!address) {
-      console.log(`[GET /api/user/[address]/farcaster-handles] ERROR: No address provided`);
+      console.log(`[GET /api/farcaster-handles/[address]] ERROR: No address provided`);
       return NextResponse.json(
         { error: "Address is required" },
         { status: 400 }
@@ -21,7 +21,7 @@ export async function GET(
 
     // Validate address format
     if (!isAddress(address)) {
-      console.log(`[GET /api/user/${address}/farcaster-handles] ERROR: Invalid address format`);
+      console.log(`[GET /api/farcaster-handles/${address}] ERROR: Invalid address format`);
       return NextResponse.json(
         { error: "Invalid address format" },
         { status: 400 }
@@ -34,7 +34,7 @@ export async function GET(
     // Fetch all Farcaster handles for this address
     const handles = await lookupAllFarcasterHandlesByAddress(normalizedAddress);
 
-    console.log(`[GET /api/user/${address}/farcaster-handles] Found ${handles.length} handles`);
+    console.log(`[GET /api/farcaster-handles/${address}] Found ${handles.length} handles`);
 
     return NextResponse.json({
       success: true,

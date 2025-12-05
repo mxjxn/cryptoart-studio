@@ -20,12 +20,27 @@ export async function getActiveAuctions(options?: {
     const skip = options?.skip ?? 0;
     const enrich = options?.enrich !== false;
     const useCache = options?.cache !== false; // Default to true for cached responses
-    // Use relative URL for client-side calls
-    const response = await fetch(`/api/auctions/active?first=${first}&skip=${skip}&enrich=${enrich}&cache=${useCache}`);
+    const url = `/api/auctions/active?first=${first}&skip=${skip}&enrich=${enrich}&cache=${useCache}`;
+    console.log('[getActiveAuctions] Fetching from:', url);
+    const response = await fetch(url);
+    console.log('[getActiveAuctions] Response status:', response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[getActiveAuctions] Response not OK:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
+    console.log('[getActiveAuctions] Response data:', {
+      success: data.success,
+      auctionsCount: data.auctions?.length || 0,
+      error: data.error,
+    });
+    if (data.error) {
+      console.error('[getActiveAuctions] API returned error:', data.error);
+    }
     return data.auctions || [];
   } catch (error) {
-    console.error('Error fetching active auctions:', error);
+    console.error('[getActiveAuctions] Error fetching active auctions:', error);
     return [];
   }
 }

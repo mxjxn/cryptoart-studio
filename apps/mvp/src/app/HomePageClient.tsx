@@ -31,6 +31,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const router = useRouter();
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [recentlyConcluded, setRecentlyConcluded] = useState<EnrichedAuctionData[]>([]);
   const [recentArtists, setRecentArtists] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
   const [recentBidders, setRecentBidders] = useState<Array<{ address: string; username: string | null; displayName: string | null; pfpUrl: string | null }>>([]);
@@ -42,6 +43,34 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
 
+  // Fetch auctions function (reusable for initial load and retry)
+  const fetchAuctions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log('[HomePageClient] Fetching auctions...');
+      // Use cached data from server (cache: true is default)
+      // Server-side cache is 15 minutes, which reduces subgraph rate limiting
+      const cachedAuctions = await getActiveAuctions({ 
+        first: 16, 
+        skip: 0, 
+        enrich: true,
+        cache: true // Use server-side cache to avoid rate limiting
+      });
+      console.log('[HomePageClient] Received auctions:', cachedAuctions?.length || 0);
+      setAuctions(cachedAuctions);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch auctions';
+      console.error('[HomePageClient] Error fetching auctions:', errorMessage, error);
+      setError(errorMessage);
+      // Keep using initialAuctions on error
+      setAuctions(initialAuctions);
+    } finally {
+      console.log('[HomePageClient] Setting loading to false');
+      setLoading(false);
+    }
+  };
+
   // Use server-side cached data initially
   // Only refetch if we don't have initial data (e.g., after navigation)
   // This reduces subgraph load - cache is managed server-side and revalidated every 15 minutes
@@ -49,26 +78,6 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     // If we have initial auctions from server, use them (they're cached server-side)
     // Only fetch if we don't have any initial data
     if (initialAuctions.length === 0) {
-      async function fetchAuctions() {
-        setLoading(true);
-        try {
-          // Use cached data from server (cache: true is default)
-          // Server-side cache is 15 minutes, which reduces subgraph rate limiting
-          const cachedAuctions = await getActiveAuctions({ 
-            first: 16, 
-            skip: 0, 
-            enrich: true,
-            cache: true // Use server-side cache to avoid rate limiting
-          });
-          setAuctions(cachedAuctions);
-        } catch (error) {
-          console.error('Error fetching auctions:', error);
-          // Keep using initialAuctions on error
-          setAuctions(initialAuctions);
-        } finally {
-          setLoading(false);
-        }
-      }
       fetchAuctions();
     } else {
       // We have initial data from server, use it
@@ -193,6 +202,20 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         {loading ? (
           <div className="text-center py-12">
             <p className="text-[#cccccc]">Loading listings...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-red-400 mb-2">Error loading listings</p>
+            <p className="text-[#999999] text-sm mb-4">{error}</p>
+            <button
+              onClick={() => {
+                setAuctions([]);
+                fetchAuctions();
+              }}
+              className="text-white hover:underline"
+            >
+              Retry
+            </button>
           </div>
         ) : auctions.length === 0 ? (
           <div className="text-center py-12">

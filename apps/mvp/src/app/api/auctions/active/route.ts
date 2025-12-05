@@ -10,15 +10,21 @@ export async function GET(req: NextRequest) {
     const enrich = searchParams.get('enrich') !== 'false'; // Default to true
     const useCache = searchParams.get('cache') !== 'false'; // Default to true
 
+    console.log('[API /auctions/active] Request:', { first, skip, enrich, useCache });
+
     let enrichedAuctions: EnrichedAuctionData[];
     
     if (useCache) {
       // Use cached data for faster response
+      console.log('[API /auctions/active] Using cached data');
       enrichedAuctions = await getCachedActiveAuctions(first, skip, enrich);
     } else {
       // Bypass cache for fresh data (e.g., when client polls for updates)
+      console.log('[API /auctions/active] Fetching fresh data');
       enrichedAuctions = await fetchActiveAuctionsUncached(first, skip, enrich);
     }
+
+    console.log('[API /auctions/active] Returning', enrichedAuctions.length, 'auctions');
 
     return NextResponse.json({
       success: true,
@@ -27,16 +33,17 @@ export async function GET(req: NextRequest) {
       cached: useCache,
     });
   } catch (error) {
-    console.error('Error fetching active auctions:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch active auctions';
+    console.error('[API /auctions/active] Error:', errorMessage, error);
     
     return NextResponse.json(
       {
-        success: true,
+        success: false,
         auctions: [],
         count: 0,
-        error: error instanceof Error ? error.message : 'Failed to fetch active auctions',
+        error: errorMessage,
       },
-      { status: 200 }
+      { status: 200 } // Return 200 so client can handle gracefully
     );
   }
 }

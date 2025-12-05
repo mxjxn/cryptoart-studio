@@ -86,7 +86,7 @@ export default function ProfileClient() {
       async function fetchFarcasterHandles() {
         setFarcasterHandlesLoading(true);
         try {
-          const response = await fetch(`/api/user/${encodeURIComponent(addressToFetch)}/farcaster-handles`);
+          const response = await fetch(`/api/farcaster-handles/${encodeURIComponent(addressToFetch)}`);
           if (response.ok) {
             const data = await response.json();
             setFarcasterHandles(data.handles || []);

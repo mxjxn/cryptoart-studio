@@ -79,11 +79,14 @@ export async function GET(req: NextRequest) {
     const orderBy = searchParams.get("orderBy") || "listingId";
     const orderDirection = searchParams.get("orderDirection") || "desc";
     
+    console.log('[API /listings/browse] Request:', { first, skip, enrich, orderBy, orderDirection });
+    
     // Future: support filtering by artist and listing type
     // const artist = searchParams.get("artist");
     // const listingType = searchParams.get("listingType");
 
     const endpoint = getSubgraphEndpoint();
+    console.log('[API /listings/browse] Subgraph endpoint:', endpoint ? 'configured' : 'missing');
     
     const data = await request<{ listings: any[] }>(
       endpoint,
@@ -96,6 +99,8 @@ export async function GET(req: NextRequest) {
       },
       getSubgraphHeaders()
     );
+    
+    console.log('[API /listings/browse] Subgraph returned', data.listings?.length || 0, 'listings');
 
     let enrichedListings: EnrichedAuctionData[] = data.listings;
 
@@ -173,6 +178,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    console.log('[API /listings/browse] Returning', enrichedListings.length, 'enriched listings');
+
     return NextResponse.json({
       success: true,
       listings: enrichedListings,
@@ -184,16 +191,17 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error browsing listings:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to browse listings";
+    console.error("[API /listings/browse] Error:", errorMessage, error);
     
     return NextResponse.json(
       {
         success: false,
         listings: [],
         count: 0,
-        error: error instanceof Error ? error.message : "Failed to browse listings",
+        error: errorMessage,
       },
-      { status: 500 }
+      { status: 200 } // Return 200 so client can handle gracefully
     );
   }
 }

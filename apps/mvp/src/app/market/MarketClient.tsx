@@ -19,6 +19,7 @@ const gradients = [
 export default function MarketClient() {
   const [listings, setListings] = useState<EnrichedAuctionData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
@@ -26,15 +27,31 @@ export default function MarketClient() {
   useEffect(() => {
     async function fetchListings() {
       setLoading(true);
+      setError(null);
       try {
         const skip = page * pageSize;
-        const response = await fetch(
-          `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc`
-        );
+        const url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc`;
+        console.log('[MarketClient] Fetching listings from:', url);
+        const response = await fetch(url);
+        console.log('[MarketClient] Response status:', response.status, response.statusText);
         if (!response.ok) {
-          throw new Error("Failed to fetch listings");
+          const errorText = await response.text();
+          console.error('[MarketClient] Response error:', errorText);
+          throw new Error(`Failed to fetch listings: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
+        console.log('[MarketClient] Received data:', {
+          success: data.success,
+          listingsCount: data.listings?.length || 0,
+          error: data.error,
+        });
+        if (data.error) {
+          console.error('[MarketClient] API returned error:', data.error);
+          setError(data.error);
+        }
+        if (!data.success) {
+          setError(data.error || 'Failed to fetch listings');
+        }
         if (page === 0) {
           setListings(data.listings || []);
         } else {
@@ -42,8 +59,15 @@ export default function MarketClient() {
         }
         setHasMore(data.pagination?.hasMore || false);
       } catch (error) {
-        console.error("Error fetching listings:", error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
+        console.error("[MarketClient] Error fetching listings:", errorMessage, error);
+        setError(errorMessage);
+        // Set empty array on error to show error message instead of infinite loading
+        if (page === 0) {
+          setListings([]);
+        }
       } finally {
+        console.log('[MarketClient] Setting loading to false');
         setLoading(false);
       }
     }
@@ -77,6 +101,21 @@ export default function MarketClient() {
         {loading && listings.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-[#cccccc]">Loading listings...</p>
+          </div>
+        ) : error && listings.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-red-400 mb-2">Error loading listings</p>
+            <p className="text-[#999999] text-sm mb-4">{error}</p>
+            <button
+              onClick={() => {
+                setPage(0);
+                setListings([]);
+                setError(null);
+              }}
+              className="text-white hover:underline"
+            >
+              Retry
+            </button>
           </div>
         ) : listings.length === 0 ? (
           <div className="text-center py-12">
