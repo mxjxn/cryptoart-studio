@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint } from 'drizzle-orm/pg-core';
+import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum } from 'drizzle-orm/pg-core';
 
 /**
  * User cache table - Cache user information from Neynar, ENS, etc.
@@ -230,4 +230,282 @@ export interface FavoriteData {
   userAddress: string;
   listingId: string;
   createdAt: Date;
+}
+
+// ============================================
+// ADMIN: Featured Listings
+// ============================================
+
+/**
+ * Featured listings table - Store manually or auto-selected featured listings
+ */
+export const featuredListings = pgTable('featured_listings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listingId: text('listing_id').notNull().unique(), // On-chain listing ID
+  displayOrder: integer('display_order').notNull().default(0), // For manual ordering
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  displayOrderIdx: index('featured_listings_display_order_idx').on(table.displayOrder),
+}));
+
+export interface FeaturedListingData {
+  id: string;
+  listingId: string;
+  displayOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Featured settings table - Singleton table for featured listings configuration
+ */
+export const featuredSettings = pgTable('featured_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  autoMode: boolean('auto_mode').notNull().default(false),
+  autoCount: integer('auto_count').notNull().default(5), // Number of random listings in auto mode
+  lastAutoRefresh: timestamp('last_auto_refresh'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export interface FeaturedSettingsData {
+  id: string;
+  autoMode: boolean;
+  autoCount: number;
+  lastAutoRefresh: Date | null;
+  updatedAt: Date;
+}
+
+// ============================================
+// ADMIN: Hidden Users
+// ============================================
+
+/**
+ * Hidden users table - Store users hidden from algorithmic feeds
+ */
+export const hiddenUsers = pgTable('hidden_users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userAddress: text('user_address').notNull().unique(), // Wallet address (lowercase)
+  hiddenAt: timestamp('hidden_at').defaultNow().notNull(),
+  hiddenBy: text('hidden_by').notNull(), // Admin address who hid them
+}, (table) => ({
+  userAddressIdx: index('hidden_users_user_address_idx').on(table.userAddress),
+}));
+
+export interface HiddenUserData {
+  id: string;
+  userAddress: string;
+  hiddenAt: Date;
+  hiddenBy: string;
+}
+
+// ============================================
+// ADMIN: Analytics Snapshots
+// ============================================
+
+/**
+ * Analytics snapshots table - Store periodic analytics data
+ */
+export const analyticsSnapshots = pgTable('analytics_snapshots', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  snapshotDate: timestamp('snapshot_date').notNull(),
+  periodType: text('period_type').notNull(), // 'daily', 'weekly', 'monthly', 'yearly'
+  
+  // Volume metrics (in wei, stored as string for precision)
+  totalVolumeWei: text('total_volume_wei').notNull().default('0'),
+  auctionVolumeWei: text('auction_volume_wei').notNull().default('0'),
+  fixedPriceVolumeWei: text('fixed_price_volume_wei').notNull().default('0'),
+  offerVolumeWei: text('offer_volume_wei').notNull().default('0'),
+  
+  // Fee metrics (in wei)
+  platformFeesWei: text('platform_fees_wei').notNull().default('0'),
+  referralFeesWei: text('referral_fees_wei').notNull().default('0'),
+  
+  // Count metrics
+  totalSales: integer('total_sales').notNull().default(0),
+  auctionSales: integer('auction_sales').notNull().default(0),
+  fixedPriceSales: integer('fixed_price_sales').notNull().default(0),
+  offerSales: integer('offer_sales').notNull().default(0),
+  activeAuctions: integer('active_auctions').notNull().default(0),
+  uniqueBidders: integer('unique_bidders').notNull().default(0),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  snapshotDateIdx: index('analytics_snapshots_snapshot_date_idx').on(table.snapshotDate),
+  periodTypeIdx: index('analytics_snapshots_period_type_idx').on(table.periodType),
+}));
+
+export interface AnalyticsSnapshotData {
+  id: string;
+  snapshotDate: Date;
+  periodType: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  totalVolumeWei: string;
+  auctionVolumeWei: string;
+  fixedPriceVolumeWei: string;
+  offerVolumeWei: string;
+  platformFeesWei: string;
+  referralFeesWei: string;
+  totalSales: number;
+  auctionSales: number;
+  fixedPriceSales: number;
+  offerSales: number;
+  activeAuctions: number;
+  uniqueBidders: number;
+  createdAt: Date;
+}
+
+// ============================================
+// ADMIN: Error Logging
+// ============================================
+
+export const errorLogTypeEnum = pgEnum('error_log_type', [
+  'transaction_failed',
+  'api_error',
+  'subgraph_error',
+  'contract_error',
+  'webhook_error',
+  'unknown'
+]);
+
+/**
+ * Error logs table - Store application errors for admin review
+ */
+export const errorLogs = pgTable('error_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  type: errorLogTypeEnum('type').notNull(),
+  message: text('message').notNull(),
+  stack: text('stack'),
+  
+  // Context
+  userAddress: text('user_address'), // If associated with a user
+  listingId: text('listing_id'), // If associated with a listing
+  transactionHash: text('transaction_hash'), // If associated with a tx
+  endpoint: text('endpoint'), // API endpoint or function name
+  
+  // Additional data
+  metadata: jsonb('metadata'), // Any additional context as JSON
+  
+  // Status
+  resolved: boolean('resolved').notNull().default(false),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedBy: text('resolved_by'),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  typeIdx: index('error_logs_type_idx').on(table.type),
+  resolvedIdx: index('error_logs_resolved_idx').on(table.resolved),
+  createdAtIdx: index('error_logs_created_at_idx').on(table.createdAt),
+  userAddressIdx: index('error_logs_user_address_idx').on(table.userAddress),
+}));
+
+export type ErrorLogType = typeof errorLogTypeEnum.enumValues[number];
+
+export interface ErrorLogData {
+  id: string;
+  type: ErrorLogType;
+  message: string;
+  stack?: string | null;
+  userAddress?: string | null;
+  listingId?: string | null;
+  transactionHash?: string | null;
+  endpoint?: string | null;
+  metadata?: Record<string, unknown> | null;
+  resolved: boolean;
+  resolvedAt?: Date | null;
+  resolvedBy?: string | null;
+  createdAt: Date;
+}
+
+// ============================================
+// ADMIN: Global Notification Settings
+// ============================================
+
+/**
+ * Global notification settings table - Singleton table for platform-wide notification controls
+ */
+export const globalNotificationSettings = pgTable('global_notification_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  
+  // Your Listings section
+  newBidOnYourAuction: boolean('new_bid_on_your_auction').notNull().default(true),
+  auctionEnding24h: boolean('auction_ending_24h').notNull().default(true),
+  auctionEnding1h: boolean('auction_ending_1h').notNull().default(true),
+  offerReceived: boolean('offer_received').notNull().default(true),
+  
+  // Your Bids section
+  outbid: boolean('outbid').notNull().default(true),
+  auctionWon: boolean('auction_won').notNull().default(true),
+  
+  // Purchases section
+  purchaseConfirmation: boolean('purchase_confirmation').notNull().default(true),
+  
+  // Offers section
+  offerAccepted: boolean('offer_accepted').notNull().default(true),
+  offerRejected: boolean('offer_rejected').notNull().default(true),
+  
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export interface GlobalNotificationSettingsData {
+  id: string;
+  newBidOnYourAuction: boolean;
+  auctionEnding24h: boolean;
+  auctionEnding1h: boolean;
+  offerReceived: boolean;
+  outbid: boolean;
+  auctionWon: boolean;
+  purchaseConfirmation: boolean;
+  offerAccepted: boolean;
+  offerRejected: boolean;
+  updatedAt: Date;
+}
+
+// ============================================
+// USER: Notification Preferences (Extended)
+// ============================================
+
+/**
+ * User notification preferences table - Store per-user notification settings
+ */
+export const userNotificationPreferences = pgTable('user_notification_preferences', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userAddress: text('user_address').notNull().unique(),
+  
+  // Your Listings section
+  newBidOnYourAuction: boolean('new_bid_on_your_auction').notNull().default(true),
+  auctionEnding24h: boolean('auction_ending_24h').notNull().default(true),
+  auctionEnding1h: boolean('auction_ending_1h').notNull().default(true),
+  offerReceived: boolean('offer_received').notNull().default(true),
+  
+  // Your Bids section
+  outbid: boolean('outbid').notNull().default(true),
+  auctionWon: boolean('auction_won').notNull().default(true),
+  
+  // Purchases section
+  purchaseConfirmation: boolean('purchase_confirmation').notNull().default(true),
+  
+  // Offers section
+  offerAccepted: boolean('offer_accepted').notNull().default(true),
+  offerRejected: boolean('offer_rejected').notNull().default(true),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  userAddressIdx: index('user_notification_preferences_user_address_idx').on(table.userAddress),
+}));
+
+export interface UserNotificationPreferencesData {
+  id: string;
+  userAddress: string;
+  newBidOnYourAuction: boolean;
+  auctionEnding24h: boolean;
+  auctionEnding1h: boolean;
+  offerReceived: boolean;
+  outbid: boolean;
+  auctionWon: boolean;
+  purchaseConfirmation: boolean;
+  offerAccepted: boolean;
+  offerRejected: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }

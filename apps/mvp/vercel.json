@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/notifications",
       "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/cron/featured-refresh",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/calculate-stats",
+      "schedule": "0 0 * * *"
     }
   ]
 }

@@ -1,6 +1,24 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { userCache, contractCache, notifications, notificationPreferences, notificationWorkerState, imageCache, follows, favorites } from './schema';
+import { 
+  userCache, 
+  contractCache, 
+  notifications, 
+  notificationPreferences, 
+  notificationWorkerState, 
+  imageCache, 
+  follows, 
+  favorites,
+  // Admin tables
+  featuredListings,
+  featuredSettings,
+  hiddenUsers,
+  analyticsSnapshots,
+  errorLogs,
+  errorLogTypeEnum,
+  globalNotificationSettings,
+  userNotificationPreferences
+} from './schema';
 
 // Database client singleton
 let db: ReturnType<typeof drizzle> | null = null;
@@ -28,7 +46,16 @@ export {
   notificationWorkerState,
   imageCache,
   follows,
-  favorites
+  favorites,
+  // Admin tables
+  featuredListings,
+  featuredSettings,
+  hiddenUsers,
+  analyticsSnapshots,
+  errorLogs,
+  errorLogTypeEnum,
+  globalNotificationSettings,
+  userNotificationPreferences
 } from './schema';
 export type { 
   UserCacheData, 
@@ -39,5 +66,14 @@ export type {
   NotificationWorkerStateData,
   ImageCacheData,
   FollowData,
-  FavoriteData
+  FavoriteData,
+  // Admin types
+  FeaturedListingData,
+  FeaturedSettingsData,
+  HiddenUserData,
+  AnalyticsSnapshotData,
+  ErrorLogType,
+  ErrorLogData,
+  GlobalNotificationSettingsData,
+  UserNotificationPreferencesData
 } from './schema';

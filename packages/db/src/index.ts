@@ -7,7 +7,16 @@ export {
   notificationWorkerState,
   imageCache,
   follows,
-  favorites
+  favorites,
+  // Admin tables
+  featuredListings,
+  featuredSettings,
+  hiddenUsers,
+  analyticsSnapshots,
+  errorLogs,
+  errorLogTypeEnum,
+  globalNotificationSettings,
+  userNotificationPreferences
 } from './client';
 export type { 
   UserCacheData, 
@@ -18,7 +27,16 @@ export type {
   NotificationWorkerStateData,
   ImageCacheData,
   FollowData,
-  FavoriteData
+  FavoriteData,
+  // Admin types
+  FeaturedListingData,
+  FeaturedSettingsData,
+  HiddenUserData,
+  AnalyticsSnapshotData,
+  ErrorLogType,
+  ErrorLogData,
+  GlobalNotificationSettingsData,
+  UserNotificationPreferencesData
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

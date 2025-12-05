@@ -12,6 +12,7 @@ import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { ThemeToggle } from "~/components/ThemeToggle";
 import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
+import { useAdminMode } from "~/hooks/useAdminMode";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
   pfpUrl: string | undefined; 
@@ -48,6 +49,38 @@ function MembershipBadge({ isPro }: { isPro: boolean }) {
       }`}
     >
       {isPro ? "pro" : "free"}
+    </div>
+  );
+}
+
+function AdminSection() {
+  const { isAdmin, isAdminModeEnabled, toggleAdminMode } = useAdminMode();
+  
+  if (!isAdmin) return null;
+  
+  return (
+    <div className="border-t border-[#333333] mt-1 pt-1">
+      <div className="px-4 py-2 flex items-center justify-between">
+        <span className="text-sm text-white">Admin Mode</span>
+        <button
+          onClick={toggleAdminMode}
+          className={`relative inline-flex h-5 w-9 items-center transition-colors ${
+            isAdminModeEnabled ? 'bg-blue-500' : 'bg-[#333333]'
+          }`}
+        >
+          <span
+            className={`inline-block h-3 w-3 transform bg-white transition-transform ${
+              isAdminModeEnabled ? 'translate-x-5' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+      <TransitionLink
+        href="/admin"
+        className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
+      >
+        Admin Dashboard
+      </TransitionLink>
     </div>
   );
 }
@@ -277,6 +310,9 @@ export function ProfileDropdown() {
               {/* Show hue slider when in colorful mode */}
               {mode === 'colorful' && <HueSlider />}
             </div>
+
+            {/* Admin Section */}
+            <AdminSection />
 
             {/* Disconnect option for web users */}
             {!isMiniApp && isConnected && (
