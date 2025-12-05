@@ -3,6 +3,7 @@ import { request, gql } from "graphql-request";
 import { getDatabase, contractCache, eq } from '@cryptoart/db';
 import { getContractCreator } from "~/lib/contract-creator";
 import { cacheContractInfo } from "~/lib/server/user-cache";
+import { verifyAdmin } from "~/lib/server/admin";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -46,6 +47,15 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
   
   try {
+    // Verify admin access
+    const body = await req.json().catch(() => ({}));
+    const { adminAddress } = body;
+    
+    const { isAdmin, error } = verifyAdmin(adminAddress);
+    if (!isAdmin) {
+      return NextResponse.json({ error }, { status: 403 });
+    }
+    
     const endpoint = getSubgraphEndpoint();
     const db = getDatabase();
     
@@ -162,6 +172,15 @@ export async function POST(req: NextRequest) {
 // GET endpoint to check status/preview
 export async function GET(req: NextRequest) {
   try {
+    // Verify admin access
+    const { searchParams } = new URL(req.url);
+    const adminAddress = searchParams.get('adminAddress');
+    
+    const { isAdmin, error } = verifyAdmin(adminAddress);
+    if (!isAdmin) {
+      return NextResponse.json({ error }, { status: 403 });
+    }
+    
     const endpoint = getSubgraphEndpoint();
     const db = getDatabase();
     
