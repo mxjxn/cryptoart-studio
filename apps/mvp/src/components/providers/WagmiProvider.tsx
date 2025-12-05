@@ -10,7 +10,14 @@ import React, { useEffect } from "react";
 export const config = createConfig({
   chains: [base, mainnet],
   transports: {
-    [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
+    // For client-side, we need NEXT_PUBLIC_* env vars. Use NEXT_PUBLIC_RPC_URL first (which maps to RPC_URL),
+    // then fall back to NEXT_PUBLIC_BASE_RPC_URL, then default.
+    // Note: Set NEXT_PUBLIC_RPC_URL in .env.local (and production) to match your RPC_URL value.
+    [base.id]: http(
+      process.env.NEXT_PUBLIC_RPC_URL || 
+      process.env.NEXT_PUBLIC_BASE_RPC_URL || 
+      'https://mainnet.base.org'
+    ),
     [mainnet.id]: http(process.env.NEXT_PUBLIC_MAINNET_RPC_URL || 'https://eth.llamarpc.com'),
   },
   connectors: [
