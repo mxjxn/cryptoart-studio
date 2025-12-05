@@ -2,63 +2,64 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, follows, userCache, eq, sql, inArray, desc } from '@cryptoart/db';
 
 /**
- * GET /api/user/[address]/following
- * Get following count and list for a user address
+ * GET /api/user/[identifier]/followers
+ * Get followers count and list for a user address
+ * Note: identifier must be a valid Ethereum address for this endpoint
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ address: string }> }
+  { params }: { params: Promise<{ identifier: string }> }
 ) {
   try {
-    const { address } = await params;
+    const { identifier } = await params;
     const { searchParams } = new URL(req.url);
     const listOnly = searchParams.get('list') === 'true';
     
-    if (!address) {
+    if (!identifier) {
       return NextResponse.json(
-        { error: 'Address is required' },
+        { error: 'Identifier is required' },
         { status: 400 }
       );
     }
     
-    // Validate address format
-    if (!/^0x[a-fA-F0-9]{40}$/i.test(address)) {
+    // Validate address format (this endpoint requires an address, not a username)
+    if (!/^0x[a-fA-F0-9]{40}$/i.test(identifier)) {
       return NextResponse.json(
-        { error: 'Invalid address format' },
+        { error: 'Invalid address format. This endpoint requires an Ethereum address.' },
         { status: 400 }
       );
     }
     
     const db = getDatabase();
-    const normalizedAddress = address.toLowerCase();
+    const normalizedAddress = identifier.toLowerCase();
     
     if (listOnly) {
-      // Get list of following with user info
-      const followingData = await db
+      // Get list of followers with user info
+      const followersData = await db
         .select({
-          followingAddress: follows.followingAddress,
+          followerAddress: follows.followerAddress,
           createdAt: follows.createdAt,
         })
         .from(follows)
-        .where(eq(follows.followerAddress, normalizedAddress))
+        .where(eq(follows.followingAddress, normalizedAddress))
         .orderBy(desc(follows.createdAt));
       
-      // Get user info for all following
-      const followingAddresses = followingData.map(f => f.followingAddress);
-      const users = followingAddresses.length > 0
+      // Get user info for all followers
+      const followerAddresses = followersData.map(f => f.followerAddress);
+      const users = followerAddresses.length > 0
         ? await db.select()
             .from(userCache)
-            .where(inArray(userCache.ethAddress, followingAddresses))
+            .where(inArray(userCache.ethAddress, followerAddresses))
         : [];
       
       // Create a map for quick lookup
       const userMap = new Map(users.map(u => [u.ethAddress.toLowerCase(), u]));
       
       // Combine follow data with user info
-      const following = followingData.map(follow => {
-        const user = userMap.get(follow.followingAddress.toLowerCase());
+      const followers = followersData.map(follow => {
+        const user = userMap.get(follow.followerAddress.toLowerCase());
         return {
-          address: follow.followingAddress,
+          address: follow.followerAddress,
           createdAt: follow.createdAt,
           username: user?.username || null,
           displayName: user?.displayName || null,
@@ -68,15 +69,15 @@ export async function GET(
       });
       
       return NextResponse.json({
-        following,
-        count: following.length,
+        followers,
+        count: followers.length,
       });
     } else {
       // Get count only
       const countResult = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(follows)
-        .where(eq(follows.followerAddress, normalizedAddress));
+        .where(eq(follows.followingAddress, normalizedAddress));
       
       const count = countResult[0]?.count || 0;
       
@@ -85,9 +86,9 @@ export async function GET(
       });
     }
   } catch (error) {
-    console.error('[following API] Error:', error);
+    console.error('[followers API] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch following' },
+      { error: 'Failed to fetch followers' },
       { status: 500 }
     );
   }
