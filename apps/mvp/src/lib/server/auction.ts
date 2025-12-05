@@ -108,6 +108,11 @@ const ACTIVE_LISTINGS_QUERY = gql`
   }
 `;
 
+// Last-known good cache for active listings to prevent failures on subgraph errors
+type CachedActive = { data: EnrichedAuctionData[]; expiresAt: number };
+const LAST_ACTIVE_CACHE: { value: CachedActive | null } = { value: null };
+const LAST_ACTIVE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 /**
  * Normalize listingType to ensure correct string format
  * Handles both number and string inputs, and corrects buggy mappings from old subgraph version
@@ -276,16 +281,27 @@ async function fetchActiveAuctions(
   enrich: boolean
 ): Promise<EnrichedAuctionData[]> {
   const endpoint = getSubgraphEndpoint();
-  
-  const data = await request<{ listings: any[] }>(
-    endpoint,
-    ACTIVE_LISTINGS_QUERY,
-    {
-      first: Math.min(first, 1000),
-      skip,
-    },
-    getSubgraphHeaders()
-  );
+
+  let data: { listings: any[] } = { listings: [] };
+
+  try {
+    data = await request<{ listings: any[] }>(
+      endpoint,
+      ACTIVE_LISTINGS_QUERY,
+      {
+        first: Math.min(first, 1000),
+        skip,
+      },
+      getSubgraphHeaders()
+    );
+  } catch (error) {
+    console.error(`[Active Listings] Subgraph error, using last-known cache if available:`, error);
+    const now = Date.now();
+    if (LAST_ACTIVE_CACHE.value && LAST_ACTIVE_CACHE.value.expiresAt > now) {
+      return LAST_ACTIVE_CACHE.value.data;
+    }
+    return [];
+  }
 
   // Get hidden user addresses to filter out
   const hiddenAddresses = await getHiddenUserAddresses();
@@ -360,6 +376,12 @@ async function fetchActiveAuctions(
       })
     );
   }
+
+  // Store last-known good cache
+  LAST_ACTIVE_CACHE.value = {
+    data: enrichedAuctions,
+    expiresAt: Date.now() + LAST_ACTIVE_TTL_MS,
+  };
 
   return enrichedAuctions;
 }

@@ -8,12 +8,26 @@ export async function GET(request: NextRequest) {
   const baseUrl = `${url.protocol}//${url.host}`;
   const mekMonoUrl = `${baseUrl}/MEK-Mono.otf`;
   const mekSansUrl = `${baseUrl}/MEKSans-Regular.otf`;
+  const logoUrl = `${baseUrl}/cryptoart-logo-wgmeets.png`;
   
   // Load fonts from URL (edge runtime compatible)
   const [mekMonoFont, mekSansFont] = await Promise.all([
     fetch(mekMonoUrl).then((res) => res.ok ? res.arrayBuffer() : null).catch(() => null),
     fetch(mekSansUrl).then((res) => res.ok ? res.arrayBuffer() : null).catch(() => null),
   ]);
+
+  // Load logo (edge runtime compatible)
+  let logoDataUrl: string | null = null;
+  try {
+    const logoRes = await fetch(logoUrl);
+    if (logoRes.ok) {
+      const buffer = Buffer.from(await logoRes.arrayBuffer());
+      const base64 = buffer.toString("base64");
+      logoDataUrl = `data:image/png;base64,${base64}`;
+    }
+  } catch {
+    // ignore; will fall back to direct URL
+  }
   
   // Build fonts array
   const fonts: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }> = [];
@@ -48,18 +62,18 @@ export async function GET(request: NextRequest) {
             textAlign: 'center',
           }}
         >
-          <div
+          <img
+            src={logoDataUrl || logoUrl}
+            alt="Cryptoart"
+            width={600}
+            height={120}
             style={{
-              fontSize: 96,
-              fontWeight: 'bold',
+              height: '120px',
+              width: 'auto',
               marginBottom: '24px',
-              letterSpacing: '4px',
-              lineHeight: '1.1',
-              fontFamily: 'MEKSans-Regular',
+              objectFit: 'contain',
             }}
-          >
-            CRYPTOART.SOCIAL
-          </div>
+          />
           <div
             style={{
               fontSize: 48,

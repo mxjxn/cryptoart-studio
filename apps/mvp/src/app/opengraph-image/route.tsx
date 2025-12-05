@@ -12,6 +12,26 @@ import { normalizeListingType } from "~/lib/server/auction";
 
 export const dynamic = 'force-dynamic';
 
+// In-memory cache for recent listings to reduce repeated GraphQL calls
+type CachedListings = { data: EnrichedAuctionData[]; expiresAt: number };
+const RECENT_LISTINGS_CACHE: { value: CachedListings | null } = { value: null };
+const RECENT_LISTINGS_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function getCachedRecentListings(): EnrichedAuctionData[] | null {
+  const now = Date.now();
+  if (RECENT_LISTINGS_CACHE.value && RECENT_LISTINGS_CACHE.value.expiresAt > now) {
+    return RECENT_LISTINGS_CACHE.value.data;
+  }
+  return null;
+}
+
+function setCachedRecentListings(data: EnrichedAuctionData[]): void {
+  RECENT_LISTINGS_CACHE.value = {
+    data,
+    expiresAt: Date.now() + RECENT_LISTINGS_TTL_MS,
+  };
+}
+
 // ERC20 ABI for fetching token info
 const ERC20_ABI = [
   {
@@ -198,7 +218,7 @@ export async function GET(request: NextRequest) {
       fetch(`${baseUrl}/MEK-Mono.otf`).then((res) => res.arrayBuffer()).catch(() => null),
       fetch(`${baseUrl}/MedodicaRegular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
       fetch(`${baseUrl}/MEKSans-Regular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
-      fetch(`${baseUrl}/cryptoart-logo-wgmeets.png`, {
+      fetch(`${baseUrl}/cryptoart-logo-wgmeets-og-wide.png`, {
         headers: {
           'Cache-Control': 'no-cache',
         },
@@ -221,6 +241,7 @@ export async function GET(request: NextRequest) {
         const buffer = Buffer.from(logoResponse);
         const base64 = buffer.toString('base64');
         logoDataUrl = `data:image/png;base64,${base64}`;
+        console.log(`[OG Image] Logo loaded successfully, size: ${buffer.length} bytes`);
       } catch (error) {
         console.error(`[OG Image] Error processing logo:`, error);
       }
@@ -228,19 +249,26 @@ export async function GET(request: NextRequest) {
       console.error(`[OG Image] Logo response was null, will retry with absolute path`);
       // Retry with absolute path if relative path failed
       try {
-        const retryResponse = await fetch(`${baseUrl}/cryptoart-logo-wgmeets.png`);
+        const retryResponse = await fetch(`${baseUrl}/cryptoart-logo-wgmeets-og-wide.png`);
         if (retryResponse.ok) {
           const retryBuffer = Buffer.from(await retryResponse.arrayBuffer());
           const base64 = retryBuffer.toString('base64');
           logoDataUrl = `data:image/png;base64,${base64}`;
+          console.log(`[OG Image] Logo loaded on retry, size: ${retryBuffer.length} bytes`);
+        } else {
+          console.error(`[OG Image] Retry failed with status: ${retryResponse.status}`);
         }
       } catch (retryError) {
         console.error(`[OG Image] Retry also failed:`, retryError);
       }
     }
+    
+    if (!logoDataUrl) {
+      console.warn(`[OG Image] Logo data URL is null - will fall back to text`);
+    }
 
-    // Fetch 5 most recent listings
-    let recentListings: EnrichedAuctionData[] = [];
+    // Fetch 5 most recent listings with cache and fallback
+    let recentListings: EnrichedAuctionData[] = getCachedRecentListings() || [];
     try {
       const endpoint = getSubgraphEndpoint();
       const data = await withTimeout(
@@ -255,7 +283,7 @@ export async function GET(request: NextRequest) {
       );
 
       // Enrich listings with metadata
-      recentListings = await Promise.all(
+      const enrichedListings = await Promise.all(
         data.listings.slice(0, 5).map(async (listing) => {
           const bidCount = listing.bids?.length || 0;
           const highestBid = listing.bids && listing.bids.length > 0 
@@ -337,19 +365,29 @@ export async function GET(request: NextRequest) {
           } as EnrichedAuctionData & { tokenSymbol: string; tokenDecimals: number; contractName: string | null };
         })
       );
+
+      recentListings = enrichedListings;
+      setCachedRecentListings(enrichedListings);
     } catch (error) {
       console.error(`[OG Image] Error fetching recent listings:`, error);
-      // Continue with empty list - will show fallback
+      // Use cached data if available
+      const cached = getCachedRecentListings();
+      if (cached) {
+        recentListings = cached;
+        console.log(`[OG Image] Using cached recent listings after fetch error`);
+      }
     }
 
-    // Fetch and cache images for listings
+    // Fetch and cache images for listings (OG-sized variant)
     const listingImages: (string | null)[] = await Promise.all(
       recentListings.map(async (listing) => {
         const imageUrl = listing.image || listing.metadata?.image;
         if (!imageUrl) return null;
 
+        const cacheKey = `${imageUrl}::og-212x252`;
+
         // Check cache first
-        const cached = await getCachedImage(imageUrl);
+        const cached = await getCachedImage(cacheKey);
         if (cached) {
           return cached;
         }
@@ -415,7 +453,7 @@ export async function GET(request: NextRequest) {
               const dataUrl = `data:${contentType};base64,${base64}`;
               
               // Cache the image
-              await cacheImage(imageUrl, dataUrl, contentType);
+              await cacheImage(cacheKey, dataUrl, contentType);
               
               return dataUrl;
             } catch (error) {
@@ -486,49 +524,93 @@ export async function GET(request: NextRequest) {
             fontFamily: 'MEK-Mono',
           }}
         >
-          {/* Top: Title section */}
+          {/* Top: Logo section with overlay text */}
           <div
             style={{
+              position: 'relative',
+              width: '100%',
+              padding: '20px',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              paddingTop: '30px',
-              paddingBottom: '30px',
             }}
           >
-            <img
-              src={logoDataUrl || `${baseUrl}/cryptoart-logo-wgmeets.png`}
-              alt="Cryptoart"
-              width={600}
-              height={120}
-              style={{
-                height: '120px',
-                width: 'auto',
-                marginBottom: '20px',
-                objectFit: 'contain',
-              }}
-            />
+            {logoDataUrl ? (
+              <img
+                src={logoDataUrl}
+                alt="Cryptoart"
+                width={1160}
+                height={358}
+                style={{
+                  width: '1160px',
+                  height: '358px',
+                  objectFit: 'contain',
+                  display: 'block',
+                  marginTop: '-20px',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  fontSize: 96,
+                  fontWeight: 'bold',
+                  letterSpacing: '4px',
+                  lineHeight: '1.1',
+                  fontFamily: 'MEKSans-Regular',
+                  marginTop: '-20px',
+                }}
+              >
+                CRYPTOART.SOCIAL
+              </div>
+            )}
+            {/* Overlay text on top half of logo */}
             <div
               style={{
+                position: 'absolute',
+                top: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
                 fontSize: 48,
                 fontWeight: 'bold',
                 letterSpacing: '2px',
                 opacity: 1,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
               }}
             >
               v1 — Auctionhouse & Marketplace
             </div>
+            {/* Membership text overlapping bottom of logo */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: 32,
+                opacity: 0.7,
+                textAlign: 'center',
+                letterSpacing: '0.5px',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+              }}
+            >
+              Membership: 0.0001 ETH/month
+            </div>
           </div>
+
+
 
           {/* Middle: Recent listings section */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              padding: '0 20px',
+              padding: '0 0px',
               flex: 1,
               minHeight: 0,
+              marginTop:'-60px'
             }}
           >
             {/* "recent listings" label */}
@@ -536,21 +618,21 @@ export async function GET(request: NextRequest) {
               style={{
                 fontSize: 24,
                 color: '#999999',
-                marginBottom: '16px',
+                marginBottom: '12px',
                 letterSpacing: '1px',
               }}
             >
               recent listings
             </div>
 
-            {/* Five cards in a row */}
+            {/* Five cards in a row - 40% of OG image height (252px) */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'row',
                 gap: '10px',
-                flex: 1,
-                minHeight: 0,
+                height: '252px',
+                minHeight: '252px',
               }}
             >
               {cardData.map((card, index) => (
@@ -562,7 +644,7 @@ export async function GET(request: NextRequest) {
                     flex: 1,
                     position: 'relative',
                     overflow: 'hidden',
-                    borderRadius: '4px',
+                    borderRadius: '14px',
                   }}
                 >
                   {/* Artwork image - full height */}
@@ -584,7 +666,7 @@ export async function GET(request: NextRequest) {
                       <img
                         src={card.image}
                         alt={card.title}
-                        width={232}
+                        width={212}
                         height={280}
                         style={{
                           width: '100%',
@@ -673,28 +755,6 @@ export async function GET(request: NextRequest) {
             </div>
           </div>
 
-          {/* Bottom: Membership text */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingTop: '20px',
-              paddingBottom: '20px',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 32,
-                opacity: 0.7,
-                textAlign: 'center',
-                letterSpacing: '0.5px',
-                padding: '0 40px',
-              }}
-            >
-              Membership: 0.0001 ETH/month
-            </div>
-          </div>
         </div>
       ),
       {
@@ -719,7 +779,16 @@ export async function GET(request: NextRequest) {
     const [mekMonoFont, mekSansFont, logoResponse] = await Promise.all([
       fetch(`${baseUrl}/MEK-Mono.otf`).then((res) => res.arrayBuffer()).catch(() => null),
       fetch(`${baseUrl}/MEKSans-Regular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
-      fetch(`${baseUrl}/cryptoart-logo-wgmeets.png`).then((res) => res.arrayBuffer()).catch(() => null),
+      fetch(`${baseUrl}/cryptoart-logo-wgmeets-og-wide.png`).then((res) => {
+        if (!res.ok) {
+          console.error(`[OG Image Fallback] Logo fetch failed with status: ${res.status}`);
+          return null;
+        }
+        return res.arrayBuffer();
+      }).catch((error) => {
+        console.error(`[OG Image Fallback] Error fetching logo:`, error);
+        return null;
+      }),
     ]);
     
     // Convert logo to base64 data URL
@@ -729,9 +798,12 @@ export async function GET(request: NextRequest) {
         const buffer = Buffer.from(logoResponse);
         const base64 = buffer.toString('base64');
         fallbackLogoDataUrl = `data:image/png;base64,${base64}`;
+        console.log(`[OG Image Fallback] Logo loaded successfully, size: ${buffer.length} bytes`);
       } catch (error) {
-        console.error(`[OG Image] Error processing logo in fallback:`, error);
+        console.error(`[OG Image Fallback] Error processing logo:`, error);
       }
+    } else {
+      console.warn(`[OG Image Fallback] Logo response was null`);
     }
     
     const fallbackFonts: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }> = [];
@@ -751,34 +823,84 @@ export async function GET(request: NextRequest) {
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             alignItems: 'center',
-            padding: '80px',
+            padding: '20px',
             color: 'white',
             fontFamily: 'MEK-Mono',
           }}
         >
-          <img
-            src={fallbackLogoDataUrl || `${baseUrl}/cryptoart-logo-wgmeets.png`}
-            alt="Cryptoart"
-            width={600}
-            height={120}
-            style={{
-              height: '120px',
-              width: 'auto',
-              marginBottom: '24px',
-              objectFit: 'contain',
-            }}
-          />
           <div
             style={{
-              fontSize: 48,
-              fontWeight: 'bold',
-              letterSpacing: '2px',
-              opacity: 1,
+              position: 'relative',
+              width: '100%',
+              padding: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            v1 — Auctionhouse & Marketplace
+            {fallbackLogoDataUrl ? (
+              <img
+                src={fallbackLogoDataUrl}
+                alt="Cryptoart"
+                width={1160}
+                height={358}
+                style={{
+                  width: '1160px',
+                  height: '358px',
+                  objectFit: 'contain',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  fontSize: 96,
+                  fontWeight: 'bold',
+                  letterSpacing: '4px',
+                  lineHeight: '1.1',
+                  fontFamily: 'MEKSans-Regular',
+                }}
+              >
+                CRYPTOART.SOCIAL
+              </div>
+            )}
+            {/* Overlay text on top half of logo */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: 48,
+                fontWeight: 'bold',
+                letterSpacing: '2px',
+                opacity: 1,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+              }}
+            >
+              v1 — Auctionhouse & Marketplace
+            </div>
+            {/* Membership text overlapping bottom of logo */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '50px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: 32,
+                opacity: 0.7,
+                textAlign: 'center',
+                letterSpacing: '0.5px',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+              }}
+            >
+              Membership: 0.0001 ETH/month to LIST and CAST ♦ Curate Culture ♥ Collect art
+            </div>
           </div>
         </div>
       ),
