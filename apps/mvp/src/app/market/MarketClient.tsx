@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
+import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import type { EnrichedAuctionData } from "~/lib/types";
 
@@ -59,7 +60,7 @@ export default function MarketClient() {
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+        <Logo />
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>

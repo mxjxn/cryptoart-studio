@@ -14,6 +14,7 @@ import { useAuthMode } from "~/hooks/useAuthMode";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { TransitionLink } from "~/components/TransitionLink";
+import { Logo } from "~/components/Logo";
 import { transitionNavigate } from "~/lib/view-transitions";
 
 // ERC165 interface IDs
@@ -812,7 +813,7 @@ export default function CreateAuctionClient() {
       {/* Header - only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+          <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>

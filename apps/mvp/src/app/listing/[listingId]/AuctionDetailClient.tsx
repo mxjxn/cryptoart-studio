@@ -12,6 +12,7 @@ import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
+import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
@@ -797,9 +798,7 @@ export default function AuctionDetailClient({
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">
-            cryptoart.social
-          </TransitionLink>
+          <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>

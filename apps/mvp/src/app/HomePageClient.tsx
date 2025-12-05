@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
@@ -116,9 +117,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     <div className="min-h-screen bg-black text-white">
       {/* Top Bar */}
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <TransitionLink href="/" className="font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono text-[15px]">
-          cryptoart.social
-        </TransitionLink>
+        <Logo />
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>

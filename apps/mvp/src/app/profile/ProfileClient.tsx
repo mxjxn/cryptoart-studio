@@ -12,6 +12,7 @@ import Link from "next/link";
 import { TransitionLink } from "~/components/TransitionLink";
 import { AuctionCard } from "~/components/AuctionCard";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { Logo } from "~/components/Logo";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 type TabType = "created" | "collected" | "bids" | "offers" | "saved";
@@ -127,7 +128,7 @@ export default function ProfileClient() {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+          <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -142,7 +143,7 @@ export default function ProfileClient() {
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+        <Logo />
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>
