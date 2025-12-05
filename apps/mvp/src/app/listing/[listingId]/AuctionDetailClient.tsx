@@ -736,6 +736,24 @@ export default function AuctionDetailClient({
     return () => clearInterval(interval);
   }, []);
 
+  // Calculate derived values for share text (must be called before conditional returns)
+  const isCancelled = auction?.status === "CANCELLED";
+  const displayCreatorName = auction?.artist || creatorName;
+
+  // Generate share text (must be called before conditional returns)
+  const shareText = useMemo(() => {
+    if (!auction || isCancelled) return "";
+    return generateListingShareText(
+      auction,
+      contractName || undefined,
+      displayCreatorName || undefined,
+      displayCreatorAddress || undefined,
+      creatorUsername || undefined,
+      paymentSymbol,
+      paymentDecimals
+    );
+  }, [auction, contractName, displayCreatorName, displayCreatorAddress, creatorUsername, paymentSymbol, paymentDecimals, isCancelled]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -756,10 +774,7 @@ export default function AuctionDetailClient({
   const endTime = auction.endTime ? parseInt(auction.endTime) : 0;
   const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
   const isActive = endTime > now && auction.status === "ACTIVE";
-  const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
-  // Use metadata artist, then resolved creator name from contract
-  const displayCreatorName = auction.artist || creatorName;
   const bidCount = auction.bidCount || 0;
   const hasBid = bidCount > 0 || !!auction.highestBid;
   
@@ -774,20 +789,6 @@ export default function AuctionDetailClient({
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
   const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
-
-  // Generate share text
-  const shareText = useMemo(() => {
-    if (!auction || isCancelled) return "";
-    return generateListingShareText(
-      auction,
-      contractName || undefined,
-      displayCreatorName || undefined,
-      displayCreatorAddress || undefined,
-      creatorUsername || undefined,
-      paymentSymbol,
-      paymentDecimals
-    );
-  }, [auction, contractName, displayCreatorName, displayCreatorAddress, creatorUsername, paymentSymbol, paymentDecimals, isCancelled]);
 
   return (
     <div className="min-h-screen bg-black text-white">
