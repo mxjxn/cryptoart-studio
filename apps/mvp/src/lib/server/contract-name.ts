@@ -27,7 +27,10 @@ export async function getContractNameServer(
     const publicClient = createPublicClient({
       chain: base,
       transport: http(
-        process.env.RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"
+        process.env.NEXT_PUBLIC_RPC_URL || 
+        process.env.RPC_URL || 
+        process.env.NEXT_PUBLIC_BASE_RPC_URL || 
+        "https://mainnet.base.org"
       ),
     });
 
