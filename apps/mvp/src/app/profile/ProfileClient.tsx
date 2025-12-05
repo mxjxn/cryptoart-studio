@@ -17,11 +17,24 @@ import type { EnrichedAuctionData } from "~/lib/types";
 
 type TabType = "created" | "collected" | "bids" | "offers" | "saved";
 
+type FarcasterHandle = {
+  fid: number;
+  username: string;
+  displayName: string | null;
+  pfpUrl: string | null;
+};
+
 export default function ProfileClient() {
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
   const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const [activeTab, setActiveTab] = useState<TabType>("created");
+  
+  // Farcaster handles state
+  const [farcasterHandles, setFarcasterHandles] = useState<FarcasterHandle[]>([]);
+  const [farcasterHandlesLoading, setFarcasterHandlesLoading] = useState(false);
+  const [farcasterHandlesExpanded, setFarcasterHandlesExpanded] = useState(false);
+  const [lastFetchedAddress, setLastFetchedAddress] = useState<string | null>(null);
   
   // Get verified addresses from Farcaster if available (mini-app context)
   const farcasterMiniAppAddress = context?.user
@@ -56,6 +69,43 @@ export default function ProfileClient() {
   
   // Determine avatar URL: Farcaster pfp (mini-app) > Farcaster pfp (web) > ENS avatar > undefined
   const avatarUrl = context?.user?.pfpUrl || farcasterProfile?.pfpUrl || ensAvatar || undefined;
+  
+  // Determine currently logged-in Farcaster handle (for status chip highlighting)
+  const currentFarcasterFid = isMiniApp
+    ? (context?.user as any)?.fid
+    : (farcasterProfile as any)?.fid;
+  
+  // Determine if we should fetch Farcaster handles
+  // Only fetch when authenticated with wallet/ENS (not Farcaster) and address is available
+  const shouldFetchFarcasterHandles = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
+  
+  // Fetch Farcaster handles when authenticated with wallet/ENS
+  useEffect(() => {
+    if (shouldFetchFarcasterHandles && address && !farcasterHandlesLoading && address !== lastFetchedAddress) {
+      const addressToFetch = address; // Store in const for TypeScript
+      async function fetchFarcasterHandles() {
+        setFarcasterHandlesLoading(true);
+        try {
+          const response = await fetch(`/api/user/${encodeURIComponent(addressToFetch)}/farcaster-handles`);
+          if (response.ok) {
+            const data = await response.json();
+            setFarcasterHandles(data.handles || []);
+            setLastFetchedAddress(addressToFetch);
+          }
+        } catch (error) {
+          console.error('Error fetching Farcaster handles:', error);
+          setFarcasterHandles([]);
+        } finally {
+          setFarcasterHandlesLoading(false);
+        }
+      }
+      fetchFarcasterHandles();
+    } else if (!shouldFetchFarcasterHandles) {
+      // Clear handles when not in wallet/ENS auth mode
+      setFarcasterHandles([]);
+      setLastFetchedAddress(null);
+    }
+  }, [shouldFetchFarcasterHandles, address, farcasterHandlesLoading, lastFetchedAddress]);
   
   // Debug logging (remove in production)
   useEffect(() => {
@@ -204,7 +254,7 @@ export default function ProfileClient() {
             ) : (
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
             )}
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-light mb-1">{displayName}</h1>
               {context?.user?.username && (
                 <p className="text-sm text-[#999999]">@{context.user.username}</p>
@@ -214,6 +264,40 @@ export default function ProfileClient() {
               )}
               {ensName && (
                 <p className="text-sm text-[#999999]">{ensName}</p>
+              )}
+              
+              {/* Farcaster Handles Status Chips */}
+              {shouldFetchFarcasterHandles && farcasterHandles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  {(farcasterHandlesExpanded ? farcasterHandles : farcasterHandles.slice(0, 7)).map((handle) => {
+                    const isActive = handle.fid === currentFarcasterFid;
+                    return (
+                      <div
+                        key={handle.fid}
+                        className={`px-3 py-1 rounded-full text-sm border-2 ${
+                          isActive
+                            ? "border-green-500 text-green-500"
+                            : "border-red-500 text-red-500"
+                        }`}
+                      >
+                        @{handle.username}
+                      </div>
+                    );
+                  })}
+                  {farcasterHandles.length > 7 && (
+                    <button
+                      onClick={() => setFarcasterHandlesExpanded(!farcasterHandlesExpanded)}
+                      className="text-sm text-[#999999] hover:text-[#cccccc] transition-colors"
+                    >
+                      {farcasterHandlesExpanded
+                        ? "Show less"
+                        : `(and ${farcasterHandles.length - 7} more...)`}
+                    </button>
+                  )}
+                </div>
+              )}
+              {shouldFetchFarcasterHandles && farcasterHandlesLoading && (
+                <p className="text-sm text-[#999999] mt-3">Loading Farcaster handles...</p>
               )}
             </div>
           </div>

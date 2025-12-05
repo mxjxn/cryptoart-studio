@@ -289,6 +289,102 @@ export async function lookupNeynarByUsername(
 }
 
 /**
+ * Lookup all Farcaster handles associated with a verified ETH address
+ * Uses the bulk-by-address endpoint which returns an array of all users with that address
+ * Returns array of all Farcaster handles, not just the first one
+ */
+export async function lookupAllFarcasterHandlesByAddress(
+  address: string
+): Promise<Array<{ fid: number; username: string; displayName: string | null; pfpUrl: string | null }>> {
+  console.log("[lookupAllFarcasterHandlesByAddress] Starting lookup for address:", address);
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) {
+    console.warn(
+      "[lookupAllFarcasterHandlesByAddress] NEYNAR_API_KEY not configured, skipping Neynar lookup"
+    );
+    return [];
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${address}`;
+    console.log("[lookupAllFarcasterHandlesByAddress] Fetching from URL:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "x-api-key": apiKey,
+        "x-neynar-experimental": "false",
+      },
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    });
+
+    console.log(
+      "[lookupAllFarcasterHandlesByAddress] Response status:",
+      response.status,
+      response.statusText
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(
+          "[lookupAllFarcasterHandlesByAddress] No users found with this verified address (404)"
+        );
+        return [];
+      }
+      const errorText = await response.text();
+      console.error(
+        "[lookupAllFarcasterHandlesByAddress] Neynar API error:",
+        response.status,
+        errorText
+      );
+      return [];
+    }
+
+    const data = await response.json();
+    const addressLower = address.toLowerCase();
+    console.log(
+      "[lookupAllFarcasterHandlesByAddress] Looking for address (lowercase):",
+      addressLower
+    );
+
+    // Get users array for this address
+    const users = data[addressLower];
+    console.log(
+      "[lookupAllFarcasterHandlesByAddress] Users found:",
+      users ? `Array with ${users.length} users` : "null/undefined"
+    );
+
+    if (users && Array.isArray(users) && users.length > 0) {
+      // Return all users, not just the first one
+      const handles = users
+        .filter((user: any) => user && user.fid && user.username)
+        .map((user: any) => ({
+          fid: user.fid,
+          username: user.username,
+          displayName: user.display_name || null,
+          pfpUrl: user.pfp_url || null,
+        }));
+
+      console.log(
+        "[lookupAllFarcasterHandlesByAddress] Returning",
+        handles.length,
+        "handles"
+      );
+      return handles;
+    }
+
+    console.log("[lookupAllFarcasterHandlesByAddress] No valid users found, returning empty array");
+    return [];
+  } catch (error) {
+    console.error(
+      "[lookupAllFarcasterHandlesByAddress] Error looking up Neynar users by address:",
+      error
+    );
+    return [];
+  }
+}
+
+/**
  * Reverse resolve ENS name from address
  * Now checks cache first before making RPC calls
  */
