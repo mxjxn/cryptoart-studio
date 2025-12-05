@@ -19,15 +19,15 @@ const getSubgraphEndpoint = (): string => {
  * Get headers for subgraph requests, including API key if available
  */
 const getSubgraphHeaders = (): Record<string, string> => {
-  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY || process.env.NEXT_PUBLIC_GRAPH_STUDIO_API_KEY;
   if (apiKey) {
     return {
       Authorization: `Bearer ${apiKey}`,
     };
   }
-  // Log warning in build environment if API key is missing
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-    console.warn('[Subgraph] GRAPH_STUDIO_API_KEY not set - requests may fail authentication');
+  // Log warning if API key is missing (but don't fail - let the request try and fall back to cache)
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.NEXT_PHASE === 'phase-production-build') {
+    console.warn('[Subgraph] GRAPH_STUDIO_API_KEY or NEXT_PUBLIC_GRAPH_STUDIO_API_KEY not set - subgraph requests may fail authentication and will fall back to cache');
   }
   return {};
 };
@@ -285,6 +285,12 @@ async function fetchActiveAuctions(
   let data: { listings: any[] } = { listings: [] };
 
   try {
+    const headers = getSubgraphHeaders();
+    // Log if headers are missing during build
+    if (Object.keys(headers).length === 0 && (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.NEXT_PHASE === 'phase-production-build')) {
+      console.warn('[Active Listings] No subgraph auth headers - request may fail. Set GRAPH_STUDIO_API_KEY or NEXT_PUBLIC_GRAPH_STUDIO_API_KEY');
+    }
+    
     data = await request<{ listings: any[] }>(
       endpoint,
       ACTIVE_LISTINGS_QUERY,
@@ -292,12 +298,23 @@ async function fetchActiveAuctions(
         first: Math.min(first, 1000),
         skip,
       },
-      getSubgraphHeaders()
+      headers
     );
-  } catch (error) {
-    console.error(`[Active Listings] Subgraph error, using last-known cache if available:`, error);
+  } catch (error: any) {
+    // Check if it's an auth error
+    const isAuthError = error?.response?.errors?.some((e: any) => 
+      e?.message?.includes('auth error') || e?.message?.includes('authorization')
+    ) || error?.message?.includes('auth error') || error?.message?.includes('authorization');
+    
+    if (isAuthError) {
+      console.warn(`[Active Listings] Subgraph authentication error - ensure GRAPH_STUDIO_API_KEY is set. Using last-known cache if available.`);
+    } else {
+      console.error(`[Active Listings] Subgraph error, using last-known cache if available:`, error);
+    }
+    
     const now = Date.now();
     if (LAST_ACTIVE_CACHE.value && LAST_ACTIVE_CACHE.value.expiresAt > now) {
+      console.log(`[Active Listings] Using cached data (expires at ${new Date(LAST_ACTIVE_CACHE.value.expiresAt).toISOString()})`);
       return LAST_ACTIVE_CACHE.value.data;
     }
     return [];
