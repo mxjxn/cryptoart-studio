@@ -5,7 +5,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadCont
 import { useProfile } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
-import { type Address, parseEther, formatEther, decodeErrorResult } from "viem";
+import { type Address, parseEther, formatEther, decodeErrorResult, encodeFunctionData } from "viem";
 import Link from "next/link";
 
 // STP v2 ABI for subscription functions
@@ -200,6 +200,9 @@ export default function MembershipClient() {
     pricePerPeriod?: bigint;
     periodDurationSeconds?: bigint;
     initialMintPrice?: bigint;
+    paused?: boolean;
+    startTimestamp?: bigint;
+    endTimestamp?: bigint;
   };
 
   type TierState = {
@@ -212,6 +215,16 @@ export default function MembershipClient() {
   // so tierDetailResult already matches TierState.
   const tierState = tierDetailResult as TierState | undefined;
   const tierParams = tierState?.params;
+  
+  // Check if tier is paused (this could cause the transaction to revert)
+  const isTierPaused = tierParams?.paused === true;
+  
+  // Check time-based restrictions
+  const now = Math.floor(Date.now() / 1000);
+  const startTimestamp = tierParams?.startTimestamp ? Number(tierParams.startTimestamp) : undefined;
+  const endTimestamp = tierParams?.endTimestamp ? Number(tierParams.endTimestamp) : undefined;
+  const isBeforeStart = startTimestamp && now < startTimestamp;
+  const isAfterEnd = endTimestamp && endTimestamp > 0 && now > endTimestamp;
 
   const pricePerMonthWei = tierParams?.pricePerPeriod;
   const periodDurationSeconds = tierParams?.periodDurationSeconds;
@@ -460,6 +473,28 @@ export default function MembershipClient() {
       return;
     }
 
+    // Check if tier is paused
+    if (isTierPaused) {
+      console.error('[MembershipClient] Tier is paused');
+      alert("This membership tier is currently paused and not accepting new subscriptions. Please try again later.");
+      return;
+    }
+
+    // Check time-based restrictions
+    if (isBeforeStart) {
+      const startDate = new Date(startTimestamp! * 1000);
+      console.error('[MembershipClient] Tier not yet started:', startDate);
+      alert(`This membership tier hasn't started yet. It will be available starting ${startDate.toLocaleString()}.`);
+      return;
+    }
+
+    if (isAfterEnd) {
+      const endDate = new Date(endTimestamp! * 1000);
+      console.error('[MembershipClient] Tier has ended:', endDate);
+      alert(`This membership tier has ended. It was available until ${endDate.toLocaleString()}.`);
+      return;
+    }
+
     // Check balance before attempting transaction
     if (hasInsufficientBalance) {
       const neededEth = formatEther(insufficientAmount);
@@ -503,23 +538,45 @@ export default function MembershipClient() {
     });
 
     try {
+      // First, estimate gas to see if that gives us any clues
+      let estimatedGas: bigint | undefined;
+      try {
+        estimatedGas = await publicClient.estimateGas({
+          account: address,
+          to: STP_V2_CONTRACT_ADDRESS as Address,
+          value: totalPriceWei,
+          data: encodeFunctionData({
+            abi: STP_V2_ABI,
+            functionName: 'mint',
+            args: [totalPriceWei, BigInt(0)],
+          }),
+        });
+        console.log('[MembershipClient] Gas estimated:', estimatedGas.toString());
+      } catch (gasErr: any) {
+        console.warn('[MembershipClient] Gas estimation failed:', gasErr);
+        // Continue with simulation even if gas estimation fails
+      }
+
       // First, simulate the transaction to catch errors early and get better error messages
       console.log('[MembershipClient] Simulating transaction with:', {
         account: address,
         payableAmount: totalPriceWei.toString(),
         value: totalPriceWei.toString(),
         totalPriceEth,
+        estimatedGas: estimatedGas?.toString(),
       });
       try {
-        await publicClient.simulateContract({
+        const simulationResult = await publicClient.simulateContract({
           account: address,
           address: STP_V2_CONTRACT_ADDRESS as Address,
           abi: STP_V2_ABI,
           functionName: 'mint',
           args: [totalPriceWei, BigInt(0)], // payableAmount in wei, numTokens = 0 for ETH
           value: totalPriceWei,
+          // Add explicit gas limit if we got an estimate
+          ...(estimatedGas && { gas: estimatedGas * BigInt(2) }), // 2x buffer for safety
         });
-        console.log('[MembershipClient] Simulation successful');
+        console.log('[MembershipClient] Simulation successful:', simulationResult);
       } catch (simErr: any) {
         console.error('[MembershipClient] Simulation failed:', simErr);
         console.error('[MembershipClient] Simulation error details:', {
