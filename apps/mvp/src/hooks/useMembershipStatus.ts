@@ -16,7 +16,17 @@ const STP_V2_ABI = [
   },
 ] as const;
 
+export interface MembershipInfo {
+  address: string;
+  expirationDate: Date;
+  timeRemainingSeconds: number;
+  isFarcasterWallet: boolean;
+}
+
 export interface MembershipStatus {
+  memberships: MembershipInfo[];
+  primaryMembership: MembershipInfo | null;
+  // Backward compatibility fields
   isPro: boolean;
   expirationDate: Date | null;
   membershipAddress: string | null;
@@ -239,7 +249,7 @@ export function useMembershipStatus(): MembershipStatus {
     },
   });
 
-  // Process results to find active membership
+  // Process results to find ALL active memberships
   // Note: balanceOf returns time remaining in seconds for STP v2 contract
   const membershipData = useMemo(() => {
     console.log('[useMembershipStatus] Processing membership results:', {
@@ -255,10 +265,19 @@ export function useMembershipStatus(): MembershipStatus {
 
     if (!results || results.length === 0) {
       console.log('[useMembershipStatus] No results, returning no membership');
-      return { isPro: false, expirationDate: null, membershipAddress: null, timeRemainingSeconds: null };
+      return { 
+        memberships: [],
+        primaryMembership: null,
+        isPro: false, 
+        expirationDate: null, 
+        membershipAddress: null, 
+        timeRemainingSeconds: null 
+      };
     }
 
-    // Process results - check balanceOf for each address
+    // Process results - collect ALL active memberships
+    const allMemberships: MembershipInfo[] = [];
+    
     for (let i = 0; i < verifiedAddresses.length; i++) {
       const addr = verifiedAddresses[i];
       const balanceResult = results[i];
@@ -280,76 +299,103 @@ export function useMembershipStatus(): MembershipStatus {
           const expirationTimestamp = Math.floor(Date.now() / 1000) + seconds;
           const expirationDate = new Date(expirationTimestamp * 1000);
           
+          // Check if this is a Farcaster native wallet
+          const addrLower = addr.toLowerCase();
+          let isFarcasterWallet = farcasterNativeWallets.includes(addrLower);
+          
+          // Fallback: If we couldn't determine from custody/primary
+          if (!isFarcasterWallet && farcasterNativeWallets.length === 0) {
+            const connectedAddrLower = connectedAddress?.toLowerCase();
+            const firstVerifiedAddr = verifiedAddresses[0]?.toLowerCase();
+            if (addrLower === connectedAddrLower || addrLower === firstVerifiedAddr) {
+              isFarcasterWallet = true;
+            }
+          }
+          
+          const membershipInfo: MembershipInfo = {
+            address: addr,
+            expirationDate,
+            timeRemainingSeconds: seconds,
+            isFarcasterWallet,
+          };
+          
           console.log('[useMembershipStatus] Found active membership:', {
             address: addr,
             timeRemainingSeconds: seconds,
             expirationDate: expirationDate.toISOString(),
+            isFarcasterWallet,
           });
           
-          return {
-            isPro: true,
-            expirationDate,
-            membershipAddress: addr,
-            timeRemainingSeconds: seconds,
-          };
+          allMemberships.push(membershipInfo);
         }
       } else if (balanceResult?.status === 'failure') {
         console.error(`[useMembershipStatus] Error checking address ${addr}:`, balanceResult.error);
       }
     }
     
-    console.log('[useMembershipStatus] No active membership found in any verified address');
-    return { isPro: false, expirationDate: null, membershipAddress: null, timeRemainingSeconds: null };
-  }, [results, verifiedAddresses]);
-
-  // Check if membership is on a Farcaster native wallet (custody or primary)
-  // If it's on any other verified address, it's considered "external" and should show "manage on hypersub"
-  // Note: membershipAddress is already lowercased from verifiedAddresses array
-  const membershipAddrLower = membershipData.membershipAddress?.toLowerCase() || null;
-  
-  // Determine if this is the Farcaster wallet:
-  // 1. Check if it's in the farcasterNativeWallets array (custody or primary)
-  // 2. Fallback: If miniapp context doesn't provide custody/primary, check if it's:
-  //    - The connected address (from eth_requestAccounts in miniapp)
-  //    - The first verified address (often the primary/custody)
-  let isFarcasterWallet = false;
-  if (membershipAddrLower) {
-    // First check: Is it in the explicit Farcaster native wallets?
-    isFarcasterWallet = farcasterNativeWallets.includes(membershipAddrLower);
+    // Sort memberships by time remaining (longest first) to determine primary
+    allMemberships.sort((a, b) => b.timeRemainingSeconds - a.timeRemainingSeconds);
     
-    // Fallback: If we couldn't determine from custody/primary (miniapp might not provide these)
-    // and the membership is on the connected address or first verified address, treat it as Farcaster wallet
-    if (!isFarcasterWallet && farcasterNativeWallets.length === 0) {
-      const connectedAddrLower = connectedAddress?.toLowerCase();
-      const firstVerifiedAddr = verifiedAddresses[0]?.toLowerCase();
-      
-      // If membership is on connected address (miniapp wallet) or first verified address, it's likely the Farcaster wallet
-      if (membershipAddrLower === connectedAddrLower || membershipAddrLower === firstVerifiedAddr) {
-        isFarcasterWallet = true;
-      }
+    const primaryMembership = allMemberships.length > 0 ? allMemberships[0] : null;
+    
+    console.log('[useMembershipStatus] Membership check complete:', {
+      totalMemberships: allMemberships.length,
+      primaryMembership: primaryMembership ? {
+        address: primaryMembership.address,
+        timeRemainingSeconds: primaryMembership.timeRemainingSeconds,
+        isFarcasterWallet: primaryMembership.isFarcasterWallet,
+      } : null,
+      allMemberships: allMemberships.map(m => ({
+        address: m.address,
+        timeRemainingSeconds: m.timeRemainingSeconds,
+        isFarcasterWallet: m.isFarcasterWallet,
+      })),
+    });
+    
+    if (allMemberships.length === 0) {
+      console.log('[useMembershipStatus] No active membership found in any verified address');
     }
-  }
+    
+    return {
+      memberships: allMemberships,
+      primaryMembership,
+      isPro: primaryMembership !== null,
+      expirationDate: primaryMembership?.expirationDate || null,
+      membershipAddress: primaryMembership?.address || null,
+      timeRemainingSeconds: primaryMembership?.timeRemainingSeconds || null,
+    };
+  }, [results, verifiedAddresses, farcasterNativeWallets, connectedAddress]);
+
+  // Extract isFarcasterWallet from primary membership (already calculated in membershipData)
+  const isFarcasterWallet = membershipData.primaryMembership?.isFarcasterWallet || false;
   
   // Always log membership check results (not just in development)
   console.log('[useMembershipStatus] Final membership check result:', {
+    totalMemberships: membershipData.memberships.length,
     isPro: membershipData.isPro,
     membershipAddress: membershipData.membershipAddress,
-    membershipAddressLower: membershipAddrLower,
     connectedAddress: connectedAddress?.toLowerCase(),
     firstVerifiedAddress: verifiedAddresses[0],
     farcasterNativeWallets,
     isFarcasterWallet,
     allVerifiedAddresses: verifiedAddresses,
-    comparison: farcasterNativeWallets.map(w => ({
-      wallet: w,
-      matches: w === membershipAddrLower,
+    primaryMembership: membershipData.primaryMembership ? {
+      address: membershipData.primaryMembership.address,
+      timeRemainingSeconds: membershipData.primaryMembership.timeRemainingSeconds,
+      isFarcasterWallet: membershipData.primaryMembership.isFarcasterWallet,
+    } : null,
+    allMemberships: membershipData.memberships.map(m => ({
+      address: m.address,
+      timeRemainingSeconds: m.timeRemainingSeconds,
+      isFarcasterWallet: m.isFarcasterWallet,
     })),
-    fallbackUsed: farcasterNativeWallets.length === 0 && isFarcasterWallet,
     timeRemainingSeconds: membershipData.timeRemainingSeconds,
     expirationDate: membershipData.expirationDate?.toISOString(),
   });
 
   return {
+    memberships: membershipData.memberships,
+    primaryMembership: membershipData.primaryMembership,
     isPro: membershipData.isPro,
     expirationDate: membershipData.expirationDate,
     membershipAddress: membershipData.membershipAddress,

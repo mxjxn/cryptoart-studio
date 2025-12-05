@@ -125,12 +125,26 @@ export default function MembershipClient() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnectPending } = useConnect();
   const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
-  const { isPro, expirationDate, membershipAddress, timeRemainingSeconds, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
+  const { memberships, primaryMembership, isPro, expirationDate, membershipAddress, timeRemainingSeconds, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
   const [periods, setPeriods] = useState(12); // Changed from "months" to "periods"
   const [showAddTime, setShowAddTime] = useState(false);
   
   // User is authenticated if they have a wallet connected OR are signed in via Farcaster web auth
   const isAuthenticated = isConnected || isFarcasterAuth;
+  
+  // Separate memberships by wallet type
+  const connectedWalletMemberships = memberships.filter(m => 
+    address && m.address.toLowerCase() === address.toLowerCase()
+  );
+  const otherWalletMemberships = memberships.filter(m => 
+    !address || m.address.toLowerCase() !== address.toLowerCase()
+  );
+  
+  // Check if user already has membership in connected wallet
+  const hasMembershipInConnectedWallet = connectedWalletMemberships.length > 0;
+  
+  // Check if user has any other memberships (for duplicate warning)
+  const hasOtherMemberships = otherWalletMemberships.length > 0;
 
   // Log membership status and wallet info
   useEffect(() => {
@@ -143,6 +157,9 @@ export default function MembershipClient() {
         username: farcasterProfile.username,
         fid: farcasterProfile.fid,
       } : null,
+      totalMemberships: memberships.length,
+      connectedWalletMemberships: connectedWalletMemberships.length,
+      otherWalletMemberships: otherWalletMemberships.length,
       isPro,
       membershipAddress,
       isFarcasterWallet,
@@ -150,7 +167,7 @@ export default function MembershipClient() {
       timeRemainingSeconds,
       statusLoading,
     });
-  }, [address, isConnected, isFarcasterAuth, isAuthenticated, farcasterProfile, isPro, membershipAddress, isFarcasterWallet, expirationDate, timeRemainingSeconds, statusLoading]);
+  }, [address, isConnected, isFarcasterAuth, isAuthenticated, farcasterProfile, memberships, connectedWalletMemberships, otherWalletMemberships, isPro, membershipAddress, isFarcasterWallet, expirationDate, timeRemainingSeconds, statusLoading]);
 
   // Read tier detail (tier 1) from contract to get price per period
   // Note: This doesn't require wallet connection, so we can always read it
@@ -235,20 +252,37 @@ export default function MembershipClient() {
   
   // For existing subscriptions (renewal), only charge pricePerPeriod * periods
   // For new subscriptions, charge initialMintPrice + (pricePerPeriod * periods)
-  const totalPriceWei = isPro
+  // Check if connected wallet has membership for renewal logic
+  const totalPriceWei = hasMembershipInConnectedWallet
     ? pricePerPeriodWei * BigInt(periods) // Renewal: no initial mint price
     : initialMintPriceWei + (pricePerPeriodWei * BigInt(periods)); // New: initial + periods
 
   const totalPriceEth = formatEther(totalPriceWei);
   const pricePerPeriodEth = pricePerPeriodWei ? formatEther(pricePerPeriodWei) : "0";
 
+  // Helper to format months remaining from seconds
+  const formatMonthsRemaining = (seconds: number): string => {
+    const days = Math.floor(seconds / 86400);
+    const months = Math.floor(days / 30);
+    const remainingDays = days % 30;
+    
+    if (months > 0) {
+      return `${months} month${months !== 1 ? 's' : ''}${remainingDays > 0 ? ` and ${remainingDays} day${remainingDays !== 1 ? 's' : ''}` : ''}`;
+    } else if (days > 0) {
+      return `${days} day${days !== 1 ? 's' : ''}`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      return hours > 0 ? `${hours} hour${hours !== 1 ? 's' : ''}` : 'Less than 1 hour';
+    }
+  };
+
   const handleSubscribe = async () => {
     console.log('[MembershipClient] handleSubscribe called', {
       address,
       isConnected,
-      isPro,
-      membershipAddress,
-      isFarcasterWallet,
+      hasMembershipInConnectedWallet,
+      hasOtherMemberships,
+      totalMemberships: memberships.length,
       pricePerPeriodWei: pricePerPeriodWei?.toString(),
       totalPriceWei: totalPriceWei.toString(),
       totalPriceEth,
@@ -267,23 +301,13 @@ export default function MembershipClient() {
       return;
     }
 
-    // Check if user has membership on a different wallet
-    if (isPro && membershipAddress && membershipAddress.toLowerCase() !== address.toLowerCase()) {
-      console.error('[MembershipClient] Wallet mismatch:', {
-        connectedWallet: address.toLowerCase(),
-        membershipWallet: membershipAddress.toLowerCase(),
-        isFarcasterWallet,
-      });
-      
-      // If membership is on Farcaster wallet but user is connected with MetaMask, warn them
-      if (isFarcasterWallet) {
-        alert(`Your membership is on your Farcaster wallet (${formatAddress(membershipAddress)}). Please switch to that wallet to add time, or manage your subscription on Hypersub.`);
-        return;
-      } else {
-        // Membership is on external wallet, should have shown "manage on hypersub" link
-        alert(`Your membership is on a different wallet (${formatAddress(membershipAddress)}). Please manage your subscription on Hypersub.`);
-        return;
-      }
+    // If user already has membership in connected wallet, proceed with renewal
+    // If user has membership in another wallet, still allow minting (they can have multiple)
+    // But show a warning if they're trying to mint a duplicate
+    if (hasOtherMemberships && !hasMembershipInConnectedWallet) {
+      // User has membership elsewhere but not in connected wallet
+      // This is allowed - they can have multiple memberships
+      // The UI will show a warning
     }
 
     console.log('[MembershipClient] Preparing transaction:', {
@@ -292,7 +316,7 @@ export default function MembershipClient() {
       payableAmount: totalPriceWei.toString(),
       numTokens: '0',
       value: totalPriceWei.toString(),
-      isRenewal: isPro,
+      isRenewal: hasMembershipInConnectedWallet,
     });
 
     try {
@@ -380,6 +404,20 @@ export default function MembershipClient() {
     return { months, days: remainingDays, hours };
   };
 
+  // Helper to calculate time remaining from seconds (for individual memberships)
+  const calculateTimeRemainingFromSeconds = (seconds: number): { months: number; days: number; hours: number } | null => {
+    if (!seconds || seconds <= 0) {
+      return null;
+    }
+    
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const months = Math.floor(days / 30);
+    const remainingDays = days % 30;
+    
+    return { months, days: remainingDays, hours };
+  };
+
   const timeSubscribed = calculateTimeSubscribed();
   const timeRemaining = calculateTimeRemaining();
 
@@ -413,21 +451,14 @@ export default function MembershipClient() {
           <h1 className="text-3xl font-light mb-2">Membership</h1>
           {statusLoading ? (
             <p className="text-sm text-[#cccccc]">Loading membership status...</p>
-          ) : isPro ? (
+          ) : memberships.length > 0 ? (
             <div className="space-y-2">
               <p className="text-sm text-[#cccccc]">
-                {expirationDate
-                  ? `Your membership expires on ${formatDate(expirationDate)}`
-                  : "You have an active membership"}
+                You have {memberships.length} active membership{memberships.length !== 1 ? 's' : ''}
               </p>
-              {expirationDate && (
+              {primaryMembership && (
                 <p className="text-sm text-white font-medium">
-                  Time remaining: {formatTimeRemaining(expirationDate)}
-                </p>
-              )}
-              {membershipAddress && (
-                <p className="text-sm text-[#cccccc]">
-                  Membership wallet: <span className="text-white font-mono">{formatAddress(membershipAddress)}</span>
+                  Primary: {formatTimeRemaining(primaryMembership.expirationDate)} remaining
                 </p>
               )}
             </div>
@@ -438,272 +469,234 @@ export default function MembershipClient() {
           )}
         </div>
 
-        {/* Show different UI based on membership status and wallet */}
-        {isPro && !isFarcasterWallet && membershipAddress ? (
+        {/* Display all memberships */}
+        {statusLoading ? (
           <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-medium mb-2">Membership in Another Wallet</h2>
-              <p className="text-sm text-[#cccccc] mb-4">
-                Your membership is active in a different verified wallet. To manage your subscription, 
-                please visit Hypersub directly.
-              </p>
-              <div className="mb-4 p-3 bg-black rounded border border-[#333333]">
-                <p className="text-xs text-[#999999] mb-1">Membership Address:</p>
-                <p className="text-sm text-white font-mono break-all">{membershipAddress}</p>
-              </div>
-            </div>
-            <a
-              href="https://hypersub.xyz/s/cryptoart"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors inline-block text-center"
-            >
-              Manage on Hypersub →
-            </a>
+            <p className="text-[#cccccc] text-center">Loading memberships...</p>
           </div>
-        ) : isPro && isFarcasterWallet ? (
-          <>
-            {/* Your Subscription Panel */}
-            <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 mb-4">
-              <h2 className="text-lg font-medium mb-4">Your Subscription</h2>
-              <div className="space-y-3">
-                <div className="p-3 bg-black rounded border border-[#333333]">
-                  <p className="text-xs text-[#999999] mb-1">Time Remaining</p>
-                  {timeRemaining ? (
-                    <p className="text-lg text-white font-medium">
-                      {timeRemaining.months > 0 && `${timeRemaining.months} month${timeRemaining.months !== 1 ? 's' : ''}`}
-                      {timeRemaining.months > 0 && timeRemaining.days > 0 && ' and '}
-                      {timeRemaining.days > 0 && `${timeRemaining.days} day${timeRemaining.days !== 1 ? 's' : ''}`}
-                      {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours > 0 && `${timeRemaining.hours} hour${timeRemaining.hours !== 1 ? 's' : ''}`}
-                      {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours === 0 && 'Less than 1 hour'}
-                    </p>
-                  ) : (
-                    <p className="text-lg text-white font-medium">Calculating...</p>
-                  )}
-                </div>
-                {timeSubscribed && (
-                  <div className="p-3 bg-black rounded border border-[#333333]">
-                    <p className="text-xs text-[#999999] mb-1">Time Subscribed</p>
-                    <p className="text-sm text-white">
-                      {timeSubscribed.months > 0 && `${timeSubscribed.months} month${timeSubscribed.months !== 1 ? 's' : ''}`}
-                      {timeSubscribed.months > 0 && timeSubscribed.days > 0 && ' and '}
-                      {timeSubscribed.days > 0 && `${timeSubscribed.days} day${timeSubscribed.days !== 1 ? 's' : ''}`}
-                      {timeSubscribed.months === 0 && timeSubscribed.days === 0 && 'Less than 1 day'}
-                    </p>
-                  </div>
-                )}
-                {expirationDate && (
-                  <div className="p-3 bg-black rounded border border-[#333333]">
-                    <p className="text-xs text-[#999999] mb-1">Expires</p>
-                    <p className="text-sm text-white">{formatDate(expirationDate)}</p>
-                    <p className="text-xs text-[#cccccc] mt-1">{formatTimeRemaining(expirationDate)} remaining</p>
-                  </div>
-                )}
-                {membershipAddress && (
-                  <div className="p-3 bg-black rounded border border-[#333333]">
-                    <p className="text-xs text-[#999999] mb-1">Membership Wallet</p>
-                    <p className="text-sm text-white font-mono">{formatAddress(membershipAddress)}</p>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => setShowAddTime(!showAddTime)}
-                className="w-full mt-4 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-              >
-                {showAddTime ? 'Hide Add Time' : 'Add Time'}
-              </button>
-            </div>
-
-            {/* Add Time Panel (shown when showAddTime is true) */}
-            {showAddTime && (
-              <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
-                <div className="mb-6">
-                  <label className="block text-sm text-[#cccccc] mb-3">
-                    Duration (number of periods)
-                  </label>
-                  <div className="flex gap-2">
-                    {[1, 3, 6, 12, 24].map((value) => (
-                      <button
-                        key={value}
-                        onClick={() => setPeriods(value)}
-                        className={`px-4 py-2 text-sm rounded border transition-colors ${
-                          periods === value
-                            ? "bg-white text-black border-white"
-                            : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                        }`}
-                      >
-                        {value}p
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-6 p-4 bg-black rounded border border-[#333333]">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-[#999999]">
-                      {periodDurationLabel ? `Price per period (${periodDurationLabel})` : "Price per period"}
-                    </span>
-                    <span className="text-white">
-                      {loadingPrice ? "Loading..." : priceError ? "Error loading price" : pricePerMonthWei ? `${parseFloat(pricePerPeriodEth).toFixed(4)} ETH` : "0.0000 ETH"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-[#999999]">Total ({periods} periods)</span>
-                    <span className="text-xl font-medium text-white">
-                      {loadingPrice ? "..." : priceError ? "Error" : totalPriceWei ? `${parseFloat(totalPriceEth).toFixed(4)} ETH` : "0.0000 ETH"}
-                    </span>
-                  </div>
-                  {periodDurationLabel && (
-                    <div className="flex justify-between items-center mt-2 text-sm text-[#cccccc]">
-                      <span>Period length</span>
-                      <span>{periodDurationLabel}</span>
-                    </div>
-                  )}
-                  {priceError && (
-                    <div className="mt-2 text-xs text-red-400">
-                      Failed to load price. Please check contract address and network.
-                    </div>
-                  )}
-                </div>
-
-                {error && (
-                  <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded text-red-400 text-sm">
-                    Error: {error.message}
-                  </div>
-                )}
-
-                {isSuccess && (
-                  <div className="mb-4 p-3 bg-green-900/20 border border-green-500 rounded text-green-400 text-sm">
-                    Transaction successful! Your membership has been renewed.
-                  </div>
-                )}
-
-                {needsWalletForTransaction ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-[#cccccc] text-center mb-3">
-                      Connect a wallet to add time to your membership
-                    </p>
-                    {connectors.map((connector) => (
-                      <button
-                        key={connector.uid}
-                        onClick={() => connect({ connector })}
-                        disabled={isConnectPending}
-                        className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isConnectPending ? "Connecting..." : `Connect ${connector.name}`}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleSubscribe}
-                    disabled={isPending || isConfirming || statusLoading}
-                    className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isPending || isConfirming
-                      ? "Processing..."
-                      : isSuccess
-                      ? "Success!"
-                      : "Add Time"}
-                  </button>
-                )}
-              </div>
-            )}
-          </>
         ) : (
-          <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
-            <div className="mb-6">
-            <label className="block text-sm text-[#cccccc] mb-3">
-              Duration (number of periods)
-            </label>
-            <div className="flex gap-2">
-              {[1, 3, 6, 12, 24].map((value) => (
-                <button
-                  key={value}
-                  onClick={() => setPeriods(value)}
-                  className={`px-4 py-2 text-sm rounded border transition-colors ${
-                    periods === value
-                      ? "bg-white text-black border-white"
-                      : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                  }`}
-                >
-                  {value}p
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-6 p-4 bg-black rounded border border-[#333333]">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-[#999999]">
-                {periodDurationLabel ? `Price per period (${periodDurationLabel})` : "Price per period"}
-              </span>
-              <span className="text-white">
-                {loadingPrice ? "Loading..." : priceError ? "Error loading price" : pricePerMonthWei ? `${parseFloat(pricePerPeriodEth).toFixed(4)} ETH` : "0.0000 ETH"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-[#999999]">Total ({periods} periods)</span>
-              <span className="text-xl font-medium text-white">
-                {loadingPrice ? "..." : priceError ? "Error" : totalPriceWei ? `${parseFloat(totalPriceEth).toFixed(4)} ETH` : "0.0000 ETH"}
-              </span>
-            </div>
-            {periodDurationLabel && (
-              <div className="flex justify-between items-center mt-2 text-sm text-[#cccccc]">
-                <span>Period length</span>
-                <span>{periodDurationLabel}</span>
+          <div className="space-y-4">
+            {/* Memberships in connected wallet */}
+            {connectedWalletMemberships.length > 0 && (
+              <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+                <h2 className="text-lg font-medium mb-4">Your Active Membership{connectedWalletMemberships.length !== 1 ? 's' : ''}</h2>
+                <div className="space-y-3 mb-4">
+                  {connectedWalletMemberships.map((membership, idx) => {
+                    const timeRemaining = calculateTimeRemainingFromSeconds(membership.timeRemainingSeconds);
+                    return (
+                      <div key={idx} className="p-3 bg-black rounded border border-[#333333]">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-xs text-[#999999] mb-1">Time Remaining</p>
+                            {timeRemaining ? (
+                              <p className="text-lg text-white font-medium">
+                                {timeRemaining.months > 0 && `${timeRemaining.months} month${timeRemaining.months !== 1 ? 's' : ''}`}
+                                {timeRemaining.months > 0 && timeRemaining.days > 0 && ' and '}
+                                {timeRemaining.days > 0 && `${timeRemaining.days} day${timeRemaining.days !== 1 ? 's' : ''}`}
+                                {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours > 0 && `${timeRemaining.hours} hour${timeRemaining.hours !== 1 ? 's' : ''}`}
+                                {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours === 0 && 'Less than 1 hour'}
+                              </p>
+                            ) : (
+                              <p className="text-lg text-white font-medium">Calculating...</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-[#999999]">Expires</span>
+                            <span className="text-white">{formatDate(membership.expirationDate)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-[#999999]">Wallet</span>
+                            <span className="text-white font-mono">{formatAddress(membership.address)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
-            {priceError && (
-              <div className="mt-2 text-xs text-red-400">
-                Failed to load price. Please check contract address and network.
+
+            {/* Memberships in other wallets */}
+            {otherWalletMemberships.length > 0 && (
+              <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+                <h2 className="text-lg font-medium mb-2">Membership{otherWalletMemberships.length !== 1 ? 's' : ''} in Other Wallet{otherWalletMemberships.length !== 1 ? 's' : ''}</h2>
+                <p className="text-sm text-[#cccccc] mb-4">
+                  You have active membership{otherWalletMemberships.length !== 1 ? 's' : ''} in other verified wallet{otherWalletMemberships.length !== 1 ? 's' : ''}. 
+                  To manage {otherWalletMemberships.length === 1 ? 'it' : 'them'}, please visit Hypersub.
+                </p>
+                <div className="space-y-3 mb-4">
+                  {otherWalletMemberships.map((membership, idx) => {
+                    const timeRemaining = calculateTimeRemainingFromSeconds(membership.timeRemainingSeconds);
+                    return (
+                      <div key={idx} className="p-3 bg-black rounded border border-[#333333]">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <p className="text-xs text-[#999999] mb-1">Time Remaining</p>
+                            {timeRemaining ? (
+                              <p className="text-sm text-white font-medium">
+                                {timeRemaining.months > 0 && `${timeRemaining.months} month${timeRemaining.months !== 1 ? 's' : ''}`}
+                                {timeRemaining.months > 0 && timeRemaining.days > 0 && ' and '}
+                                {timeRemaining.days > 0 && `${timeRemaining.days} day${timeRemaining.days !== 1 ? 's' : ''}`}
+                                {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours > 0 && `${timeRemaining.hours} hour${timeRemaining.hours !== 1 ? 's' : ''}`}
+                                {timeRemaining.months === 0 && timeRemaining.days === 0 && timeRemaining.hours === 0 && 'Less than 1 hour'}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-white font-medium">Calculating...</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1 mt-2 mb-3">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-[#999999]">Wallet Address</span>
+                            <span className="text-white font-mono break-all text-right ml-2">{formatAddress(membership.address)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-[#999999]">Expires</span>
+                            <span className="text-white">{formatDate(membership.expirationDate)}</span>
+                          </div>
+                        </div>
+                        <a
+                          href="https://hypersub.xyz/s/cryptoart"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block w-full px-4 py-2 bg-white text-black text-xs font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors text-center"
+                        >
+                          Manage on Hypersub →
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
-          </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded text-red-400 text-sm">
-              Error: {error.message}
-            </div>
-          )}
+            {/* Mint/Renew Membership Section - Always visible */}
+            <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+              <h2 className="text-lg font-medium mb-4">
+                {hasMembershipInConnectedWallet ? 'Add Time to Membership' : 'Mint Membership'}
+              </h2>
+              
+              {/* Duplicate warning */}
+              {hasOtherMemberships && !hasMembershipInConnectedWallet && (
+                <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded">
+                  <p className="text-yellow-400 text-sm">
+                    ⚠️ You already have {otherWalletMemberships.length} membership{otherWalletMemberships.length !== 1 ? 's' : ''} in other wallet{otherWalletMemberships.length !== 1 ? 's' : ''}:
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {otherWalletMemberships.map((m, idx) => (
+                      <li key={idx} className="text-yellow-300 text-xs">
+                        • {formatAddress(m.address)} with {formatMonthsRemaining(m.timeRemainingSeconds)} remaining
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-yellow-400 text-xs mt-2">
+                    You can still mint a new membership in this wallet if you want multiple memberships.
+                  </p>
+                </div>
+              )}
+              
+              {hasMembershipInConnectedWallet && (
+                <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded">
+                  <p className="text-blue-400 text-sm">
+                    You already have a membership in this wallet. Adding time will extend your existing membership.
+                  </p>
+                </div>
+              )}
+              <div className="mb-6">
+                <label className="block text-sm text-[#cccccc] mb-3">
+                  Duration (number of periods)
+                </label>
+                <div className="flex gap-2">
+                  {[1, 3, 6, 12, 24].map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => setPeriods(value)}
+                      className={`px-4 py-2 text-sm rounded border transition-colors ${
+                        periods === value
+                          ? "bg-white text-black border-white"
+                          : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                      }`}
+                    >
+                      {value}p
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {isSuccess && (
-            <div className="mb-4 p-3 bg-green-900/20 border border-green-500 rounded text-green-400 text-sm">
-              Transaction successful! Your membership has been {isPro ? "renewed" : "activated"}.
-            </div>
-          )}
+              <div className="mb-6 p-4 bg-black rounded border border-[#333333]">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-[#999999]">
+                    {periodDurationLabel ? `Price per period (${periodDurationLabel})` : "Price per period"}
+                  </span>
+                  <span className="text-white">
+                    {loadingPrice ? "Loading..." : priceError ? "Error loading price" : pricePerMonthWei ? `${parseFloat(pricePerPeriodEth).toFixed(4)} ETH` : "0.0000 ETH"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-[#999999]">Total ({periods} periods)</span>
+                  <span className="text-xl font-medium text-white">
+                    {loadingPrice ? "..." : priceError ? "Error" : totalPriceWei ? `${parseFloat(totalPriceEth).toFixed(4)} ETH` : "0.0000 ETH"}
+                  </span>
+                </div>
+                {periodDurationLabel && (
+                  <div className="flex justify-between items-center mt-2 text-sm text-[#cccccc]">
+                    <span>Period length</span>
+                    <span>{periodDurationLabel}</span>
+                  </div>
+                )}
+                {priceError && (
+                  <div className="mt-2 text-xs text-red-400">
+                    Failed to load price. Please check contract address and network.
+                  </div>
+                )}
+              </div>
 
-          {needsWalletForTransaction ? (
-            <div className="space-y-3">
-              <p className="text-sm text-[#cccccc] text-center mb-3">
-                Connect a wallet to {isPro ? "renew your membership" : "mint your membership"}
-              </p>
-              {connectors.map((connector) => (
+              {error && (
+                <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded text-red-400 text-sm">
+                  Error: {error.message}
+                </div>
+              )}
+
+              {isSuccess && (
+                <div className="mb-4 p-3 bg-green-900/20 border border-green-500 rounded text-green-400 text-sm">
+                  Transaction successful! Your membership has been {hasMembershipInConnectedWallet ? "renewed" : "activated"}.
+                </div>
+              )}
+
+              {needsWalletForTransaction ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-[#cccccc] text-center mb-3">
+                    Connect a wallet to {hasMembershipInConnectedWallet ? "add time to your membership" : "mint your membership"}
+                  </p>
+                  {connectors.map((connector) => (
+                    <button
+                      key={connector.uid}
+                      onClick={() => connect({ connector })}
+                      disabled={isConnectPending}
+                      className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isConnectPending ? "Connecting..." : `Connect ${connector.name}`}
+                    </button>
+                  ))}
+                </div>
+              ) : (
                 <button
-                  key={connector.uid}
-                  onClick={() => connect({ connector })}
-                  disabled={isConnectPending}
+                  onClick={handleSubscribe}
+                  disabled={isPending || isConfirming || statusLoading}
                   className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isConnectPending ? "Connecting..." : `Connect ${connector.name}`}
+                  {isPending || isConfirming
+                    ? "Processing..."
+                    : isSuccess
+                    ? "Success!"
+                    : hasMembershipInConnectedWallet
+                    ? "Add Time"
+                    : "Mint Membership"}
                 </button>
-              ))}
+              )}
             </div>
-          ) : (
-            <button
-              onClick={handleSubscribe}
-              disabled={isPending || isConfirming || statusLoading}
-              className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isPending || isConfirming
-                ? "Processing..."
-                : isSuccess
-                ? "Success!"
-                : isPro
-                ? "Renew Membership"
-                : "Mint Membership"}
-            </button>
-          )}
           </div>
         )}
       </div>
