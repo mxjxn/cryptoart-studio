@@ -7,14 +7,29 @@ import { revalidateTag, revalidatePath } from 'next/cache';
  */
 export async function POST(req: NextRequest) {
   try {
+    // Parse request body to get optional listingId
+    let listingId: string | undefined;
+    try {
+      const body = await req.json();
+      listingId = body.listingId;
+    } catch {
+      // Body is optional, continue without it
+    }
+
     // Revalidate the auctions cache tag
     revalidateTag('auctions');
     // Also revalidate the homepage path
     revalidatePath('/');
     
+    // If listingId is provided, revalidate the specific listing page
+    if (listingId) {
+      revalidatePath(`/listing/${listingId}`);
+    }
+    
     return NextResponse.json({
       success: true,
       message: 'Cache invalidated',
+      listingId: listingId || null,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

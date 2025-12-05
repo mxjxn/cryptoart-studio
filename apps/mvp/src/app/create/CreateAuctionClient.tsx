@@ -719,9 +719,20 @@ export default function CreateAuctionClient() {
             setCreatedListingId(listingId);
             
             // Invalidate cache so homepage shows new listing immediately
-            fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
+            // Also revalidate the listing page so it's immediately available
+            fetch('/api/auctions/invalidate-cache', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ listingId: String(listingId) }),
+            }).catch(err => 
               console.error('Error invalidating cache:', err)
             );
+            
+            // Automatically navigate to the listing page
+            // The page will show a loading state while waiting for subgraph to index
+            setTimeout(() => {
+              transitionNavigate(router, `/listing/${listingId}`);
+            }, 500); // Small delay to ensure state is updated
             
             // Create real-time notification
             const listingType = formData.listingType === 'INDIVIDUAL_AUCTION' ? 'auction' 
@@ -757,7 +768,7 @@ export default function CreateAuctionClient() {
         console.error('Error extracting listing ID from receipt:', err);
       }
     }
-  }, [receipt, isSuccess, address, formData.listingType, formData.tokenId, formData.nftContract, contractPreview.name]);
+  }, [receipt, isSuccess, address, formData.listingType, formData.tokenId, formData.nftContract, contractPreview.name, router]);
 
   // Reset submitting state when transaction completes
   useEffect(() => {
