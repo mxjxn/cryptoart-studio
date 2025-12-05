@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect, usePublicClient, useBalance } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
-import { type Address, parseEther, formatEther } from "viem";
+import { type Address, parseEther, formatEther, decodeErrorResult } from "viem";
 import Link from "next/link";
 
 // STP v2 ABI for subscription functions
+// NOTE: Error definitions are critical for proper error decoding. Without them, 
+// contract reverts will show as "<unknown>" in wallets like Farcaster.
+// These are common errors that subscription contracts typically use.
 const STP_V2_ABI = [
   {
     type: 'function',
@@ -78,6 +81,14 @@ const STP_V2_ABI = [
     ],
     stateMutability: 'view',
   },
+  // NOTE: Error definitions would go here if we had the actual contract ABI.
+  // Custom errors ARE part of the contract interface - when a contract reverts with
+  // `error MyError(uint256)`, that error is encoded on-chain. To decode it, we need
+  // the error definition in the ABI. However, we don't know what errors the STP_V2
+  // contract actually defines, so we rely on simulation to catch errors before sending.
+  // 
+  // If you have access to the actual contract source or full ABI, add the real error
+  // definitions here to enable proper error decoding.
 ] as const;
 
 function formatPeriodDuration(durationSeconds?: bigint) {
@@ -221,11 +232,111 @@ export default function MembershipClient() {
   }, [priceError, tierDetailResult, pricePerMonthWei]);
 
   const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
+  const publicClient = usePublicClient();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   });
 
-  // Log transaction state changes
+  // Get user's ETH balance to check for sufficient funds
+  const { data: balanceData, isLoading: balanceLoading } = useBalance({
+    address: address,
+    query: {
+      enabled: !!address && isConnected,
+    },
+  });
+
+  // Helper function to extract and decode error data
+  const extractErrorDetails = (err: any): { decodedError: any | null; errorMessage: string } => {
+    let errorData: string | undefined;
+    let errorReason: string | undefined;
+    let shortMessage: string | undefined;
+    
+    // Check the cause chain
+    let current: any = err;
+    let depth = 0;
+    while (current && depth < 10) {
+      // Check for data property
+      if (current.data && typeof current.data === 'string' && current.data.startsWith('0x') && current.data.length > 10) {
+        errorData = current.data;
+        break;
+      }
+      
+      // Check for reason or shortMessage
+      if (current.reason && typeof current.reason === 'string') {
+        errorReason = current.reason;
+      }
+      if (current.shortMessage && typeof current.shortMessage === 'string') {
+        shortMessage = current.shortMessage;
+      }
+      
+      // Check for error property
+      if (current.error?.data && typeof current.error.data === 'string' && current.error.data.startsWith('0x')) {
+        errorData = current.error.data;
+        break;
+      }
+      
+      // Move to next level
+      current = current.cause || current.error;
+      depth++;
+    }
+    
+    // Also check direct properties
+    if (!errorData) {
+      const propsToCheck = ['data', 'errorData', 'revertData', 'returnData'];
+      for (const prop of propsToCheck) {
+        if (err[prop] && typeof err[prop] === 'string' && err[prop].startsWith('0x')) {
+          errorData = err[prop];
+          break;
+        }
+      }
+    }
+    
+    // Try to decode the error if we have error data
+    let decodedError: { errorName: string; args?: any } | null = null;
+    if (errorData && typeof errorData === 'string' && errorData.startsWith('0x') && errorData.length > 10) {
+      try {
+        decodedError = decodeErrorResult({
+          abi: STP_V2_ABI,
+          data: errorData as `0x${string}`,
+        });
+        console.log('[MembershipClient] Decoded error:', decodedError);
+      } catch (decodeErr) {
+        console.warn('[MembershipClient] Could not decode error:', decodeErr);
+      }
+    }
+    
+    // Build error message
+    // If we successfully decoded an error, use its name (we don't have a mapping since
+    // we don't know the actual contract errors - those would need to be added if we
+    // get the real contract ABI)
+    let errorMessage = '';
+    if (decodedError) {
+      // Use the decoded error name - if we had the real ABI with error definitions,
+      // we could map these to user-friendly messages
+      errorMessage = `Contract error: ${decodedError.errorName}`;
+    } else if (errorReason) {
+      errorMessage = errorReason;
+    } else if (shortMessage) {
+      errorMessage = shortMessage;
+    } else if (err?.message) {
+      const msg = err.message;
+      if (msg.includes('insufficient funds') || msg.includes('insufficient balance')) {
+        errorMessage = 'Insufficient ETH balance. Please ensure you have enough ETH to cover the membership cost plus gas fees.';
+      } else if (msg.includes('user rejected') || msg.includes('rejected')) {
+        errorMessage = 'Transaction was rejected.';
+      } else if (msg.includes('execution reverted') || msg.includes('<unknown>')) {
+        errorMessage = 'The contract rejected the transaction. This could be due to insufficient funds, invalid parameters, or contract-specific restrictions.';
+      } else {
+        errorMessage = msg;
+      }
+    } else {
+      errorMessage = 'Transaction failed. Please check your balance and try again.';
+    }
+    
+    return { decodedError, errorMessage };
+  };
+
+  // Log transaction state changes and handle errors
   useEffect(() => {
     console.log('[MembershipClient] Transaction state:', {
       hash,
@@ -234,6 +345,23 @@ export default function MembershipClient() {
       isSuccess,
       error: error?.message,
     });
+    
+    // Log detailed error information if available
+    if (error) {
+      console.error('[MembershipClient] Transaction error details:', {
+        message: error.message,
+        name: error.name,
+        cause: error.cause,
+        stack: error.stack,
+        // Check for additional error properties
+        ...(error as any).data && { data: (error as any).data },
+        ...(error as any).shortMessage && { shortMessage: (error as any).shortMessage },
+      });
+      
+      // Try to extract and decode the error
+      const errorDetails = extractErrorDetails(error);
+      console.log('[MembershipClient] Extracted error details:', errorDetails);
+    }
   }, [hash, isPending, isConfirming, isSuccess, error]);
 
   // Reset form on success
@@ -259,6 +387,14 @@ export default function MembershipClient() {
 
   const totalPriceEth = formatEther(totalPriceWei);
   const pricePerPeriodEth = pricePerPeriodWei ? formatEther(pricePerPeriodWei) : "0";
+
+  // Check if user has sufficient balance (total price + estimated gas fees)
+  // Estimate gas: ~0.001 ETH should be more than enough for a simple mint transaction
+  const estimatedGasFee = parseEther("0.0001");
+  const totalRequired = totalPriceWei + estimatedGasFee;
+  const userBalance = balanceData?.value ?? BigInt(0);
+  const hasInsufficientBalance = address && isConnected && userBalance < totalRequired;
+  const insufficientAmount = hasInsufficientBalance ? totalRequired - userBalance : BigInt(0);
 
   // Helper to format months remaining from seconds
   const formatMonthsRemaining = (seconds: number): string => {
@@ -301,6 +437,19 @@ export default function MembershipClient() {
       return;
     }
 
+    if (!publicClient) {
+      console.error('[MembershipClient] No public client available');
+      alert("Unable to connect to blockchain. Please try again.");
+      return;
+    }
+
+    // Check balance before attempting transaction
+    if (hasInsufficientBalance) {
+      const neededEth = formatEther(insufficientAmount);
+      alert(`Insufficient ETH balance. You need at least ${parseFloat(totalPriceEth).toFixed(4)} ETH for the membership plus approximately 0.001 ETH for gas fees. You currently have ${balanceData?.formatted || "0"} ETH. Please add at least ${parseFloat(neededEth).toFixed(4)} more ETH.`);
+      return;
+    }
+
     // If user already has membership in connected wallet, proceed with renewal
     // If user has membership in another wallet, still allow minting (they can have multiple)
     // But show a warning if they're trying to mint a duplicate
@@ -320,6 +469,31 @@ export default function MembershipClient() {
     });
 
     try {
+      // First, simulate the transaction to catch errors early and get better error messages
+      console.log('[MembershipClient] Simulating transaction...');
+      try {
+        await publicClient.simulateContract({
+          account: address,
+          address: STP_V2_CONTRACT_ADDRESS as Address,
+          abi: STP_V2_ABI,
+          functionName: 'mint',
+          args: [totalPriceWei, BigInt(0)], // payableAmount in wei, numTokens = 0 for ETH
+          value: totalPriceWei,
+        });
+        console.log('[MembershipClient] Simulation successful');
+      } catch (simErr: any) {
+        console.error('[MembershipClient] Simulation failed:', simErr);
+        
+        // Use the helper function to extract and decode error
+        const errorDetails = extractErrorDetails(simErr);
+        
+        // Build a user-friendly error message
+        const errorMessage = `Transaction would fail: ${errorDetails.errorMessage}`;
+        
+        alert(errorMessage);
+        return;
+      }
+
       // Use mint function with payableAmount (in wei) and numTokens (0 for ETH payment)
       // The contract handles both new subscriptions and renewals based on whether the user already has a subscription
       console.log('[MembershipClient] Calling writeContract...');
@@ -333,7 +507,14 @@ export default function MembershipClient() {
       console.log('[MembershipClient] writeContract called successfully');
     } catch (err) {
       console.error('[MembershipClient] Error in handleSubscribe:', err);
-      alert(`Transaction error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      
+      // Provide a more helpful error message
+      if (errorMsg.includes('user rejected') || errorMsg.includes('rejected')) {
+        alert('Transaction was rejected. Please try again.');
+      } else {
+        alert(`Transaction error: ${errorMsg}`);
+      }
     }
   };
 
@@ -653,9 +834,39 @@ export default function MembershipClient() {
                 )}
               </div>
 
+              {hasInsufficientBalance && address && isConnected && (
+                <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500 rounded text-yellow-400 text-sm">
+                  <p className="font-medium mb-1">Insufficient ETH Balance</p>
+                  <p className="text-xs mb-2">
+                    You need at least {parseFloat(totalPriceEth).toFixed(4)} ETH for the membership plus approximately 0.001 ETH for gas fees.
+                  </p>
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-yellow-300">Your balance:</span>
+                      <span className="text-white">{balanceData?.formatted || "0.0000"} ETH</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-yellow-300">Required:</span>
+                      <span className="text-white">{parseFloat(formatEther(totalRequired)).toFixed(4)} ETH</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className="text-yellow-300">Short by:</span>
+                      <span className="text-white">{parseFloat(formatEther(insufficientAmount)).toFixed(4)} ETH</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <div className="mb-4 p-3 bg-red-900/20 border border-red-500 rounded text-red-400 text-sm">
-                  Error: {error.message}
+                  <p className="font-medium mb-1">Transaction Error:</p>
+                  <p className="text-xs">
+                    {(() => {
+                      // Try to extract and decode the error for better messages
+                      const errorDetails = extractErrorDetails(error);
+                      return errorDetails.errorMessage;
+                    })()}
+                  </p>
                 </div>
               )}
 
@@ -684,7 +895,7 @@ export default function MembershipClient() {
               ) : (
                 <button
                   onClick={handleSubscribe}
-                  disabled={isPending || isConfirming || statusLoading}
+                  disabled={isPending || isConfirming || statusLoading || hasInsufficientBalance || balanceLoading}
                   className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPending || isConfirming
