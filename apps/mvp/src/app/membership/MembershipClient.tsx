@@ -293,14 +293,36 @@ export default function MembershipClient() {
       depth++;
     }
     
-    // Also check direct properties
+    // Also check direct properties and nested RPC error structures
     if (!errorData) {
-      const propsToCheck = ['data', 'errorData', 'revertData', 'returnData'];
+      const propsToCheck = ['data', 'errorData', 'revertData', 'returnData', 'response', 'body'];
       for (const prop of propsToCheck) {
-        if (err[prop] && typeof err[prop] === 'string' && err[prop].startsWith('0x')) {
-          errorData = err[prop];
+        const value = err[prop];
+        if (value && typeof value === 'string' && value.startsWith('0x')) {
+          errorData = value;
           break;
         }
+        // Check nested structures
+        if (value && typeof value === 'object') {
+          if (value.data && typeof value.data === 'string' && value.data.startsWith('0x')) {
+            errorData = value.data;
+            break;
+          }
+          if (value.error && value.error.data && typeof value.error.data === 'string' && value.error.data.startsWith('0x')) {
+            errorData = value.error.data;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Try to extract from RPC response if it's a structured error
+    if (!errorData && (err as any).response) {
+      const response = (err as any).response;
+      if (response.data?.error?.data) {
+        errorData = response.data.error.data;
+      } else if (response.error?.data) {
+        errorData = response.error.data;
       }
     }
     
@@ -554,6 +576,47 @@ export default function MembershipClient() {
         console.log('[MembershipClient] Gas estimated:', estimatedGas.toString());
       } catch (gasErr: any) {
         console.warn('[MembershipClient] Gas estimation failed:', gasErr);
+        // Try to get error data from the gas estimation error
+        console.error('[MembershipClient] Gas estimation error details:', {
+          message: gasErr?.message,
+          shortMessage: gasErr?.shortMessage,
+          cause: gasErr?.cause,
+          data: gasErr?.data,
+          // Check nested error objects
+          details: (gasErr as any)?.details,
+          error: (gasErr as any)?.error,
+        });
+        
+        // If gas estimation fails, try a direct call to get error data
+        try {
+          const callResult = await publicClient.call({
+            to: STP_V2_CONTRACT_ADDRESS as Address,
+            data: encodeFunctionData({
+              abi: STP_V2_ABI,
+              functionName: 'mint',
+              args: [totalPriceWei, BigInt(0)],
+            }),
+            value: totalPriceWei,
+            account: address,
+          });
+          console.log('[MembershipClient] Direct call succeeded:', callResult);
+        } catch (callErr: any) {
+          console.error('[MembershipClient] Direct call failed:', callErr);
+          // Extract error data from call error
+          let errorData = callErr?.data || (callErr as any)?.error?.data;
+          if (errorData && typeof errorData === 'string' && errorData.startsWith('0x')) {
+            console.log('[MembershipClient] Found error data from call:', errorData);
+            try {
+              const decoded = decodeErrorResult({
+                abi: STP_V2_ABI,
+                data: errorData as `0x${string}`,
+              });
+              console.log('[MembershipClient] Decoded error from call:', decoded);
+            } catch (decodeErr) {
+              console.warn('[MembershipClient] Could not decode error from call:', decodeErr);
+            }
+          }
+        }
         // Continue with simulation even if gas estimation fails
       }
 
@@ -592,10 +655,29 @@ export default function MembershipClient() {
         // Build a user-friendly error message
         let errorMessage = `Transaction would fail: ${errorDetails.errorMessage}`;
         
-        // Add additional context if the amount seems suspiciously low
-        if (totalPriceWei < parseEther("0.001")) {
-          errorMessage += `\n\nThe payment amount (${totalPriceEth} ETH) seems unusually low. This might indicate a problem with the price data. Please refresh the page and try again.`;
-        }
+        // Log the full error chain for debugging
+        console.error('[MembershipClient] Full error chain:', {
+          simErr,
+          errorDetails,
+          nestedErrors: (() => {
+            const errors: any[] = [];
+            let current: any = simErr;
+            let depth = 0;
+            while (current && depth < 15) {
+              errors.push({
+                depth,
+                message: current.message,
+                name: current.name,
+                data: current.data,
+                cause: current.cause?.message,
+                details: current.details,
+              });
+              current = current.cause || current.error;
+              depth++;
+            }
+            return errors;
+          })(),
+        });
         
         alert(errorMessage);
         return;
