@@ -613,17 +613,6 @@ export async function GET(request: NextRequest) {
               marginTop:'-60px'
             }}
           >
-            {/* "recent listings" label */}
-            <div
-              style={{
-                fontSize: 24,
-                color: '#999999',
-                marginBottom: '12px',
-                letterSpacing: '1px',
-              }}
-            >
-              recent listings
-            </div>
 
             {/* Five cards in a row - 40% of OG image height (252px) */}
             <div
