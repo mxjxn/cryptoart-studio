@@ -28,11 +28,17 @@ const STP_V2_ABI = [
     type: 'function',
     name: 'mintAdvanced',
     inputs: [
-      { name: 'amount', type: 'uint256' },
-      { name: 'recipient', type: 'address' },
-      { name: 'tierId', type: 'uint16' },
-      { name: 'referralCode', type: 'uint256' },
-      { name: 'referrer', type: 'address' },
+      {
+        name: 'params',
+        type: 'tuple',
+        components: [
+          { name: 'tierId', type: 'uint16' },
+          { name: 'recipient', type: 'address' },
+          { name: 'referrer', type: 'address' },
+          { name: 'referralCode', type: 'uint256' },
+          { name: 'amount', type: 'uint256' },
+        ],
+      },
     ],
     outputs: [],
     stateMutability: 'payable',
@@ -552,10 +558,13 @@ export default function MembershipClient() {
 
     console.log('[MembershipClient] Preparing transaction:', {
       contractAddress: STP_V2_CONTRACT_ADDRESS,
-      functionName: 'mint',
-      payableAmount: totalPriceWei.toString(),
+      functionName: 'mintAdvanced',
+      tierId: 1,
+      recipient: address,
+      referrer: '0x0000000000000000000000000000000000000000',
+      referralCode: 0,
+      amount: totalPriceWei.toString(), // ETH amount
       totalPriceEth,
-      numTokens: '0',
       value: totalPriceWei.toString(),
       isRenewal: hasMembershipInConnectedWallet,
       pricePerPeriodWei: pricePerPeriodWei.toString(),
@@ -573,8 +582,14 @@ export default function MembershipClient() {
           value: totalPriceWei,
           data: encodeFunctionData({
             abi: STP_V2_ABI,
-            functionName: 'mint',
-            args: [totalPriceWei, BigInt(0)],
+            functionName: 'mintAdvanced',
+            args: [{
+              tierId: 1,
+              recipient: address,
+              referrer: '0x0000000000000000000000000000000000000000' as Address,
+              referralCode: BigInt(0),
+              amount: totalPriceWei,
+            }],
           }),
         });
         console.log('[MembershipClient] Gas estimated:', estimatedGas.toString());
@@ -597,8 +612,14 @@ export default function MembershipClient() {
             to: STP_V2_CONTRACT_ADDRESS as Address,
             data: encodeFunctionData({
               abi: STP_V2_ABI,
-              functionName: 'mint',
-              args: [totalPriceWei, BigInt(0)],
+              functionName: 'mintAdvanced',
+              args: [{
+                tierId: 1,
+                recipient: address,
+                referrer: '0x0000000000000000000000000000000000000000' as Address,
+                referralCode: BigInt(0),
+                amount: totalPriceWei,
+              }],
             }),
             value: totalPriceWei,
             account: address,
@@ -637,8 +658,14 @@ export default function MembershipClient() {
           account: address,
           address: STP_V2_CONTRACT_ADDRESS as Address,
           abi: STP_V2_ABI,
-          functionName: 'mint',
-          args: [totalPriceWei, BigInt(0)], // payableAmount in wei, numTokens = 0 for ETH
+          functionName: 'mintAdvanced',
+          args: [{
+            tierId: 1,
+            recipient: address,
+            referrer: '0x0000000000000000000000000000000000000000' as Address,
+            referralCode: BigInt(0),
+            amount: totalPriceWei,
+          }],
           value: totalPriceWei,
           // Add explicit gas limit if we got an estimate
           ...(estimatedGas && { gas: estimatedGas * BigInt(2) }), // 2x buffer for safety
@@ -687,14 +714,19 @@ export default function MembershipClient() {
         return;
       }
 
-      // Use mint function with payableAmount (in wei) and numTokens (0 for ETH payment)
-      // The contract handles both new subscriptions and renewals based on whether the user already has a subscription
+      // Use mintAdvanced function with struct parameter matching successful transaction format
       console.log('[MembershipClient] Calling writeContract...');
       writeContract({
         address: STP_V2_CONTRACT_ADDRESS as Address,
         abi: STP_V2_ABI,
-        functionName: 'mint',
-        args: [totalPriceWei, BigInt(0)], // payableAmount in wei, numTokens = 0 for ETH
+        functionName: 'mintAdvanced',
+        args: [{
+          tierId: 1,
+          recipient: address,
+          referrer: '0x0000000000000000000000000000000000000000' as Address,
+          referralCode: BigInt(0),
+          amount: totalPriceWei,
+        }],
         value: totalPriceWei,
       });
       console.log('[MembershipClient] writeContract called successfully');
