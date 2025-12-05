@@ -402,6 +402,8 @@ export async function GET(
           ...allAddresses.map(addr => eq(contractCache.creatorAddress, addr.toLowerCase()))
         )
       );
+    
+    console.log(`[GET /api/user/${fname}] Found ${artworksCreated.length} artworks created by user`);
 
     // Get listings for artworks created by user
     // Find listings where tokenAddress matches contracts created by user

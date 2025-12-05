@@ -2,6 +2,7 @@ import { type Address, createPublicClient, http, isAddress } from "viem";
 import { base } from "viem/chains";
 import { CHAIN_ID } from "./contracts/marketplace";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
+import { cacheContractInfo } from "~/lib/server/user-cache";
 
 /**
  * Contract creator lookup utilities.
@@ -148,6 +149,11 @@ export async function getContractCreator(
       console.log(`[getContractCreator] Returning creator from Etherscan:`, etherscanCreator);
       // Discover and cache user data for the creator (non-blocking)
       discoverAndCacheUserBackground(etherscanCreator);
+      // Cache the contract-creator relationship (non-blocking)
+      cacheContractInfo(contractAddress, {
+        creatorAddress: etherscanCreator,
+        source: 'etherscan',
+      }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
       return { creator: etherscanCreator, source: "etherscan" };
     }
   } catch (error) {
@@ -169,6 +175,11 @@ export async function getContractCreator(
       if (owner && owner !== "0x0000000000000000000000000000000000000000") {
         // Discover and cache user data for the creator (non-blocking)
         discoverAndCacheUserBackground(owner);
+        // Cache the contract-creator relationship (non-blocking)
+        cacheContractInfo(contractAddress, {
+          creatorAddress: owner,
+          source: 'onchain',
+        }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
         return { creator: owner as Address, source: "owner" };
       }
     } catch (error) {
@@ -186,6 +197,11 @@ export async function getContractCreator(
       if (creator && creator !== "0x0000000000000000000000000000000000000000") {
         // Discover and cache user data for the creator (non-blocking)
         discoverAndCacheUserBackground(creator);
+        // Cache the contract-creator relationship (non-blocking)
+        cacheContractInfo(contractAddress, {
+          creatorAddress: creator,
+          source: 'onchain',
+        }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
         return { creator: creator as Address, source: "creator" };
       }
     } catch (error) {
@@ -205,6 +221,11 @@ export async function getContractCreator(
       if (receiver && receiver !== "0x0000000000000000000000000000000000000000") {
         // Discover and cache user data for the creator (non-blocking)
         discoverAndCacheUserBackground(receiver);
+        // Cache the contract-creator relationship (non-blocking)
+        cacheContractInfo(contractAddress, {
+          creatorAddress: receiver,
+          source: 'onchain',
+        }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
         return { creator: receiver as Address, source: "royalty" };
       }
     } catch (error) {

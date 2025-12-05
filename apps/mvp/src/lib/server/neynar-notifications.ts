@@ -4,9 +4,10 @@
  * Documentation: https://docs.neynar.com/docs/send-notifications-to-mini-app-users
  * API Reference: https://docs.neynar.com/reference/publish-frame-notifications
  * 
- * OPTIMIZATION: Uses batched notifications to reduce API calls.
- * Instead of sending individual notifications, notifications are queued
- * and sent in batches to multiple FIDs at once.
+ * OPTIMIZATIONS:
+ * 1. Batched notifications - Groups notifications by content and sends to multiple FIDs at once
+ * 2. Rate limiting - Max one push notification per user per 5 minutes
+ * 3. Deduplication - Prevents duplicate notifications in the same batch
  */
 
 interface PushNotificationOptions {
@@ -14,17 +15,6 @@ interface PushNotificationOptions {
   listingId?: string;
   metadata?: Record<string, any>;
   targetUrl?: string;
-}
-
-interface NotificationFilters {
-  exclude_fids?: number[];
-  following_fid?: number;
-  minimum_user_score?: number;
-  near_location?: {
-    latitude: number;
-    longitude: number;
-    radius?: number; // in meters, defaults to 50000 (50km)
-  };
 }
 
 // Batch queue for notifications
@@ -44,7 +34,13 @@ const notificationQueue: Map<string, QueuedNotification[]> = new Map();
 // Configuration for batching
 const BATCH_SIZE = 100; // Neynar supports up to 100 FIDs per request
 const BATCH_DELAY_MS = 2000; // Wait 2 seconds to collect more notifications
-const MAX_QUEUE_AGE_MS = 10000; // Force flush after 10 seconds
+
+// Rate limiting configuration
+const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes between push notifications per user
+
+// Track last push notification time per FID (in-memory, resets on server restart)
+// For persistence across restarts, this should be stored in Redis/database
+const lastPushTime: Map<number, number> = new Map();
 
 // Track batch processing timers
 const batchTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -60,8 +56,63 @@ function getNotificationKey(title: string, message: string, targetUrl: string): 
 }
 
 /**
+ * Check if a user (FID) is rate limited for push notifications
+ * Returns true if the user received a push notification within the rate limit window
+ */
+function isRateLimited(fid: number): boolean {
+  const lastTime = lastPushTime.get(fid);
+  if (!lastTime) {
+    return false;
+  }
+  
+  const timeSinceLastPush = Date.now() - lastTime;
+  return timeSinceLastPush < RATE_LIMIT_MS;
+}
+
+/**
+ * Record that a push notification was sent to a user
+ */
+function recordPushSent(fid: number): void {
+  lastPushTime.set(fid, Date.now());
+}
+
+/**
+ * Get rate limit stats for logging
+ */
+export function getRateLimitStats(): { totalTracked: number; rateLimited: number } {
+  let rateLimited = 0;
+  const now = Date.now();
+  
+  for (const [fid, lastTime] of lastPushTime.entries()) {
+    if (now - lastTime < RATE_LIMIT_MS) {
+      rateLimited++;
+    }
+  }
+  
+  return {
+    totalTracked: lastPushTime.size,
+    rateLimited,
+  };
+}
+
+/**
+ * Clean up old rate limit entries (call periodically to prevent memory growth)
+ */
+export function cleanupRateLimitCache(): void {
+  const now = Date.now();
+  const expireTime = RATE_LIMIT_MS * 2; // Keep entries for 2x rate limit window
+  
+  for (const [fid, lastTime] of lastPushTime.entries()) {
+    if (now - lastTime > expireTime) {
+      lastPushTime.delete(fid);
+    }
+  }
+}
+
+/**
  * Queue a push notification for batched sending
  * Notifications are grouped by content and sent together to reduce API calls
+ * Rate limited to max one push per user per 5 minutes
  */
 export async function queuePushNotification(
   fid: number,
@@ -70,6 +121,12 @@ export async function queuePushNotification(
   targetUrl: string,
   metadata?: Record<string, any>
 ): Promise<void> {
+  // Check rate limit first
+  if (isRateLimited(fid)) {
+    console.log(`[neynar-notifications] Rate limited: FID ${fid} received push within last 5 minutes, skipping`);
+    return;
+  }
+  
   const key = getNotificationKey(title, message, targetUrl);
   
   if (!notificationQueue.has(key)) {
@@ -155,12 +212,18 @@ export async function flushAllNotificationBatches(): Promise<void> {
   const keys = [...notificationQueue.keys()];
   
   if (keys.length === 0) {
+    // Still clean up rate limit cache even if no notifications
+    cleanupRateLimitCache();
     return;
   }
   
-  console.log(`[neynar-notifications] Flushing ${keys.length} notification batches`);
+  const stats = getRateLimitStats();
+  console.log(`[neynar-notifications] Flushing ${keys.length} notification batches (rate limit: ${stats.rateLimited}/${stats.totalTracked} users limited)`);
   
   await Promise.all(keys.map(key => flushNotificationBatch(key)));
+  
+  // Clean up old rate limit entries
+  cleanupRateLimitCache();
 }
 
 /**
@@ -211,9 +274,15 @@ async function sendBatchedPushNotification(
     
     const result = await response.json();
     console.log(`[neynar-notifications] Batched notification sent to ${fids.length} FIDs:`, result);
+    
+    // Record push sent for rate limiting (only on success)
+    for (const fid of fids) {
+      recordPushSent(fid);
+    }
   } catch (error) {
     console.error(`[neynar-notifications] Error sending batched notification:`, error);
     // Don't throw - we don't want to fail the notification process
+    // Don't record push sent on error - user can retry
   }
 }
 

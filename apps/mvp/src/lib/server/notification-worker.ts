@@ -1,5 +1,6 @@
 import { processEventsSince } from './notification-events';
-import { flushAllNotificationBatches } from './neynar-notifications';
+import { flushAllNotificationBatches, getRateLimitStats } from './neynar-notifications';
+import { clearInMemoryUserCache, getInMemoryCacheStats } from './user-cache';
 import { getDatabase, notificationWorkerState } from '@cryptoart/db';
 import { eq } from '@cryptoart/db';
 
@@ -124,10 +125,22 @@ export async function runNotificationWorker(): Promise<void> {
     }
     
     const currentTimestamp = Math.floor(Date.now() / 1000);
+    
+    // Log cache and rate limit stats
+    const cacheStats = getInMemoryCacheStats();
+    const rateLimitStats = getRateLimitStats();
     console.log('[notification-worker] Notification worker completed successfully');
     console.log(`[notification-worker] Updated state: block=${lastBlock}, timestamp=${currentTimestamp}`);
+    console.log(`[notification-worker] Cache stats: ${cacheStats.size} users cached (oldest: ${cacheStats.oldestAge ? Math.round(cacheStats.oldestAge / 1000) + 's' : 'n/a'})`);
+    console.log(`[notification-worker] Rate limit stats: ${rateLimitStats.rateLimited}/${rateLimitStats.totalTracked} users rate limited`);
+    
+    // Clear in-memory cache at end of worker run to prevent stale data
+    // The cache is rebuilt on next run from database
+    clearInMemoryUserCache();
   } catch (error) {
     console.error('[notification-worker] Error in notification worker:', error);
+    // Clear in-memory cache even on error
+    clearInMemoryUserCache();
     // Don't update state on error - will retry from same point
     throw error;
   }
