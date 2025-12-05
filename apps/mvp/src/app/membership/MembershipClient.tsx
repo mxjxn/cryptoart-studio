@@ -8,6 +8,7 @@ import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { type Address, parseEther, formatEther, decodeErrorResult, encodeFunctionData } from "viem";
 import { base } from "viem/chains";
 import Link from "next/link";
+import { MembershipAllowlistManager } from "~/components/MembershipAllowlistManager";
 
 // STP v2 ABI for subscription functions
 // NOTE: Error definitions are critical for proper error decoding. Without them, 
@@ -976,6 +977,11 @@ export default function MembershipClient() {
                   })}
                 </div>
               </div>
+            )}
+
+            {/* Allowlist Management Section - Show only if user has membership in connected wallet */}
+            {hasMembershipInConnectedWallet && membershipAddress && (
+              <MembershipAllowlistManager membershipAddress={membershipAddress} />
             )}
 
             {/* Mint/Renew Membership Section - Always visible */}
