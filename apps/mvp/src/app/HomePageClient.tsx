@@ -157,7 +157,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-base font-normal text-white">0.5 ETH</div>
+              <div className="text-base font-normal text-white">only 0.0001 ETH/month</div>
               <TransitionLink
                 href="/membership"
                 className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
