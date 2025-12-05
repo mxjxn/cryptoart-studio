@@ -56,8 +56,8 @@ export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d
 // Hardcoded admin identity for platform moderation
 export const ADMIN_CONFIG = {
   // Primary admin wallet address (lowercase) - TODO: Update with full address
-  walletAddress: '0x6da07cb89de32d529ca93f59c4f7f75f2fbafc5b'.toLowerCase() as `0x${string}`,
-  
+  walletAddress: '0x6dA0a1784De1aBDDe1734bA37eCa3d560bf044c0'.toLowerCase() as `0x${string}`,
+   
   // Primary admin Farcaster username
   farcasterUsername: 'mxjxn',
   
