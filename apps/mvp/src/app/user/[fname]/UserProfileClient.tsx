@@ -307,41 +307,78 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
         )}
 
         {activeTab === 'collections' && (
-          <div>
-            <h2 className="text-lg font-light mb-4">Collected From</h2>
-            {profileData.collectedFrom.length === 0 ? (
-              <p className="text-[#999999]">No collections found</p>
-            ) : (
-              <div className="space-y-4">
-                {profileData.collectedFrom.map((item) => (
-                  <div
-                    key={item.seller}
-                    className="p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
+          <div className="space-y-8">
+            {/* Purchased Artworks */}
+            <div>
+              <h2 className="text-lg font-light mb-4">Collection</h2>
+              {profileData.purchases.length === 0 ? (
+                <p className="text-[#999999]">No artworks collected yet</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {profileData.purchases.map((purchase, index) => {
+                    const title = purchase.metadata?.title || purchase.metadata?.name || `Listing #${purchase.listing?.listingId}`;
+                    const image = purchase.metadata?.image;
+                    const listingId = purchase.listing?.listingId;
+                    
+                    return (
+                      <Link
+                        key={purchase.id}
+                        href={`/listing/${listingId}`}
+                        className="group relative w-full cursor-pointer transition-opacity hover:opacity-90"
+                      >
+                        <div
+                          className="w-full aspect-square relative overflow-hidden rounded-lg"
+                          style={{
+                            background: image
+                              ? `url(${image}) center/cover`
+                              : gradients[index % gradients.length],
+                          }}
+                        >
+                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
+                            <p className="text-sm font-medium line-clamp-1">{title}</p>
+                            {purchase.metadata?.artist && (
+                              <p className="text-xs text-[#999999] line-clamp-1">
+                                by {purchase.metadata.artist}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Collected From */}
+            {profileData.collectedFrom.length > 0 && (
+              <div>
+                <h2 className="text-lg font-light mb-4">Collected From</h2>
+                <div className="flex flex-wrap gap-3">
+                  {profileData.collectedFrom.map((item) => (
+                    <Link
+                      key={item.seller}
+                      href={item.username ? `/user/${item.username}` : `/user/${item.seller}`}
+                      className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] border border-[#333333] rounded-full hover:border-[#555555] transition-colors"
+                    >
                       {item.pfpUrl ? (
                         <img
                           src={item.pfpUrl}
                           alt={item.displayName || item.username || item.seller}
-                          className="w-12 h-12 rounded-full"
+                          className="w-6 h-6 rounded-full"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
                       )}
-                      <div className="flex-1">
-                        <Link
-                          href={item.username ? `/user/${item.username}` : `/user/${item.seller}`}
-                          className="text-sm font-medium hover:text-[#cccccc]"
-                        >
-                          {item.displayName || item.username || `${item.seller.slice(0, 6)}...${item.seller.slice(-4)}`}
-                        </Link>
-                        <p className="text-xs text-[#999999]">
-                          {item.count} {item.count === 1 ? 'artwork' : 'artworks'} collected
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                      <span className="text-sm">
+                        {item.displayName || item.username || `${item.seller.slice(0, 6)}...${item.seller.slice(-4)}`}
+                      </span>
+                      <span className="text-xs text-[#666666]">
+                        ({item.count})
+                      </span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
           </div>

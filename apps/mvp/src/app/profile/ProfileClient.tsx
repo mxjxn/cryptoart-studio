@@ -74,8 +74,49 @@ export default function ProfileClient() {
   }, [isMiniApp, context?.user, isFarcasterAuth, farcasterProfile, isConnected, address, userAddress, isAuthenticated]);
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
-  // TODO: Implement collected auctions (won auctions)
-  const collectedAuctions: any[] = [];
+  
+  // Collected artworks state
+  const [purchases, setPurchases] = useState<Array<{
+    id: string;
+    listing: any;
+    buyer: string;
+    amount: string;
+    count: number;
+    timestamp: string;
+    metadata: any;
+  }>>([]);
+  const [collectedFrom, setCollectedFrom] = useState<Array<{
+    seller: string;
+    count: number;
+    username?: string | null;
+    displayName?: string | null;
+    pfpUrl?: string | null;
+  }>>([]);
+  const [collectedLoading, setCollectedLoading] = useState(false);
+  const [collectedFetched, setCollectedFetched] = useState(false);
+  
+  // Fetch collected data when tab is active
+  useEffect(() => {
+    if (activeTab === "collected" && userAddress && !collectedLoading && !collectedFetched) {
+      async function fetchCollected() {
+        setCollectedLoading(true);
+        try {
+          const response = await fetch(`/api/user/${encodeURIComponent(userAddress)}`);
+          if (response.ok) {
+            const data = await response.json();
+            setPurchases(data.purchases || []);
+            setCollectedFrom(data.collectedFrom || []);
+          }
+        } catch (error) {
+          console.error('Error fetching collected:', error);
+        } finally {
+          setCollectedLoading(false);
+          setCollectedFetched(true);
+        }
+      }
+      fetchCollected();
+    }
+  }, [activeTab, userAddress, collectedLoading, collectedFetched]);
   
   // Saved listings state
   const [savedListings, setSavedListings] = useState<EnrichedAuctionData[]>([]);
@@ -197,7 +238,7 @@ export default function ProfileClient() {
                   : "text-[#999999] hover:text-[#cccccc]"
               }`}
             >
-              Collected ({collectedAuctions.length})
+              Collected ({purchases.length})
             </button>
             <button
               onClick={() => setActiveTab("bids")}
@@ -257,20 +298,86 @@ export default function ProfileClient() {
               </div>
             )}
             {activeTab === "collected" && (
-              <div>
-                {collectedAuctions.length === 0 ? (
-                  <p className="text-[#999999]">No NFTs collected yet.</p>
+              <div className="space-y-8">
+                {collectedLoading ? (
+                  <p className="text-[#999999]">Loading collection...</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {collectedAuctions.map((auction, index) => (
-                      <AuctionCard
-                        key={auction.id}
-                        auction={auction as any}
-                        gradient={gradients[index % gradients.length]}
-                        index={index}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    {/* Purchased Artworks */}
+                    <div>
+                      <h2 className="text-lg font-light mb-4">Collection</h2>
+                      {purchases.length === 0 ? (
+                        <p className="text-[#999999]">No artworks collected yet.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {purchases.map((purchase, index) => {
+                            const title = purchase.metadata?.title || purchase.metadata?.name || `Listing #${purchase.listing?.listingId}`;
+                            const image = purchase.metadata?.image;
+                            const listingId = purchase.listing?.listingId;
+                            
+                            return (
+                              <Link
+                                key={purchase.id}
+                                href={`/listing/${listingId}`}
+                                className="group relative w-full cursor-pointer transition-opacity hover:opacity-90"
+                              >
+                                <div
+                                  className="w-full aspect-square relative overflow-hidden rounded-lg"
+                                  style={{
+                                    background: image
+                                      ? `url(${image}) center/cover`
+                                      : gradients[index % gradients.length],
+                                  }}
+                                >
+                                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
+                                    <p className="text-sm font-medium line-clamp-1">{title}</p>
+                                    {purchase.metadata?.artist && (
+                                      <p className="text-xs text-[#999999] line-clamp-1">
+                                        by {purchase.metadata.artist}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Collected From */}
+                    {collectedFrom.length > 0 && (
+                      <div>
+                        <h2 className="text-lg font-light mb-4">Collected From</h2>
+                        <div className="flex flex-wrap gap-3">
+                          {collectedFrom.map((item) => (
+                            <Link
+                              key={item.seller}
+                              href={item.username ? `/user/${item.username}` : `/user/${item.seller}`}
+                              className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] border border-[#333333] rounded-full hover:border-[#555555] transition-colors"
+                            >
+                              {item.pfpUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.pfpUrl}
+                                  alt={item.displayName || item.username || item.seller}
+                                  className="w-6 h-6 rounded-full"
+                                />
+                              ) : (
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+                              )}
+                              <span className="text-sm">
+                                {item.displayName || item.username || `${item.seller.slice(0, 6)}...${item.seller.slice(-4)}`}
+                              </span>
+                              <span className="text-xs text-[#666666]">
+                                ({item.count})
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

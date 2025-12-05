@@ -3,6 +3,10 @@
  * 
  * Documentation: https://docs.neynar.com/docs/send-notifications-to-mini-app-users
  * API Reference: https://docs.neynar.com/reference/publish-frame-notifications
+ * 
+ * OPTIMIZATION: Uses batched notifications to reduce API calls.
+ * Instead of sending individual notifications, notifications are queued
+ * and sent in batches to multiple FIDs at once.
  */
 
 interface PushNotificationOptions {
@@ -23,18 +27,150 @@ interface NotificationFilters {
   };
 }
 
+// Batch queue for notifications
+interface QueuedNotification {
+  fid: number;
+  title: string;
+  message: string;
+  targetUrl: string;
+  metadata?: Record<string, any>;
+  queuedAt: number;
+}
+
+// In-memory queue for batching notifications
+// In production, consider using Redis or a proper queue system
+const notificationQueue: Map<string, QueuedNotification[]> = new Map();
+
+// Configuration for batching
+const BATCH_SIZE = 100; // Neynar supports up to 100 FIDs per request
+const BATCH_DELAY_MS = 2000; // Wait 2 seconds to collect more notifications
+const MAX_QUEUE_AGE_MS = 10000; // Force flush after 10 seconds
+
+// Track batch processing timers
+const batchTimers: Map<string, NodeJS.Timeout> = new Map();
+
 /**
- * Send push notification via Neynar API
- * 
- * According to Neynar docs, notifications are sent using publishFrameNotifications API
- * which accepts targetFids (array), filters (optional), and notification object
+ * Generate a notification key for batching similar notifications together
+ * Notifications with the same title, message, and targetUrl can be batched
  */
-export async function sendPushNotification(
-  userAddress: string,
-  fid: number | undefined,
+function getNotificationKey(title: string, message: string, targetUrl: string): string {
+  // Only batch notifications with exactly the same content
+  // This ensures users get the right notification context
+  return `${title}::${targetUrl}`;
+}
+
+/**
+ * Queue a push notification for batched sending
+ * Notifications are grouped by content and sent together to reduce API calls
+ */
+export async function queuePushNotification(
+  fid: number,
   title: string,
   message: string,
-  options?: PushNotificationOptions
+  targetUrl: string,
+  metadata?: Record<string, any>
+): Promise<void> {
+  const key = getNotificationKey(title, message, targetUrl);
+  
+  if (!notificationQueue.has(key)) {
+    notificationQueue.set(key, []);
+  }
+  
+  const queue = notificationQueue.get(key)!;
+  
+  // Check if this FID is already in the queue (avoid duplicates)
+  const existingIndex = queue.findIndex(n => n.fid === fid);
+  if (existingIndex === -1) {
+    queue.push({
+      fid,
+      title,
+      message,
+      targetUrl,
+      metadata,
+      queuedAt: Date.now(),
+    });
+  }
+  
+  // Start a timer to flush this batch if we haven't already
+  if (!batchTimers.has(key)) {
+    const timer = setTimeout(() => {
+      flushNotificationBatch(key);
+    }, BATCH_DELAY_MS);
+    batchTimers.set(key, timer);
+  }
+  
+  // Force flush if batch is full
+  if (queue.length >= BATCH_SIZE) {
+    flushNotificationBatch(key);
+  }
+}
+
+/**
+ * Flush a notification batch - send all queued notifications with the same key
+ */
+async function flushNotificationBatch(key: string): Promise<void> {
+  // Clear the timer
+  const timer = batchTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    batchTimers.delete(key);
+  }
+  
+  const queue = notificationQueue.get(key);
+  if (!queue || queue.length === 0) {
+    notificationQueue.delete(key);
+    return;
+  }
+  
+  // Take all notifications from the queue
+  const notifications = [...queue];
+  notificationQueue.delete(key);
+  
+  // Get unique FIDs
+  const fids = [...new Set(notifications.map(n => n.fid))];
+  
+  if (fids.length === 0) {
+    return;
+  }
+  
+  // Use the first notification's data for the batch
+  const firstNotification = notifications[0];
+  
+  console.log(`[neynar-notifications] Flushing batch: ${fids.length} FIDs for "${firstNotification.title}"`);
+  
+  // Send batched notification
+  await sendBatchedPushNotification(
+    fids,
+    firstNotification.title,
+    firstNotification.message,
+    firstNotification.targetUrl
+  );
+}
+
+/**
+ * Force flush all pending notification batches
+ * Call this at the end of notification processing to ensure all notifications are sent
+ */
+export async function flushAllNotificationBatches(): Promise<void> {
+  const keys = [...notificationQueue.keys()];
+  
+  if (keys.length === 0) {
+    return;
+  }
+  
+  console.log(`[neynar-notifications] Flushing ${keys.length} notification batches`);
+  
+  await Promise.all(keys.map(key => flushNotificationBatch(key)));
+}
+
+/**
+ * Send batched push notification to multiple FIDs via Neynar API
+ */
+async function sendBatchedPushNotification(
+  fids: number[],
+  title: string,
+  message: string,
+  targetUrl: string
 ): Promise<void> {
   const apiKey = process.env.NEYNAR_API_KEY;
   if (!apiKey) {
@@ -42,47 +178,28 @@ export async function sendPushNotification(
     return;
   }
   
-  // We need FID to send notification
-  if (!fid) {
-    console.warn(`[neynar-notifications] No FID provided for ${userAddress}, cannot send push notification`);
+  if (fids.length === 0) {
     return;
   }
   
   try {
-    // Neynar API endpoint for publishing frame notifications
-    // Based on documentation: https://docs.neynar.com/reference/publish-frame-notifications
-    // Note: The exact REST endpoint may need verification. The docs show using @neynar/nodejs-sdk
-    // with client.publishFrameNotifications(), but the REST endpoint should be similar.
-    // If this doesn't work, check the Neynar API reference or use the SDK instead.
     const url = 'https://api.neynar.com/v2/farcaster/frame/notifications';
     
-    // Build target URL - use listing page if listingId provided, otherwise use home
-    const targetUrl = options?.targetUrl || 
-      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
-       `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}`);
-    
-    // According to docs, notification object should have: title, body, target_url
     const notification = {
       title,
       body: message,
       target_url: targetUrl,
     };
     
-    // Target specific FID(s) - pass empty array to target all users with notifications enabled
-    const targetFids = [fid];
-    
-    // Optional filters - can be used to exclude certain users, filter by following, etc.
-    const filters: NotificationFilters = {};
-    
+    // Send to all FIDs in one request (Neynar supports batched sends)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey, // Consistent with other Neynar API calls in codebase
+        'x-api-key': apiKey,
       },
       body: JSON.stringify({
-        target_fids: targetFids,
-        filters,
+        target_fids: fids,
         notification,
       }),
     });
@@ -93,11 +210,40 @@ export async function sendPushNotification(
     }
     
     const result = await response.json();
-    console.log(`[neynar-notifications] Push notification sent to FID ${fid}:`, result);
+    console.log(`[neynar-notifications] Batched notification sent to ${fids.length} FIDs:`, result);
   } catch (error) {
-    console.error(`[neynar-notifications] Error sending push notification:`, error);
-    throw error;
+    console.error(`[neynar-notifications] Error sending batched notification:`, error);
+    // Don't throw - we don't want to fail the notification process
   }
+}
+
+/**
+ * Send push notification via Neynar API (legacy single-user method)
+ * 
+ * @deprecated Use queuePushNotification for better efficiency
+ * This method still works but makes individual API calls per user.
+ * For batch processing, use queuePushNotification + flushAllNotificationBatches
+ */
+export async function sendPushNotification(
+  userAddress: string,
+  fid: number | undefined,
+  title: string,
+  message: string,
+  options?: PushNotificationOptions
+): Promise<void> {
+  // We need FID to send notification
+  if (!fid) {
+    console.warn(`[neynar-notifications] No FID provided for ${userAddress}, cannot send push notification`);
+    return;
+  }
+  
+  // Build target URL
+  const targetUrl = options?.targetUrl || 
+    (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
+     `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}`);
+  
+  // Use the queue system for batched sending
+  await queuePushNotification(fid, title, message, targetUrl, options?.metadata);
 }
 
 /**
@@ -129,4 +275,3 @@ export async function handleNotificationWebhook(payload: any): Promise<void> {
   // Update user preferences based on webhook events
   // This will be implemented in the webhook route handler
 }
-

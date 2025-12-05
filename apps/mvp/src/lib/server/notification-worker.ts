@@ -1,4 +1,5 @@
 import { processEventsSince } from './notification-events';
+import { flushAllNotificationBatches } from './neynar-notifications';
 import { getDatabase, notificationWorkerState } from '@cryptoart/db';
 import { eq } from '@cryptoart/db';
 
@@ -94,6 +95,10 @@ export async function runNotificationWorker(): Promise<void> {
     try {
       await processEventsSince(lastBlock, lastTimestamp);
       
+      // Flush all batched push notifications
+      // This sends all queued notifications in optimized batches to reduce API calls
+      await flushAllNotificationBatches();
+      
       // Update worker state with current timestamp (events processed up to now)
       // This ensures we don't reprocess the same events on next run
       const currentTimestamp = Math.floor(Date.now() / 1000);
@@ -103,6 +108,13 @@ export async function runNotificationWorker(): Promise<void> {
       // In production, you might want to track actual block numbers from subgraph
       await updateWorkerState(lastBlock, currentTimestamp);
     } catch (error) {
+      // On error, still try to flush any queued notifications
+      try {
+        await flushAllNotificationBatches();
+      } catch (flushError) {
+        console.error('[notification-worker] Error flushing notifications:', flushError);
+      }
+      
       // On error, still update state to avoid infinite retry loops
       // But log the error for monitoring
       console.error('[notification-worker] Error processing events, updating state anyway:', error);

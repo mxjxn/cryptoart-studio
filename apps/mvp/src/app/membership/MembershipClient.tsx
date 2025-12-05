@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect } from "wagmi";
+import { useProfile } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { type Address, parseEther, formatEther } from "viem";
@@ -122,15 +123,26 @@ const ERC721_ABI = [
 
 export default function MembershipClient() {
   const { address, isConnected } = useAccount();
+  const { connect, connectors, isPending: isConnectPending } = useConnect();
+  const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const { isPro, expirationDate, membershipAddress, timeRemainingSeconds, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();
   const [periods, setPeriods] = useState(12); // Changed from "months" to "periods"
   const [showAddTime, setShowAddTime] = useState(false);
+  
+  // User is authenticated if they have a wallet connected OR are signed in via Farcaster web auth
+  const isAuthenticated = isConnected || isFarcasterAuth;
 
   // Log membership status and wallet info
   useEffect(() => {
     console.log('[MembershipClient] Component state:', {
       address,
       isConnected,
+      isFarcasterAuth,
+      isAuthenticated,
+      farcasterProfile: farcasterProfile ? {
+        username: farcasterProfile.username,
+        fid: farcasterProfile.fid,
+      } : null,
       isPro,
       membershipAddress,
       isFarcasterWallet,
@@ -138,7 +150,7 @@ export default function MembershipClient() {
       timeRemainingSeconds,
       statusLoading,
     });
-  }, [address, isConnected, isPro, membershipAddress, isFarcasterWallet, expirationDate, timeRemainingSeconds, statusLoading]);
+  }, [address, isConnected, isFarcasterAuth, isAuthenticated, farcasterProfile, isPro, membershipAddress, isFarcasterWallet, expirationDate, timeRemainingSeconds, statusLoading]);
 
   // Read tier detail (tier 1) from contract to get price per period
   // Note: This doesn't require wallet connection, so we can always read it
@@ -371,15 +383,19 @@ export default function MembershipClient() {
   const timeSubscribed = calculateTimeSubscribed();
   const timeRemaining = calculateTimeRemaining();
 
-  if (!isConnected) {
+  // Show sign-in prompt only if not authenticated at all (no Farcaster auth and no wallet)
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-[#cccccc] mb-4">Please connect your wallet to view membership options.</p>
+          <p className="text-[#cccccc] mb-4">Please sign in to view membership options.</p>
         </div>
       </div>
     );
   }
+  
+  // Check if user needs to connect a wallet to transact (authenticated via Farcaster but no wallet connected)
+  const needsWalletForTransaction = isFarcasterAuth && !isConnected;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -562,17 +578,35 @@ export default function MembershipClient() {
                   </div>
                 )}
 
-                <button
-                  onClick={handleSubscribe}
-                  disabled={isPending || isConfirming || statusLoading}
-                  className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isPending || isConfirming
-                    ? "Processing..."
-                    : isSuccess
-                    ? "Success!"
-                    : "Add Time"}
-                </button>
+                {needsWalletForTransaction ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-[#cccccc] text-center mb-3">
+                      Connect a wallet to add time to your membership
+                    </p>
+                    {connectors.map((connector) => (
+                      <button
+                        key={connector.uid}
+                        onClick={() => connect({ connector })}
+                        disabled={isConnectPending}
+                        className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isConnectPending ? "Connecting..." : `Connect ${connector.name}`}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleSubscribe}
+                    disabled={isPending || isConfirming || statusLoading}
+                    className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPending || isConfirming
+                      ? "Processing..."
+                      : isSuccess
+                      ? "Success!"
+                      : "Add Time"}
+                  </button>
+                )}
               </div>
             )}
           </>
@@ -639,19 +673,37 @@ export default function MembershipClient() {
             </div>
           )}
 
-          <button
-            onClick={handleSubscribe}
-            disabled={isPending || isConfirming || statusLoading}
-            className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPending || isConfirming
-              ? "Processing..."
-              : isSuccess
-              ? "Success!"
-              : isPro
-              ? "Renew Membership"
-              : "Mint Membership"}
-          </button>
+          {needsWalletForTransaction ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[#cccccc] text-center mb-3">
+                Connect a wallet to {isPro ? "renew your membership" : "mint your membership"}
+              </p>
+              {connectors.map((connector) => (
+                <button
+                  key={connector.uid}
+                  onClick={() => connect({ connector })}
+                  disabled={isConnectPending}
+                  className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConnectPending ? "Connecting..." : `Connect ${connector.name}`}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={handleSubscribe}
+              disabled={isPending || isConfirming || statusLoading}
+              className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPending || isConfirming
+                ? "Processing..."
+                : isSuccess
+                ? "Success!"
+                : isPro
+                ? "Renew Membership"
+                : "Mint Membership"}
+            </button>
+          )}
           </div>
         )}
       </div>
