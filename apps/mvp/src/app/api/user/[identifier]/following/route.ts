@@ -17,7 +17,7 @@ export async function GET(
     
     if (!identifier) {
       return NextResponse.json(
-        { error: 'Identifier is required' },
+        { error: 'Address is required' },
         { status: 400 }
       );
     }

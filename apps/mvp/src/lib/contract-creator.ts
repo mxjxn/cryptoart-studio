@@ -2,7 +2,7 @@ import { type Address, createPublicClient, http, isAddress } from "viem";
 import { base } from "viem/chains";
 import { CHAIN_ID } from "./contracts/marketplace";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
-import { cacheContractInfo } from "~/lib/server/user-cache";
+import { cacheContractInfo, getContractFromCache } from "~/lib/server/user-cache";
 
 /**
  * Contract creator lookup utilities.
@@ -139,6 +139,28 @@ export async function getContractCreator(
   }
 
   const address = contractAddress as Address;
+
+  // 0. Cache-first: check memory+DB before hitting external APIs
+  try {
+    const cached = await getContractFromCache(address);
+    if (cached?.creatorAddress) {
+      const cachedCreator = cached.creatorAddress as Address;
+      type CachedSource = (typeof cached)['source'] | 'etherscan';
+      const cachedSource = cached.source as CachedSource;
+      // Map cache source to return type; default onchain-ish sources to 'owner'
+      const source: ContractCreatorResult["source"] =
+        cachedSource === "etherscan"
+          ? "etherscan"
+          : cachedSource === "onchain" || cachedSource === "alchemy" || cachedSource === "manual"
+            ? "owner"
+            : null;
+      console.log(`[getContractCreator] Cache hit for ${address}, source: ${cached.source}`);
+      return { creator: cachedCreator, source };
+    }
+  } catch (error) {
+    console.warn(`[getContractCreator] Cache lookup failed for ${address}:`, error);
+    // continue to fallbacks
+  }
 
   // 1. Try Etherscan/Basescan API first (most reliable - gets actual deployer)
   console.log(`[getContractCreator] Trying Etherscan API for ${contractAddress}`);

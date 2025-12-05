@@ -62,7 +62,7 @@ const getSubgraphHeaders = (): Record<string, string> => {
 };
 
 /**
- * Query for most recent listings (excluding cancelled)
+ * Query for most recent listings
  */
 const RECENT_LISTINGS_QUERY = gql`
   query RecentListings($first: Int!) {
@@ -70,7 +70,6 @@ const RECENT_LISTINGS_QUERY = gql`
       first: $first
       orderBy: listingId
       orderDirection: desc
-      where: { status_not: "CANCELLED" }
     ) {
       id
       listingId
@@ -194,12 +193,51 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
     
-    // Load all three fonts
-    const [mekMonoFont, medodicaFont, mekSansFont] = await Promise.all([
+    // Load all three fonts and logo
+    const [mekMonoFont, medodicaFont, mekSansFont, logoResponse] = await Promise.all([
       fetch(`${baseUrl}/MEK-Mono.otf`).then((res) => res.arrayBuffer()).catch(() => null),
       fetch(`${baseUrl}/MedodicaRegular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
       fetch(`${baseUrl}/MEKSans-Regular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
+      fetch(`${baseUrl}/cryptoart-logo-wgmeets.png`, {
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      }).then((res) => {
+        if (!res.ok) {
+          console.error(`[OG Image] Logo fetch failed with status: ${res.status}`);
+          return null;
+        }
+        return res.arrayBuffer();
+      }).catch((error) => {
+        console.error(`[OG Image] Error fetching logo:`, error);
+        return null;
+      }),
     ]);
+    
+    // Convert logo to base64 data URL
+    let logoDataUrl: string | null = null;
+    if (logoResponse) {
+      try {
+        const buffer = Buffer.from(logoResponse);
+        const base64 = buffer.toString('base64');
+        logoDataUrl = `data:image/png;base64,${base64}`;
+      } catch (error) {
+        console.error(`[OG Image] Error processing logo:`, error);
+      }
+    } else {
+      console.error(`[OG Image] Logo response was null, will retry with absolute path`);
+      // Retry with absolute path if relative path failed
+      try {
+        const retryResponse = await fetch(`${baseUrl}/cryptoart-logo-wgmeets.png`);
+        if (retryResponse.ok) {
+          const retryBuffer = Buffer.from(await retryResponse.arrayBuffer());
+          const base64 = retryBuffer.toString('base64');
+          logoDataUrl = `data:image/png;base64,${base64}`;
+        }
+      } catch (retryError) {
+        console.error(`[OG Image] Retry also failed:`, retryError);
+      }
+    }
 
     // Fetch 5 most recent listings
     let recentListings: EnrichedAuctionData[] = [];
@@ -459,18 +497,18 @@ export async function GET(request: NextRequest) {
               paddingBottom: '30px',
             }}
           >
-            <div
+            <img
+              src={logoDataUrl || `${baseUrl}/cryptoart-logo-wgmeets.png`}
+              alt="Cryptoart"
+              width={600}
+              height={120}
               style={{
-                fontSize: 96,
-                fontWeight: 'bold',
+                height: '120px',
+                width: 'auto',
                 marginBottom: '20px',
-                letterSpacing: '4px',
-                lineHeight: '1.1',
-                fontFamily: 'MEKSans-Regular',
+                objectFit: 'contain',
               }}
-            >
-              CRYPTOART.SOCIAL
-            </div>
+            />
             <div
               style={{
                 fontSize: 48,
@@ -678,10 +716,23 @@ export async function GET(request: NextRequest) {
     // Return a fallback image on any error
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
-    const [mekMonoFont, mekSansFont] = await Promise.all([
+    const [mekMonoFont, mekSansFont, logoResponse] = await Promise.all([
       fetch(`${baseUrl}/MEK-Mono.otf`).then((res) => res.arrayBuffer()).catch(() => null),
       fetch(`${baseUrl}/MEKSans-Regular.otf`).then((res) => res.arrayBuffer()).catch(() => null),
+      fetch(`${baseUrl}/cryptoart-logo-wgmeets.png`).then((res) => res.arrayBuffer()).catch(() => null),
     ]);
+    
+    // Convert logo to base64 data URL
+    let fallbackLogoDataUrl: string | null = null;
+    if (logoResponse) {
+      try {
+        const buffer = Buffer.from(logoResponse);
+        const base64 = buffer.toString('base64');
+        fallbackLogoDataUrl = `data:image/png;base64,${base64}`;
+      } catch (error) {
+        console.error(`[OG Image] Error processing logo in fallback:`, error);
+      }
+    }
     
     const fallbackFonts: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }> = [];
     if (mekMonoFont) {
@@ -707,18 +758,18 @@ export async function GET(request: NextRequest) {
             fontFamily: 'MEK-Mono',
           }}
         >
-          <div
+          <img
+            src={fallbackLogoDataUrl || `${baseUrl}/cryptoart-logo-wgmeets.png`}
+            alt="Cryptoart"
+            width={600}
+            height={120}
             style={{
-              fontSize: 96,
-              fontWeight: 'bold',
+              height: '120px',
+              width: 'auto',
               marginBottom: '24px',
-              letterSpacing: '4px',
-              lineHeight: '1.1',
-              fontFamily: 'MEKSans-Regular',
+              objectFit: 'contain',
             }}
-          >
-            CRYPTOART.SOCIAL
-          </div>
+          />
           <div
             style={{
               fontSize: 48,
