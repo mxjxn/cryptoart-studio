@@ -110,11 +110,11 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
       {/* Hero Section */}
       <section className="border-b border-[#333333]">
-        <div className="px-5 py-6">
-          <div className="text-[16px] uppercase tracking-[2px] text-[#999999] mb-0 font-mek-mono">cryptoart.social v1</div>
-          <h1 className="text-[24px] font-light leading-tight mb-3">
-            Auctionhouse & Marketplace
+        <div className="px-5 py-0 flex items-center flex-col text-center justify-around">
+          <h1 className="text-[24px] font-light leading-tight mb-3 font-mek-mono inline-block">
+            v1 Auctionhouse & Marketplace
           </h1>
+          <p></p>
           {isPro && (
             <div className="flex justify-center">
               <div className="w-[80vw]">
@@ -133,10 +133,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
       {isMiniApp && !isMiniAppInstalled && actions && (
         <section className="border-b border-[#333333]">
-          <div className="px-5 py-3 flex justify-end">
+          <div className="px-5 py-3 flex justify-center items-center">
             <button
               onClick={actions.addMiniApp}
-              className="text-[16px] font-mek-mono text-[#999999] hover:text-[#cccccc] transition-colors underline"
+              className="text-[24px] font-mek-mono text-[#999999] hover:text-[#cccccc] transition-colors underline"
             >
               Add mini-app to Farcaster
             </button>
@@ -149,7 +149,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         <section className="border-b border-[#333333] bg-[#0a0a0a]">
           <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
             <div className="flex flex-col gap-1">
-              <div className="text-[10px] uppercase tracking-[1.5px] text-[#666666]">
+              <div className="text-[13px] uppercase tracking-[1.5px] text-[#666666] font-mek-mono">
                 Creator Access
               </div>
               <div className="text-sm font-normal text-[#cccccc]">
