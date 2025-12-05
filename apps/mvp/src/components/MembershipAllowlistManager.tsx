@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useAccount } from "wagmi";
+import { useState, useMemo, useEffect } from "react";
+import { useAccount, usePublicClient } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
 import { useMiniApp } from "@neynar/react";
 import { useMembershipAllowlist } from "~/hooks/useMembershipAllowlist";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
-import { isAddress } from "viem";
+import { isAddress, type Address } from "viem";
+import { MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS, MEMBERSHIP_ALLOWLIST_REGISTRY_ABI } from "~/lib/contracts/membership-allowlist";
+import { base } from "viem/chains";
 
 interface MembershipAllowlistManagerProps {
   membershipAddress: string | null;
+}
+
+interface VerifiedAddressStatus {
+  address: string;
+  isAuthorized: boolean | null; // null = loading
+  membershipHolder: string | null;
 }
 
 /**
@@ -21,6 +29,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
   const { context } = useMiniApp();
   const { profile: farcasterProfile } = useProfile();
   const primaryWallet = usePrimaryWallet();
+  const publicClient = usePublicClient({ chainId: base.id });
   const {
     associatedAddressesCount,
     isLoading,
@@ -36,9 +45,10 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
   } = useMembershipAllowlist();
 
   const [newAddress, setNewAddress] = useState("");
-  const [addressToRemove, setAddressToRemove] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addressStatuses, setAddressStatuses] = useState<Map<string, VerifiedAddressStatus>>(new Map());
+  const [isCheckingStatuses, setIsCheckingStatuses] = useState(false);
 
   // Get all verified addresses from Farcaster
   const verifiedAddresses = useMemo(() => {
@@ -123,7 +133,81 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
     return addresses;
   }, [context?.user, farcasterProfile]);
 
-  // Filter out the membership address and connected address from suggestions
+  // Filter out the membership address and connected address from verified addresses
+  const relevantVerifiedAddresses = useMemo(() => {
+    return verifiedAddresses.filter((addr) => {
+      const lowerAddr = addr.toLowerCase();
+      const membershipLower = membershipAddress?.toLowerCase();
+      
+      // Only exclude the membership address itself (they already have direct access)
+      return lowerAddr !== membershipLower;
+    });
+  }, [verifiedAddresses, membershipAddress]);
+
+  // Check authorization status for all verified addresses
+  useEffect(() => {
+    if (!membershipAddress || !publicClient || relevantVerifiedAddresses.length === 0) {
+      return;
+    }
+
+    const checkStatuses = async () => {
+      setIsCheckingStatuses(true);
+      const newStatuses = new Map<string, VerifiedAddressStatus>();
+
+      // Check each address in parallel
+      const statusPromises = relevantVerifiedAddresses.map(async (addr) => {
+        try {
+          const holder = await publicClient.readContract({
+            address: MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS,
+            abi: MEMBERSHIP_ALLOWLIST_REGISTRY_ABI,
+            functionName: 'getMembershipHolder',
+            args: [addr as Address],
+          });
+
+          const isAuthorized = holder && holder.toLowerCase() === membershipAddress.toLowerCase();
+          
+          return {
+            address: addr,
+            status: {
+              address: addr,
+              isAuthorized,
+              membershipHolder: holder && holder !== '0x0000000000000000000000000000000000000000' ? holder : null,
+            },
+          };
+        } catch (err) {
+          console.error(`Error checking status for ${addr}:`, err);
+          return {
+            address: addr,
+            status: {
+              address: addr,
+              isAuthorized: false,
+              membershipHolder: null,
+            },
+          };
+        }
+      });
+
+      const results = await Promise.all(statusPromises);
+      results.forEach(({ address, status }) => {
+        newStatuses.set(address.toLowerCase(), status);
+      });
+
+      setAddressStatuses(newStatuses);
+      setIsCheckingStatuses(false);
+    };
+
+    checkStatuses();
+  }, [membershipAddress, publicClient, relevantVerifiedAddresses, isAddSuccess, isRemoveSuccess]);
+
+  // Get addresses that are not authorized
+  const unauthorizedAddresses = useMemo(() => {
+    return relevantVerifiedAddresses.filter((addr) => {
+      const status = addressStatuses.get(addr.toLowerCase());
+      return status && status.isAuthorized === false;
+    });
+  }, [relevantVerifiedAddresses, addressStatuses]);
+
+  // Filter out the membership address and connected address from suggestions (for manual add form)
   const suggestedAddresses = useMemo(() => {
     return verifiedAddresses.filter((addr) => {
       const lowerAddr = addr.toLowerCase();
@@ -161,6 +245,14 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
       await addAssociatedAddress(newAddress);
       setNewAddress("");
       setShowAddForm(false);
+      // Refresh statuses after adding
+      setTimeout(() => {
+        const status = addressStatuses.get(newAddress.toLowerCase());
+        if (status) {
+          const newStatus = { ...status, isAuthorized: true, membershipHolder: membershipAddress };
+          setAddressStatuses(new Map(addressStatuses).set(newAddress.toLowerCase(), newStatus));
+        }
+      }, 1000);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to add address");
     }
@@ -173,9 +265,49 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
 
     try {
       await removeAssociatedAddress(address);
-      setAddressToRemove(null);
+      // Refresh statuses after removing
+      setTimeout(() => {
+        const status = addressStatuses.get(address.toLowerCase());
+        if (status) {
+          const newStatus = { ...status, isAuthorized: false, membershipHolder: null };
+          setAddressStatuses(new Map(addressStatuses).set(address.toLowerCase(), newStatus));
+        }
+      }, 1000);
     } catch (err) {
       // Error is handled by the hook
+    }
+  };
+
+  const handleAllowlistAddress = async (address: string) => {
+    try {
+      await addAssociatedAddress(address);
+      // Update status immediately for better UX
+      const status = addressStatuses.get(address.toLowerCase());
+      if (status) {
+        const newStatus = { ...status, isAuthorized: true, membershipHolder: membershipAddress };
+        setAddressStatuses(new Map(addressStatuses).set(address.toLowerCase(), newStatus));
+      }
+    } catch (err) {
+      console.error('Error allowlisting address:', err);
+    }
+  };
+
+  const handleAllowAll = async () => {
+    if (unauthorizedAddresses.length === 0) return;
+    
+    // Add all unauthorized addresses one by one
+    for (const addr of unauthorizedAddresses) {
+      try {
+        await addAssociatedAddress(addr);
+        // Update status
+        const status = addressStatuses.get(addr.toLowerCase());
+        if (status) {
+          const newStatus = { ...status, isAuthorized: true, membershipHolder: membershipAddress };
+          setAddressStatuses(new Map(addressStatuses).set(addr.toLowerCase(), newStatus));
+        }
+      } catch (err) {
+        console.error(`Error allowlisting ${addr}:`, err);
+      }
     }
   };
 
@@ -248,24 +380,105 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
         </div>
       )}
 
+      {/* Verified Addresses List */}
+      {isCheckingStatuses && relevantVerifiedAddresses.length > 0 ? (
+        <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
+          <p className="text-sm text-[#999999] text-center">Checking verified addresses...</p>
+        </div>
+      ) : relevantVerifiedAddresses.length > 0 ? (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-[#cccccc]">
+              Verified Addresses ({relevantVerifiedAddresses.length})
+            </h3>
+            {unauthorizedAddresses.length > 1 && (
+              <button
+                onClick={handleAllowAll}
+                disabled={isAdding || isRemoving}
+                className="px-3 py-1 text-xs bg-white text-black font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Allow All ({unauthorizedAddresses.length})
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {relevantVerifiedAddresses.map((addr) => {
+              const status = addressStatuses.get(addr.toLowerCase());
+              const isAuthorized = status?.isAuthorized ?? null;
+              const isLoadingStatus = status === undefined;
+
+              return (
+                <div
+                  key={addr}
+                  className="p-3 bg-black rounded border border-[#333333] flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-sm font-mono text-white truncate">
+                      {formatAddress(addr)}
+                    </span>
+                    {isLoadingStatus ? (
+                      <span className="text-xs text-[#999999]">Checking...</span>
+                    ) : isAuthorized ? (
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded">
+                        Authorized
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs font-medium rounded">
+                        Not Authorized
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isAuthorized === false && (
+                      <button
+                        onClick={() => handleAllowlistAddress(addr)}
+                        disabled={isAdding || isRemoving}
+                        className="px-3 py-1 text-xs bg-white text-black font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Allowlist
+                      </button>
+                    )}
+                    {isAuthorized === true && (
+                      <button
+                        onClick={() => handleRemoveAddress(addr)}
+                        disabled={isRemoving}
+                        className="px-3 py-1 text-xs bg-transparent border border-[#333333] text-white font-medium tracking-[0.5px] hover:border-[#666666] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
+          <p className="text-sm text-[#999999] text-center">
+            No verified addresses found. Connect your Farcaster account to see verified wallets.
+          </p>
+        </div>
+      )}
+
       {/* Associated Addresses Count */}
       <div className="mb-4 p-3 bg-black rounded border border-[#333333]">
         <div className="flex justify-between items-center">
-          <span className="text-sm text-[#999999]">Associated Addresses</span>
+          <span className="text-sm text-[#999999]">Total Associated Addresses</span>
           <span className="text-white font-medium">
             {isLoading ? "Loading..." : (associatedAddressesCount?.toString() || "0")}
           </span>
         </div>
       </div>
 
-      {/* Add Address Form */}
+      {/* Manual Add Address Form (Fallback) */}
       {!showAddForm ? (
         <button
           onClick={() => setShowAddForm(true)}
           disabled={isAdding || isRemoving}
-          className="w-full mb-4 px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full mb-4 px-4 py-2 bg-transparent border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:border-[#666666] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          + Add Address
+          + Manually Add Address
         </button>
       ) : (
         <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
