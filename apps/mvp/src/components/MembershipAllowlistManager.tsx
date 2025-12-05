@@ -49,89 +49,204 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
   const [showAddForm, setShowAddForm] = useState(false);
   const [addressStatuses, setAddressStatuses] = useState<Map<string, VerifiedAddressStatus>>(new Map());
   const [isCheckingStatuses, setIsCheckingStatuses] = useState(false);
+  const [verifiedAddresses, setVerifiedAddresses] = useState<string[]>([]);
+  const [isLoadingVerifiedAddresses, setIsLoadingVerifiedAddresses] = useState(false);
 
-  // Get all verified addresses from Farcaster
-  const verifiedAddresses = useMemo(() => {
-    const addresses: string[] = [];
-
-    // Get verified addresses from miniapp context
+  // Get FID from context or profile
+  const userFid = useMemo(() => {
     if (context?.user) {
       const user = context.user as any;
-      const verifiedAddrs = user.verified_addresses;
-
-      if (verifiedAddrs?.eth_addresses) {
-        verifiedAddrs.eth_addresses.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-
-      if (verifiedAddrs?.primary?.eth_address) {
-        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-        if (!addresses.includes(primaryAddr)) {
-          addresses.push(primaryAddr);
-        }
-      }
-
-      if (user.verifications) {
-        user.verifications.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-
-      if (user.custody_address) {
-        const custodyAddr = user.custody_address.toLowerCase();
-        if (!addresses.includes(custodyAddr)) {
-          addresses.push(custodyAddr);
-        }
-      }
+      return user.fid;
     }
-
-    // Get verified addresses from Farcaster web auth profile
     if (farcasterProfile) {
       const profile = farcasterProfile as any;
-      const verifiedAddrs = profile.verified_addresses;
-
-      if (verifiedAddrs?.eth_addresses) {
-        verifiedAddrs.eth_addresses.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-
-      if (verifiedAddrs?.primary?.eth_address) {
-        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-        if (!addresses.includes(primaryAddr)) {
-          addresses.push(primaryAddr);
-        }
-      }
-
-      if (profile.verifications) {
-        profile.verifications.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-
-      if (profile.custody_address) {
-        const custodyAddr = profile.custody_address.toLowerCase();
-        if (!addresses.includes(custodyAddr)) {
-          addresses.push(custodyAddr);
-        }
-      }
+      return profile.fid;
     }
-
-    return addresses;
+    return null;
   }, [context?.user, farcasterProfile]);
+
+  // Fetch verified addresses from Neynar API
+  useEffect(() => {
+    const fetchVerifiedAddresses = async () => {
+      if (!userFid) {
+        // Fallback to local context if no FID available
+        const addresses: string[] = [];
+
+        // Get verified addresses from miniapp context
+        if (context?.user) {
+          const user = context.user as any;
+          const verifiedAddrs = user.verified_addresses;
+
+          if (verifiedAddrs?.eth_addresses) {
+            verifiedAddrs.eth_addresses.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (verifiedAddrs?.primary?.eth_address) {
+            const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+            if (!addresses.includes(primaryAddr)) {
+              addresses.push(primaryAddr);
+            }
+          }
+
+          if (user.verifications) {
+            user.verifications.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (user.custody_address) {
+            const custodyAddr = user.custody_address.toLowerCase();
+            if (!addresses.includes(custodyAddr)) {
+              addresses.push(custodyAddr);
+            }
+          }
+        }
+
+        // Get verified addresses from Farcaster web auth profile
+        if (farcasterProfile) {
+          const profile = farcasterProfile as any;
+          const verifiedAddrs = profile.verified_addresses;
+
+          if (verifiedAddrs?.eth_addresses) {
+            verifiedAddrs.eth_addresses.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (verifiedAddrs?.primary?.eth_address) {
+            const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+            if (!addresses.includes(primaryAddr)) {
+              addresses.push(primaryAddr);
+            }
+          }
+
+          if (profile.verifications) {
+            profile.verifications.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (profile.custody_address) {
+            const custodyAddr = profile.custody_address.toLowerCase();
+            if (!addresses.includes(custodyAddr)) {
+              addresses.push(custodyAddr);
+            }
+          }
+        }
+
+        setVerifiedAddresses(addresses);
+        return;
+      }
+
+      setIsLoadingVerifiedAddresses(true);
+      try {
+        const response = await fetch(`/api/farcaster/verified-addresses?fid=${userFid}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch verified addresses: ${response.statusText}`);
+        }
+        const data = await response.json();
+        setVerifiedAddresses(data.verifiedAddresses || []);
+      } catch (error) {
+        console.error('Error fetching verified addresses from Neynar API:', error);
+        // Fallback to local context on error
+        const addresses: string[] = [];
+
+        if (context?.user) {
+          const user = context.user as any;
+          const verifiedAddrs = user.verified_addresses;
+
+          if (verifiedAddrs?.eth_addresses) {
+            verifiedAddrs.eth_addresses.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (verifiedAddrs?.primary?.eth_address) {
+            const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+            if (!addresses.includes(primaryAddr)) {
+              addresses.push(primaryAddr);
+            }
+          }
+
+          if (user.verifications) {
+            user.verifications.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (user.custody_address) {
+            const custodyAddr = user.custody_address.toLowerCase();
+            if (!addresses.includes(custodyAddr)) {
+              addresses.push(custodyAddr);
+            }
+          }
+        }
+
+        if (farcasterProfile) {
+          const profile = farcasterProfile as any;
+          const verifiedAddrs = profile.verified_addresses;
+
+          if (verifiedAddrs?.eth_addresses) {
+            verifiedAddrs.eth_addresses.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (verifiedAddrs?.primary?.eth_address) {
+            const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+            if (!addresses.includes(primaryAddr)) {
+              addresses.push(primaryAddr);
+            }
+          }
+
+          if (profile.verifications) {
+            profile.verifications.forEach((addr: string) => {
+              const lowerAddr = addr.toLowerCase();
+              if (!addresses.includes(lowerAddr)) {
+                addresses.push(lowerAddr);
+              }
+            });
+          }
+
+          if (profile.custody_address) {
+            const custodyAddr = profile.custody_address.toLowerCase();
+            if (!addresses.includes(custodyAddr)) {
+              addresses.push(custodyAddr);
+            }
+          }
+        }
+
+        setVerifiedAddresses(addresses);
+      } finally {
+        setIsLoadingVerifiedAddresses(false);
+      }
+    };
+
+    fetchVerifiedAddresses();
+  }, [userFid, context?.user, farcasterProfile]);
 
   // Filter out the membership address and connected address from verified addresses
   const relevantVerifiedAddresses = useMemo(() => {
@@ -381,7 +496,11 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
       )}
 
       {/* Verified Addresses List */}
-      {isCheckingStatuses && relevantVerifiedAddresses.length > 0 ? (
+      {isLoadingVerifiedAddresses ? (
+        <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
+          <p className="text-sm text-[#999999] text-center">Loading verified addresses from Farcaster...</p>
+        </div>
+      ) : isCheckingStatuses && relevantVerifiedAddresses.length > 0 ? (
         <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
           <p className="text-sm text-[#999999] text-center">Checking verified addresses...</p>
         </div>

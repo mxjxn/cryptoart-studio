@@ -403,6 +403,9 @@ importers:
       '@farcaster/quick-auth':
         specifier: '>=0.0.7 <1.0.0'
         version: 0.0.8(typescript@5.9.2)
+      '@neynar/nodejs-sdk':
+        specifier: ^2.46.0
+        version: 2.46.0(@types/node@20.19.25)(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)
       '@neynar/react':
         specifier: ^1.2.15
         version: 1.2.22(@farcaster/miniapp-sdk@0.2.1(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(swr@2.3.6(react@18.3.1))(typescript@5.9.2)
@@ -13433,6 +13436,26 @@ snapshots:
       '@openapitools/openapi-generator-cli': 2.25.2(@types/node@20.19.25)(encoding@0.1.13)
       semver: 7.7.3
       viem: 2.40.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
+    transitivePeerDependencies:
+      - '@nestjs/microservices'
+      - '@nestjs/platform-express'
+      - '@nestjs/websockets'
+      - '@types/node'
+      - bufferutil
+      - class-transformer
+      - class-validator
+      - debug
+      - encoding
+      - supports-color
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@neynar/nodejs-sdk@2.46.0(@types/node@20.19.25)(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)':
+    dependencies:
+      '@openapitools/openapi-generator-cli': 2.25.2(@types/node@20.19.25)(encoding@0.1.13)
+      semver: 7.7.3
+      viem: 2.40.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)
     transitivePeerDependencies:
       - '@nestjs/microservices'
       - '@nestjs/platform-express'
