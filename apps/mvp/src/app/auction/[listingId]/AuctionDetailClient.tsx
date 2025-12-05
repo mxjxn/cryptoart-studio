@@ -11,6 +11,7 @@ import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
+import { ImageOverlay } from "~/components/ImageOverlay";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
@@ -66,6 +67,7 @@ export default function AuctionDetailClient({
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
+  const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -982,15 +984,32 @@ export default function AuctionDetailClient({
         {/* Full width artwork */}
         <div className="mb-4">
           {auction.image ? (
-            <img
-              src={auction.image}
-              alt={title}
-              className="w-full max-h-[80vh] object-contain rounded-lg"
-            />
+            <button
+              type="button"
+              onClick={() => setIsImageOverlayOpen(true)}
+              className="w-full cursor-zoom-in"
+              aria-label="View artwork fullscreen"
+            >
+              <img
+                src={auction.image}
+                alt={title}
+                className="w-full max-h-[80vh] object-contain rounded-lg"
+              />
+            </button>
           ) : (
             <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg" />
           )}
         </div>
+
+        {/* Fullscreen image overlay */}
+        {auction.image && (
+          <ImageOverlay
+            src={auction.image}
+            alt={title}
+            isOpen={isImageOverlayOpen}
+            onClose={() => setIsImageOverlayOpen(false)}
+          />
+        )}
 
         {/* Title, Collection, Creator - each on own row */}
         <div className="mb-4">
