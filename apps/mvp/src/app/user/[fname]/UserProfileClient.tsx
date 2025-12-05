@@ -6,6 +6,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { FollowButton } from "~/components/FollowButton";
+import { FollowersModal } from "~/components/FollowersModal";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 
@@ -67,6 +68,10 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections'>('wallets');
+  const [followersCount, setFollowersCount] = useState<number | null>(null);
+  const [followingCount, setFollowingCount] = useState<number | null>(null);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [showFollowingModal, setShowFollowingModal] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -90,6 +95,24 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
           listingsCount: data.listingsCreated?.length,
         });
         setProfileData(data);
+        
+        // Fetch follower and following counts
+        if (data.primaryAddress) {
+          const [followersRes, followingRes] = await Promise.all([
+            fetch(`/api/user/${encodeURIComponent(data.primaryAddress)}/followers`),
+            fetch(`/api/user/${encodeURIComponent(data.primaryAddress)}/following`),
+          ]);
+          
+          if (followersRes.ok) {
+            const followersData = await followersRes.json();
+            setFollowersCount(followersData.count || 0);
+          }
+          
+          if (followingRes.ok) {
+            const followingData = await followingRes.json();
+            setFollowingCount(followingData.count || 0);
+          }
+        }
       } catch (err) {
         console.error('[UserProfileClient] Error fetching profile:', err);
       } finally {
@@ -176,6 +199,22 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
               {profileData.user?.ensName && (
                 <p className="text-sm text-[#999999]">{profileData.user.ensName}</p>
               )}
+              
+              {/* Follower/Following counts */}
+              <div className="flex gap-4 mt-3">
+                <button
+                  onClick={() => setShowFollowersModal(true)}
+                  className="text-sm text-[#999999] hover:text-white transition-colors"
+                >
+                  <span className="font-medium text-white">{followersCount ?? '...'}</span> followers
+                </button>
+                <button
+                  onClick={() => setShowFollowingModal(true)}
+                  className="text-sm text-[#999999] hover:text-white transition-colors"
+                >
+                  <span className="font-medium text-white">{followingCount ?? '...'}</span> following
+                </button>
+              </div>
             </div>
             <FollowButton followingAddress={profileData.primaryAddress} />
           </div>
@@ -380,6 +419,20 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
           </div>
         )}
       </div>
+      
+      {/* Modals */}
+      <FollowersModal
+        isOpen={showFollowersModal}
+        onClose={() => setShowFollowersModal(false)}
+        address={profileData.primaryAddress}
+        type="followers"
+      />
+      <FollowersModal
+        isOpen={showFollowingModal}
+        onClose={() => setShowFollowingModal(false)}
+        address={profileData.primaryAddress}
+        type="following"
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { useAccount } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
@@ -20,7 +20,101 @@ export function FollowButton({ followingAddress, className = "" }: FollowButtonP
   const { profile: farcasterProfile } = useProfile();
   const { context } = useMiniApp();
   
-  // Get current user address
+  // Get all verified addresses for the current user
+  const allVerifiedAddresses = useMemo(() => {
+    const addresses: string[] = [];
+    
+    // Get verified addresses from miniapp context
+    if (context?.user) {
+      const user = context.user as any;
+      const verifiedAddrs = user.verified_addresses;
+      
+      if (verifiedAddrs?.eth_addresses) {
+        addresses.push(...verifiedAddrs.eth_addresses.map((addr: string) => addr.toLowerCase()));
+      }
+      
+      if (verifiedAddrs?.primary?.eth_address) {
+        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+        if (!addresses.includes(primaryAddr)) {
+          addresses.push(primaryAddr);
+        }
+      }
+      
+      if (user.verifications) {
+        user.verifications.forEach((addr: string) => {
+          const lowerAddr = addr.toLowerCase();
+          if (!addresses.includes(lowerAddr)) {
+            addresses.push(lowerAddr);
+          }
+        });
+      }
+      
+      if (user.custody_address) {
+        const custodyAddr = user.custody_address.toLowerCase();
+        if (!addresses.includes(custodyAddr)) {
+          addresses.push(custodyAddr);
+        }
+      }
+    }
+    
+    // Get verified addresses from Farcaster web auth profile
+    if (farcasterProfile) {
+      const profile = farcasterProfile as any;
+      const verifiedAddrs = profile.verified_addresses;
+      
+      if (verifiedAddrs?.eth_addresses) {
+        verifiedAddrs.eth_addresses.forEach((addr: string) => {
+          const lowerAddr = addr.toLowerCase();
+          if (!addresses.includes(lowerAddr)) {
+            addresses.push(lowerAddr);
+          }
+        });
+      }
+      
+      if (verifiedAddrs?.primary?.eth_address) {
+        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+        if (!addresses.includes(primaryAddr)) {
+          addresses.push(primaryAddr);
+        }
+      }
+      
+      if (profile.verifications) {
+        profile.verifications.forEach((addr: string) => {
+          const lowerAddr = addr.toLowerCase();
+          if (!addresses.includes(lowerAddr)) {
+            addresses.push(lowerAddr);
+          }
+        });
+      }
+      
+      if (profile.custody_address) {
+        const custodyAddr = profile.custody_address.toLowerCase();
+        if (!addresses.includes(custodyAddr)) {
+          addresses.push(custodyAddr);
+        }
+      }
+    }
+    
+    // Add connected wallet
+    if (address) {
+      const connectedAddrLower = address.toLowerCase();
+      if (!addresses.includes(connectedAddrLower)) {
+        addresses.push(connectedAddrLower);
+      }
+    }
+    
+    // Add primary wallet if not already included
+    if (primaryWallet) {
+      const primaryLower = primaryWallet.toLowerCase();
+      if (!addresses.includes(primaryLower)) {
+        addresses.push(primaryLower);
+      }
+    }
+    
+    return addresses;
+  }, [context?.user, farcasterProfile, address, primaryWallet]);
+  
+  // Get current user address (primary one for API calls)
   const currentUserAddress = primaryWallet || 
     address || 
     (context?.user as any)?.verified_addresses?.primary?.eth_address ||
@@ -34,8 +128,10 @@ export function FollowButton({ followingAddress, className = "" }: FollowButtonP
   const isAuthenticated = !!currentUserAddress;
   
   // Don't show button if not authenticated or trying to follow yourself
-  const shouldShow = isAuthenticated && 
-    currentUserAddress.toLowerCase() !== followingAddress.toLowerCase();
+  // Check against all verified addresses to prevent self-follow
+  const normalizedFollowingAddress = followingAddress.toLowerCase();
+  const isSelfFollow = allVerifiedAddresses.some(addr => addr === normalizedFollowingAddress);
+  const shouldShow = isAuthenticated && !isSelfFollow;
   
   useEffect(() => {
     if (!shouldShow || !currentUserAddress) {
