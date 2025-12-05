@@ -18,7 +18,7 @@ export function Logo({ className }: LogoProps) {
         alt="cryptoart.social"
         width={140}
         height={40}
-        className="h-[28px] w-auto"
+        className="h-[64px] w-auto"
         priority
       />
     </TransitionLink>

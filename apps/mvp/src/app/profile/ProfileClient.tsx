@@ -168,7 +168,7 @@ export default function ProfileClient() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black text-white">
-        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
           <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />

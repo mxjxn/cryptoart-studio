@@ -797,7 +797,7 @@ export default function AuctionDetailClient({
     <div className="min-h-screen bg-black text-white">
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
-        <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
           <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />
