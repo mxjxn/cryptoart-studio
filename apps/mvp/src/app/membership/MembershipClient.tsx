@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect, usePublicClient, useBalance } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect, useBalance, usePublicClient } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { type Address, parseEther, formatEther, decodeErrorResult, encodeFunctionData } from "viem";
+import { base } from "viem/chains";
 import Link from "next/link";
 
 // STP v2 ABI for subscription functions
@@ -245,7 +246,10 @@ export default function MembershipClient() {
   }, [priceError, tierDetailResult, pricePerMonthWei]);
 
   const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const publicClient = usePublicClient();
+  // Use usePublicClient with explicit chainId to ensure we use the configured RPC URL
+  // from WagmiProvider (NEXT_PUBLIC_RPC_URL) instead of defaulting to the public base RPC.
+  // This is critical for reliability.
+  const publicClient = usePublicClient({ chainId: base.id });
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   });
