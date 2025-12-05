@@ -7,6 +7,7 @@ import {
   eq,
   or,
   inArray,
+  sql,
   type UserCacheData,
   type ContractCacheData
 } from '@cryptoart/db';
@@ -130,6 +131,7 @@ function isEthereumAddress(fname: string): boolean {
 /**
  * Resolve fname to user address(es)
  * Returns primary address and all verified wallets if Farcaster profile
+ * Also searches verifiedWallets array to find users by their secondary addresses
  */
 async function resolveUserAddresses(fname: string): Promise<{
   primaryAddress: string | null;
@@ -141,6 +143,8 @@ async function resolveUserAddresses(fname: string): Promise<{
   if (isEthereumAddress(fname)) {
     // Direct address lookup
     const normalizedAddress = fname.toLowerCase();
+    
+    // First try exact ethAddress match
     const [user] = await db.select()
       .from(userCache)
       .where(eq(userCache.ethAddress, normalizedAddress))
@@ -148,13 +152,32 @@ async function resolveUserAddresses(fname: string): Promise<{
     
     if (user) {
       const verifiedWallets = (user.verifiedWallets as string[] | null) || [];
-      const allAddresses = [normalizedAddress, ...verifiedWallets.map(w => w.toLowerCase())]
+      const allAddresses = [user.ethAddress.toLowerCase(), ...verifiedWallets.map(w => w.toLowerCase())]
         .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
       
       return {
-        primaryAddress: normalizedAddress,
+        primaryAddress: user.ethAddress.toLowerCase(),
         allAddresses,
         userData: user as UserCacheData,
+      };
+    }
+    
+    // If not found by primary address, search in verifiedWallets JSONB array
+    // This handles cases where the address is a verified wallet, not the primary
+    const [userByVerified] = await db.select()
+      .from(userCache)
+      .where(sql`${userCache.verifiedWallets} @> ${JSON.stringify([normalizedAddress])}::jsonb`)
+      .limit(1);
+    
+    if (userByVerified) {
+      const verifiedWallets = (userByVerified.verifiedWallets as string[] | null) || [];
+      const allAddresses = [userByVerified.ethAddress.toLowerCase(), ...verifiedWallets.map(w => w.toLowerCase())]
+        .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
+      
+      return {
+        primaryAddress: userByVerified.ethAddress.toLowerCase(),
+        allAddresses,
+        userData: userByVerified as UserCacheData,
       };
     }
     
@@ -162,7 +185,7 @@ async function resolveUserAddresses(fname: string): Promise<{
     // This will look up via Neynar/ENS and cache the result
     await discoverAndCacheUser(normalizedAddress, { failSilently: true });
     
-    // Re-fetch from cache after discovery attempt
+    // Re-fetch from cache after discovery attempt (check both primary and verified)
     const [discoveredUser] = await db.select()
       .from(userCache)
       .where(eq(userCache.ethAddress, normalizedAddress))
@@ -170,13 +193,31 @@ async function resolveUserAddresses(fname: string): Promise<{
     
     if (discoveredUser) {
       const verifiedWallets = (discoveredUser.verifiedWallets as string[] | null) || [];
-      const allAddresses = [normalizedAddress, ...verifiedWallets.map(w => w.toLowerCase())]
+      const allAddresses = [discoveredUser.ethAddress.toLowerCase(), ...verifiedWallets.map(w => w.toLowerCase())]
         .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
       
       return {
-        primaryAddress: normalizedAddress,
+        primaryAddress: discoveredUser.ethAddress.toLowerCase(),
         allAddresses,
         userData: discoveredUser as UserCacheData,
+      };
+    }
+    
+    // Also check verified wallets after discovery
+    const [discoveredByVerified] = await db.select()
+      .from(userCache)
+      .where(sql`${userCache.verifiedWallets} @> ${JSON.stringify([normalizedAddress])}::jsonb`)
+      .limit(1);
+    
+    if (discoveredByVerified) {
+      const verifiedWallets = (discoveredByVerified.verifiedWallets as string[] | null) || [];
+      const allAddresses = [discoveredByVerified.ethAddress.toLowerCase(), ...verifiedWallets.map(w => w.toLowerCase())]
+        .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
+      
+      return {
+        primaryAddress: discoveredByVerified.ethAddress.toLowerCase(),
+        allAddresses,
+        userData: discoveredByVerified as UserCacheData,
       };
     }
     

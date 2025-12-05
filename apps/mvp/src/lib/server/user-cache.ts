@@ -16,6 +16,7 @@ function isDatabaseAvailable(): boolean {
 /**
  * Get user info from cache
  * Returns null if database is not available or cache miss
+ * Searches both primary ethAddress and verifiedWallets array
  */
 export async function getUserFromCache(
   address: string
@@ -29,6 +30,7 @@ export async function getUserFromCache(
     const db = getDatabase();
     const normalizedAddress = address.toLowerCase();
     
+    // First try exact ethAddress match
     const [cached] = await db.select()
       .from(userCache)
       .where(eq(userCache.ethAddress, normalizedAddress))
@@ -37,6 +39,17 @@ export async function getUserFromCache(
     // Check if cache is expired
     if (cached && cached.expiresAt > new Date()) {
       return cached as UserCacheData;
+    }
+    
+    // If not found by primary address, search in verifiedWallets JSONB array
+    // This handles cases where the address is a verified wallet, not the primary
+    const [cachedByVerified] = await db.select()
+      .from(userCache)
+      .where(sql`${userCache.verifiedWallets} @> ${JSON.stringify([normalizedAddress])}::jsonb`)
+      .limit(1);
+    
+    if (cachedByVerified && cachedByVerified.expiresAt > new Date()) {
+      return cachedByVerified as UserCacheData;
     }
     
     // Cache expired or doesn't exist
