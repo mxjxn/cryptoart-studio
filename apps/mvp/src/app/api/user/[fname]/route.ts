@@ -121,6 +121,47 @@ const PURCHASES_BY_BUYER_QUERY = gql`
   }
 `;
 
+const LISTINGS_BY_TOKEN_ADDRESSES_QUERY = gql`
+  query ListingsByTokenAddresses($tokenAddresses: [String!]!, $first: Int!, $skip: Int!) {
+    listings(
+      where: { tokenAddress_in: $tokenAddresses }
+      first: $first
+      skip: $skip
+      orderBy: createdAt
+      orderDirection: desc
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      erc20
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
 /**
  * Detect if fname is a Farcaster username or Ethereum address
  */
@@ -412,8 +453,18 @@ export async function GET(
     let artworkListings: any[] = [];
     if (artworkContractAddresses.length > 0) {
       // Query subgraph for listings with these token addresses
-      // Note: We'll need to query each contract separately or use a different approach
-      // For now, we'll enrich the artwork data with listings later if needed
+      const artworkListingsData = await request<{ listings: any[] }>(
+        endpoint,
+        LISTINGS_BY_TOKEN_ADDRESSES_QUERY,
+        {
+          tokenAddresses: artworkContractAddresses,
+          first: 100,
+          skip: 0,
+        },
+        getSubgraphHeaders()
+      );
+      artworkListings = artworkListingsData.listings || [];
+      console.log(`[GET /api/user/${fname}] Found ${artworkListings.length} listings for user's artworks`);
     }
 
     // Filter out cancelled auctions before enriching
@@ -422,6 +473,50 @@ export async function GET(
     // Enrich listings with metadata
     const enrichedListings: EnrichedAuctionData[] = await Promise.all(
       activeListings.map(async (listing) => {
+        const bidCount = listing.bids?.length || 0;
+        const highestBid =
+          listing.bids && listing.bids.length > 0
+            ? listing.bids[0]
+            : undefined;
+
+        let metadata = null;
+        if (listing.tokenAddress && listing.tokenId) {
+          try {
+            metadata = await fetchNFTMetadata(
+              listing.tokenAddress as Address,
+              listing.tokenId,
+              listing.tokenSpec
+            );
+          } catch (error) {
+            console.error(`Error fetching metadata:`, error);
+          }
+        }
+
+        return {
+          ...listing,
+          listingType: normalizeListingType(listing.listingType, listing),
+          bidCount,
+          highestBid: highestBid
+            ? {
+                amount: highestBid.amount,
+                bidder: highestBid.bidder,
+                timestamp: highestBid.timestamp,
+              }
+            : undefined,
+          title: metadata?.title || metadata?.name,
+          artist: metadata?.artist || metadata?.creator,
+          image: metadata?.image,
+          description: metadata?.description,
+          metadata,
+        };
+      })
+    );
+
+    // Filter out cancelled artwork listings and enrich them with metadata
+    const activeArtworkListings = artworkListings.filter((listing) => listing.status !== "CANCELLED");
+    
+    const enrichedArtworkListings: EnrichedAuctionData[] = await Promise.all(
+      activeArtworkListings.map(async (listing) => {
         const bidCount = listing.bids?.length || 0;
         const highestBid =
           listing.bids && listing.bids.length > 0
@@ -536,6 +631,9 @@ export async function GET(
       listingsCreated: enrichedListings,
       purchases: enrichedPurchases,
       collectedFrom: collectedFromWithNames,
+      // artworkListings: listings of NFTs from contracts created by the user (the artist's work)
+      artworkListings: enrichedArtworkListings,
+      // Legacy: raw contract data (kept for backwards compatibility)
       artworksCreated: artworksCreated.map(artwork => ({
         contractAddress: artwork.contractAddress,
         name: artwork.name,

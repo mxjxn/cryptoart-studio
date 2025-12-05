@@ -42,6 +42,9 @@ interface UserProfileData {
     displayName?: string | null;
     pfpUrl?: string | null;
   }>;
+  // Listings of NFTs from contracts created by this user (the artist's work)
+  artworkListings: EnrichedAuctionData[];
+  // Legacy: raw contract data
   artworksCreated: Array<{
     contractAddress: string;
     name?: string | null;
@@ -197,7 +200,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
                   : 'text-[#999999] hover:text-[#cccccc]'
               }`}
             >
-              Artworks ({profileData.artworksCreated.length})
+              Artworks ({profileData.artworkListings?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('listings')}
@@ -262,24 +265,17 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
         {activeTab === 'artworks' && (
           <div>
             <h2 className="text-lg font-light mb-4">Artworks Created</h2>
-            {profileData.artworksCreated.length === 0 ? (
+            {(!profileData.artworkListings || profileData.artworkListings.length === 0) ? (
               <p className="text-[#999999]">No artworks found</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {profileData.artworksCreated.map((artwork, index) => (
-                  <Link
-                    key={artwork.contractAddress}
-                    href={`/market?contract=${artwork.contractAddress}`}
-                    className="p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg hover:border-[#666666] transition-colors"
-                  >
-                    <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded mb-2" />
-                    <p className="text-sm font-medium line-clamp-1">
-                      {artwork.name || artwork.symbol || 'Unnamed'}
-                    </p>
-                    <p className="text-xs text-[#999999] font-mono mt-1">
-                      {artwork.contractAddress.slice(0, 6)}...{artwork.contractAddress.slice(-4)}
-                    </p>
-                  </Link>
+                {profileData.artworkListings.map((listing, index) => (
+                  <AuctionCard
+                    key={listing.listingId}
+                    auction={listing}
+                    gradient={gradients[index % gradients.length]}
+                    index={index}
+                  />
                 ))}
               </div>
             )}
