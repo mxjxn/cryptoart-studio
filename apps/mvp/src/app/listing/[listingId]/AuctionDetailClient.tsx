@@ -759,16 +759,16 @@ export default function AuctionDetailClient({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading auction...</p>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center animate-in fade-in duration-100">
+        <p className="text-[#cccccc]">Loading auction...</p>
       </div>
     );
   }
 
   if (!auction) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Auction not found</p>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-[#cccccc]">Auction not found</p>
       </div>
     );
   }
@@ -794,7 +794,7 @@ export default function AuctionDetailClient({
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white animate-in fade-in duration-100">
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">

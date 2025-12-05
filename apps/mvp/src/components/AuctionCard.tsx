@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -17,9 +17,16 @@ interface AuctionCardProps {
   auction: EnrichedAuctionData;
   gradient: string;
   index: number;
+  onListingClick?: (
+    listingId: string,
+    auction: EnrichedAuctionData,
+    gradient: string,
+    cardElement: HTMLElement
+  ) => void;
 }
 
-export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
+export function AuctionCard({ auction, gradient, index, onListingClick }: AuctionCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
   // Fetch ERC20 token info if not ETH
   const erc20Token = useERC20Token(!isETH(auction.erc20) ? auction.erc20 : undefined);
   
@@ -152,12 +159,26 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   // Get username for linking to profile
   const { username: creatorUsername } = useUsername(addressToShow || null);
 
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (onListingClick && cardRef.current) {
+      // Call the callback to show loading overlay
+      onListingClick(auction.listingId, auction, gradient, cardRef.current);
+      
+      // Small delay to show the loading animation before navigation
+      setTimeout(() => {
+        // Navigation will be handled by TransitionLink
+      }, 50);
+    }
+  };
+
   return (
     <TransitionLink
       href={`/listing/${auction.listingId}`}
       className="relative w-full cursor-pointer transition-opacity hover:opacity-90"
+      onClick={handleClick}
     >
       <div
+        ref={cardRef}
         className="w-full h-[280px] relative overflow-hidden"
         style={{
           background: auction.image

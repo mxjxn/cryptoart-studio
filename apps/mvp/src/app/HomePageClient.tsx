@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
+import { ListingLoadingOverlay } from "~/components/ListingLoadingOverlay";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -28,17 +28,31 @@ interface HomePageClientProps {
 }
 
 export default function HomePageClient({ initialAuctions = [] }: HomePageClientProps) {
-  const router = useRouter();
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentlyConcluded, setRecentlyConcluded] = useState<EnrichedAuctionData[]>([]);
+  const [loadingListingId, setLoadingListingId] = useState<string | null>(null);
+  const [loadingCardElement, setLoadingCardElement] = useState<HTMLElement | null>(null);
+  const [loadingAuction, setLoadingAuction] = useState<EnrichedAuctionData | null>(null);
+  const [loadingGradient, setLoadingGradient] = useState<string>("");
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const { actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
+
+  // Clear loading state when component unmounts (navigation completed)
+  useEffect(() => {
+    return () => {
+      // Clear loading state when component unmounts
+      setLoadingListingId(null);
+      setLoadingCardElement(null);
+      setLoadingAuction(null);
+      setLoadingGradient("");
+    };
+  }, []);
 
   // Fetch auctions function (reusable for initial load and retry)
   const fetchAuctions = async () => {
@@ -98,8 +112,29 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     fetchHomepageData();
   }, []); // Empty deps - only run on mount
 
+  const handleListingClick = (
+    listingId: string,
+    auction: EnrichedAuctionData,
+    gradient: string,
+    cardElement: HTMLElement
+  ) => {
+    setLoadingListingId(listingId);
+    setLoadingCardElement(cardElement);
+    setLoadingAuction(auction);
+    setLoadingGradient(gradient);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Loading Overlay */}
+      {loadingListingId && loadingAuction && loadingCardElement && (
+        <ListingLoadingOverlay
+          auction={loadingAuction}
+          gradient={loadingGradient}
+          cardElement={loadingCardElement}
+        />
+      )}
+
       {/* Top Bar */}
       <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
         <Logo />
@@ -213,6 +248,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 auction={auction}
                 gradient={gradients[index % gradients.length]}
                 index={index}
+                onListingClick={handleListingClick}
               />
             ))}
           </div>
@@ -232,6 +268,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 auction={listing}
                 gradient={gradients[index % gradients.length]}
                 index={index}
+                onListingClick={handleListingClick}
               />
             ))}
           </div>
