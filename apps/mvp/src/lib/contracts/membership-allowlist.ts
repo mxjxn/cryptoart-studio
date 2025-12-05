@@ -1,10 +1,11 @@
 import { type Address } from 'viem';
 
 // MembershipAllowlistRegistry contract address on Base Mainnet
-// TODO: Update with actual deployed address after deployment
+// Deployed at: 0xF190fD214844931a92076aeCB5316f769f4A8483
+// Transaction: https://basescan.org/tx/0x80c82453cc8ecd5f001ac1d5fceef36b725a6f354471d39cba66718d99e07bd8
 export const MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS = (
   process.env.NEXT_PUBLIC_MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS ||
-  '0x0000000000000000000000000000000000000000' // Placeholder - update after deployment
+  '0xF190fD214844931a92076aeCB5316f769f4A8483' // Base Mainnet deployment
 ) as Address;
 
 // ABI for MembershipAllowlistRegistry contract

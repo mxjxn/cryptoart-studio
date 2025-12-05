@@ -171,14 +171,15 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
 
   /**
    * Get the membership holder for an associated address
+   * Note: This requires a read contract call - can be implemented if needed for UI
    */
   const getMembershipHolder = async (address: string): Promise<string | null> => {
     if (!isAddress(address)) {
       return null;
     }
 
-    // This would require a read contract call, but we'll implement it if needed
-    // For now, return null
+    // TODO: Implement read contract call if needed
+    // The marketplace contract handles authorization checks automatically
     return null;
   };
 
