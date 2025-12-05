@@ -163,30 +163,30 @@ const LISTINGS_BY_TOKEN_ADDRESSES_QUERY = gql`
 `;
 
 /**
- * Detect if fname is a Farcaster username or Ethereum address
+ * Detect if identifier is a Farcaster username or Ethereum address
  */
-function isEthereumAddress(fname: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/i.test(fname);
+function isEthereumAddress(identifier: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/i.test(identifier);
 }
 
 /**
- * Resolve fname to user address(es)
+ * Resolve identifier to user address(es)
  * Returns primary address and all verified wallets if Farcaster profile
  * Also searches verifiedWallets array to find users by their secondary addresses
  */
-async function resolveUserAddresses(fname: string): Promise<{
+async function resolveUserAddresses(identifier: string): Promise<{
   primaryAddress: string | null;
   allAddresses: string[];
   userData: UserCacheData | null;
 }> {
-  console.log(`[resolveUserAddresses] Starting lookup for: "${fname}"`);
+  console.log(`[resolveUserAddresses] Starting lookup for: "${identifier}"`);
   
   const db = getDatabase();
   
-  if (isEthereumAddress(fname)) {
+  if (isEthereumAddress(identifier)) {
     console.log(`[resolveUserAddresses] Detected as Ethereum address`);
     // Direct address lookup
-    const normalizedAddress = fname.toLowerCase();
+    const normalizedAddress = identifier.toLowerCase();
     
     // First try exact ethAddress match
     const [user] = await db.select()
@@ -272,7 +272,7 @@ async function resolveUserAddresses(fname: string): Promise<{
     };
   } else {
     // Farcaster username lookup (case-insensitive)
-    const normalizedUsername = fname.toLowerCase();
+    const normalizedUsername = identifier.toLowerCase();
     console.log(`[resolveUserAddresses] Detected as username, querying DB for: "${normalizedUsername}"`);
     
     // Use SQL lower() for truly case-insensitive comparison
@@ -304,8 +304,8 @@ async function resolveUserAddresses(fname: string): Promise<{
     }
     
     // Username not found in cache - try to discover via Neynar API
-    console.log(`[resolveUserAddresses] Username "${fname}" not in cache, looking up via Neynar API...`);
-    const neynarUser = await lookupNeynarByUsername(fname);
+    console.log(`[resolveUserAddresses] Username "${identifier}" not in cache, looking up via Neynar API...`);
+    const neynarUser = await lookupNeynarByUsername(identifier);
     
     console.log(`[resolveUserAddresses] Neynar lookup result:`, neynarUser ? {
       address: neynarUser.address,
@@ -354,7 +354,7 @@ async function resolveUserAddresses(fname: string): Promise<{
     }
     
     // Username not found - could be a new user or invalid username
-    console.log(`[resolveUserAddresses] FAILED: No user found for username "${fname}" in cache or via Neynar`);
+    console.log(`[resolveUserAddresses] FAILED: No user found for username "${identifier}" in cache or via Neynar`);
     return {
       primaryAddress: null,
       allAddresses: [],
@@ -365,32 +365,32 @@ async function resolveUserAddresses(fname: string): Promise<{
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ fname: string }> }
+  { params }: { params: Promise<{ identifier: string }> }
 ) {
   try {
-    const { fname } = await params;
+    const { identifier } = await params;
     
-    console.log(`[GET /api/user/${fname}] Request received`);
+    console.log(`[GET /api/user/${identifier}] Request received`);
     
-    if (!fname) {
-      console.log(`[GET /api/user] ERROR: No fname provided`);
+    if (!identifier) {
+      console.log(`[GET /api/user] ERROR: No identifier provided`);
       return NextResponse.json(
         { error: "Username or address is required" },
         { status: 400 }
       );
     }
 
-    // Resolve fname to address(es)
-    const { primaryAddress, allAddresses, userData } = await resolveUserAddresses(fname);
+    // Resolve identifier to address(es)
+    const { primaryAddress, allAddresses, userData } = await resolveUserAddresses(identifier);
     
-    console.log(`[GET /api/user/${fname}] resolveUserAddresses result:`, {
+    console.log(`[GET /api/user/${identifier}] resolveUserAddresses result:`, {
       primaryAddress,
       allAddressesCount: allAddresses.length,
       hasUserData: !!userData,
     });
     
     if (!primaryAddress) {
-      console.log(`[GET /api/user/${fname}] ERROR: User not found - returning 404`);
+      console.log(`[GET /api/user/${identifier}] ERROR: User not found - returning 404`);
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
@@ -444,7 +444,7 @@ export async function GET(
         )
       );
     
-    console.log(`[GET /api/user/${fname}] Found ${artworksCreated.length} artworks created by user`);
+    console.log(`[GET /api/user/${identifier}] Found ${artworksCreated.length} artworks created by user`);
 
     // Get listings for artworks created by user
     // Find listings where tokenAddress matches contracts created by user
@@ -464,7 +464,7 @@ export async function GET(
         getSubgraphHeaders()
       );
       artworkListings = artworkListingsData.listings || [];
-      console.log(`[GET /api/user/${fname}] Found ${artworkListings.length} listings for user's artworks`);
+      console.log(`[GET /api/user/${identifier}] Found ${artworkListings.length} listings for user's artworks`);
     }
 
     // Filter out cancelled auctions before enriching
