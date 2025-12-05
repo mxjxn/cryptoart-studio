@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     console.log(`[Admin] User hidden: ${userAddress} by ${adminAddress}`);
     
     // Invalidate auctions cache so hidden user listings are filtered out immediately
-    revalidateTag('auctions');
+    revalidateTag('auctions', 'page');
     
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
     
     // Revalidate the homepage and auction cache
     revalidatePath('/');
-    revalidateTag('auctions');
+    revalidateTag('auctions', 'page');
     
     return NextResponse.json({
       success: true,

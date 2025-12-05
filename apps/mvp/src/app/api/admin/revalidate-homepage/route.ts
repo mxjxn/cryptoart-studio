@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     
     // Revalidate the homepage and auction cache
     revalidatePath('/');
-    revalidateTag('auctions');
+    revalidateTag('auctions', 'page');
     
     return NextResponse.json({
       success: true,

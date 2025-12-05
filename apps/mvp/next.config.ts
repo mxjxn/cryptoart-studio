@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Transpile monorepo packages that use TypeScript
+  transpilePackages: ['@cryptoart/db'],
   images: {
     remotePatterns: [
       {

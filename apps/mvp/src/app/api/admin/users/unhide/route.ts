@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     console.log(`[Admin] User unhidden: ${userAddress} by ${adminAddress}`);
     
     // Invalidate auctions cache so unhidden user listings appear immediately
-    revalidateTag('auctions');
+    revalidateTag('auctions', 'page');
     
     return NextResponse.json({ success: true });
   } catch (error) {
