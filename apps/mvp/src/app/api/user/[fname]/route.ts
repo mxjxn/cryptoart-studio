@@ -385,7 +385,8 @@ export async function GET(
           buyer: address.toLowerCase(),
           first: 100,
           skip: 0,
-        }
+        },
+        getSubgraphHeaders()
       )
     );
     
