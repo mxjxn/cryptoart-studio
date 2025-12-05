@@ -7,13 +7,20 @@
   "types": "./src/index.ts",
   "scripts": {
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    
+    "db:migrate-all": "tsx scripts/migrate-all.ts",
+    "db:migrate-admin": "tsx scripts/migrate-admin-tables.ts",
+    
+    "db:status": "tsx scripts/check-tables.ts",
+    "db:check": "tsx scripts/check-migrations.ts",
     "db:verify": "tsx scripts/verify-tables.ts",
-    "db:run-migration": "tsx scripts/run-migration.ts",
-    "db:check-migrations": "tsx scripts/check-migrations.ts",
-    "db:mark-applied": "tsx scripts/mark-migration-applied.ts"
+    "db:mark-applied": "tsx scripts/mark-migration-applied.ts",
+    
+    "db:create-image-cache": "tsx scripts/create-image-cache.ts",
+    "db:create-follows-favorites": "tsx scripts/create-follows-favorites.ts",
+    "db:run-migration-0000": "tsx scripts/run-migration.ts"
   },
   "dependencies": {
     "@vercel/postgres": "^0.8.0",

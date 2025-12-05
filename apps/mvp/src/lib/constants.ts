@@ -52,6 +52,19 @@ export const RETURN_URL: string | undefined = undefined;
 // --- Membership Configuration ---
 export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d90' as const;
 
+// --- Admin Configuration ---
+// Hardcoded admin identity for platform moderation
+export const ADMIN_CONFIG = {
+  // Primary admin wallet address (lowercase) - TODO: Update with full address
+  walletAddress: '0x6da07cb89de32d529ca93f59c4f7f75f2fbafc5b'.toLowerCase() as `0x${string}`,
+  
+  // Primary admin Farcaster username
+  farcasterUsername: 'mxjxn',
+  
+  // Primary admin FID - TODO: Verify actual FID
+  fid: 4905,
+} as const;
+
 // PLEASE DO NOT UPDATE THIS
 export const SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN = {
   name: 'Farcaster SignedKeyRequestValidator',

@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { Address } from "viem";
+import { getDatabase, hiddenUsers } from '@cryptoart/db';
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -251,6 +252,21 @@ export async function getAuctionServer(
 }
 
 /**
+ * Get set of hidden user addresses for filtering.
+ * These users' listings should not appear in algorithmic feeds.
+ */
+async function getHiddenUserAddresses(): Promise<Set<string>> {
+  try {
+    const db = getDatabase();
+    const hidden = await db.select({ address: hiddenUsers.userAddress }).from(hiddenUsers);
+    return new Set(hidden.map(h => h.address.toLowerCase()));
+  } catch (error) {
+    console.error('[Auction] Error fetching hidden users:', error);
+    return new Set();
+  }
+}
+
+/**
  * Fetch and enrich auctions from subgraph
  * This function is cached for 60 seconds to reduce subgraph load
  */
@@ -271,8 +287,12 @@ async function fetchActiveAuctions(
     getSubgraphHeaders()
   );
 
+  // Get hidden user addresses to filter out
+  const hiddenAddresses = await getHiddenUserAddresses();
+
   // Filter out listings that are fully sold (even if subgraph hasn't marked them as finalized yet)
-  // This ensures sold-out listings don't appear in active listings
+  // Also filter out listings from hidden users
+  // This ensures sold-out listings and hidden user listings don't appear in active listings
   let activeListings = data.listings.filter((listing) => {
     const totalAvailable = parseInt(listing.totalAvailable || "0");
     const totalSold = parseInt(listing.totalSold || "0");
@@ -284,10 +304,16 @@ async function fetchActiveAuctions(
       return false;
     }
     
+    // Exclude if seller is hidden
+    if (hiddenAddresses.has(listing.seller?.toLowerCase())) {
+      console.log(`[Active Listings] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
+      return false;
+    }
+    
     return true;
   });
   
-  console.log(`[Active Listings] Filtered ${data.listings.length} listings down to ${activeListings.length} active listings`);
+  console.log(`[Active Listings] Filtered ${data.listings.length} listings down to ${activeListings.length} active listings (${hiddenAddresses.size} hidden users)`);
 
   let enrichedAuctions: EnrichedAuctionData[] = activeListings;
 

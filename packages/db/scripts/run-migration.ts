@@ -41,10 +41,11 @@ async function runMigration() {
     const migrationSQL = readFileSync(migrationPath, 'utf-8');
     
     // Split by statement breakpoints and execute each statement
+    // Note: Don't filter out statements starting with '--' as they may have SQL after the comment
     const statements = migrationSQL
       .split('--> statement-breakpoint')
       .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+      .filter(s => s.length > 0);
     
     console.log(`Found ${statements.length} statements to execute\n`);
     
