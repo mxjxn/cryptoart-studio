@@ -117,6 +117,8 @@ export default function CreateAuctionClient() {
     fixedPrice: "",
     startTime: "",
     endTime: getDefaultEndTime(),
+    durationDays: "7",
+    durationHours: "0",
     minIncrementBPS: "500",
     totalAvailable: "1",
     totalPerSale: "1",
@@ -493,6 +495,8 @@ export default function CreateAuctionClient() {
       fixedPrice: "",
       startTime: "",
       endTime: getDefaultEndTime(),
+      durationDays: "7",
+      durationHours: "0",
       minIncrementBPS: "500",
       totalAvailable: "1",
       totalPerSale: "1",
@@ -540,6 +544,16 @@ export default function CreateAuctionClient() {
       if (formData.listingType === "FIXED_PRICE" && !formData.endTime) {
         // For FIXED_PRICE with no end time, set to max uint48 (never expires)
         endTime = 281474976710655; // type(uint48).max
+      } else if (startTime === 0 && formData.listingType === "INDIVIDUAL_AUCTION") {
+        // When startTime is 0 (starts on first bid), endTime is duration in seconds
+        const days = parseInt(formData.durationDays) || 0;
+        const hours = parseInt(formData.durationHours) || 0;
+        endTime = (days * 24 * 60 * 60) + (hours * 60 * 60);
+        if (endTime <= 0) {
+          alert("Duration must be at least 1 hour");
+          setIsSubmitting(false);
+          return;
+        }
       } else if (formData.endTime) {
         endTime = Math.floor(new Date(formData.endTime).getTime() / 1000);
       } else {
@@ -1269,34 +1283,75 @@ export default function CreateAuctionClient() {
                 />
               </div>
 
-              {/* End Time */}
-              <div>
-                <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  {formData.listingType === "FIXED_PRICE"
-                    ? "End Time (optional)"
-                    : formData.startTime === ""
-                    ? "Duration (from first bid/purchase)"
-                    : "End Time"}
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                  required={formData.listingType !== "FIXED_PRICE"}
-                  disabled={!canProceed}
-                />
-                {formData.listingType === "FIXED_PRICE" && (
+              {/* End Time / Duration */}
+              {formData.listingType === "INDIVIDUAL_AUCTION" && formData.startTime === "" ? (
+                // Show days/hours inputs when auction starts on first bid
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                    Auction Duration (from first bid)
+                  </label>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs text-[#999999] mb-1">Days</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.durationDays}
+                        onChange={(e) => setFormData({ ...formData, durationDays: e.target.value })}
+                        className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                        placeholder="0"
+                        required
+                        disabled={!canProceed}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs text-[#999999] mb-1">Hours</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={formData.durationHours}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // Ensure hours stay between 0-23
+                          const numVal = parseInt(val) || 0;
+                          const clampedVal = Math.max(0, Math.min(23, numVal));
+                          setFormData({ ...formData, durationHours: clampedVal.toString() });
+                        }}
+                        className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                        placeholder="0"
+                        required
+                        disabled={!canProceed}
+                      />
+                    </div>
+                  </div>
                   <p className="mt-1 text-xs text-[#999999]">
-                    Leave empty to create a listing that never expires
+                    The auction will run for this duration starting from the first bid
                   </p>
-                )}
-                {formData.listingType !== "FIXED_PRICE" && formData.startTime === "" && (
-                  <p className="mt-1 text-xs text-[#999999]">
-                    When start time is empty, this represents the duration from the first bid/purchase, not an absolute timestamp
-                  </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                // Show datetime picker for fixed start/end times
+                <div>
+                  <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                    {formData.listingType === "FIXED_PRICE"
+                      ? "End Time (optional)"
+                      : "End Time"}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.endTime}
+                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                    className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
+                    required={formData.listingType !== "FIXED_PRICE"}
+                    disabled={!canProceed}
+                  />
+                  {formData.listingType === "FIXED_PRICE" && (
+                    <p className="mt-1 text-xs text-[#999999]">
+                      Leave empty to create a listing that never expires
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Min Increment - only for auctions */}
               {formData.listingType === "INDIVIDUAL_AUCTION" && (
