@@ -431,15 +431,32 @@ export default function MembershipClient() {
       return;
     }
 
-    if (!pricePerPeriodWei) {
-      console.error('[MembershipClient] No price available');
-      alert("Unable to fetch price. Please try again.");
+    if (!pricePerPeriodWei || pricePerPeriodWei === BigInt(0)) {
+      console.error('[MembershipClient] No price available or price is zero:', {
+        pricePerPeriodWei: pricePerPeriodWei?.toString(),
+        loadingPrice,
+        priceError: priceError?.message,
+      });
+      alert("Unable to fetch price or price is not set. Please refresh the page and try again.");
       return;
     }
 
     if (!publicClient) {
       console.error('[MembershipClient] No public client available');
       alert("Unable to connect to blockchain. Please try again.");
+      return;
+    }
+
+    // Validate total price before attempting transaction
+    if (totalPriceWei === BigInt(0)) {
+      console.error('[MembershipClient] Total price is zero:', {
+        totalPriceWei: totalPriceWei.toString(),
+        initialMintPriceWei: initialMintPriceWei.toString(),
+        pricePerPeriodWei: pricePerPeriodWei.toString(),
+        periods,
+        hasMembershipInConnectedWallet,
+      });
+      alert("Calculated price is zero. This shouldn't happen. Please refresh the page and try again.");
       return;
     }
 
@@ -459,18 +476,40 @@ export default function MembershipClient() {
       // The UI will show a warning
     }
 
+    // Validate that we have a reasonable price before attempting transaction
+    if (totalPriceWei === BigInt(0) || !pricePerPeriodWei || pricePerPeriodWei === BigInt(0)) {
+      console.error('[MembershipClient] Invalid price data:', {
+        totalPriceWei: totalPriceWei.toString(),
+        pricePerPeriodWei: pricePerPeriodWei?.toString(),
+        initialMintPriceWei: initialMintPriceWei.toString(),
+        periods,
+        hasMembershipInConnectedWallet,
+      });
+      alert("Unable to determine membership price. Please refresh the page and try again.");
+      return;
+    }
+
     console.log('[MembershipClient] Preparing transaction:', {
       contractAddress: STP_V2_CONTRACT_ADDRESS,
       functionName: 'mint',
       payableAmount: totalPriceWei.toString(),
+      totalPriceEth,
       numTokens: '0',
       value: totalPriceWei.toString(),
       isRenewal: hasMembershipInConnectedWallet,
+      pricePerPeriodWei: pricePerPeriodWei.toString(),
+      initialMintPriceWei: initialMintPriceWei.toString(),
+      periods,
     });
 
     try {
       // First, simulate the transaction to catch errors early and get better error messages
-      console.log('[MembershipClient] Simulating transaction...');
+      console.log('[MembershipClient] Simulating transaction with:', {
+        account: address,
+        payableAmount: totalPriceWei.toString(),
+        value: totalPriceWei.toString(),
+        totalPriceEth,
+      });
       try {
         await publicClient.simulateContract({
           account: address,
@@ -483,12 +522,23 @@ export default function MembershipClient() {
         console.log('[MembershipClient] Simulation successful');
       } catch (simErr: any) {
         console.error('[MembershipClient] Simulation failed:', simErr);
+        console.error('[MembershipClient] Simulation error details:', {
+          message: simErr?.message,
+          shortMessage: simErr?.shortMessage,
+          cause: simErr?.cause,
+          data: simErr?.data,
+        });
         
         // Use the helper function to extract and decode error
         const errorDetails = extractErrorDetails(simErr);
         
         // Build a user-friendly error message
-        const errorMessage = `Transaction would fail: ${errorDetails.errorMessage}`;
+        let errorMessage = `Transaction would fail: ${errorDetails.errorMessage}`;
+        
+        // Add additional context if the amount seems suspiciously low
+        if (totalPriceWei < parseEther("0.001")) {
+          errorMessage += `\n\nThe payment amount (${totalPriceEth} ETH) seems unusually low. This might indicate a problem with the price data. Please refresh the page and try again.`;
+        }
         
         alert(errorMessage);
         return;
