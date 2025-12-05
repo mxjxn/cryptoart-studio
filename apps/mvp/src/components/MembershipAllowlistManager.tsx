@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
 import { useMiniApp } from "@neynar/react";
@@ -260,59 +260,72 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
   }, [verifiedAddresses, membershipAddress]);
 
   // Check authorization status for all verified addresses
-  useEffect(() => {
+  const checkStatuses = useCallback(async () => {
     if (!membershipAddress || !publicClient || relevantVerifiedAddresses.length === 0) {
       return;
     }
 
-    const checkStatuses = async () => {
-      setIsCheckingStatuses(true);
-      const newStatuses = new Map<string, VerifiedAddressStatus>();
+    setIsCheckingStatuses(true);
+    const newStatuses = new Map<string, VerifiedAddressStatus>();
 
-      // Check each address in parallel
-      const statusPromises = relevantVerifiedAddresses.map(async (addr) => {
-        try {
-          const holder = await publicClient.readContract({
-            address: MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS,
-            abi: MEMBERSHIP_ALLOWLIST_REGISTRY_ABI,
-            functionName: 'getMembershipHolder',
-            args: [addr as Address],
-          });
+    // Check each address in parallel
+    const statusPromises = relevantVerifiedAddresses.map(async (addr) => {
+      try {
+        const holder = await publicClient.readContract({
+          address: MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS,
+          abi: MEMBERSHIP_ALLOWLIST_REGISTRY_ABI,
+          functionName: 'getMembershipHolder',
+          args: [addr as Address],
+        });
 
-          const isAuthorized = holder && holder.toLowerCase() === membershipAddress.toLowerCase();
-          
-          return {
+        const isAuthorized = holder && holder.toLowerCase() === membershipAddress.toLowerCase();
+        
+        return {
+          address: addr,
+          status: {
             address: addr,
-            status: {
-              address: addr,
-              isAuthorized,
-              membershipHolder: holder && holder !== '0x0000000000000000000000000000000000000000' ? holder : null,
-            },
-          };
-        } catch (err) {
-          console.error(`Error checking status for ${addr}:`, err);
-          return {
+            isAuthorized,
+            membershipHolder: holder && holder !== '0x0000000000000000000000000000000000000000' ? holder : null,
+          },
+        };
+      } catch (err) {
+        console.error(`Error checking status for ${addr}:`, err);
+        return {
+          address: addr,
+          status: {
             address: addr,
-            status: {
-              address: addr,
-              isAuthorized: false,
-              membershipHolder: null,
-            },
-          };
-        }
-      });
+            isAuthorized: false,
+            membershipHolder: null,
+          },
+        };
+      }
+    });
 
-      const results = await Promise.all(statusPromises);
-      results.forEach(({ address, status }) => {
-        newStatuses.set(address.toLowerCase(), status);
-      });
+    const results = await Promise.all(statusPromises);
+    results.forEach(({ address, status }) => {
+      newStatuses.set(address.toLowerCase(), status);
+    });
 
-      setAddressStatuses(newStatuses);
-      setIsCheckingStatuses(false);
-    };
+    setAddressStatuses(newStatuses);
+    setIsCheckingStatuses(false);
+  }, [membershipAddress, publicClient, relevantVerifiedAddresses]);
 
+  // Initial status check and when verified addresses change
+  useEffect(() => {
     checkStatuses();
-  }, [membershipAddress, publicClient, relevantVerifiedAddresses, isAddSuccess, isRemoveSuccess]);
+  }, [checkStatuses]);
+
+  // Re-check status when transactions succeed (with a small delay to ensure blockchain state is updated)
+  useEffect(() => {
+    if (isAddSuccess || isRemoveSuccess) {
+      // Wait a bit for the blockchain state to update after transaction confirmation
+      const timeoutId = setTimeout(() => {
+        checkStatuses();
+      }, 2000); // 2 second delay to ensure state is updated
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isAddSuccess, isRemoveSuccess, checkStatuses]);
 
   // Get addresses that are not authorized
   const unauthorizedAddresses = useMemo(() => {
@@ -360,14 +373,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
       await addAssociatedAddress(newAddress);
       setNewAddress("");
       setShowAddForm(false);
-      // Refresh statuses after adding
-      setTimeout(() => {
-        const status = addressStatuses.get(newAddress.toLowerCase());
-        if (status) {
-          const newStatus = { ...status, isAuthorized: true, membershipHolder: membershipAddress };
-          setAddressStatuses(new Map(addressStatuses).set(newAddress.toLowerCase(), newStatus));
-        }
-      }, 1000);
+      // Status will be refreshed automatically when isAddSuccess becomes true
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to add address");
     }
@@ -380,14 +386,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
 
     try {
       await removeAssociatedAddress(address);
-      // Refresh statuses after removing
-      setTimeout(() => {
-        const status = addressStatuses.get(address.toLowerCase());
-        if (status) {
-          const newStatus = { ...status, isAuthorized: false, membershipHolder: null };
-          setAddressStatuses(new Map(addressStatuses).set(address.toLowerCase(), newStatus));
-        }
-      }, 1000);
+      // Status will be refreshed automatically when isRemoveSuccess becomes true
     } catch (err) {
       // Error is handled by the hook
     }
@@ -396,12 +395,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
   const handleAllowlistAddress = async (address: string) => {
     try {
       await addAssociatedAddress(address);
-      // Update status immediately for better UX
-      const status = addressStatuses.get(address.toLowerCase());
-      if (status) {
-        const newStatus = { ...status, isAuthorized: true, membershipHolder: membershipAddress };
-        setAddressStatuses(new Map(addressStatuses).set(address.toLowerCase(), newStatus));
-      }
+      // Status will be refreshed automatically when isAddSuccess becomes true
     } catch (err) {
       console.error('Error allowlisting address:', err);
     }
@@ -411,19 +405,17 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
     if (unauthorizedAddresses.length === 0) return;
     
     // Add all unauthorized addresses one by one
+    // Note: We add them sequentially to avoid nonce issues
     for (const addr of unauthorizedAddresses) {
       try {
         await addAssociatedAddress(addr);
-        // Update status
-        const status = addressStatuses.get(addr.toLowerCase());
-        if (status) {
-          const newStatus = { ...status, isAuthorized: true, membershipHolder: membershipAddress };
-          setAddressStatuses(new Map(addressStatuses).set(addr.toLowerCase(), newStatus));
-        }
+        // Wait a bit between transactions to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (err) {
         console.error(`Error allowlisting ${addr}:`, err);
       }
     }
+    // Status will be refreshed automatically when transactions succeed
   };
 
   // Don't show if user doesn't have membership in connected wallet
