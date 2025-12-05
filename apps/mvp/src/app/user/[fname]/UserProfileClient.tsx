@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
+import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { FollowButton } from "~/components/FollowButton";
 import type { EnrichedAuctionData } from "~/lib/types";
@@ -61,20 +62,33 @@ const gradients = [
 export default function UserProfileClient({ fname }: UserProfileClientProps) {
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections'>('wallets');
 
   useEffect(() => {
     async function fetchProfile() {
       setLoading(true);
+      setError(null);
       try {
+        console.log(`[UserProfileClient] Fetching profile for: "${fname}"`);
         const response = await fetch(`/api/user/${encodeURIComponent(fname)}`);
+        console.log(`[UserProfileClient] Response status: ${response.status}`);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch profile');
+          const errorData = await response.json().catch(() => ({}));
+          console.error(`[UserProfileClient] API error:`, errorData);
+          setError(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+          throw new Error(errorData.error || 'Failed to fetch profile');
         }
         const data = await response.json();
+        console.log(`[UserProfileClient] Got profile data:`, {
+          hasUser: !!data.user,
+          primaryAddress: data.primaryAddress,
+          listingsCount: data.listingsCreated?.length,
+        });
         setProfileData(data);
-      } catch (error) {
-        console.error('Error fetching profile:', error);
+      } catch (err) {
+        console.error('[UserProfileClient] Error fetching profile:', err);
       } finally {
         setLoading(false);
       }
@@ -87,7 +101,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+          <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
@@ -103,13 +117,17 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-          <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+          <Logo />
           <div className="flex items-center gap-3">
             <ProfileDropdown />
           </div>
         </header>
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2">
           <p className="text-[#cccccc]">Profile not found</p>
+          {error && (
+            <p className="text-xs text-[#666666]">Error: {error}</p>
+          )}
+          <p className="text-xs text-[#666666]">Looking for: @{fname}</p>
         </div>
       </div>
     );
@@ -128,7 +146,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="flex justify-between items-center px-5 py-4 border-b border-[#333333]">
-        <TransitionLink href="/" className="text-base font-normal tracking-[0.5px] hover:opacity-80 transition-opacity font-mek-mono">cryptoart.social</TransitionLink>
+        <Logo />
         <div className="flex items-center gap-3">
           <ProfileDropdown />
         </div>

@@ -170,13 +170,16 @@ export async function lookupNeynarByUsername(
   pfpUrl: string | null;
   verifiedWallets: string[];
 } | null> {
+  console.log(`[lookupNeynarByUsername] Starting lookup for username: "${username}"`);
+  
   const apiKey = process.env.NEYNAR_API_KEY;
   if (!apiKey) {
-    console.warn(
-      "[lookupNeynarByUsername] NEYNAR_API_KEY not configured, skipping Neynar lookup"
+    console.error(
+      "[lookupNeynarByUsername] NEYNAR_API_KEY not configured! This will cause profile lookup to fail."
     );
     return null;
   }
+  console.log(`[lookupNeynarByUsername] API key is configured (length: ${apiKey.length})`)
 
   try {
     // Remove @ if present
@@ -217,18 +220,33 @@ export async function lookupNeynarByUsername(
 
     const data = await response.json();
     console.log(
-      "[lookupNeynarByUsername] Response data:",
-      JSON.stringify(data, null, 2)
+      "[lookupNeynarByUsername] Raw response keys:",
+      Object.keys(data)
+    );
+    console.log(
+      "[lookupNeynarByUsername] data.result exists:",
+      !!data.result,
+      "data.user exists:",
+      !!data.user
     );
 
     // The by_username endpoint returns a user object directly
     // Response format: { result: { user: { fid, username, display_name, pfp_url, verified_addresses, ... } } }
     const user = data.result?.user || data.user;
     
+    console.log(`[lookupNeynarByUsername] Parsed user object:`, user ? {
+      fid: user.fid,
+      username: user.username,
+      display_name: user.display_name,
+      verified_addresses: user.verified_addresses,
+    } : 'NOT FOUND');
+    
     if (user && user.fid) {
       const primaryAddress = user.verified_addresses?.eth_addresses?.[0];
+      console.log(`[lookupNeynarByUsername] Primary address:`, primaryAddress || 'NONE');
+      
       if (!primaryAddress) {
-        console.log("[lookupNeynarByUsername] User found but no verified ETH address");
+        console.log("[lookupNeynarByUsername] User found but no verified ETH address - this is the problem!");
         return null;
       }
 

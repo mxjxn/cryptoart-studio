@@ -138,9 +138,12 @@ async function resolveUserAddresses(fname: string): Promise<{
   allAddresses: string[];
   userData: UserCacheData | null;
 }> {
+  console.log(`[resolveUserAddresses] Starting lookup for: "${fname}"`);
+  
   const db = getDatabase();
   
   if (isEthereumAddress(fname)) {
+    console.log(`[resolveUserAddresses] Detected as Ethereum address`);
     // Direct address lookup
     const normalizedAddress = fname.toLowerCase();
     
@@ -228,16 +231,29 @@ async function resolveUserAddresses(fname: string): Promise<{
     };
   } else {
     // Farcaster username lookup (case-insensitive)
+    const normalizedUsername = fname.toLowerCase();
+    console.log(`[resolveUserAddresses] Detected as username, querying DB for: "${normalizedUsername}"`);
+    
+    // Use SQL lower() for truly case-insensitive comparison
     const [user] = await db.select()
       .from(userCache)
-      .where(eq(userCache.username, fname.toLowerCase()))
+      .where(sql`lower(${userCache.username}) = ${normalizedUsername}`)
       .limit(1);
+    
+    console.log(`[resolveUserAddresses] DB query result:`, user ? {
+      ethAddress: user.ethAddress,
+      username: user.username,
+      fid: user.fid,
+      hasVerifiedWallets: !!(user.verifiedWallets as string[] | null)?.length,
+    } : 'NOT FOUND');
     
     if (user) {
       const verifiedWallets = (user.verifiedWallets as string[] | null) || [];
       const primaryAddress = user.ethAddress.toLowerCase();
       const allAddresses = [primaryAddress, ...verifiedWallets.map(w => w.toLowerCase())]
         .filter((addr, idx, arr) => arr.indexOf(addr) === idx); // unique
+      
+      console.log(`[resolveUserAddresses] Found in cache! primaryAddress: ${primaryAddress}, allAddresses: ${allAddresses.length}`);
       
       return {
         primaryAddress,
@@ -247,8 +263,15 @@ async function resolveUserAddresses(fname: string): Promise<{
     }
     
     // Username not found in cache - try to discover via Neynar API
-    console.log(`[resolveUserAddresses] Username not in cache, looking up via Neynar: ${fname}`);
+    console.log(`[resolveUserAddresses] Username "${fname}" not in cache, looking up via Neynar API...`);
     const neynarUser = await lookupNeynarByUsername(fname);
+    
+    console.log(`[resolveUserAddresses] Neynar lookup result:`, neynarUser ? {
+      address: neynarUser.address,
+      fid: neynarUser.fid,
+      username: neynarUser.username,
+      verifiedWalletsCount: neynarUser.verifiedWallets.length,
+    } : 'NOT FOUND');
     
     if (neynarUser) {
       // User found via Neynar - re-fetch from cache (it should be cached now)
@@ -256,6 +279,8 @@ async function resolveUserAddresses(fname: string): Promise<{
         .from(userCache)
         .where(eq(userCache.ethAddress, neynarUser.address))
         .limit(1);
+      
+      console.log(`[resolveUserAddresses] After Neynar discovery, cache lookup:`, discoveredUser ? 'FOUND' : 'NOT FOUND');
       
       if (discoveredUser) {
         const verifiedWallets = (discoveredUser.verifiedWallets as string[] | null) || [];
@@ -270,6 +295,7 @@ async function resolveUserAddresses(fname: string): Promise<{
       }
       
       // If cache lookup failed but we have Neynar data, return it anyway
+      console.log(`[resolveUserAddresses] Cache lookup failed but using Neynar data directly`);
       return {
         primaryAddress: neynarUser.address,
         allAddresses: neynarUser.verifiedWallets.length > 0 
@@ -287,6 +313,7 @@ async function resolveUserAddresses(fname: string): Promise<{
     }
     
     // Username not found - could be a new user or invalid username
+    console.log(`[resolveUserAddresses] FAILED: No user found for username "${fname}" in cache or via Neynar`);
     return {
       primaryAddress: null,
       allAddresses: [],
@@ -302,7 +329,10 @@ export async function GET(
   try {
     const { fname } = await params;
     
+    console.log(`[GET /api/user/${fname}] Request received`);
+    
     if (!fname) {
+      console.log(`[GET /api/user] ERROR: No fname provided`);
       return NextResponse.json(
         { error: "Username or address is required" },
         { status: 400 }
@@ -312,7 +342,14 @@ export async function GET(
     // Resolve fname to address(es)
     const { primaryAddress, allAddresses, userData } = await resolveUserAddresses(fname);
     
+    console.log(`[GET /api/user/${fname}] resolveUserAddresses result:`, {
+      primaryAddress,
+      allAddressesCount: allAddresses.length,
+      hasUserData: !!userData,
+    });
+    
     if (!primaryAddress) {
+      console.log(`[GET /api/user/${fname}] ERROR: User not found - returning 404`);
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
