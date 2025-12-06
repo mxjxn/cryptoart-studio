@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
 import { useRouter } from "next/navigation";
 import { type Address, parseEther, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
@@ -11,11 +11,13 @@ import { zeroAddress } from "viem";
 import { TransactionStatus } from "~/components/TransactionStatus";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { transitionNavigate } from "~/lib/view-transitions";
+import { base } from "wagmi/chains";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -109,6 +111,8 @@ export default function CreateAuctionClient() {
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  const { isWrongNetwork, switchToBase, isSwitching } = useNetworkGuard();
+  const chainId = useChainId();
   const [formData, setFormData] = useState({
     listingType: "INDIVIDUAL_AUCTION" as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY",
     nftContract: "",
@@ -251,6 +255,51 @@ export default function CreateAuctionClient() {
     resetListing();
   }, [formData.nftContract, formData.tokenId, resetApproval, resetListing]);
 
+  // Automatically switch to Base network when on wrong network (web only)
+  useEffect(() => {
+    if (isWrongNetwork && !isSwitching && isConnected) {
+      // Only auto-switch on web, not in miniapp
+      if (!isMiniApp) {
+        console.log('[CreateAuction] Auto-switching to Base network');
+        switchToBase();
+      }
+    }
+  }, [isWrongNetwork, isSwitching, isConnected, isMiniApp, switchToBase]);
+
+  // Handle getChainId errors from approval transactions
+  useEffect(() => {
+    if (approvalError) {
+      const errorMessage = approvalError.message || String(approvalError);
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[CreateAuction] Chain ID error in approval, attempting to switch to Base:', approvalError);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[CreateAuction] Error switching chain:', switchErr);
+          }
+        }
+      }
+    }
+  }, [approvalError, isMiniApp, switchToBase]);
+
+  // Handle getChainId errors from listing transactions
+  useEffect(() => {
+    if (error) {
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[CreateAuction] Chain ID error in listing, attempting to switch to Base:', error);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[CreateAuction] Error switching chain:', switchErr);
+          }
+        }
+      }
+    }
+  }, [error, isMiniApp, switchToBase]);
+
   // Determine token type and ownership
   const tokenType = useMemo(() => {
     if (loadingERC721 || loadingERC1155) return 'loading';
@@ -328,29 +377,69 @@ export default function CreateAuctionClient() {
   }, [canProceed, loadingERC721Approved, loadingApprovedForAll, isApprovedForAll, tokenType, erc721Approved, isApprovalSuccess]);
 
   // Handle approval
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!contractAddress || !address || !hasValidTokenId) return;
 
-    if (tokenType === 'ERC721') {
-      // For ERC721: Use single-token approval (safer, no high-risk warning)
-      writeApproval({
-        address: contractAddress,
-        abi: NFT_ABI,
-        functionName: 'approve',
-        args: [MARKETPLACE_ADDRESS, BigInt(formData.tokenId)],
-        chainId: CHAIN_ID,
-        account: address,
-      });
-    } else {
-      // For ERC1155: Must use setApprovalForAll (no single-token approval in standard)
-      writeApproval({
-        address: contractAddress,
-        abi: NFT_ABI,
-        functionName: 'setApprovalForAll',
-        args: [MARKETPLACE_ADDRESS, true],
-        chainId: CHAIN_ID,
-        account: address,
-      });
+    // Check if we're on the correct chain (web only - miniapp handles this automatically)
+    if (!isMiniApp && chainId !== base.id) {
+      console.log('[CreateAuction] Wrong network detected, switching to Base');
+      try {
+        switchToBase();
+        // Wait a bit for the switch to initiate
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Don't proceed if still on wrong chain - let the auto-switch effect handle it
+        if (chainId !== base.id) {
+          return;
+        }
+      } catch (err) {
+        console.error('[CreateAuction] Error switching chain:', err);
+        alert('Please switch to Base network to continue');
+        return;
+      }
+    }
+
+    try {
+      if (tokenType === 'ERC721') {
+        // For ERC721: Use single-token approval (safer, no high-risk warning)
+        writeApproval({
+          address: contractAddress,
+          abi: NFT_ABI,
+          functionName: 'approve',
+          args: [MARKETPLACE_ADDRESS, BigInt(formData.tokenId)],
+          chainId: CHAIN_ID,
+          account: address,
+        });
+      } else {
+        // For ERC1155: Must use setApprovalForAll (no single-token approval in standard)
+        writeApproval({
+          address: contractAddress,
+          abi: NFT_ABI,
+          functionName: 'setApprovalForAll',
+          args: [MARKETPLACE_ADDRESS, true],
+          chainId: CHAIN_ID,
+          account: address,
+        });
+      }
+    } catch (err: any) {
+      // Handle getChainId errors gracefully
+      const errorMessage = err?.message || String(err);
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[CreateAuction] Chain ID error detected, attempting to switch to Base:', err);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+            alert('Please switch to Base network and try again');
+          } catch (switchErr) {
+            console.error('[CreateAuction] Error switching chain:', switchErr);
+            alert('Please switch to Base network manually and try again');
+          }
+        } else {
+          alert('Network error. Please ensure you are on Base network.');
+        }
+      } else {
+        // Re-throw other errors
+        throw err;
+      }
     }
   };
 
@@ -667,25 +756,73 @@ export default function CreateAuctionClient() {
 
       const listingReceivers: Array<{ receiver: Address; receiverBPS: number }> = [];
 
-      writeContract({
-        address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
-        functionName: "createListing",
-        chainId: CHAIN_ID,
-        account: address,
-        args: [
-          listingDetails,
-          tokenDetails,
-          deliveryFees,
-          listingReceivers,
-          false, // enableReferrer
-          false, // acceptOffers (not using offers on auctions)
-          "0x", // data (empty bytes)
-        ],
-      });
+      // Check if we're on the correct chain (web only - miniapp handles this automatically)
+      if (!isMiniApp && chainId !== base.id) {
+        console.log('[CreateAuction] Wrong network detected, switching to Base');
+        try {
+          switchToBase();
+          // Wait a bit for the switch to initiate
+          await new Promise(resolve => setTimeout(resolve, 500));
+          // Don't proceed if still on wrong chain - let the auto-switch effect handle it
+          if (chainId !== base.id) {
+            setIsSubmitting(false);
+            alert('Please switch to Base network to continue');
+            return;
+          }
+        } catch (err) {
+          console.error('[CreateAuction] Error switching chain:', err);
+          setIsSubmitting(false);
+          alert('Please switch to Base network to continue');
+          return;
+        }
+      }
+
+      try {
+        writeContract({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: "createListing",
+          chainId: CHAIN_ID,
+          account: address,
+          args: [
+            listingDetails,
+            tokenDetails,
+            deliveryFees,
+            listingReceivers,
+            false, // enableReferrer
+            false, // acceptOffers (not using offers on auctions)
+            "0x", // data (empty bytes)
+          ],
+        });
+      } catch (txErr: any) {
+        // Handle getChainId errors gracefully
+        const errorMessage = txErr?.message || String(txErr);
+        if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+          console.error('[CreateAuction] Chain ID error detected, attempting to switch to Base:', txErr);
+          if (!isMiniApp) {
+            try {
+              switchToBase();
+              alert('Please switch to Base network and try again');
+            } catch (switchErr) {
+              console.error('[CreateAuction] Error switching chain:', switchErr);
+              alert('Please switch to Base network manually and try again');
+            }
+          } else {
+            alert('Network error. Please ensure you are on Base network.');
+          }
+          setIsSubmitting(false);
+          return;
+        }
+        // Re-throw other errors to be caught by outer catch
+        throw txErr;
+      }
     } catch (err) {
       console.error("Error creating listing:", err);
-      alert("Failed to create listing. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      // Don't show generic error if it's a chain-related error we already handled
+      if (!errorMessage.includes('getChainId') && !errorMessage.includes('connector')) {
+        alert("Failed to create listing. Please try again.");
+      }
       setIsSubmitting(false);
     }
   };
