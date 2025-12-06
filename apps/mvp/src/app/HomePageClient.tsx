@@ -9,7 +9,6 @@ import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import type { EnrichedAuctionData } from "~/lib/types";
-import { getActiveAuctions } from "~/lib/subgraph";
 import Image from "next/image";
 
 // Gradient colors for artwork placeholders
@@ -30,7 +29,6 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recentlyConcluded, setRecentlyConcluded] = useState<EnrichedAuctionData[]>([]);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const { actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
@@ -38,25 +36,24 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
 
-  // Fetch auctions function (reusable for initial load and retry)
-  const fetchAuctions = async () => {
+  // Fetch all recent listings chronologically
+  const fetchRecentListings = async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('[HomePageClient] Fetching auctions...');
-      // Use cached data from server (cache: true is default)
-      // Server-side cache is 15 minutes, which reduces subgraph rate limiting
-      const cachedAuctions = await getActiveAuctions({ 
-        first: 16, 
-        skip: 0, 
-        enrich: true,
-        cache: true // Use server-side cache to avoid rate limiting
-      });
-      console.log('[HomePageClient] Received auctions:', cachedAuctions?.length || 0);
-      setAuctions(cachedAuctions);
+      console.log('[HomePageClient] Fetching recent listings...');
+      // Fetch all recent listings ordered by creation date (newest first)
+      const response = await fetch('/api/listings/browse?first=24&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      const recentListings = data.listings || [];
+      console.log('[HomePageClient] Received listings:', recentListings.length);
+      setAuctions(recentListings);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch auctions';
-      console.error('[HomePageClient] Error fetching auctions:', errorMessage, error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
+      console.error('[HomePageClient] Error fetching listings:', errorMessage, error);
       setError(errorMessage);
       // Keep using initialAuctions on error
       setAuctions(initialAuctions);
@@ -68,32 +65,15 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
   // Use server-side cached data initially
   // Only refetch if we don't have initial data (e.g., after navigation)
-  // This reduces subgraph load - cache is managed server-side and revalidated every 15 minutes
   useEffect(() => {
     // If we have initial auctions from server, use them (they're cached server-side)
     // Only fetch if we don't have any initial data
     if (initialAuctions.length === 0) {
-      fetchAuctions();
+      fetchRecentListings();
     } else {
       // We have initial data from server, use it
       setAuctions(initialAuctions);
     }
-
-    // Fetch additional homepage data
-    async function fetchHomepageData() {
-      try {
-        // Recently concluded
-        const concludedRes = await fetch('/api/listings/recently-concluded?first=8&enrich=true');
-        if (concludedRes.ok) {
-          const concludedData = await concludedRes.json();
-          setRecentlyConcluded(concludedData.listings || []);
-        }
-      } catch (error) {
-        console.error('Error fetching homepage data:', error);
-      }
-    }
-
-    fetchHomepageData();
   }, []); // Empty deps - only run on mount
 
   return (
@@ -167,10 +147,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         </section>
       )}
 
-      {/* Active Listings */}
+      {/* Recent Listings */}
       <section id="listings" className="px-5 py-8">
         <h2 className="text-[13px] uppercase tracking-[2px] text-[#999999] mb-6 font-mek-mono">
-          Active Listings
+          Recent Listings
         </h2>
 
         {loading ? (
@@ -184,7 +164,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             <button
               onClick={() => {
                 setAuctions([]);
-                fetchAuctions();
+                fetchRecentListings();
               }}
               className="text-white hover:underline"
             >
@@ -193,7 +173,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         ) : auctions.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-[#cccccc] mb-4">No active listings found</p>
+            <p className="text-[#cccccc] mb-4">No listings found</p>
             {isPro && (
               <TransitionLink
                 href="/create"
@@ -216,25 +196,6 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         )}
       </section>
-
-      {/* Recently Concluded */}
-      {recentlyConcluded.length > 0 && (
-        <section className="px-5 py-8 border-t border-[#333333]">
-          <h2 className="text-[11px] uppercase tracking-[2px] text-[#999999] mb-6">
-            Recently Concluded
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {recentlyConcluded.map((listing, index) => (
-              <AuctionCard
-                key={listing.listingId}
-                auction={listing}
-                gradient={gradients[index % gradients.length]}
-                index={index}
-              />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

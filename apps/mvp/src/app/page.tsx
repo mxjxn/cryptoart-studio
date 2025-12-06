@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from "~/lib/constants";
 import { getMiniAppEmbedMetadata } from "~/lib/utils";
-import { getCachedActiveAuctions } from "~/lib/server/auction";
 import type { EnrichedAuctionData } from "~/lib/types";
 import HomePageClient from "./HomePageClient";
 
@@ -30,15 +29,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  // Fetch auctions server-side with caching for optimistic rendering
-  // This data will be served immediately, then updated client-side with fresh data
-  let initialAuctions: EnrichedAuctionData[] = [];
-  try {
-    initialAuctions = await getCachedActiveAuctions(16, 0, true);
-  } catch (error) {
-    console.error('Error fetching initial auctions:', error);
-    // Continue with empty array - client will fetch fresh data
-  }
+  // Client will fetch recent listings chronologically from the browse API
+  // This allows showing all listings (active, concluded, finalized) in one chronological feed
+  const initialAuctions: EnrichedAuctionData[] = [];
 
   return <HomePageClient initialAuctions={initialAuctions} />;
 }

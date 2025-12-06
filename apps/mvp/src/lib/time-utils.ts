@@ -111,4 +111,67 @@ export function getFixedPriceTimeStatus(
   };
 }
 
+/**
+ * Get display status for a listing
+ * Returns: "cancelled" | "not started" | "active" | "concluded" | "finalized"
+ */
+export function getListingDisplayStatus(
+  listing: {
+    status: "ACTIVE" | "FINALIZED" | "CANCELLED";
+    listingType: "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
+    startTime: string | number;
+    endTime: string | number;
+    hasBid?: boolean;
+    bidCount?: number;
+  },
+  now?: number
+): "cancelled" | "not started" | "active" | "concluded" | "finalized" {
+  const currentTime = now || Math.floor(Date.now() / 1000);
+  const startTime = typeof listing.startTime === "string" ? parseInt(listing.startTime) : listing.startTime;
+  const endTime = typeof listing.endTime === "string" ? parseInt(listing.endTime) : listing.endTime;
+  const hasBid = listing.hasBid || (listing.bidCount && listing.bidCount > 0) || false;
+
+  // Check cancelled first
+  if (listing.status === "CANCELLED") {
+    return "cancelled";
+  }
+
+  // Check finalized
+  if (listing.status === "FINALIZED") {
+    return "finalized";
+  }
+
+  // For active listings, determine if they're not started, active, or concluded
+  if (listing.status === "ACTIVE") {
+    // For auctions with startTime = 0, they start on first bid
+    if (listing.listingType === "INDIVIDUAL_AUCTION" && startTime === 0) {
+      if (!hasBid) {
+        return "not started";
+      } else {
+        // Has started, check if ended
+        if (endTime <= currentTime) {
+          return "concluded";
+        }
+        return "active";
+      }
+    }
+
+    // For listings with fixed start time
+    if (currentTime < startTime) {
+      return "not started";
+    }
+
+    // Check if ended (but not finalized)
+    if (endTime <= currentTime && !isNeverExpiring(endTime)) {
+      return "concluded";
+    }
+
+    // Otherwise active
+    return "active";
+  }
+
+  // Default fallback
+  return "active";
+}
+
 

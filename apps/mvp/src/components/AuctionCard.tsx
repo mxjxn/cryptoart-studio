@@ -10,6 +10,7 @@ import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { useUsername } from "~/hooks/useUsername";
 import { CopyButton } from "~/components/CopyButton";
 // import { FavoriteButton } from "~/components/FavoriteButton";
+import { ListingChips } from "~/components/ListingChips";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
@@ -115,29 +116,6 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
     }
   }
 
-  // Listing type badge colors
-  const getListingTypeBadge = () => {
-    switch (auction.listingType) {
-      case "FIXED_PRICE":
-        return (
-          <span className="absolute top-2 right-2 px-2 py-1 bg-white/90 text-black text-[10px] font-medium tracking-[0.5px] rounded">
-            Buy Now
-          </span>
-        );
-      case "OFFERS_ONLY":
-        return (
-          <span className="absolute top-2 right-2 px-2 py-1 bg-amber-500/90 text-black text-[10px] font-medium tracking-[0.5px] rounded">
-            Offers
-          </span>
-        );
-      default:
-        return (
-          <span className="absolute top-2 right-2 px-2 py-1 bg-purple-500/90 text-black text-[10px] font-medium tracking-[0.5px] rounded">
-            Auction
-          </span>
-        );
-    }
-  };
 
   // Resolve artist name
   const { artistName, isLoading: artistNameLoading, creatorAddress } = useArtistName(
@@ -214,7 +192,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             : gradient,
         }}
       >
-        {getListingTypeBadge()}
+        <ListingChips auction={auction} />
         {/* FavoriteButton hidden - will reconsider placement later */}
         {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />
