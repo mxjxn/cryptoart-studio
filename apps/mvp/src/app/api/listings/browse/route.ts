@@ -101,15 +101,16 @@ export async function GET(req: NextRequest) {
     );
     
     console.log('[API /listings/browse] Subgraph returned', data.listings?.length || 0, 'listings');
+    const activeListings = data.listings.filter(listing => listing.status !== "CANCELLED");
 
-    let enrichedListings: EnrichedAuctionData[] = data.listings;
+    let enrichedListings: EnrichedAuctionData[] = activeListings;
 
     if (enrich) {
       // Collect all addresses that need user discovery
       const addressesToDiscover = new Set<string>();
       
       // Add seller addresses
-      data.listings.forEach(listing => {
+      activeListings.forEach(listing => {
         if (listing.seller) {
           addressesToDiscover.add(listing.seller.toLowerCase());
         }
@@ -121,7 +122,7 @@ export async function GET(req: NextRequest) {
       });
 
       enrichedListings = await Promise.all(
-        data.listings.map(async (listing) => {
+        activeListings.map(async (listing) => {
           const bidCount = listing.bids?.length || 0;
           const highestBid =
             listing.bids && listing.bids.length > 0
