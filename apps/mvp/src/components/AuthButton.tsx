@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useConnect, useAccount, useDisconnect } from "wagmi";
-import { SignInButton, useProfile } from "@farcaster/auth-kit";
+import { useProfile } from "@farcaster/auth-kit";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { useMiniApp } from "@neynar/react";
+import { SafeSignInButton } from "~/components/SafeSignInButton";
 
 /**
  * Unified authentication button that adapts to the context:
@@ -119,13 +120,14 @@ export function AuthButton() {
             <div className="py-2">
               {/* Farcaster Sign-In */}
               <div className="px-4 py-2">
-                <SignInButton
+                <SafeSignInButton
                   onSuccess={({ fid, username }) => {
                     console.log("Farcaster sign-in success:", fid, username);
                     setShowOptions(false);
                   }}
                   onError={(error) => {
                     console.error("Farcaster sign-in error:", error);
+                    // Error is already handled by SafeSignInButton, just log it
                   }}
                 />
               </div>

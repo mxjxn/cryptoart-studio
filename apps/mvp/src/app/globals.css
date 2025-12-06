@@ -154,3 +154,26 @@ button {
   animation: fadeIn 100ms ease-in;
 }
 
+/* Prevent Farcaster auth-kit from showing full-screen error overlays */
+/* Target any modal/overlay that might be showing "unavailable" errors */
+[class*="farcaster"][class*="error"],
+[class*="farcaster"][class*="unavailable"],
+[class*="auth-kit"][class*="error"],
+[class*="auth-kit"][class*="unavailable"] {
+  display: none !important;
+}
+
+/* Hide any full-screen error overlays from Farcaster auth-kit */
+body > [class*="farcaster"]:has([class*="error"]),
+body > [class*="farcaster"]:has([class*="unavailable"]),
+body > [class*="auth-kit"]:has([class*="error"]),
+body > [class*="auth-kit"]:has([class*="unavailable"]) {
+  display: none !important;
+}
+
+/* Use attribute selector as fallback for text content matching */
+[data-farcaster-error],
+[data-auth-kit-error] {
+  display: none !important;
+}
+

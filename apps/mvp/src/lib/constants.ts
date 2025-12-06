@@ -1,8 +1,13 @@
-import { type AccountAssociation } from '@farcaster/miniapp-core/src/manifest';
-
 /**
  * Application constants and configuration values.
  */
+
+// Account association type (from Farcaster miniapp spec)
+type AccountAssociation = {
+  header: string;
+  payload: string;
+  signature: string;
+};
 
 // --- App Configuration ---
 // Normalize APP_URL to remove trailing slash to prevent double slashes

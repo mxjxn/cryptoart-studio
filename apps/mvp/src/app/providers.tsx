@@ -13,6 +13,8 @@ import {
 import { ColorSchemeProvider } from "~/contexts/ColorSchemeContext";
 import { LoadingOverlayProvider } from "~/contexts/LoadingOverlayContext";
 import { NetworkSwitchBanner } from "~/components/NetworkSwitchBanner";
+import { FarcasterErrorBoundary } from "~/components/FarcasterErrorBoundary";
+import { FarcasterErrorHandler } from "~/components/FarcasterErrorHandler";
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
@@ -60,20 +62,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ColorSchemeProvider>
       <WagmiProvider>
-        <AuthKitProvider config={authKitConfig}>
-          <MiniAppProvider
-            analyticsEnabled={ANALYTICS_ENABLED}
-            backButtonEnabled={true}
-            returnUrl={RETURN_URL}
-          >
+        <FarcasterErrorBoundary>
+          <AuthKitProvider config={authKitConfig}>
+            <MiniAppProvider
+              analyticsEnabled={ANALYTICS_ENABLED}
+              backButtonEnabled={true}
+              returnUrl={RETURN_URL}
+            >
             <QueryClientProvider client={queryClient}>
               <LoadingOverlayProvider>
+                <FarcasterErrorHandler />
                 <NetworkSwitchBanner />
                 {children}
               </LoadingOverlayProvider>
             </QueryClientProvider>
-          </MiniAppProvider>
-        </AuthKitProvider>
+            </MiniAppProvider>
+          </AuthKitProvider>
+        </FarcasterErrorBoundary>
       </WagmiProvider>
     </ColorSchemeProvider>
   );

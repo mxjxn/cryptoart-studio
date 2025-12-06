@@ -4,7 +4,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { useState, useRef, useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useProfile, SignInButton } from "@farcaster/auth-kit";
+import { useProfile } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
@@ -13,6 +13,7 @@ import { ThemeToggle } from "~/components/ThemeToggle";
 import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
 import { useAdminMode } from "~/hooks/useAdminMode";
+import { SafeSignInButton } from "~/components/SafeSignInButton";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
   pfpUrl: string | undefined; 
@@ -182,9 +183,13 @@ export function ProfileDropdown() {
               {/* Farcaster Sign-In */}
               <div className="px-4 py-2 border-b border-[#333333]">
                 <div className="text-xs text-[#999999] mb-2">Sign in with Farcaster</div>
-                <SignInButton
+                <SafeSignInButton
                   onSuccess={() => {
                     setShowSignInOptions(false);
+                  }}
+                  onError={(error) => {
+                    console.error("Farcaster sign-in error:", error);
+                    // Error is already handled by SafeSignInButton
                   }}
                 />
               </div>
