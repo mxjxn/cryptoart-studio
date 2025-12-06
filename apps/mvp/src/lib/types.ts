@@ -38,6 +38,16 @@ export interface ERC20TokenInfo {
 }
 
 /**
+ * Bid data structure
+ */
+export interface BidData {
+  id: string;
+  bidder: string;
+  amount: string;
+  timestamp: string;
+}
+
+/**
  * Enriched auction data with metadata and bid information
  */
 export interface EnrichedAuctionData extends AuctionData {
@@ -78,6 +88,9 @@ export interface EnrichedAuctionData extends AuctionData {
     bidder: string;
     timestamp: string;
   };
+  
+  // Full bid history (sorted by amount descending)
+  bids?: BidData[];
   
   // Full metadata object
   metadata?: NFTMetadata;

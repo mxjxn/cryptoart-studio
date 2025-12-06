@@ -1380,284 +1380,284 @@ export default function AuctionDetailClient({
 
         {/* Listing details - Different display based on listing type - Hidden if cancelled */}
         {!isCancelled && (
-          <div className="mb-4 space-y-3">
+          <div className="mb-4 space-y-4">
             {auction.listingType === "INDIVIDUAL_AUCTION" && (() => {
               const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid, now);
               return (
                 <>
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <span className="text-[#999999]">Reserve:</span>
-                      <span className="ml-2 font-medium">
-                        {formatPrice(auction.initialAmount)} {paymentSymbol}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[#999999]">Current:</span>
-                      <span className="ml-2 font-medium">
-                        {auction.highestBid
-                          ? `${formatPrice(currentPrice)} ${paymentSymbol}`
-                          : "No bids"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[#999999]">Bids:</span>
-                      <span className="ml-2 font-medium">{bidCount}</span>
-                    </div>
-                    <div>
-                      <span className="text-[#999999]">Status:</span>
-                      <span className="ml-2 font-medium">
-                        {timeStatus.status === "Not started" ? "Not started" : isActive ? "Active" : "Ended"}
-                      </span>
-                    </div>
+                  {/* Compact auction info row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                    <span>{formatPrice(auction.initialAmount)} {paymentSymbol} reserve</span>
+                    <span className="text-[#444]">•</span>
+                    <span>{auction.highestBid ? `${formatPrice(currentPrice)} ${paymentSymbol} high` : "No bids"}</span>
+                    <span className="text-[#444]">•</span>
+                    <span>{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>
+                    <span className="text-[#444]">•</span>
+                    <span>{timeStatus.status === "Not started" ? "Not started" : isActive ? "Active" : "Ended"}</span>
+                    {timeStatus.timeRemaining && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>{timeStatus.timeRemaining}</span>
+                      </>
+                    )}
                   </div>
-                  {timeStatus.status === "Not started" ? (
-                    <div className="text-xs">
-                      <span className="text-[#999999]">Auction status:</span>
-                      <span className="ml-2 font-medium">Not started</span>
-                    </div>
-                  ) : timeStatus.endDate && timeStatus.timeRemaining ? (
-                    <div className="text-xs">
-                      <div>
-                        <span className="text-[#999999]">Ends:</span>
-                        <span className="ml-2 font-medium">{timeStatus.endDate}</span>
-                      </div>
-                      <div className="mt-1">
-                        <span className="text-[#999999]">Time remaining:</span>
-                        <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="text-xs">
-                    <span className="text-[#999999]">Seller:</span>
-                    <span className="ml-2 font-medium">
-                      {sellerName ? (
-                        sellerUsername ? (
-                          <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
-                            {sellerName}
-                          </TransitionLink>
-                        ) : auction.seller ? (
-                          <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
-                            {sellerName}
-                          </TransitionLink>
-                        ) : (
-                          sellerName
-                        )
-                      ) : auction.seller ? (
-                        <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
-                          {auction.seller}
+                  
+                  {/* Seller row */}
+                  <div className="text-xs text-[#999999]">
+                    Listed by{" "}
+                    {sellerName ? (
+                      sellerUsername ? (
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
+                          {sellerName}
                         </TransitionLink>
-                      ) : null}
-                    </span>
+                      ) : auction.seller ? (
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
+                          {sellerName}
+                        </TransitionLink>
+                      ) : (
+                        <span className="text-white">{sellerName}</span>
+                      )
+                    ) : auction.seller ? (
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                        {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
+                      </TransitionLink>
+                    ) : null}
+                  </div>
+
+                  {/* Bid History */}
+                  {auction.bids && auction.bids.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-xs font-medium text-[#999999] mb-2 uppercase tracking-wider">Bid History</h3>
+                      <div className="space-y-1">
+                        {auction.bids.map((bid, index) => (
+                          <BidHistoryRow
+                            key={bid.id}
+                            bid={bid}
+                            isHighest={index === 0}
+                            paymentSymbol={paymentSymbol}
+                            formatPrice={formatPrice}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {auction.listingType === "FIXED_PRICE" && (() => {
+              const timeStatus = getFixedPriceTimeStatus(endTime, now);
+              const remaining = Math.max(0, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"));
+              const isSoldOut = remaining === 0;
+              return (
+                <>
+                  {/* Compact fixed price info row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                    <span>{formatPrice(auction.initialAmount)} {paymentSymbol}</span>
+                    {auction.tokenSpec === "ERC1155" && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>{remaining}/{parseInt(auction.totalAvailable)} available</span>
+                      </>
+                    )}
+                    <span className="text-[#444]">•</span>
+                    <span>{isSoldOut ? "Sold Out" : "Active"}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>{timeStatus.timeRemaining}</span>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Seller row */}
+                  <div className="text-xs text-[#999999]">
+                    Listed by{" "}
+                    {sellerName ? (
+                      sellerUsername ? (
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
+                          {sellerName}
+                        </TransitionLink>
+                      ) : auction.seller ? (
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
+                          {sellerName}
+                        </TransitionLink>
+                      ) : (
+                        <span className="text-white">{sellerName}</span>
+                      )
+                    ) : auction.seller ? (
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                        {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
+                      </TransitionLink>
+                    ) : null}
                   </div>
                 </>
               );
             })()}
 
-            {auction.listingType === "FIXED_PRICE" && (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[#999999]">Price Per Copy:</span>
-                    <span className="ml-2 font-medium">
-                      {formatPrice(auction.initialAmount)} {paymentSymbol}
-                    </span>
+            {auction.listingType === "OFFERS_ONLY" && (() => {
+              const timeStatus = getFixedPriceTimeStatus(endTime, now);
+              return (
+                <>
+                  {/* Compact offers info row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                    <span>Offers Only</span>
+                    <span className="text-[#444]">•</span>
+                    <span>{isActive ? "Active" : "Ended"}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>{timeStatus.timeRemaining}</span>
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-[#999999]">For sale:</span>
-                    <span className="ml-2 font-medium">
-                      {parseInt(auction.totalAvailable)} {auction.tokenSpec === "ERC1155" ? "copies" : ""}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#999999]">Remaining:</span>
-                    <span className="ml-2 font-medium">
-                      {Math.max(0, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"))} {auction.tokenSpec === "ERC1155" ? "copies" : ""}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#999999]">Status:</span>
-                    <span className="ml-2 font-medium">
-                      {isActive && (parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0") > 0) ? "Active" : "Sold Out"}
-                    </span>
-                  </div>
-                </div>
-                {auction.tokenSpec === "ERC1155" && parseInt(auction.totalPerSale || "1") > 1 && (
-                  <div className="text-xs mt-2">
-                    <span className="text-[#999999]">Per Purchase:</span>
-                    <span className="ml-2 font-medium">
-                      {auction.totalPerSale} copies per purchase
-                    </span>
-                  </div>
-                )}
-                {(() => {
-                  const timeStatus = getFixedPriceTimeStatus(endTime, now);
-                  if (timeStatus.neverExpires) {
-                    return null;
-                  }
-                  if (timeStatus.endDate && timeStatus.timeRemaining) {
-                    return (
-                      <div className="text-xs">
-                        <div>
-                          <span className="text-[#999999]">Ends:</span>
-                          <span className="ml-2 font-medium">{timeStatus.endDate}</span>
-                        </div>
-                        <div className="mt-1">
-                          <span className="text-[#999999]">Time remaining:</span>
-                          <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                <div className="text-xs">
-                  <span className="text-[#999999]">Seller:</span>
-                  <span className="ml-2 font-medium">
+                  
+                  {/* Seller row */}
+                  <div className="text-xs text-[#999999]">
+                    Listed by{" "}
                     {sellerName ? (
                       sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : (
-                        sellerName
+                        <span className="text-white">{sellerName}</span>
                       )
                     ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
-                        {auction.seller}
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                        {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
                       </TransitionLink>
                     ) : null}
-                  </span>
-                </div>
-              </>
-            )}
+                  </div>
+                </>
+              );
+            })()}
 
-            {auction.listingType === "OFFERS_ONLY" && (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[#999999]">Type:</span>
-                    <span className="ml-2 font-medium">Offers Only</span>
+            {auction.listingType === "DYNAMIC_PRICE" && (() => {
+              const timeStatus = getFixedPriceTimeStatus(endTime, now);
+              return (
+                <>
+                  {/* Compact dynamic price info row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                    <span>Dynamic Price</span>
+                    <span className="text-[#444]">•</span>
+                    <span>{isActive ? "Active" : "Ended"}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>{timeStatus.timeRemaining}</span>
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-[#999999]">Status:</span>
-                    <span className="ml-2 font-medium">
-                      {isActive ? "Active" : "Ended"}
-                    </span>
-                  </div>
-                </div>
-                {(() => {
-                  const timeStatus = getFixedPriceTimeStatus(endTime, now);
-                  if (timeStatus.neverExpires) {
-                    return null;
-                  }
-                  if (timeStatus.endDate && timeStatus.timeRemaining) {
-                    return (
-                      <div className="text-xs">
-                        <div>
-                          <span className="text-[#999999]">Accepts offers until:</span>
-                          <span className="ml-2 font-medium">{timeStatus.endDate}</span>
-                        </div>
-                        <div className="mt-1">
-                          <span className="text-[#999999]">Time remaining:</span>
-                          <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                <div className="text-xs">
-                  <span className="text-[#999999]">Seller:</span>
-                  <span className="ml-2 font-medium">
+                  
+                  {/* Seller row */}
+                  <div className="text-xs text-[#999999]">
+                    Listed by{" "}
                     {sellerName ? (
                       sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : (
-                        sellerName
+                        <span className="text-white">{sellerName}</span>
                       )
                     ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
-                        {auction.seller}
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                        {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
                       </TransitionLink>
                     ) : null}
-                  </span>
-                </div>
-              </>
-            )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
 
-            {auction.listingType === "DYNAMIC_PRICE" && (
-              <>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-[#999999]">Type:</span>
-                    <span className="ml-2 font-medium">Dynamic Price</span>
-                  </div>
-                  <div>
-                    <span className="text-[#999999]">Status:</span>
-                    <span className="ml-2 font-medium">
-                      {isActive ? "Active" : "Ended"}
-                    </span>
-                  </div>
-                </div>
-                {(() => {
-                  const timeStatus = getFixedPriceTimeStatus(endTime, now);
-                  if (timeStatus.neverExpires) {
-                    return null;
-                  }
-                  if (timeStatus.endDate && timeStatus.timeRemaining) {
-                    return (
-                      <div className="text-xs">
-                        <div>
-                          <span className="text-[#999999]">Ends:</span>
-                          <span className="ml-2 font-medium">{timeStatus.endDate}</span>
-                        </div>
-                        <div className="mt-1">
-                          <span className="text-[#999999]">Time remaining:</span>
-                          <span className="ml-2 font-medium">{timeStatus.timeRemaining}</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                <div className="text-xs">
-                  <span className="text-[#999999]">Seller:</span>
-                  <span className="ml-2 font-medium">
-                    {sellerName ? (
-                      sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="hover:underline">
-                          {sellerName}
-                        </TransitionLink>
-                      ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="hover:underline">
-                          {sellerName}
-                        </TransitionLink>
-                      ) : (
-                        sellerName
-                      )
-                    ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono hover:underline">
-                        {auction.seller}
-                      </TransitionLink>
-                    ) : null}
-                  </span>
-                </div>
-              </>
-            )}
+        {/* Buy Token Button - Always show for ERC-20 paired listings when not own auction */}
+        {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
+          <div className="mb-4">
+            <a
+              href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
+            >
+              Buy {paymentSymbol}
+            </a>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+/**
+ * Bid History Row Component
+ */
+function BidHistoryRow({
+  bid,
+  isHighest,
+  paymentSymbol,
+  formatPrice,
+}: {
+  bid: { id: string; bidder: string; amount: string; timestamp: string };
+  isHighest: boolean;
+  paymentSymbol: string;
+  formatPrice: (amount: string) => string;
+}) {
+  const { artistName } = useArtistName(bid.bidder, undefined, undefined);
+  const { username } = useUsername(bid.bidder);
+  const bidDate = new Date(parseInt(bid.timestamp) * 1000);
+  const timeAgo = getTimeAgo(bidDate);
+
+  return (
+    <div className="flex items-center justify-between py-1.5 text-xs border-b border-[#222]">
+      <div className="flex items-center gap-2">
+        {isHighest && (
+          <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white rounded">HIGH</span>
+        )}
+        <span className="text-white font-medium">
+          {formatPrice(bid.amount)} {paymentSymbol}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 text-[#999999]">
+        {username ? (
+          <TransitionLink href={`/user/${username}`} className="hover:text-white hover:underline">
+            {artistName || username}
+          </TransitionLink>
+        ) : (
+          <TransitionLink href={`/user/${bid.bidder}`} className="font-mono hover:text-white hover:underline">
+            {bid.bidder.slice(0, 6)}...{bid.bidder.slice(-4)}
+          </TransitionLink>
+        )}
+        <span className="text-[#666]">•</span>
+        <span>{timeAgo}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Helper to format time ago
+ */
+function getTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffDay > 0) return `${diffDay}d ago`;
+  if (diffHr > 0) return `${diffHr}h ago`;
+  if (diffMin > 0) return `${diffMin}m ago`;
+  return "just now";
 }

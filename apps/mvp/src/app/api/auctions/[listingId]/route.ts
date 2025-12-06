@@ -112,6 +112,8 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
       bidder: highestBid.bidder,
       timestamp: highestBid.timestamp,
     } : undefined,
+    // Include full bid history for auction detail pages
+    bids: listing.bids || [],
     title: metadata?.title || metadata?.name,
     artist: metadata?.artist || metadata?.creator,
     image: metadata?.image,
