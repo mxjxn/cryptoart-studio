@@ -69,10 +69,11 @@ export default function AuctionDetailClient({
   // Clear overlay when data is ready
   useEffect(() => {
     if (!loading && auction) {
-      // Small delay to ensure smooth transition
+      // Wait for view transition to complete before hiding overlay
+      // View transitions typically take 300-500ms, so we wait a bit longer to ensure smooth transition
       const timer = setTimeout(() => {
         hideOverlay();
-      }, 100);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [loading, auction, hideOverlay]);
@@ -842,10 +843,18 @@ export default function AuctionDetailClient({
                 src={auction.image}
                 alt={title}
                 className="w-full max-h-[80vh] object-contain rounded-lg"
+                style={{
+                  viewTransitionName: `artwork-${listingId}`,
+                }}
               />
             </button>
           ) : (
-            <div className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg" />
+            <div
+              className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg"
+              style={{
+                viewTransitionName: `artwork-${listingId}`,
+              }}
+            />
           )}
         </div>
 
