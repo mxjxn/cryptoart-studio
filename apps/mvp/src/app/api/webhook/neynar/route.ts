@@ -32,11 +32,35 @@ interface ParsedWebhookData {
   payload: WebhookPayload;
 }
 
+// Redact sensitive fields from webhook body for logging
+function sanitizeForLogging(obj: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...obj };
+  
+  // Redact token from notificationDetails if present
+  if (sanitized.notificationDetails && typeof sanitized.notificationDetails === 'object') {
+    const details = sanitized.notificationDetails as Record<string, unknown>;
+    if (details.token) {
+      sanitized.notificationDetails = {
+        ...details,
+        token: '[REDACTED]',
+      };
+    }
+  }
+  
+  // Redact token from nested payload if present (for signed format after parsing)
+  if (sanitized.payload && typeof sanitized.payload === 'string') {
+    // Don't log raw base64 payload as it may contain sensitive data
+    sanitized.payload = '[BASE64_PAYLOAD]';
+  }
+  
+  return sanitized;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    console.log('[neynar webhook] Received webhook event:', JSON.stringify(body, null, 2));
+    console.log('[neynar webhook] Received webhook event:', JSON.stringify(sanitizeForLogging(body), null, 2));
 
     // The webhook payload can come in two formats:
     // 1. Raw Farcaster signed format: { header, payload, signature } (base64url encoded)
