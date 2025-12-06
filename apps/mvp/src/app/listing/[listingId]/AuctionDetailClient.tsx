@@ -24,6 +24,7 @@ import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplac
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
+import { UpdateListingForm } from "~/components/UpdateListingForm";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -83,6 +84,7 @@ export default function AuctionDetailClient({
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
   
   // Cancel listing transaction
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
@@ -94,6 +96,12 @@ export default function AuctionDetailClient({
   const { writeContract: finalizeAuction, data: finalizeHash, isPending: isFinalizing, error: finalizeError } = useWriteContract();
   const { isLoading: isConfirmingFinalize, isSuccess: isFinalizeConfirmed } = useWaitForTransactionReceipt({
     hash: finalizeHash,
+  });
+
+  // Modify listing transaction
+  const { writeContract: modifyListing, data: modifyHash, isPending: isModifying, error: modifyError } = useWriteContract();
+  const { isLoading: isConfirmingModify, isSuccess: isModifyConfirmed } = useWaitForTransactionReceipt({
+    hash: modifyHash,
   });
 
   // Purchase transaction (for FIXED_PRICE)
@@ -466,6 +474,37 @@ export default function AuctionDetailClient({
     }
   };
 
+  const handleUpdateListing = async (startTime: number | null, endTime: number | null) => {
+    if (!isConnected || !auction) {
+      return;
+    }
+
+    try {
+      // Use current initialAmount (don't change it)
+      const initialAmount = BigInt(auction.initialAmount || "0");
+      
+      // Convert to number for timestamps (null becomes 0)
+      // uint48 can be represented as a number (safe up to 2^53-1, but uint48 max is 2^48-1)
+      const startTime48 = startTime || 0;
+      const endTime48 = endTime || 0;
+
+      await modifyListing({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'modifyListing',
+        args: [
+          Number(listingId),
+          initialAmount,
+          startTime48,
+          endTime48,
+        ],
+      });
+    } catch (err) {
+      console.error("Error updating listing:", err);
+      alert("Failed to update listing. Please try again.");
+    }
+  };
+
   // Redirect after successful cancellation
   useEffect(() => {
     if (isCancelConfirmed) {
@@ -487,6 +526,14 @@ export default function AuctionDetailClient({
       }, 100);
     }
   }, [isFinalizeConfirmed, router]);
+
+  // Refresh after successful modification and close form
+  useEffect(() => {
+    if (isModifyConfirmed) {
+      router.refresh();
+      setShowUpdateForm(false);
+    }
+  }, [isModifyConfirmed, router]);
 
   // Create notifications after successful bid
   useEffect(() => {
@@ -807,6 +854,13 @@ export default function AuctionDetailClient({
   const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
+  // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
+  const hasStarted = auction.listingType === "INDIVIDUAL_AUCTION" 
+    ? bidCount > 0 || !!auction.highestBid
+    : parseInt(auction.totalSold || "0") > 0;
+  const canUpdate = isOwnAuction && !hasStarted && isActive && !isCancelled;
+  const isModifyLoading = isModifying || isConfirmingModify;
+
   return (
     <div className="min-h-screen bg-black text-white animate-in fade-in duration-100">
       {/* Header - Only show when not in miniapp */}
@@ -955,12 +1009,69 @@ export default function AuctionDetailClient({
               </p>
             </div>
           )}
+          {/* External Links */}
+          {(auction.tokenAddress || auction.tokenId) && (
+            <div className="mb-4 flex gap-3 text-xs">
+              {auction.tokenAddress && (
+                <a
+                  href={`https://basescan.org/address/${auction.tokenAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#999999] hover:text-[#cccccc] hover:underline"
+                >
+                  Basescan
+                </a>
+              )}
+              {auction.tokenAddress && auction.tokenId && (
+                <a
+                  href={`https://opensea.io/item/base/${auction.tokenAddress}/${auction.tokenId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#999999] hover:text-[#cccccc] hover:underline"
+                >
+                  OpenSea
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Cancelled Auction Message */}
         {isCancelled && (
           <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
             <p className="text-sm text-white font-medium">Auction has been cancelled</p>
+          </div>
+        )}
+
+        {/* Update Listing Form - Show when update button is clicked */}
+        {showUpdateForm && canUpdate && !isCancelled && (
+          <div className="mb-4">
+            <UpdateListingForm
+              currentStartTime={startTime || null}
+              currentEndTime={endTime || null}
+              onSubmit={handleUpdateListing}
+              onCancel={() => setShowUpdateForm(false)}
+              isLoading={isModifyLoading}
+              listingType={auction.listingType}
+            />
+            {modifyError && (
+              <p className="text-xs text-red-400 mt-2">
+                {modifyError.message || "Failed to update listing"}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Update Listing Button (for seller before auction has started) - Hidden if cancelled or update form is shown */}
+        {canUpdate && !isCancelled && !showUpdateForm && (
+          <div className="mb-4">
+            <button
+              onClick={() => setShowUpdateForm(true)}
+              disabled={isModifyLoading}
+              className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Update Listing
+            </button>
           </div>
         )}
 

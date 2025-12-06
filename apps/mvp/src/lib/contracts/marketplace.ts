@@ -263,6 +263,18 @@ export const MARKETPLACE_ABI = [
   },
   {
     type: 'function',
+    name: 'modifyListing',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'initialAmount', type: 'uint256', internalType: 'uint256' },
+      { name: 'startTime', type: 'uint48', internalType: 'uint48' },
+      { name: 'endTime', type: 'uint48', internalType: 'uint48' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'getOffers',
     inputs: [
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
