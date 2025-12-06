@@ -12,6 +12,7 @@
     
     "db:migrate-all": "tsx scripts/migrate-all.ts",
     "db:migrate-admin": "tsx scripts/migrate-admin-tables.ts",
+    "db:migrate-allowlist": "tsx scripts/migrate-allowlist-signatures.ts",
     
     "db:status": "tsx scripts/check-tables.ts",
     "db:check": "tsx scripts/check-migrations.ts",

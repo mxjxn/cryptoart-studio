@@ -10,6 +10,7 @@
  *   0001_add_image_cache.sql  - Image cache table
  *   0002_add_follows_favorites.sql - Follows and favorites tables
  *   0003_add_admin_tables.sql - Admin system tables (featured, hidden users, analytics, etc.)
+ *   0004_add_pending_allowlist_signatures.sql - Pending allowlist signatures table
  */
 
 import { config } from 'dotenv';
@@ -40,6 +41,7 @@ const MIGRATIONS = [
   '0001_add_image_cache.sql',
   '0002_add_follows_favorites.sql',
   '0003_add_admin_tables.sql',
+  '0004_add_pending_allowlist_signatures.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

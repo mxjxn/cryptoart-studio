@@ -20,8 +20,9 @@ pnpm db:migrate-admin
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `migrate-all.ts` | `pnpm db:migrate-all` | Runs all migrations in order (0000 → 0003). Idempotent - skips existing. |
+| `migrate-all.ts` | `pnpm db:migrate-all` | Runs all migrations in order (0000 → 0004). Idempotent - skips existing. |
 | `migrate-admin-tables.ts` | `pnpm db:migrate-admin` | Runs only the admin tables migration (0003). |
+| `migrate-allowlist-signatures.ts` | `pnpm db:migrate-allowlist` | Runs only the allowlist signatures migration (0004). |
 | `run-migration.ts` | `pnpm db:run-migration-0000` | Runs only the initial migration (0000). Legacy. |
 | `create-image-cache.ts` | `pnpm db:create-image-cache` | Creates image_cache table directly (alternative to migration). |
 | `create-follows-favorites.ts` | `pnpm db:create-follows-favorites` | Creates follows/favorites tables directly (alternative to migration). |
@@ -43,6 +44,7 @@ Migrations should be applied in this order:
 2. **0001_add_image_cache.sql** - Image cache table
 3. **0002_add_follows_favorites.sql** - Follows and favorites tables  
 4. **0003_add_admin_tables.sql** - Admin system tables (featured, hidden users, analytics, etc.)
+5. **0004_add_pending_allowlist_signatures.sql** - Pending allowlist signatures table
 
 ## Environment Variables
 
