@@ -108,7 +108,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
       {/* Hero Section */}
       <section className="border-b border-[#333333]">
-        <div className="px-5 py-0 flex items-center flex-col text-center justify-around">
+        <div className="px-5 py-5 flex items-center flex-col text-center justify-around">
           <h1 className="text-[24px] font-light leading-tight mb-3 font-mek-mono inline-block">
             v1 Auctionhouse & Marketplace
           </h1>
