@@ -1,6 +1,6 @@
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useSignMessage, usePublicClient } from "wagmi";
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { type Address, isAddress, toBytes, keccak256, encodePacked } from "viem";
+import { type Address, isAddress, toBytes } from "viem";
 import { base } from "viem/chains";
 import { MEMBERSHIP_ALLOWLIST_REGISTRY_ADDRESS, MEMBERSHIP_ALLOWLIST_REGISTRY_ABI } from "~/lib/contracts/membership-allowlist";
 
@@ -10,11 +10,14 @@ export interface AssociatedAddress {
 }
 
 export interface PendingSignature {
+  id: string;
+  fid: number;
   associatedAddress: string;
   membershipHolder: string;
   signature: string;
-  nonce: bigint;
-  timestamp: number;
+  nonce: string; // bigint as string from API
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface UseMembershipAllowlistReturn {
@@ -25,10 +28,11 @@ export interface UseMembershipAllowlistReturn {
   isAdding: boolean;
   isRemoving: boolean;
   isSigning: boolean;
+  isFetchingSignatures: boolean;
   error: Error | null;
   
-  // Pending signatures (for multi-wallet flow)
-  pendingSignatures: Map<string, PendingSignature>;
+  // Pending signatures from database
+  pendingSignatures: PendingSignature[];
   
   // Actions
   addAssociatedAddress: (address: string) => Promise<void>;
@@ -38,9 +42,11 @@ export interface UseMembershipAllowlistReturn {
   getMembershipHolder: (address: string) => Promise<string | null>;
   
   // Signature flow actions
-  signForAddress: (associatedAddress: string, membershipHolder: string) => Promise<string>;
+  signForAddress: (associatedAddress: string, membershipHolder: string, fid: number) => Promise<string>;
   submitWithSignature: (associatedAddress: string, signature: string) => Promise<void>;
-  clearPendingSignature: (associatedAddress: string) => void;
+  fetchPendingSignatures: (params: { membershipHolder?: string; fid?: number }) => Promise<void>;
+  markSignatureSubmitted: (signatureId: string, transactionHash: string) => Promise<void>;
+  deleteSignature: (signatureId: string) => Promise<void>;
   
   // Transaction status
   addTransactionHash: string | undefined;
@@ -49,71 +55,27 @@ export interface UseMembershipAllowlistReturn {
   isRemoveSuccess: boolean;
 }
 
-// Local storage key for pending signatures
-const PENDING_SIGNATURES_KEY = 'cryptoart_pending_allowlist_signatures';
-
 /**
  * Hook to manage membership allowlist (associated addresses)
  * Allows membership holders to register additional addresses that can also sell on the marketplace
  * 
- * SECURITY: The new secure contract requires the associated address to sign a message
+ * SECURITY: The secure contract requires the associated address to sign a message
  * proving they consent to the association. This prevents address spoofing.
  * 
- * Flow for adding an address:
- * 1. Connect the wallet you want to add
- * 2. Call signForAddress() to sign the consent message
- * 3. Switch to your membership wallet
- * 4. Call submitWithSignature() to submit the transaction
+ * Flow for adding an address (Web + Mini-app):
+ * 1. On WEB: Connect the wallet you want to add, do SIWF
+ * 2. On WEB: Call signForAddress() to sign the consent message, stored in DB
+ * 3. In MINI-APP: Connected with membership wallet, fetch pending signatures
+ * 4. In MINI-APP: Call submitWithSignature() to submit the transaction
  */
 export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
   const { address: connectedAddress, isConnected } = useAccount();
   const publicClient = usePublicClient({ chainId: base.id });
   const [associatedAddresses, setAssociatedAddresses] = useState<string[]>([]);
   const [error, setError] = useState<Error | null>(null);
-  const [pendingSignatures, setPendingSignatures] = useState<Map<string, PendingSignature>>(new Map());
+  const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
   const [isSigning, setIsSigning] = useState(false);
-
-  // Load pending signatures from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(PENDING_SIGNATURES_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, PendingSignature>;
-        const map = new Map<string, PendingSignature>();
-        
-        // Filter out expired signatures (older than 1 hour)
-        const oneHourAgo = Date.now() - 60 * 60 * 1000;
-        Object.entries(parsed).forEach(([key, value]) => {
-          if (value.timestamp > oneHourAgo) {
-            map.set(key, {
-              ...value,
-              nonce: BigInt(value.nonce.toString()),
-            });
-          }
-        });
-        
-        setPendingSignatures(map);
-      }
-    } catch (err) {
-      console.error('Failed to load pending signatures:', err);
-    }
-  }, []);
-
-  // Save pending signatures to localStorage when they change
-  useEffect(() => {
-    try {
-      const obj: Record<string, any> = {};
-      pendingSignatures.forEach((value, key) => {
-        obj[key] = {
-          ...value,
-          nonce: value.nonce.toString(),
-        };
-      });
-      localStorage.setItem(PENDING_SIGNATURES_KEY, JSON.stringify(obj));
-    } catch (err) {
-      console.error('Failed to save pending signatures:', err);
-    }
-  }, [pendingSignatures]);
+  const [isFetchingSignatures, setIsFetchingSignatures] = useState(false);
 
   // Read associated addresses count for the connected wallet
   const { data: associatedCount, isLoading: isLoadingCount } = useReadContract({
@@ -170,14 +132,13 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
   // Refresh count when transactions succeed
   useEffect(() => {
     if (isAddSuccess || isRemoveSuccess) {
-      // The count will auto-refresh via the useReadContract hook
       resetAdd();
       resetRemove();
     }
   }, [isAddSuccess, isRemoveSuccess, resetAdd, resetRemove]);
 
   /**
-   * Get the nonce for an associated address
+   * Get the nonce for an associated address from the contract
    */
   const getNonce = useCallback(async (associatedAddress: string): Promise<bigint> => {
     if (!publicClient) {
@@ -195,7 +156,7 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
   }, [publicClient]);
 
   /**
-   * Get the message hash that needs to be signed
+   * Get the message hash that needs to be signed from the contract
    */
   const getMessageHash = useCallback(async (
     membershipHolder: string,
@@ -217,16 +178,51 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
   }, [publicClient]);
 
   /**
+   * Fetch pending signatures from the database
+   */
+  const fetchPendingSignatures = useCallback(async (params: { 
+    membershipHolder?: string; 
+    fid?: number 
+  }): Promise<void> => {
+    setIsFetchingSignatures(true);
+    try {
+      const searchParams = new URLSearchParams();
+      if (params.membershipHolder) {
+        searchParams.set('membershipHolder', params.membershipHolder);
+      }
+      if (params.fid) {
+        searchParams.set('fid', params.fid.toString());
+      }
+
+      const response = await fetch(`/api/allowlist/signatures?${searchParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch pending signatures');
+      }
+
+      const data = await response.json();
+      setPendingSignatures(data.signatures || []);
+    } catch (err) {
+      console.error('Error fetching pending signatures:', err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch signatures'));
+    } finally {
+      setIsFetchingSignatures(false);
+    }
+  }, []);
+
+  /**
    * Sign the consent message for associating an address
    * Must be called while the associated address wallet is connected
+   * Stores the signature in the database for later submission
    * 
    * @param associatedAddress The address being associated (must be connected wallet)
    * @param membershipHolder The membership holder who will submit the transaction
+   * @param fid The Farcaster ID of the user (from SIWF)
    * @returns The signature
    */
   const signForAddress = useCallback(async (
     associatedAddress: string,
-    membershipHolder: string
+    membershipHolder: string,
+    fid: number
   ): Promise<string> => {
     if (!connectedAddress || !isConnected) {
       throw new Error('Wallet not connected');
@@ -255,20 +251,26 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
         message: { raw: toBytes(messageHash) },
       });
 
-      // Store the pending signature
-      const pending: PendingSignature = {
-        associatedAddress: associatedAddress.toLowerCase(),
-        membershipHolder: membershipHolder.toLowerCase(),
-        signature,
-        nonce,
-        timestamp: Date.now(),
-      };
-
-      setPendingSignatures(prev => {
-        const next = new Map(prev);
-        next.set(associatedAddress.toLowerCase(), pending);
-        return next;
+      // Store signature in database
+      const response = await fetch('/api/allowlist/signatures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fid,
+          associatedAddress: associatedAddress.toLowerCase(),
+          membershipHolder: membershipHolder.toLowerCase(),
+          signature,
+          nonce: nonce.toString(),
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to store signature');
+      }
+
+      // Refresh pending signatures
+      await fetchPendingSignatures({ membershipHolder, fid });
 
       return signature;
     } catch (err) {
@@ -278,7 +280,7 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
     } finally {
       setIsSigning(false);
     }
-  }, [connectedAddress, isConnected, getNonce, getMessageHash, signMessageAsync]);
+  }, [connectedAddress, isConnected, getNonce, getMessageHash, signMessageAsync, fetchPendingSignatures]);
 
   /**
    * Submit the addAssociatedAddress transaction with a pre-signed signature
@@ -305,13 +307,6 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
         functionName: 'addAssociatedAddress',
         args: [associatedAddress as Address, signature as `0x${string}`],
       });
-
-      // Clear the pending signature after submission
-      setPendingSignatures(prev => {
-        const next = new Map(prev);
-        next.delete(associatedAddress.toLowerCase());
-        return next;
-      });
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to submit transaction');
       setError(error);
@@ -320,20 +315,47 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
   }, [connectedAddress, isConnected, writeAddAddress]);
 
   /**
-   * Clear a pending signature
+   * Mark a signature as submitted in the database
    */
-  const clearPendingSignature = useCallback((associatedAddress: string) => {
-    setPendingSignatures(prev => {
-      const next = new Map(prev);
-      next.delete(associatedAddress.toLowerCase());
-      return next;
-    });
+  const markSignatureSubmitted = useCallback(async (
+    signatureId: string,
+    transactionHash: string
+  ): Promise<void> => {
+    try {
+      await fetch('/api/allowlist/signatures', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: signatureId, transactionHash }),
+      });
+
+      // Remove from local state
+      setPendingSignatures(prev => prev.filter(s => s.id !== signatureId));
+    } catch (err) {
+      console.error('Error marking signature as submitted:', err);
+    }
+  }, []);
+
+  /**
+   * Delete a pending signature
+   */
+  const deleteSignature = useCallback(async (signatureId: string): Promise<void> => {
+    try {
+      await fetch('/api/allowlist/signatures', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: signatureId }),
+      });
+
+      // Remove from local state
+      setPendingSignatures(prev => prev.filter(s => s.id !== signatureId));
+    } catch (err) {
+      console.error('Error deleting signature:', err);
+    }
   }, []);
 
   /**
    * Add an associated address to the allowlist
-   * This is a convenience method that handles the signature flow automatically
-   * if the associated address is the currently connected wallet
+   * This is a convenience method - looks for pending signature and submits
    */
   const addAssociatedAddress = useCallback(async (address: string): Promise<void> => {
     if (!connectedAddress || !isConnected) {
@@ -345,31 +367,21 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
     }
 
     // Check if we have a pending signature for this address
-    const pending = pendingSignatures.get(address.toLowerCase());
+    const pending = pendingSignatures.find(
+      s => s.associatedAddress.toLowerCase() === address.toLowerCase() &&
+           s.membershipHolder.toLowerCase() === connectedAddress.toLowerCase()
+    );
     
-    if (pending && pending.membershipHolder.toLowerCase() === connectedAddress.toLowerCase()) {
+    if (pending) {
       // We have a signature and the membership holder is connected - submit!
       await submitWithSignature(address, pending.signature);
       return;
     }
 
-    // If the address to add is the connected wallet, we can sign and need membership holder later
-    if (address.toLowerCase() === connectedAddress.toLowerCase()) {
-      throw new Error(
-        'You are connected with the address you want to add. ' +
-        'Please use signForAddress() with your membership holder address, ' +
-        'then switch to your membership wallet and call submitWithSignature().'
-      );
-    }
-
-    // If we're the membership holder trying to add a different address without a signature
-    // The user needs to connect that wallet first to sign
+    // No pending signature found
     throw new Error(
-      'To add this address, please:\n' +
-      '1. Connect the wallet you want to add\n' +
-      '2. Sign the consent message\n' +
-      '3. Switch back to your membership wallet\n' +
-      '4. Submit the transaction'
+      'No pending signature found for this address. ' +
+      'Please sign on the web first, then submit here.'
     );
   }, [connectedAddress, isConnected, pendingSignatures, submitWithSignature]);
 
@@ -469,6 +481,7 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
     isAdding: isAdding || isWaitingAdd,
     isRemoving: isRemoving || isWaitingRemove,
     isSigning,
+    isFetchingSignatures,
     error,
     pendingSignatures,
     addAssociatedAddress,
@@ -478,7 +491,9 @@ export function useMembershipAllowlist(): UseMembershipAllowlistReturn {
     getMembershipHolder,
     signForAddress,
     submitWithSignature,
-    clearPendingSignature,
+    fetchPendingSignatures,
+    markSignatureSubmitted,
+    deleteSignature,
     addTransactionHash: addHash,
     removeTransactionHash: removeHash,
     isAddSuccess,

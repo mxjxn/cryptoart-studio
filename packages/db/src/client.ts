@@ -17,7 +17,9 @@ import {
   errorLogs,
   errorLogTypeEnum,
   globalNotificationSettings,
-  userNotificationPreferences
+  userNotificationPreferences,
+  // Allowlist tables
+  pendingAllowlistSignatures
 } from './schema';
 
 // Database client singleton
@@ -55,7 +57,9 @@ export {
   errorLogs,
   errorLogTypeEnum,
   globalNotificationSettings,
-  userNotificationPreferences
+  userNotificationPreferences,
+  // Allowlist tables
+  pendingAllowlistSignatures
 } from './schema';
 export type { 
   UserCacheData, 
@@ -75,5 +79,7 @@ export type {
   ErrorLogType,
   ErrorLogData,
   GlobalNotificationSettingsData,
-  UserNotificationPreferencesData
+  UserNotificationPreferencesData,
+  // Allowlist types
+  PendingAllowlistSignatureData
 } from './schema';

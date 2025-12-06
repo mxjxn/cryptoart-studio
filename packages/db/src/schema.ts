@@ -509,3 +509,52 @@ export interface UserNotificationPreferencesData {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// ============================================
+// ALLOWLIST: Pending Signatures
+// ============================================
+
+/**
+ * Pending allowlist signatures table - Store signatures for the secure allowlist flow
+ * 
+ * Flow:
+ * 1. User connects EOA on web, does SIWF to prove Farcaster identity
+ * 2. Signs consent message with EOA, signature stored here
+ * 3. Later in mini-app, membership wallet fetches and submits
+ */
+export const pendingAllowlistSignatures = pgTable('pending_allowlist_signatures', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fid: integer('fid').notNull(), // Farcaster ID of the user
+  associatedAddress: text('associated_address').notNull(), // Address being added (lowercase)
+  membershipHolder: text('membership_holder').notNull(), // Membership wallet (lowercase)
+  signature: text('signature').notNull(), // ECDSA signature
+  nonce: bigint('nonce', { mode: 'bigint' }).notNull(), // Contract nonce at time of signing
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // TTL: 7 days
+  submittedAt: timestamp('submitted_at'), // When transaction was submitted
+  transactionHash: text('transaction_hash'), // Transaction hash if submitted
+}, (table) => ({
+  fidIdx: index('pending_allowlist_signatures_fid_idx').on(table.fid),
+  membershipHolderIdx: index('pending_allowlist_signatures_membership_holder_idx').on(table.membershipHolder),
+  associatedAddressIdx: index('pending_allowlist_signatures_associated_address_idx').on(table.associatedAddress),
+  expiresAtIdx: index('pending_allowlist_signatures_expires_at_idx').on(table.expiresAt),
+  // Unique constraint: one pending signature per (associated, membership, nonce) tuple
+  uniqueSignatureIdx: index('pending_allowlist_signatures_unique_idx').on(
+    table.associatedAddress, 
+    table.membershipHolder, 
+    table.nonce
+  ),
+}));
+
+export interface PendingAllowlistSignatureData {
+  id: string;
+  fid: number;
+  associatedAddress: string;
+  membershipHolder: string;
+  signature: string;
+  nonce: bigint;
+  createdAt: Date;
+  expiresAt: Date;
+  submittedAt?: Date | null;
+  transactionHash?: string | null;
+}

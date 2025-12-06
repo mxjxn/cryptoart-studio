@@ -16,18 +16,19 @@ interface MembershipAllowlistManagerProps {
 
 interface VerifiedAddressStatus {
   address: string;
-  isAuthorized: boolean | null; // null = loading
+  isAuthorized: boolean | null;
   membershipHolder: string | null;
 }
 
 /**
  * Component for managing associated addresses (allowlist) for membership
- * Allows membership holders to register Farcaster verified addresses so they can also sell
  * 
- * SECURE FLOW:
- * 1. User sees their Farcaster verified addresses
- * 2. To add an address, the address must sign a consent message
- * 3. Then the membership holder submits the transaction with the signature
+ * SECURE FLOW (Web + Mini-app):
+ * 1. On WEB: User connects the wallet they want to add
+ * 2. On WEB: User does SIWF to prove their Farcaster identity
+ * 3. On WEB: User signs consent message → stored in database
+ * 4. In MINI-APP: User is connected with membership wallet
+ * 5. In MINI-APP: Fetch pending signatures from DB and submit
  */
 export function MembershipAllowlistManager({ membershipAddress }: MembershipAllowlistManagerProps) {
   const { address: connectedAddress, isConnected } = useAccount();
@@ -41,26 +42,31 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
     isAdding,
     isRemoving,
     isSigning,
+    isFetchingSignatures,
     error,
     pendingSignatures,
-    addAssociatedAddress,
     removeAssociatedAddress,
     signForAddress,
     submitWithSignature,
-    clearPendingSignature,
+    fetchPendingSignatures,
+    markSignatureSubmitted,
+    deleteSignature,
     addTransactionHash,
     removeTransactionHash,
     isAddSuccess,
     isRemoveSuccess,
   } = useMembershipAllowlist();
 
-  const [newAddress, setNewAddress] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
   const [addressStatuses, setAddressStatuses] = useState<Map<string, VerifiedAddressStatus>>(new Map());
   const [isCheckingStatuses, setIsCheckingStatuses] = useState(false);
   const [verifiedAddresses, setVerifiedAddresses] = useState<string[]>([]);
   const [isLoadingVerifiedAddresses, setIsLoadingVerifiedAddresses] = useState(false);
+
+  // Detect if we're in a mini-app context
+  const isInMiniApp = useMemo(() => {
+    return !!context?.user;
+  }, [context?.user]);
 
   // Get FID from context or profile
   const userFid = useMemo(() => {
@@ -92,10 +98,9 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
   useEffect(() => {
     const fetchVerifiedAddresses = async () => {
       if (!userFid) {
-        // Fallback to local context if no FID available
+        // Fallback to local context
         const addresses: string[] = [];
 
-        // Get verified addresses from miniapp context
         if (context?.user) {
           const user = context.user as any;
           const verifiedAddrs = user.verified_addresses;
@@ -107,13 +112,6 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
                 addresses.push(lowerAddr);
               }
             });
-          }
-
-          if (verifiedAddrs?.primary?.eth_address) {
-            const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-            if (!addresses.includes(primaryAddr)) {
-              addresses.push(primaryAddr);
-            }
           }
 
           if (user.verifications) {
@@ -133,7 +131,6 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
           }
         }
 
-        // Get verified addresses from Farcaster web auth profile
         if (farcasterProfile) {
           const profile = farcasterProfile as any;
           const verifiedAddrs = profile.verified_addresses;
@@ -145,13 +142,6 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
                 addresses.push(lowerAddr);
               }
             });
-          }
-
-          if (verifiedAddrs?.primary?.eth_address) {
-            const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-            if (!addresses.includes(primaryAddr)) {
-              addresses.push(primaryAddr);
-            }
           }
 
           if (profile.verifications) {
@@ -184,8 +174,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
         const data = await response.json();
         setVerifiedAddresses(data.verifiedAddresses || []);
       } catch (error) {
-        console.error('Error fetching verified addresses from Neynar API:', error);
-        // Fallback handled above
+        console.error('Error fetching verified addresses:', error);
         setVerifiedAddresses([]);
       } finally {
         setIsLoadingVerifiedAddresses(false);
@@ -203,6 +192,13 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
       return lowerAddr !== membershipLower;
     });
   }, [verifiedAddresses, membershipAddress]);
+
+  // Fetch pending signatures when membership wallet is connected
+  useEffect(() => {
+    if (membershipAddress && isMembershipWallet && userFid) {
+      fetchPendingSignatures({ membershipHolder: membershipAddress, fid: userFid });
+    }
+  }, [membershipAddress, isMembershipWallet, userFid, fetchPendingSignatures]);
 
   // Check authorization status for all verified addresses
   const checkStatuses = useCallback(async () => {
@@ -254,7 +250,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
     setIsCheckingStatuses(false);
   }, [membershipAddress, publicClient, relevantVerifiedAddresses]);
 
-  // Initial status check and when verified addresses change
+  // Initial status check
   useEffect(() => {
     checkStatuses();
   }, [checkStatuses]);
@@ -264,67 +260,61 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
     if (isAddSuccess || isRemoveSuccess) {
       const timeoutId = setTimeout(() => {
         checkStatuses();
+        // Also refresh pending signatures
+        if (membershipAddress && userFid) {
+          fetchPendingSignatures({ membershipHolder: membershipAddress, fid: userFid });
+        }
       }, 2000);
       return () => clearTimeout(timeoutId);
     }
-  }, [isAddSuccess, isRemoveSuccess, checkStatuses]);
-
-  // Get addresses that need signatures (not authorized and no pending signature)
-  const addressesNeedingSignature = useMemo(() => {
-    return relevantVerifiedAddresses.filter((addr) => {
-      const status = addressStatuses.get(addr.toLowerCase());
-      const hasPending = pendingSignatures.has(addr.toLowerCase());
-      return status && status.isAuthorized === false && !hasPending;
-    });
-  }, [relevantVerifiedAddresses, addressStatuses, pendingSignatures]);
-
-  // Get addresses with pending signatures ready to submit
-  const addressesReadyToSubmit = useMemo(() => {
-    return relevantVerifiedAddresses.filter((addr) => {
-      const status = addressStatuses.get(addr.toLowerCase());
-      const pending = pendingSignatures.get(addr.toLowerCase());
-      return status && status.isAuthorized === false && pending;
-    });
-  }, [relevantVerifiedAddresses, addressStatuses, pendingSignatures]);
+  }, [isAddSuccess, isRemoveSuccess, checkStatuses, membershipAddress, userFid, fetchPendingSignatures]);
 
   const formatAddress = (addr: string) => {
     if (!addr) return "";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Handle signing consent for an address (when that wallet is connected)
+  // Handle signing consent for an address (when that wallet is connected on WEB)
   const handleSignConsent = async (addressToAdd: string) => {
-    if (!membershipAddress) {
-      setAddError("No membership address");
+    if (!membershipAddress || !userFid) {
+      setAddError("Missing membership address or Farcaster ID");
       return;
     }
 
     setAddError(null);
 
     try {
-      await signForAddress(addressToAdd, membershipAddress);
-      // Success! User now needs to switch to membership wallet
+      await signForAddress(addressToAdd, membershipAddress, userFid);
+      // Success! Signature stored in DB
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to sign");
     }
   };
 
-  // Handle submitting with a pending signature (when membership wallet is connected)
-  const handleSubmitWithSignature = async (addressToAdd: string) => {
-    const pending = pendingSignatures.get(addressToAdd.toLowerCase());
-    if (!pending) {
-      setAddError("No pending signature found");
-      return;
-    }
-
+  // Handle submitting with a pending signature (when membership wallet is connected in MINI-APP)
+  const handleSubmitWithSignature = async (addressToAdd: string, signatureId: string, signature: string) => {
     setAddError(null);
 
     try {
-      await submitWithSignature(addressToAdd, pending.signature);
+      await submitWithSignature(addressToAdd, signature);
+      // Mark as submitted after transaction is sent
+      if (addTransactionHash) {
+        await markSignatureSubmitted(signatureId, addTransactionHash);
+      }
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to submit");
     }
   };
+
+  // Handle marking signature as submitted when transaction confirms
+  useEffect(() => {
+    if (isAddSuccess && addTransactionHash) {
+      // Find the pending signature that was just submitted
+      pendingSignatures.forEach(async (sig) => {
+        await markSignatureSubmitted(sig.id, addTransactionHash);
+      });
+    }
+  }, [isAddSuccess, addTransactionHash, pendingSignatures, markSignatureSubmitted]);
 
   const handleRemoveAddress = async (address: string) => {
     if (!confirm(`Are you sure you want to remove ${formatAddress(address)} from your allowlist?`)) {
@@ -334,11 +324,19 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
     try {
       await removeAssociatedAddress(address);
     } catch (err) {
-      // Error is handled by the hook
+      setAddError(err instanceof Error ? err.message : "Failed to remove");
     }
   };
 
-  // Don't show if user doesn't have membership
+  const handleCancelSignature = async (signatureId: string) => {
+    try {
+      await deleteSignature(signatureId);
+    } catch (err) {
+      console.error('Error canceling signature:', err);
+    }
+  };
+
+  // Don't show if user doesn't have required context
   if (!membershipAddress || !connectedAddress || !isConnected) {
     return null;
   }
@@ -349,24 +347,32 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
         <div>
           <h2 className="text-lg font-medium mb-1">Allowlist Management</h2>
           <p className="text-sm text-[#cccccc]">
-            Register additional addresses (like your Farcaster verified wallets) so they can also sell on the marketplace.
+            Register additional addresses so they can also sell on the marketplace.
           </p>
         </div>
       </div>
 
-      {/* Wallet Status Banner */}
-      {!isMembershipWallet && isVerifiedAddressWallet && (
-        <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded">
-          <p className="text-blue-400 text-sm">
-            🔑 You're connected with a verified address. You can sign consent to be added to the allowlist.
+      {/* Context Banner */}
+      {isInMiniApp && isMembershipWallet && (
+        <div className="mb-4 p-3 bg-green-900/20 border border-green-500/30 rounded">
+          <p className="text-green-400 text-sm">
+            ✓ You're connected with your membership wallet. You can submit pending signatures here.
           </p>
         </div>
       )}
 
-      {isMembershipWallet && addressesReadyToSubmit.length > 0 && (
-        <div className="mb-4 p-3 bg-green-900/20 border border-green-500/30 rounded">
-          <p className="text-green-400 text-sm">
-            ✓ You have {addressesReadyToSubmit.length} signed address{addressesReadyToSubmit.length !== 1 ? 'es' : ''} ready to add!
+      {!isInMiniApp && isVerifiedAddressWallet && userFid && (
+        <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded">
+          <p className="text-blue-400 text-sm">
+            🔑 You're connected with a verified address. Sign to authorize it for the allowlist.
+          </p>
+        </div>
+      )}
+
+      {!isInMiniApp && !userFid && (
+        <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded">
+          <p className="text-yellow-400 text-sm">
+            ⚠️ Sign in with Farcaster to manage your allowlist. This links your verified addresses.
           </p>
         </div>
       )}
@@ -417,29 +423,71 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
         </div>
       )}
 
+      {/* Pending Signatures (for membership wallet in mini-app) */}
+      {isMembershipWallet && pendingSignatures.length > 0 && (
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-[#cccccc] mb-3">
+            Pending Signatures ({pendingSignatures.length})
+          </h3>
+          <div className="space-y-2">
+            {pendingSignatures.map((sig) => (
+              <div
+                key={sig.id}
+                className="p-3 bg-green-900/10 rounded border border-green-500/30 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-mono text-white">
+                    {formatAddress(sig.associatedAddress)}
+                  </span>
+                  <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded">
+                    Ready to Submit
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleSubmitWithSignature(sig.associatedAddress, sig.id, sig.signature)}
+                    disabled={isAdding}
+                    className="px-3 py-1 text-xs bg-green-600 text-white font-medium tracking-[0.5px] hover:bg-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAdding ? "Submitting..." : "Submit"}
+                  </button>
+                  <button
+                    onClick={() => handleCancelSignature(sig.id)}
+                    className="px-2 py-1 text-xs text-[#999999] hover:text-white transition-colors"
+                    title="Cancel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Verified Addresses List */}
       {isLoadingVerifiedAddresses ? (
         <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
-          <p className="text-sm text-[#999999] text-center">Loading verified addresses from Farcaster...</p>
+          <p className="text-sm text-[#999999] text-center">Loading verified addresses...</p>
         </div>
       ) : isCheckingStatuses && relevantVerifiedAddresses.length > 0 ? (
         <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
-          <p className="text-sm text-[#999999] text-center">Checking verified addresses...</p>
+          <p className="text-sm text-[#999999] text-center">Checking authorization status...</p>
         </div>
       ) : relevantVerifiedAddresses.length > 0 ? (
         <div className="mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-[#cccccc]">
-              Verified Addresses ({relevantVerifiedAddresses.length})
-            </h3>
-          </div>
+          <h3 className="text-sm font-medium text-[#cccccc] mb-3">
+            Your Verified Addresses ({relevantVerifiedAddresses.length})
+          </h3>
           <div className="space-y-2">
             {relevantVerifiedAddresses.map((addr) => {
               const status = addressStatuses.get(addr.toLowerCase());
               const isAuthorized = status?.isAuthorized ?? null;
               const isLoadingStatus = status === undefined;
-              const pending = pendingSignatures.get(addr.toLowerCase());
               const isConnectedWallet = connectedAddress?.toLowerCase() === addr.toLowerCase();
+              const hasPendingSignature = pendingSignatures.some(
+                s => s.associatedAddress.toLowerCase() === addr.toLowerCase()
+              );
 
               return (
                 <div
@@ -461,7 +509,7 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
                       <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded">
                         Authorized
                       </span>
-                    ) : pending ? (
+                    ) : hasPendingSignature ? (
                       <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs font-medium rounded">
                         Signed ✓
                       </span>
@@ -473,55 +521,37 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
                   </div>
                   <div className="flex items-center gap-2">
                     {/* Not authorized, no pending signature */}
-                    {isAuthorized === false && !pending && (
+                    {isAuthorized === false && !hasPendingSignature && (
                       <>
-                        {isConnectedWallet ? (
-                          // This wallet is connected - can sign
+                        {isConnectedWallet && userFid ? (
+                          // This wallet is connected and we have FID - can sign
                           <button
                             onClick={() => handleSignConsent(addr)}
                             disabled={isSigning}
                             className="px-3 py-1 text-xs bg-white text-black font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {isSigning ? "Signing..." : "Sign to Allowlist"}
+                            {isSigning ? "Signing..." : "Sign to Authorize"}
                           </button>
-                        ) : (
-                          // Different wallet connected - show hint
+                        ) : isInMiniApp ? (
+                          // In mini-app, can't sign - need to go to web
                           <span className="text-xs text-[#999999]">
-                            Connect this wallet to sign
+                            Sign on web first
+                          </span>
+                        ) : !userFid ? (
+                          // On web but no SIWF
+                          <span className="text-xs text-[#999999]">
+                            Sign in with Farcaster
+                          </span>
+                        ) : (
+                          // Different wallet connected
+                          <span className="text-xs text-[#999999]">
+                            Connect this wallet
                           </span>
                         )}
                       </>
                     )}
 
-                    {/* Has pending signature, ready to submit */}
-                    {isAuthorized === false && pending && (
-                      <>
-                        {isMembershipWallet ? (
-                          // Membership wallet connected - can submit
-                          <button
-                            onClick={() => handleSubmitWithSignature(addr)}
-                            disabled={isAdding}
-                            className="px-3 py-1 text-xs bg-green-600 text-white font-medium tracking-[0.5px] hover:bg-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isAdding ? "Submitting..." : "Submit"}
-                          </button>
-                        ) : (
-                          // Need to switch to membership wallet
-                          <span className="text-xs text-[#999999]">
-                            Switch to membership wallet to submit
-                          </span>
-                        )}
-                        <button
-                          onClick={() => clearPendingSignature(addr)}
-                          className="px-2 py-1 text-xs text-[#999999] hover:text-white transition-colors"
-                          title="Clear signature"
-                        >
-                          ✕
-                        </button>
-                      </>
-                    )}
-
-                    {/* Authorized - can remove */}
+                    {/* Authorized - can remove if membership wallet */}
                     {isAuthorized === true && isMembershipWallet && (
                       <button
                         onClick={() => handleRemoveAddress(addr)}
@@ -537,13 +567,13 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
             })}
           </div>
         </div>
-      ) : (
+      ) : userFid ? (
         <div className="mb-4 p-4 bg-black rounded border border-[#333333]">
           <p className="text-sm text-[#999999] text-center">
-            No verified addresses found. Connect your Farcaster account to see verified wallets.
+            No additional verified addresses found.
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Associated Addresses Count */}
       <div className="mb-4 p-3 bg-black rounded border border-[#333333]">
@@ -558,9 +588,11 @@ export function MembershipAllowlistManager({ membershipAddress }: MembershipAllo
       {/* Info Note */}
       <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded">
         <p className="text-blue-400 text-xs">
-          🔐 <strong>Secure Flow:</strong> To add an address, that address must sign a consent message first. 
-          This prevents unauthorized address claims. Connect each wallet you want to add, sign, 
-          then switch back to your membership wallet to submit.
+          🔐 <strong>Secure Flow:</strong> {isInMiniApp ? (
+            "Submit pending signatures here. To add new addresses, sign on the web first."
+          ) : (
+            "Connect the wallet you want to add, sign in with Farcaster, then sign to authorize. Submit from the mini-app."
+          )}
         </p>
       </div>
     </div>
