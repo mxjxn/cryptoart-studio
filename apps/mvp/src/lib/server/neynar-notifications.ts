@@ -316,31 +316,17 @@ export async function sendPushNotification(
 }
 
 /**
- * Handle notification enable/disable events from Neynar webhook
- * 
- * According to Neynar docs, when users add/remove the mini app or enable/disable notifications,
- * Neynar will POST to the webhook URL configured in the manifest (webhookUrl)
- * 
- * The webhook URL format: https://api.neynar.com/f/app/<your_client_id>/event
- * This is set in the farcaster.json manifest file
+ * Note on webhook handling:
+ *
+ * When using Neynar's managed service with webhookUrl = https://api.neynar.com/f/app/<client_id>/event,
+ * Neynar receives and processes all webhook events (miniapp_added, notifications_enabled, etc.) internally.
+ * You don't need to handle these events yourself - Neynar manages the notification tokens.
+ *
+ * To send notifications, simply call the Neynar API with target FIDs.
+ * Neynar will automatically filter out users who have disabled notifications.
+ *
+ * If you want to self-host webhook handling, configure a custom webhookUrl in your manifest
+ * and implement the webhook handler at /api/webhook/neynar (see route.ts for event types).
+ *
+ * See: https://docs.neynar.com/docs/send-notifications-to-mini-app-users
  */
-export async function handleNotificationWebhook(payload: any): Promise<void> {
-  // This will be called from the webhook route
-  // Handle events like:
-  // - User added mini app (with notification token)
-  // - User removed mini app
-  // - User enabled notifications
-  // - User disabled notifications
-  
-  console.log('[neynar-notifications] Webhook event received:', JSON.stringify(payload, null, 2));
-  
-  // The exact payload structure depends on Neynar's webhook format
-  // Common events might include:
-  // - { event: 'mini_app_added', fid: number, notificationDetails: { url, token } }
-  // - { event: 'mini_app_removed', fid: number }
-  // - { event: 'notifications_enabled', fid: number, notificationDetails: { url, token } }
-  // - { event: 'notifications_disabled', fid: number }
-  
-  // Update user preferences based on webhook events
-  // This will be implemented in the webhook route handler
-}
