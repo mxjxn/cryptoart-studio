@@ -4,56 +4,57 @@ import { GradientHeader } from '../components/GradientHeader'
 import { TerminalCard } from '../components/TerminalCard'
 import { TerminalLink } from '../components/TerminalLink'
 
-interface Tool {
-  name: string
+interface FeatureCard {
+  title: string
   description: string
   docsUrl: string
-  chain: string
-  contractAddress?: string
-  status: 'deployed' | 'coming-soon'
 }
 
-interface DeployedContract {
-  name: string
-  address: string
-  chain: string
-}
-
-const tools: Tool[] = [
+const mvpFeatures: FeatureCard[] = [
   {
-    name: 'Auctionhouse Contracts',
-    description: 'Manifold Gallery auctionhouse contracts with membership-based seller registry',
-    docsUrl: '/auctionhouse',
-    chain: 'Base',
-    contractAddress: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9',
-    status: 'deployed',
+    title: 'Auctions',
+    description: 'Create and bid on NFT auctions with four listing types: Individual Auction, Fixed Price, Dynamic Price, and Offers Only.',
+    docsUrl: '/mvp/auctions',
   },
   {
-    name: 'NFT Liquidity Pools',
-    description: 'Liquidity-Sensitive Single-Variant Market protocol for NFT pools',
-    docsUrl: 'https://mxjxn.github.io/such-lssvm/',
-    chain: 'Base',
-    contractAddress: '0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e',
-    status: 'deployed',
+    title: 'Membership',
+    description: 'Membership-based seller registry ensures quality curation. Get your STP v2 NFT to start creating auctions.',
+    docsUrl: '/mvp/membership',
   },
   {
-    name: 'Creator Core Contracts',
-    description: 'Extendible ERC721/ERC1155 creator contracts with extension system and upgradeable proxy support',
-    docsUrl: '/creator-core',
-    chain: 'Base',
-    status: 'deployed',
+    title: 'Profiles',
+    description: 'View your created auctions, collected NFTs, and active bids. Public profiles let you discover artists and collectors.',
+    docsUrl: '/mvp/profiles',
+  },
+  {
+    title: 'Notifications',
+    description: 'Stay informed with real-time notifications for new bids, outbid alerts, and auction ending reminders.',
+    docsUrl: '/mvp/notifications',
   },
 ]
 
-const deployedContracts: DeployedContract[] = [
+const smartContractFeatures: FeatureCard[] = [
+  {
+    title: 'Listing Types',
+    description: 'Support for auctions, fixed-price sales, dynamic pricing, and offers-only listings with flexible configuration options.',
+    docsUrl: '/auctionhouse/capabilities',
+  },
+  {
+    title: 'Token Support',
+    description: 'Full support for ERC721 and ERC1155 tokens, with lazy minting capabilities and dynamic pricing engines.',
+    docsUrl: '/auctionhouse/capabilities',
+  },
+  {
+    title: 'Payment Options',
+    description: 'Accept native ETH or any ERC20 token payments, with automatic royalty distribution and revenue splitting.',
+    docsUrl: '/auctionhouse/capabilities',
+  },
+]
+
+const deployedContracts = [
   {
     name: 'Auctionhouse Marketplace',
     address: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9',
-    chain: 'Base',
-  },
-  {
-    name: 'LSSVM Router',
-    address: '0xF6B4bDF778db19DD5928248DE4C18Ce22E8a5f5e',
     chain: 'Base',
   },
 ]
@@ -65,82 +66,101 @@ export default function Home() {
       {/* Hero Section */}
       <div className="text-center space-y-4">
         <GradientHeader className="text-5xl md:text-6xl">
-          CryptoArt Studio
+          CryptoArt Marketplace & Smart Contracts
         </GradientHeader>
         <p className="text-lg font-mono" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-          Developer tools and smart contracts for NFT marketplaces
+          A social-first NFT marketplace built for Farcaster with powerful smart contract capabilities
         </p>
       </div>
 
-      {/* Overview */}
-      <TerminalCard>
-        <h2 className="text-2xl font-bold mb-4 uppercase" style={{ color: 'var(--color-primary)' }}>
-          Overview
-        </h2>
-        <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
-          CryptoArt Studio provides a comprehensive suite of smart contracts and developer tools for building NFT marketplaces. All contracts are deployed on Base Mainnet and ready for integration.
-        </p>
-        <p className="font-mono" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-          Each tool includes detailed documentation, integration guides, and deployment instructions.
-        </p>
-      </TerminalCard>
-
-      {/* Deployed Tools */}
+      {/* MVP Marketplace Section */}
       <div>
         <h2 className="text-3xl font-bold mb-6 uppercase font-mono" style={{ color: 'var(--color-primary)' }}>
-          Deployed
+          MVP Marketplace
         </h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          {tools
-            .filter(tool => tool.status === 'deployed')
-            .map((tool) => (
-              <TerminalCard key={tool.name} className="flex flex-col">
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-xl font-bold uppercase" style={{ color: 'var(--color-primary)' }}>
-                    {tool.name}
-                  </h3>
-                  <span
-                    className="text-xs uppercase px-2 py-1 border"
-                    style={{
-                      borderColor: 'var(--color-success)',
-                      color: 'var(--color-success)',
-                    }}
-                  >
-                    Deployed
-                  </span>
-                </div>
-                <p className="font-mono text-sm mb-2 flex-1" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-                  {tool.description}
-                </p>
-                <p className="font-mono text-xs mb-4" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
-                  Deployed on {tool.chain}
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {tool.docsUrl && (
-                    <TerminalLink
-                      href={tool.docsUrl}
-                      external={tool.docsUrl.startsWith('http')}
-                      className="text-sm"
-                    >
-                      Documentation →
-                    </TerminalLink>
-                  )}
-                </div>
-              </TerminalCard>
-            ))}
+        <TerminalCard className="mb-6">
+          <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
+            Cryptoart.social is a Farcaster mini-app that provides a comprehensive NFT marketplace and auction platform. 
+            It enables artists to create and list NFT auctions, collectors to bid and purchase digital art, and the community 
+            to discover and engage with artworks directly within the Farcaster ecosystem.
+          </p>
+          <p className="font-mono" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+            Built natively for Farcaster with membership-based curation, real-time bidding, and seamless social integration.
+          </p>
+        </TerminalCard>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          {mvpFeatures.map((feature) => (
+            <TerminalCard key={feature.title} className="flex flex-col">
+              <h3 className="text-xl font-bold mb-3 uppercase" style={{ color: 'var(--color-primary)' }}>
+                {feature.title}
+              </h3>
+              <p className="font-mono text-sm mb-4 flex-1" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+                {feature.description}
+              </p>
+              <TerminalLink
+                href={feature.docsUrl}
+                className="text-sm uppercase"
+              >
+                Learn more →
+              </TerminalLink>
+            </TerminalCard>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <TerminalLink
+            href="/mvp"
+            className="text-lg uppercase font-bold"
+          >
+            View MVP Documentation →
+          </TerminalLink>
         </div>
       </div>
 
-      {/* Coming Soon */}
+      {/* Smart Contracts Section */}
       <div>
         <h2 className="text-3xl font-bold mb-6 uppercase font-mono" style={{ color: 'var(--color-primary)' }}>
-          Coming Soon
+          Smart Contracts
         </h2>
-        <TerminalCard>
-          <p className="font-mono text-center" style={{ color: 'var(--color-text)', opacity: 0.6 }}>
-            Additional tools and documentation sites will be added here as they are deployed.
+        <TerminalCard className="mb-6">
+          <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
+            The Auctionhouse Contracts provide a comprehensive marketplace system for selling NFTs and digital assets. 
+            A fork of Manifold Gallery auctionhouse contracts, enhanced for the Cryptoart channel on Farcaster with 
+            membership-based seller registry.
+          </p>
+          <p className="font-mono" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+            All contracts are deployed on Base Mainnet and ready for integration.
           </p>
         </TerminalCard>
+
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          {smartContractFeatures.map((feature) => (
+            <TerminalCard key={feature.title} className="flex flex-col">
+              <h3 className="text-xl font-bold mb-3 uppercase" style={{ color: 'var(--color-primary)' }}>
+                {feature.title}
+              </h3>
+              <p className="font-mono text-sm mb-4 flex-1" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+                {feature.description}
+              </p>
+              <TerminalLink
+                href={feature.docsUrl}
+                className="text-sm uppercase"
+              >
+                Learn more →
+              </TerminalLink>
+            </TerminalCard>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <TerminalLink
+            href="/auctionhouse"
+            className="text-lg uppercase font-bold"
+          >
+            View Smart Contract Documentation →
+          </TerminalLink>
+        </div>
       </div>
 
       {/* Deployed Contracts */}
@@ -188,7 +208,7 @@ export default function Home() {
             <div className="text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
               View source code
             </div>
-            <TerminalLink href="https://github.com/mxjxn/cryptoart-studio" external className="text-xs mt-2 block">
+            <TerminalLink href="https://github.com/mxjxn/cryptoart-monorepo" external className="text-xs mt-2 block">
               Open →
             </TerminalLink>
           </TerminalCard>
