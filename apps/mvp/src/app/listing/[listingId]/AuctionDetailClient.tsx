@@ -14,6 +14,8 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
+import { MediaDisplay } from "~/components/media";
+import { getMediaType } from "~/lib/media-utils";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
@@ -884,36 +886,24 @@ export default function AuctionDetailClient({
             </button>
           </div>
         )}
-        {/* Full width artwork */}
+        {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
         <div className="mb-4">
-          {auction.image ? (
-            <button
-              type="button"
-              onClick={() => setIsImageOverlayOpen(true)}
-              className="w-full cursor-zoom-in"
-              aria-label="View artwork fullscreen"
-            >
-              <img
-                src={auction.image}
-                alt={title}
-                className="w-full max-h-[80vh] object-contain rounded-lg"
-                style={{
-                  viewTransitionName: `artwork-${listingId}`,
-                }}
-              />
-            </button>
-          ) : (
-            <div
-              className="w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg"
-              style={{
-                viewTransitionName: `artwork-${listingId}`,
-              }}
-            />
-          )}
+          <MediaDisplay
+            imageUrl={auction.image}
+            animationUrl={auction.metadata?.animation_url}
+            alt={title}
+            onImageClick={
+              // Only enable fullscreen overlay for images (not audio/video/3D/HTML - they have their own controls)
+              auction.image && (!auction.metadata?.animation_url || getMediaType(auction.metadata.animation_url) === 'image')
+                ? () => setIsImageOverlayOpen(true)
+                : undefined
+            }
+            viewTransitionName={`artwork-${listingId}`}
+          />
         </div>
 
-        {/* Fullscreen image overlay */}
-        {auction.image && (
+        {/* Fullscreen image overlay - only for images */}
+        {auction.image && (!auction.metadata?.animation_url || getMediaType(auction.metadata.animation_url) === 'image') && (
           <ImageOverlay
             src={auction.image}
             alt={title}

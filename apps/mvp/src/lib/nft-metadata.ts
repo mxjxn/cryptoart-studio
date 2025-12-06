@@ -2,6 +2,7 @@ import { Address } from 'viem';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { CHAIN_ID } from './contracts/marketplace';
+import { isDataURI, isJsonDataURI, parseJsonDataURI } from './media-utils';
 
 // Minimal ERC721 ABI for tokenURI
 const ERC721_ABI = [
@@ -40,26 +41,43 @@ export interface NFTMetadata {
   title?: string;
   description?: string;
   image?: string;
+  // animation_url per OpenSea metadata standard - can be audio, video, 3D model, or HTML
+  animation_url?: string;
+  // Some APIs use camelCase
+  animationUrl?: string;
   artist?: string;
   creator?: string;
   attributes?: Array<{ trait_type: string; value: string | number }>;
+  // Additional OpenSea fields
+  external_url?: string;
+  background_color?: string;
 }
 
 /**
  * Convert IPFS URL to HTTP gateway URL
+ * Passes through data URIs unchanged (for onchain art)
  */
 function ipfsToGateway(url: string): string {
+  // Data URIs are self-contained, no conversion needed
+  if (isDataURI(url)) {
+    return url;
+  }
   if (url.startsWith('ipfs://')) {
     return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
   }
   if (url.startsWith('ipfs/')) {
     return `https://ipfs.io/${url}`;
   }
+  // Handle Arweave URLs
+  if (url.startsWith('ar://')) {
+    return url.replace('ar://', 'https://arweave.net/');
+  }
   return url;
 }
 
 /**
  * Fetch NFT metadata from token URI
+ * Handles both HTTP/IPFS URLs and data URIs (onchain metadata)
  */
 export async function fetchNFTMetadata(
   contractAddress: Address,
@@ -103,20 +121,41 @@ export async function fetchNFTMetadata(
       return null;
     }
 
-    // Convert IPFS URL if needed
-    const gatewayUrl = ipfsToGateway(tokenURI);
+    let metadata: NFTMetadata;
 
-    // Fetch metadata
-    const response = await fetch(gatewayUrl);
-    if (!response.ok) {
-      return null;
+    // Handle onchain metadata (data URI)
+    if (isJsonDataURI(tokenURI)) {
+      const parsed = parseJsonDataURI<NFTMetadata>(tokenURI);
+      if (!parsed) {
+        console.error('Failed to parse onchain metadata from data URI');
+        return null;
+      }
+      metadata = parsed;
+    } else {
+      // Convert IPFS/Arweave URL if needed
+      const gatewayUrl = ipfsToGateway(tokenURI);
+
+      // Fetch metadata from URL
+      const response = await fetch(gatewayUrl);
+      if (!response.ok) {
+        return null;
+      }
+
+      metadata = await response.json() as NFTMetadata;
     }
 
-    const metadata = await response.json() as NFTMetadata;
-
-    // Convert image URL if it's IPFS
+    // Convert image URL if it's IPFS (skip if already a data URI)
     if (metadata.image) {
       metadata.image = ipfsToGateway(metadata.image);
+    }
+
+    // Handle animation_url - normalize camelCase variant and convert IPFS
+    // Some APIs use animationUrl, OpenSea standard uses animation_url
+    if (metadata.animationUrl && !metadata.animation_url) {
+      metadata.animation_url = metadata.animationUrl;
+    }
+    if (metadata.animation_url) {
+      metadata.animation_url = ipfsToGateway(metadata.animation_url);
     }
 
     // Normalize title/name
