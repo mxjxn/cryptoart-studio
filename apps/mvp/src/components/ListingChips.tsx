@@ -36,11 +36,7 @@ function getTypeGradient(
   tokenSpec: EnrichedAuctionData["tokenSpec"]
 ): string {
   if (listingType === "FIXED_PRICE") {
-    if (tokenSpec === "ERC1155") {
-      return "linear-gradient(135deg, #ec4899 0%, #db2777 100%)"; // Pink for 1155 fixed price
-    } else {
-      return "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"; // Cyan for 1/1 fixed price
-    }
+    return "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"; // Cyan for Sale
   } else if (listingType === "INDIVIDUAL_AUCTION") {
     return "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"; // Purple for auctions
   } else if (listingType === "OFFERS_ONLY") {
@@ -58,11 +54,11 @@ function getStatusText(status: ReturnType<typeof getListingDisplayStatus>): stri
     case "cancelled":
       return "Cancelled";
     case "not started":
-      return "Not Started";
+      return "Not started";
     case "active":
       return "Active";
     case "concluded":
-      return "Concluded";
+      return "Ended";
     case "finalized":
       return "Finalized";
     default:
@@ -78,15 +74,11 @@ function getTypeText(
   tokenSpec: EnrichedAuctionData["tokenSpec"]
 ): string {
   if (listingType === "FIXED_PRICE") {
-    if (tokenSpec === "ERC1155") {
-      return "1155";
-    } else {
-      return "1/1";
-    }
+    return "Sale";
   } else if (listingType === "INDIVIDUAL_AUCTION") {
     return "Auction";
   } else if (listingType === "OFFERS_ONLY") {
-    return "Offers";
+    return "Open to offers";
   } else {
     return "Listing";
   }
