@@ -57,6 +57,7 @@ const BROWSE_LISTINGS_QUERY = gql`
       createdAt
       createdAtBlock
       updatedAt
+      erc20
       bids(orderBy: amount, orderDirection: desc, first: 1000) {
         id
         bidder

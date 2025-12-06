@@ -21,3 +21,4 @@ CREATE INDEX "favorites_listing_id_idx" ON "favorites" USING btree ("listing_id"
 CREATE INDEX "favorites_unique_favorite_idx" ON "favorites" USING btree ("user_address", "listing_id");--> statement-breakpoint
 ALTER TABLE "favorites" ADD CONSTRAINT "favorites_unique_user_listing" UNIQUE ("user_address", "listing_id");
 
+
