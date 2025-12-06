@@ -908,7 +908,8 @@ export default function MembershipClient() {
                   >
                     {showMintForm ? 'Hide' : 'Renew'} Membership
                   </button>
-                  {hasMembershipInConnectedWallet && membershipAddress && (
+                  {/* Temporarily hidden - allowlist feature in development */}
+                  {false && hasMembershipInConnectedWallet && membershipAddress && (
                     <button
                       onClick={() => setShowAllowlist(!showAllowlist)}
                       className="px-4 py-2 bg-transparent border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:border-[#666666] transition-colors"
@@ -987,8 +988,8 @@ export default function MembershipClient() {
               </div>
             )}
 
-            {/* Allowlist Management - Collapsible */}
-            {hasMembershipInConnectedWallet && membershipAddress && showAllowlist && (
+            {/* Allowlist Management - Temporarily hidden - feature in development */}
+            {false && hasMembershipInConnectedWallet && membershipAddress && showAllowlist && (
               <div className="mb-4">
                 <MembershipAllowlistManager membershipAddress={membershipAddress} />
               </div>
