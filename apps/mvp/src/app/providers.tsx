@@ -11,6 +11,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { ColorSchemeProvider } from "~/contexts/ColorSchemeContext";
+import { LoadingOverlayProvider } from "~/contexts/LoadingOverlayContext";
 import { NetworkSwitchBanner } from "~/components/NetworkSwitchBanner";
 
 const WagmiProvider = dynamic(
@@ -66,8 +67,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             returnUrl={RETURN_URL}
           >
             <QueryClientProvider client={queryClient}>
-              <NetworkSwitchBanner />
-              {children}
+              <LoadingOverlayProvider>
+                <NetworkSwitchBanner />
+                {children}
+              </LoadingOverlayProvider>
             </QueryClientProvider>
           </MiniAppProvider>
         </AuthKitProvider>

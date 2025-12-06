@@ -19,6 +19,7 @@ import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
+import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
@@ -59,10 +60,22 @@ export default function AuctionDetailClient({
   const router = useRouter();
   const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  const { hideOverlay } = useLoadingOverlay();
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
   const { auction, loading } = useAuction(listingId);
+
+  // Clear overlay when data is ready
+  useEffect(() => {
+    if (!loading && auction) {
+      // Small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        hideOverlay();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, auction, hideOverlay]);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");

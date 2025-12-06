@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
+import { useRouter } from "next/navigation";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -12,20 +13,18 @@ import { CopyButton } from "~/components/CopyButton";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
+import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
+import { getAuction } from "~/lib/subgraph";
 
 interface AuctionCardProps {
   auction: EnrichedAuctionData;
   gradient: string;
   index: number;
-  onListingClick?: (
-    listingId: string,
-    auction: EnrichedAuctionData,
-    gradient: string,
-    cardElement: HTMLElement
-  ) => void;
 }
 
-export function AuctionCard({ auction, gradient, index, onListingClick }: AuctionCardProps) {
+export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
+  const router = useRouter();
+  const { showOverlay } = useLoadingOverlay();
   const cardRef = useRef<HTMLDivElement>(null);
   // Fetch ERC20 token info if not ETH
   const erc20Token = useERC20Token(!isETH(auction.erc20) ? auction.erc20 : undefined);
@@ -159,21 +158,50 @@ export function AuctionCard({ auction, gradient, index, onListingClick }: Auctio
   // Get username for linking to profile
   const { username: creatorUsername } = useUsername(addressToShow || null);
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (onListingClick && cardRef.current) {
-      // Call the callback to show loading overlay
-      onListingClick(auction.listingId, auction, gradient, cardRef.current);
-      
-      // Small delay to show the loading animation before navigation
-      setTimeout(() => {
-        // Navigation will be handled by TransitionLink
-      }, 50);
+  const handleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    
+    if (!cardRef.current) return;
+
+    // Show overlay immediately
+    showOverlay(auction.listingId, auction, gradient, cardRef.current);
+
+    try {
+      // Preload the listing data in the background
+      // This ensures the data is ready when we navigate
+      const startTime = Date.now();
+      await getAuction(auction.listingId);
+      const loadTime = Date.now() - startTime;
+
+      // Ensure minimum display time for smooth animation (at least 200ms)
+      const minDisplayTime = 200;
+      const remainingTime = Math.max(0, minDisplayTime - loadTime);
+
+      await new Promise((resolve) => setTimeout(resolve, remainingTime));
+
+      // Navigate using view transition if supported
+      if (typeof document !== "undefined" && "startViewTransition" in document) {
+        (document as any).startViewTransition(() => {
+          router.push(`/listing/${auction.listingId}`);
+        });
+      } else {
+        router.push(`/listing/${auction.listingId}`);
+      }
+    } catch (error) {
+      console.error("Error preloading listing:", error);
+      // Navigate anyway even if preload fails
+      if (typeof document !== "undefined" && "startViewTransition" in document) {
+        (document as any).startViewTransition(() => {
+          router.push(`/listing/${auction.listingId}`);
+        });
+      } else {
+        router.push(`/listing/${auction.listingId}`);
+      }
     }
   };
 
   return (
-    <TransitionLink
-      href={`/listing/${auction.listingId}`}
+    <div
       className="relative w-full cursor-pointer transition-opacity hover:opacity-90"
       onClick={handleClick}
     >
@@ -259,7 +287,7 @@ export function AuctionCard({ auction, gradient, index, onListingClick }: Auctio
           {timeStatusDisplay}
         </div>
       </div>
-    </TransitionLink>
+    </div>
   );
 }
 
