@@ -7,6 +7,7 @@ export {
   notificationPreferences,
   notificationWorkerState,
   imageCache,
+  thumbnailCache,
   follows,
   favorites,
   // Admin tables
@@ -29,6 +30,7 @@ export type {
   NotificationType,
   NotificationWorkerStateData,
   ImageCacheData,
+  ThumbnailCacheData,
   FollowData,
   FavoriteData,
   // Admin types

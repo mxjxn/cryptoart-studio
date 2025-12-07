@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
 
 /**
  * User cache table - Cache user information from Neynar, ENS, etc.
@@ -189,6 +189,45 @@ export const imageCache = pgTable('image_cache', {
 export interface ImageCacheData {
   imageUrl: string;
   dataUrl: string;
+  contentType: string;
+  cachedAt: Date;
+  expiresAt: Date;
+}
+
+/**
+ * Thumbnail cache table - Cache resized/optimized thumbnail versions of NFT images
+ * Primary key: image_url (normalized) + size
+ * 
+ * Stores thumbnail URLs (not base64) pointing to:
+ * - Object storage (S3, R2, etc.)
+ * - CDN URLs
+ * - Or local file paths
+ * 
+ * This avoids storing large images in the database and enables efficient serving
+ */
+export const thumbnailCache = pgTable('thumbnail_cache', {
+  imageUrl: text('image_url').notNull(), // Original image URL (normalized)
+  size: text('size').notNull(), // 'small' | 'medium' | 'large' | custom dimensions
+  thumbnailUrl: text('thumbnail_url').notNull(), // URL to the cached thumbnail
+  width: integer('width'), // Thumbnail width in pixels
+  height: integer('height'), // Thumbnail height in pixels
+  fileSize: integer('file_size'), // File size in bytes
+  contentType: text('content_type').notNull(), // MIME type (e.g., image/webp)
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // TTL: 30 days (thumbnails change less frequently)
+}, (table) => ({
+  pk: primaryKey({ columns: [table.imageUrl, table.size] }),
+  imageUrlSizeIdx: index('thumbnail_cache_image_url_size_idx').on(table.imageUrl, table.size),
+  expiresAtIdx: index('thumbnail_cache_expires_at_idx').on(table.expiresAt),
+}));
+
+export interface ThumbnailCacheData {
+  imageUrl: string;
+  size: string;
+  thumbnailUrl: string;
+  width?: number | null;
+  height?: number | null;
+  fileSize?: number | null;
   contentType: string;
   cachedAt: Date;
   expiresAt: Date;
