@@ -778,8 +778,18 @@ export default function CreateAuctionClient() {
       // Handle endTime based on listing type
       let endTime: number;
       if (formData.listingType === "FIXED_PRICE" && !formData.endTime) {
-        // For FIXED_PRICE with no end time, set to max uint48 (never expires)
-        endTime = 281474976710655; // type(uint48).max
+        // For FIXED_PRICE with no end time specified:
+        // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
+        // that gets added to block.timestamp on first purchase.
+        // Using max uint48 would cause overflow, so use 100 years instead.
+        // If startTime is set, endTime is an absolute timestamp, so max uint48 is fine.
+        if (startTime === 0) {
+          // 100 years in seconds = 3,153,600,000 (safe duration that won't overflow)
+          endTime = 3153600000;
+        } else {
+          // Absolute timestamp - max uint48 means "never expires"
+          endTime = 281474976710655; // type(uint48).max
+        }
       } else if (formData.endTime) {
         endTime = Math.floor(new Date(formData.endTime).getTime() / 1000);
       } else {

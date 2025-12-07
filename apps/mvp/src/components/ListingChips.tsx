@@ -84,12 +84,26 @@ function getTypeText(
   }
 }
 
+/**
+ * Get token spec display text
+ */
+function getTokenSpecText(tokenSpec: EnrichedAuctionData["tokenSpec"]): string {
+  const spec = String(tokenSpec);
+  if (tokenSpec === "ERC1155" || spec === "2") {
+    return "1155";
+  } else if (tokenSpec === "ERC721" || spec === "1") {
+    return "721";
+  }
+  return "";
+}
+
 export function ListingChips({ auction }: ListingChipsProps) {
   const displayStatus = getListingDisplayStatus(auction);
   const statusGradient = getStatusGradient(displayStatus);
   const typeGradient = getTypeGradient(auction.listingType, auction.tokenSpec);
   const statusText = getStatusText(displayStatus);
   const typeText = getTypeText(auction.listingType, auction.tokenSpec);
+  const tokenSpecText = getTokenSpecText(auction.tokenSpec);
 
   return (
     <div className="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
@@ -105,6 +119,13 @@ export function ListingChips({ auction }: ListingChipsProps) {
       >
         {typeText}
       </span>
+      {tokenSpecText && (
+        <span
+          className="px-2.5 py-1 text-[10px] font-medium tracking-[0.5px] rounded-full text-white/90 bg-black/60 border border-white/20"
+        >
+          {tokenSpecText}
+        </span>
+      )}
     </div>
   );
 }

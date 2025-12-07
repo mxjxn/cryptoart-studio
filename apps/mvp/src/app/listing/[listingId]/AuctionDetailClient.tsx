@@ -1018,9 +1018,15 @@ export default function AuctionDetailClient({
               </p>
             </div>
           )}
-          {/* External Links */}
+          {/* External Links & Token Info */}
           {(auction.tokenAddress || auction.tokenId) && (
-            <div className="mb-4 flex gap-3 text-xs">
+            <div className="mb-4 flex gap-3 text-xs items-center">
+              {/* Token Spec Badge */}
+              {auction.tokenSpec && (
+                <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-[#1a1a1a] border border-[#333333] text-[#cccccc]">
+                  {auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2" ? "ERC-1155" : "ERC-721"}
+                </span>
+              )}
               {auction.tokenAddress && (
                 <a
                   href={`https://basescan.org/address/${auction.tokenAddress}`}
