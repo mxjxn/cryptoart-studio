@@ -501,10 +501,14 @@ async function fetchActiveAuctions(
 
 /**
  * Cached version of fetchActiveAuctions
- * Cache TTL: 15 minutes (900 seconds) to reduce subgraph rate limiting
+ * Cache TTL: 60 seconds with stale-while-revalidate for better performance
  * 
  * This function can be used both in API routes and server components
  * Cache is invalidated via revalidateTag('auctions') when listings change
+ * 
+ * Performance optimization: Reduced from 15 minutes to 60 seconds to balance
+ * between reducing disk IO and keeping data fresh. The cache now uses a
+ * stale-while-revalidate strategy for better UX.
  */
 export const getCachedActiveAuctions = unstable_cache(
   async (first: number, skip: number, enrich: boolean) => {
@@ -512,7 +516,7 @@ export const getCachedActiveAuctions = unstable_cache(
   },
   ['active-auctions'],
   {
-    revalidate: 900, // Cache for 15 minutes (900 seconds) to reduce subgraph load
+    revalidate: 60, // Cache for 60 seconds - significantly reduces disk IO while keeping data fresh
     tags: ['auctions'], // Can be invalidated with revalidateTag('auctions')
   }
 );

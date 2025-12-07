@@ -640,6 +640,13 @@ export async function GET(
         symbol: artwork.symbol,
         creatorAddress: artwork.creatorAddress,
       })),
+    }, {
+      headers: {
+        // Add HTTP cache headers for user profiles
+        // Cache for 60 seconds, allow stale for 120 seconds while revalidating
+        // User profiles change infrequently, so longer cache is acceptable
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+      },
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
