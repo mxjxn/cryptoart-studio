@@ -4,15 +4,23 @@ import { Alchemy, Network } from "alchemy-sdk";
 /**
  * Get NFTs owned by an address from a specific contract
  * 
- * GET /api/nfts/for-owner?owner=0x...&contractAddress=0x...
+ * GET /api/nfts/for-owner?owner=0x...&contractAddress=0x...&page=1&limit=20
  * 
- * Returns: { nfts: Array<{ tokenId: string; name: string | null; image: string | null }> }
+ * Returns: { 
+ *   nfts: Array<{ tokenId: string; name: string | null; image: string | null; balance?: string }>, 
+ *   total: number,
+ *   page: number,
+ *   limit: number,
+ *   hasMore: boolean
+ * }
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
     const owner = searchParams.get("owner");
     const contractAddress = searchParams.get("contractAddress");
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
 
     if (!owner || !/^0x[a-fA-F0-9]{40}$/i.test(owner)) {
       return NextResponse.json(
@@ -24,6 +32,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/i.test(contractAddress)) {
       return NextResponse.json(
         { error: "Invalid contract address format" },
+        { status: 400 }
+      );
+    }
+
+    if (page < 1) {
+      return NextResponse.json(
+        { error: "Page must be >= 1" },
+        { status: 400 }
+      );
+    }
+
+    if (limit < 1 || limit > 100) {
+      return NextResponse.json(
+        { error: "Limit must be between 1 and 100" },
         { status: 400 }
       );
     }
@@ -47,24 +69,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       requestTimeout: 10000,
     });
 
-    // Get NFTs owned by the address from the specific contract
-    // Metadata is included by default in getNftsForOwner
+    // Get all NFTs owned by the address from the specific contract
+    // Note: Alchemy's getNftsForOwner doesn't support pagination directly for a single contract
+    // We'll fetch all and paginate in-memory
     const response = await alchemy.nft.getNftsForOwner(owner, {
       contractAddresses: [contractAddress],
     });
 
-    // Format the NFTs for the response
-    const nfts = response.ownedNfts.map((nft) => ({
+    // Format the NFTs for the response, including balance for ERC1155
+    const allNfts = response.ownedNfts.map((nft) => ({
       tokenId: nft.tokenId,
       name: nft.name || `Token #${nft.tokenId}`,
       image: nft.image?.originalUrl || nft.image?.pngUrl || nft.image?.cachedUrl || null,
       animationUrl: nft.raw?.metadata?.animation_url || null,
       animationFormat: nft.raw?.metadata?.animation_details?.format || null,
       description: nft.description || null,
+      // Include balance for ERC1155 tokens
+      balance: nft.balance ? String(nft.balance) : undefined,
     }));
 
     // Sort by token ID (convert to number if possible, otherwise lexicographic)
-    nfts.sort((a, b) => {
+    allNfts.sort((a, b) => {
       try {
         const aNum = BigInt(a.tokenId);
         const bNum = BigInt(b.tokenId);
@@ -74,8 +99,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     });
 
+    // Apply pagination
+    const total = allNfts.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const nfts = allNfts.slice(startIndex, endIndex);
+    const hasMore = endIndex < total;
+
     return NextResponse.json({
       nfts,
+      total,
+      page,
+      limit,
+      hasMore,
     });
   } catch (error) {
     console.error("Error fetching NFTs for owner:", error);

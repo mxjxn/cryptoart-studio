@@ -19,6 +19,13 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { transitionNavigate } from "~/lib/view-transitions";
 import { base } from "wagmi/chains";
+import { ContractSelector } from "~/components/create-listing/ContractSelector";
+import { TokenSelector } from "~/components/create-listing/TokenSelector";
+import { ERC1155ConfigPage } from "~/components/create-listing/ERC1155ConfigPage";
+import { ERC721ListingTypePage } from "~/components/create-listing/ERC721ListingTypePage";
+import { ERC721AuctionConfigPage } from "~/components/create-listing/ERC721AuctionConfigPage";
+import { ERC721FixedPriceConfigPage } from "~/components/create-listing/ERC721FixedPriceConfigPage";
+import { ERC721OffersOnlyPage } from "~/components/create-listing/ERC721OffersOnlyPage";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -186,6 +193,14 @@ export default function CreateAuctionClient() {
   const [alchemyName, setAlchemyName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
+  
+  // Wizard state
+  const [wizardPage, setWizardPage] = useState<number>(1);
+  const [selectedContract, setSelectedContract] = useState<string | null>(null);
+  const [selectedTokenType, setSelectedTokenType] = useState<"ERC721" | "ERC1155" | null>(null);
+  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [selectedListingType, setSelectedListingType] = useState<"AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY" | null>(null);
+  const [wizardERC1155Balance, setWizardERC1155Balance] = useState<number>(0);
   
   // Deployed contracts state
   const [deployedContracts, setDeployedContracts] = useState<Array<{ address: string; name: string | null; tokenType: string }>>([]);
@@ -458,6 +473,22 @@ export default function CreateAuctionClient() {
     if (isERC1155) return 'ERC1155';
     return 'unknown';
   }, [isERC721, isERC1155, loadingERC721, loadingERC1155]);
+
+  // Sync detected token type with wizard state
+  useEffect(() => {
+    if (tokenType === 'ERC721' || tokenType === 'ERC1155') {
+      if (!selectedTokenType || selectedTokenType !== tokenType) {
+        setSelectedTokenType(tokenType as "ERC721" | "ERC1155");
+      }
+    }
+  }, [tokenType, selectedTokenType]);
+
+  // Update ERC1155 balance in wizard state
+  useEffect(() => {
+    if (tokenType === 'ERC1155' && erc1155Balance !== undefined) {
+      setWizardERC1155Balance(Number(erc1155Balance));
+    }
+  }, [tokenType, erc1155Balance]);
 
   const ownershipStatus = useMemo(() => {
     if (!isValidContract || !hasValidTokenId) {
@@ -749,6 +780,160 @@ export default function CreateAuctionClient() {
     setIsSubmitting(false);
     setCreatedListingId(null);
     resetListing();
+    // Reset wizard state
+    setWizardPage(1);
+    setSelectedContract(null);
+    setSelectedTokenType(null);
+    setSelectedTokenId(null);
+    setSelectedListingType(null);
+    setWizardERC1155Balance(0);
+  };
+
+  // Wizard navigation handlers
+  const handleContractSelect = (contractAddress: string, tokenType: "ERC721" | "ERC1155") => {
+    setSelectedContract(contractAddress);
+    setSelectedTokenType(tokenType);
+    setFormData(prev => ({ ...prev, nftContract: contractAddress }));
+    setWizardPage(2);
+  };
+
+  const handleManualContractInput = (contractAddress: string) => {
+    // Need to detect token type - for now assume ERC721
+    setSelectedContract(contractAddress);
+    setSelectedTokenType("ERC721"); // Will be updated when contract is checked
+    setFormData(prev => ({ ...prev, nftContract: contractAddress }));
+    setWizardPage(2);
+  };
+
+  const handleTokenSelect = (tokenId: string) => {
+    setSelectedTokenId(tokenId);
+    setFormData(prev => ({ ...prev, tokenId }));
+    
+    // Move to appropriate page based on token type
+    if (selectedTokenType === "ERC1155") {
+      setWizardPage(3);
+      // Fetch balance for ERC1155
+      // This will be handled by the existing balance check
+    } else {
+      setWizardPage(3); // ERC721 listing type selection
+    }
+  };
+
+  const handleERC721ListingTypeSelect = (type: "AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY") => {
+    setSelectedListingType(type);
+    setFormData(prev => ({ ...prev, listingType: type === "AUCTION" ? "INDIVIDUAL_AUCTION" : type === "FIXED_PRICE" ? "FIXED_PRICE" : "OFFERS_ONLY" }));
+    setWizardPage(4);
+  };
+
+  const handleWizardBack = () => {
+    if (wizardPage === 2) {
+      setWizardPage(1);
+      setSelectedTokenId(null);
+    } else if (wizardPage === 3) {
+      if (selectedTokenType === "ERC721") {
+        setWizardPage(2);
+      } else {
+        setWizardPage(2);
+      }
+    } else if (wizardPage === 4) {
+      if (selectedTokenType === "ERC721") {
+        setWizardPage(3);
+        setSelectedListingType(null);
+      }
+    }
+  };
+
+  // Wizard submission handlers - update formData and call submission
+  const handleERC1155Submit = async (data: {
+    price: string;
+    quantity: number;
+    paymentType: "ETH" | "ERC20";
+    erc20Address: string;
+    startTime: string | null;
+    endTime: string | null;
+    noTimeframe: boolean;
+  }) => {
+    // Update formData
+    setFormData(prev => ({
+      ...prev,
+      listingType: "FIXED_PRICE",
+      fixedPrice: data.price,
+      totalAvailable: String(data.quantity),
+      totalPerSale: "1", // People can only purchase one at a time
+      paymentType: data.paymentType,
+      erc20Address: data.erc20Address,
+      startTime: data.startTime || "",
+      endTime: data.noTimeframe ? "" : (data.endTime || ""),
+    }));
+    // Wait a tick for state to update, then submit
+    await new Promise(resolve => setTimeout(resolve, 0));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+  };
+
+  const handleERC721AuctionSubmit = async (data: {
+    reservePrice: string;
+    paymentType: "ETH" | "ERC20";
+    erc20Address: string;
+    startTime: string | null;
+    endTime: string | null;
+    useDuration: boolean;
+    durationSeconds: number;
+  }) => {
+    // Update formData
+    setFormData(prev => ({
+      ...prev,
+      listingType: "INDIVIDUAL_AUCTION",
+      reservePrice: data.reservePrice,
+      paymentType: data.paymentType,
+      erc20Address: data.erc20Address,
+      startTime: data.startTime || "",
+      endTime: data.useDuration ? String(data.durationSeconds) : (data.endTime || ""),
+    }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+  };
+
+  const handleERC721FixedPriceSubmit = async (data: {
+    price: string;
+    paymentType: "ETH" | "ERC20";
+    erc20Address: string;
+    startTime: string | null;
+    endTime: string | null;
+    noTimeframe: boolean;
+  }) => {
+    // Update formData
+    setFormData(prev => ({
+      ...prev,
+      listingType: "FIXED_PRICE",
+      fixedPrice: data.price,
+      paymentType: data.paymentType,
+      erc20Address: data.erc20Address,
+      startTime: data.startTime || "",
+      endTime: data.noTimeframe ? "" : (data.endTime || ""),
+    }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+  };
+
+  const handleERC721OffersOnlySubmit = async () => {
+    // Update formData
+    const now = Math.floor(Date.now() / 1000);
+    const futureTime = new Date((now + 60) * 1000);
+    const year = futureTime.getFullYear();
+    const month = String(futureTime.getMonth() + 1).padStart(2, "0");
+    const day = String(futureTime.getDate()).padStart(2, "0");
+    const hours = String(futureTime.getHours()).padStart(2, "0");
+    const minutes = String(futureTime.getMinutes()).padStart(2, "0");
+    const startTimeStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+    
+    setFormData(prev => ({
+      ...prev,
+      listingType: "OFFERS_ONLY",
+      startTime: startTimeStr,
+      endTime: "",
+    }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1155,555 +1340,267 @@ export default function CreateAuctionClient() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 space-y-6">
-          {/* Listing Type Selector */}
-          <div>
-            <label className="block text-sm font-medium text-[#cccccc] mb-3">
-              Listing Type
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, listingType: "INDIVIDUAL_AUCTION" })}
-                className={`px-4 py-2 text-sm rounded border transition-colors ${
-                  formData.listingType === "INDIVIDUAL_AUCTION"
-                    ? "bg-white text-black border-white"
-                    : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                }`}
-              >
-                Auction
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, listingType: "FIXED_PRICE" })}
-                className={`px-4 py-2 text-sm rounded border transition-colors ${
-                  formData.listingType === "FIXED_PRICE"
-                    ? "bg-white text-black border-white"
-                    : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                }`}
-              >
-                Fixed Price
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, listingType: "OFFERS_ONLY" })}
-                className={`px-4 py-2 text-sm rounded border transition-colors ${
-                  formData.listingType === "OFFERS_ONLY"
-                    ? "bg-white text-black border-white"
-                    : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                }`}
-              >
-                Offers Only
-              </button>
-            </div>
-          </div>
+        {/* Hidden form for submission handling */}
+        <form onSubmit={handleSubmit} className="hidden">
+          <input type="submit" />
+        </form>
 
-          <div>
-            <label className="block text-sm font-medium text-[#cccccc] mb-2">
-              NFT Contract Address
-            </label>
-            {deployedContracts.length > 0 && (
-              <select
-                value={formData.nftContract}
-                onChange={(e) => setFormData({ ...formData, nftContract: e.target.value })}
-                className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black mb-2"
-              >
-                <option value="">Select a contract...</option>
-                {deployedContracts.map((contract) => (
-                  <option key={contract.address} value={contract.address}>
-                    {contract.name || contract.address} ({contract.tokenType})
-                  </option>
-                ))}
-              </select>
-            )}
-            <div className="relative">
-              <input
-                type="text"
-                value={formData.nftContract}
-                onChange={(e) => setFormData({ ...formData, nftContract: e.target.value })}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black ${
-                  formData.nftContract && !isValidAddressFormat(formData.nftContract)
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                    : 'border-[#333333]'
-                }`}
-                placeholder={deployedContracts.length > 0 ? "Or enter contract address manually..." : "0x..."}
-                required
+        {/* Wizard Pages */}
+        <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+          {wizardPage === 1 && (
+            <ContractSelector
+              selectedContract={selectedContract}
+              onSelectContract={handleContractSelect}
+              onManualInput={handleManualContractInput}
+            />
+          )}
+
+          {wizardPage === 2 && selectedContract && (
+            <>
+              {/* Back Button */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleWizardBack}
+                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              </div>
+              
+              <TokenSelector
+                contractAddress={selectedContract}
+                tokenType={selectedTokenType || "ERC721"}
+                selectedTokenId={selectedTokenId}
+                onSelectToken={handleTokenSelect}
               />
-            </div>
-            {formData.nftContract && !isValidAddressFormat(formData.nftContract) && (
-              <p className="mt-1 text-sm text-red-400">
-                Please enter a valid Ethereum address (42 characters, starting with 0x)
-              </p>
-            )}
-            {deployedContractsLoading && (
-              <p className="mt-1 text-sm text-[#999999]">
-                Loading your deployed contracts...
-              </p>
-            )}
-            {!deployedContractsLoading && deployedContractsFetched && deployedContracts.length === 0 && address && (
-              <p className="mt-1 text-sm text-[#999999]">
-                No NFT contracts found. You can enter a contract address manually.
-              </p>
-            )}
-          </div>
-
-          {/* Contract Preview Pane */}
-          {isValidContract && (
-            <div className="bg-black border border-[#333333] rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-white">Contract Preview</h3>
-                {/* Token Type Badge */}
-                {tokenType === 'loading' ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-[#0a0a0a] text-[#999999] border border-[#333333]">
-                    <span className="h-3 w-3 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mr-1"></span>
-                    Detecting...
-                  </span>
-                ) : tokenType === 'ERC721' ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-900/30 text-purple-300 border border-purple-700/50">
-                    ERC-721
-                  </span>
-                ) : tokenType === 'ERC1155' ? (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-900/30 text-orange-300 border border-orange-700/50">
-                    ERC-1155
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-900/30 text-red-300 border border-red-700/50">
-                    Unknown Type
-                  </span>
-                )}
-              </div>
-              {contractPreview.loading ? (
-                <div className="space-y-2">
-                  <div className="h-4 bg-[#0a0a0a] rounded animate-pulse"></div>
-                  <div className="h-4 bg-[#0a0a0a] rounded animate-pulse w-3/4"></div>
-                </div>
-              ) : contractPreview.error ? (
-                <p className="text-sm text-red-400">{contractPreview.error}</p>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium text-[#999999]">Name:</span>{' '}
-                    <span className="text-white">
-                      {contractPreview.name || 'Not available'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-medium text-[#999999]">Owner:</span>{' '}
-                    <span className="text-white font-mono text-xs">
-                      {contractPreview.owner || 'Not available'}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            </>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-[#cccccc] mb-2">
-              Token ID
-            </label>
-            {ownedNFTs.length > 0 && (
-              <select
-                value={formData.tokenId}
-                onChange={(e) => setFormData({ ...formData, tokenId: e.target.value })}
-                className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black mb-2"
-              >
-                <option value="">Select a token...</option>
-                {ownedNFTs.map((nft) => (
-                  <option key={nft.tokenId} value={nft.tokenId}>
-                    {nft.name} (#{nft.tokenId})
-                  </option>
-                ))}
-              </select>
-            )}
-            <div className="relative">
-              <input
-                type="text"
-                value={formData.tokenId}
-                onChange={(e) => setFormData({ ...formData, tokenId: e.target.value })}
-                className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
-                placeholder={ownedNFTs.length > 0 ? "Or enter token ID manually..." : "1"}
-                required
-              />
-            </div>
-            {ownedNFTsLoading && (
-              <p className="mt-1 text-sm text-[#999999]">
-                Loading your NFTs from this contract...
-              </p>
-            )}
-            {!ownedNFTsLoading && ownedNFTs.length === 0 && isValidContract && address && (
-              <p className="mt-1 text-sm text-[#999999]">
-                No NFTs found. You can enter a token ID manually.
-              </p>
-            )}
-          </div>
-
-          {/* NFT Media Preview - Compact inline display */}
-          {selectedNFT && formData.tokenId && (
-            <div className="border border-[#333333] rounded-lg overflow-hidden bg-[#0a0a0a]">
-              <div className="bg-[#1a1a1a] px-3 py-2 border-b border-[#333333]">
-                <p className="text-sm font-medium text-white">
-                  Preview: {selectedNFT.name || `Token #${selectedNFT.tokenId}`}
-                </p>
-              </div>
-              <div className="w-full max-w-[300px] mx-auto aspect-square">
-                <MediaDisplay
-                  imageUrl={selectedNFT.image || undefined}
-                  animationUrl={selectedNFT.animationUrl || undefined}
-                  animationFormat={selectedNFT.animationFormat || undefined}
-                  alt={selectedNFT.name || `Token #${selectedNFT.tokenId}`}
-                  className="w-full h-full max-h-[300px]"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Ownership Status */}
-          {isValidContract && hasValidTokenId && (
-            <div className={`rounded-lg p-4 border ${
-              ownershipStatus.loading 
-                ? 'bg-[#0a0a0a] border-[#333333]' 
-                : ownershipStatus.isOwner 
-                  ? 'bg-green-900/20 border-green-700/50'
-                  : 'bg-red-900/20 border-red-700/50'
-            }`}>
-              {ownershipStatus.loading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-[#cccccc] text-sm">Checking ownership...</span>
-                </div>
-              ) : ownershipStatus.error ? (
-                <p className="text-red-400 text-sm">{ownershipStatus.error}</p>
-              ) : ownershipStatus.isOwner ? (
-                <div className="space-y-1">
-                  <p className="text-green-400 text-sm font-medium">
-                    {tokenType === 'ERC1155' && erc1155Balance !== undefined
-                      ? `✓ You own ${erc1155Balance.toString()} of this token`
-                      : '✓ You own this token'}
-                  </p>
-                  <p className="text-green-300 text-xs">Token Type: {tokenType}</p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-red-400 text-sm font-medium">✗ You do not own this token</p>
-                  {ownershipStatus.owner && tokenType === 'ERC721' && (
-                    <p className="text-red-300 text-xs font-mono">
-                      Owned by: {ownershipStatus.owner}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Approval Status */}
-          {canProceed && (
-            <div className={`rounded-lg p-4 border ${
-              approvalStatus.loading 
-                ? 'bg-[#0a0a0a] border-[#333333]' 
-                : approvalStatus.isApproved 
-                  ? 'bg-green-900/20 border-green-700/50'
-                  : 'bg-amber-900/20 border-amber-700/50'
-            }`}>
-              {approvalStatus.loading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-[#cccccc] text-sm">Checking marketplace approval...</span>
-                </div>
-              ) : approvalStatus.isApproved ? (
-                <div className="space-y-1">
-                  <p className="text-green-400 text-sm font-medium">✓ Marketplace approved to transfer this token</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-amber-400 text-sm font-medium">⚠ Approval required</p>
-                    <p className="text-amber-300 text-xs">
-                      {tokenType === 'ERC721' 
-                        ? `Approve the marketplace to transfer token #${formData.tokenId} when the auction ends.`
-                        : 'The marketplace needs permission to transfer your tokens. This approves all tokens in this collection.'}
-                    </p>
-                  </div>
-                  
-                  {/* Approval Transaction Status */}
-                  <TransactionStatus
-                    hash={approvalHash}
-                    isPending={isApprovalPending}
-                    isConfirming={isApprovalConfirming}
-                    isSuccess={isApprovalSuccess}
-                    error={approvalError}
-                    successMessage="Approval granted!"
-                    onDismiss={resetApproval}
-                  />
-
-                  {!isApprovalPending && !isApprovalConfirming && !isApprovalSuccess && (
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-                    >
-                      {tokenType === 'ERC721' 
-                        ? `Approve Token #${formData.tokenId}`
-                        : 'Approve All Tokens'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Rest of form - only show if user owns the token */}
-          <div className={!canProceed ? 'opacity-50 pointer-events-none' : ''}>
-            <div className="space-y-6">
-              {/* Payment Currency Selection */}
-              <div>
-                <label className="block text-sm font-medium text-[#cccccc] mb-3">
-                  Payment Currency
-                </label>
-                <div className="flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, paymentType: "ETH", erc20Address: "" })}
-                    className={`px-4 py-2 text-sm rounded border transition-colors ${
-                      formData.paymentType === "ETH"
-                        ? "bg-white text-black border-white"
-                        : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                    }`}
-                    disabled={!canProceed}
-                  >
-                    ETH
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, paymentType: "ERC20" })}
-                    className={`px-4 py-2 text-sm rounded border transition-colors ${
-                      formData.paymentType === "ERC20"
-                        ? "bg-white text-black border-white"
-                        : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
-                    }`}
-                    disabled={!canProceed}
-                  >
-                    ERC20 Token
-                  </button>
-                </div>
-
-                {/* ERC20 Token Address Input */}
-                {formData.paymentType === "ERC20" && (
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={formData.erc20Address}
-                      onChange={(e) => setFormData({ ...formData, erc20Address: e.target.value })}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black ${
-                        formData.erc20Address && erc20Token.error
-                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                          : formData.erc20Address && erc20Token.isValid
-                          ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
-                          : 'border-[#333333]'
-                      }`}
-                      placeholder="0x... (ERC20 Token Address)"
-                      disabled={!canProceed}
-                    />
-                    
-                    {/* ERC20 Token Preview */}
-                    {formData.erc20Address && (
-                      <div className={`rounded-lg p-3 border ${
-                        erc20Token.isLoading 
-                          ? 'bg-[#0a0a0a] border-[#333333]' 
-                          : erc20Token.isValid 
-                            ? 'bg-green-900/20 border-green-700/50'
-                            : 'bg-red-900/20 border-red-700/50'
-                      }`}>
-                        {erc20Token.isLoading ? (
-                          <div className="flex items-center space-x-2">
-                            <div className="h-4 w-4 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
-                            <span className="text-[#cccccc] text-sm">Validating token...</span>
-                          </div>
-                        ) : erc20Token.isValid ? (
-                          <div className="space-y-1">
-                            <p className="text-green-400 text-sm font-medium">
-                              ✓ {erc20Token.name} ({erc20Token.symbol})
-                            </p>
-                            <p className="text-green-300 text-xs">
-                              Decimals: {erc20Token.decimals}
-                            </p>
-                          </div>
-                        ) : erc20Token.error ? (
-                          <p className="text-red-400 text-sm">{erc20Token.error}</p>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                )}
+          {wizardPage === 3 && selectedContract && selectedTokenId && selectedTokenType === "ERC1155" && (
+            <>
+              {/* Back Button */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleWizardBack}
+                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
               </div>
 
-              {/* Price fields - conditional based on listing type */}
-              {formData.listingType === "INDIVIDUAL_AUCTION" && (
-                <div>
-                  <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                    Reserve Price ({priceSymbol})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={formData.reservePrice}
-                    onChange={(e) => setFormData({ ...formData, reservePrice: e.target.value })}
-                    className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                    placeholder="0.1"
-                    required
-                    disabled={!canProceed}
-                  />
+              {/* Ownership Check */}
+              {!ownershipStatus.isOwner && !ownershipStatus.loading && (
+                <div className="mb-6 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+                  <p className="text-red-400 text-sm">✗ You do not own this token</p>
                 </div>
               )}
 
-              {formData.listingType === "FIXED_PRICE" && (
+              {ownershipStatus.isOwner && (
                 <>
-                  <div>
-                    <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                      Price Per Copy ({priceSymbol})
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={formData.fixedPrice}
-                      onChange={(e) => setFormData({ ...formData, fixedPrice: e.target.value })}
-                      className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                      placeholder="0.1"
-                      required
-                      disabled={!canProceed}
+                  {/* Approval Status */}
+                  {!approvalStatus.isApproved && !approvalStatus.loading && (
+                    <div className="mb-6 bg-amber-900/20 border border-amber-700/50 rounded-lg p-4">
+                      <p className="text-amber-400 text-sm font-medium mb-2">⚠ Approval required</p>
+                      <TransactionStatus
+                        hash={approvalHash}
+                        isPending={isApprovalPending}
+                        isConfirming={isApprovalConfirming}
+                        isSuccess={isApprovalSuccess}
+                        error={approvalError}
+                        successMessage="Approval granted!"
+                        onDismiss={resetApproval}
+                      />
+                      {!isApprovalPending && !isApprovalConfirming && !isApprovalSuccess && (
+                        <button
+                          type="button"
+                          onClick={handleApprove}
+                          className="w-full mt-3 px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors"
+                        >
+                          Approve All Tokens
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {approvalStatus.isApproved && (
+                    <ERC1155ConfigPage
+                      contractAddress={selectedContract}
+                      tokenId={selectedTokenId}
+                      balance={wizardERC1155Balance || 0}
+                      onBack={handleWizardBack}
+                      onSubmit={handleERC1155Submit}
+                      isSubmitting={isSubmitting}
                     />
-                    {tokenType === 'ERC1155' && formData.totalAvailable && formData.totalPerSale && formData.fixedPrice && (
-                      <p className="mt-1 text-xs text-[#999999]">
-                        Each purchase of {formData.totalPerSale} copy{parseInt(formData.totalPerSale) !== 1 ? 'ies' : ''} will cost {parseFloat(formData.fixedPrice || '0') * parseInt(formData.totalPerSale || '1')} {priceSymbol}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {tokenType === 'ERC1155' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                          Total Available
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formData.totalAvailable}
-                          onChange={(e) => setFormData({ ...formData, totalAvailable: e.target.value })}
-                          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                          placeholder="100"
-                          required
-                          disabled={!canProceed}
-                        />
-                        <p className="mt-1 text-xs text-[#999999]">
-                          Total number of tokens to list for sale
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                          Per Purchase
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formData.totalPerSale}
-                          onChange={(e) => setFormData({ ...formData, totalPerSale: e.target.value })}
-                          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                          placeholder="1"
-                          required
-                          disabled={!canProceed}
-                        />
-                        <p className="mt-1 text-xs text-[#999999]">
-                          Number of copies included in each purchase (e.g., if set to 10, buying "1" purchase gives you 10 copies)
-                        </p>
-                      </div>
-                    </>
                   )}
                 </>
               )}
+            </>
+          )}
 
-              {/* Start Time - conditional label based on listing type */}
-              <div>
-                <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  {formData.listingType === "OFFERS_ONLY" 
-                    ? "Start Time (required)"
-                    : formData.listingType === "INDIVIDUAL_AUCTION"
-                    ? "Start Time (optional, leave empty to start on first bid)"
-                    : "Start Time (optional, leave empty to start on first purchase)"}
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                  required={formData.listingType === "OFFERS_ONLY"}
-                  disabled={!canProceed}
-                />
+          {wizardPage === 3 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && (
+            <>
+              {/* Back Button */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleWizardBack}
+                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
               </div>
 
-              {/* End Time */}
-              <div>
-                <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                  {formData.listingType === "FIXED_PRICE"
-                    ? "End Time (optional)"
-                    : formData.startTime === ""
-                    ? "Duration (from first bid/purchase)"
-                    : "End Time"}
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                  required={formData.listingType !== "FIXED_PRICE"}
-                  disabled={!canProceed}
-                />
-                {formData.listingType === "FIXED_PRICE" && (
-                  <p className="mt-1 text-xs text-[#999999]">
-                    Leave empty to create a listing that never expires
-                  </p>
-                )}
-                {formData.listingType !== "FIXED_PRICE" && formData.startTime === "" && (
-                  <p className="mt-1 text-xs text-[#999999]">
-                    When start time is empty, this represents the duration from the first bid/purchase, not an absolute timestamp
-                  </p>
-                )}
-              </div>
-
-              {/* Min Increment - only for auctions */}
-              {formData.listingType === "INDIVIDUAL_AUCTION" && (
-                <div>
-                  <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                    Min Increment (basis points, e.g., 500 = 5%)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.minIncrementBPS}
-                    onChange={(e) => setFormData({ ...formData, minIncrementBPS: e.target.value })}
-                    className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black disabled:bg-[#0a0a0a] disabled:opacity-50"
-                    placeholder="500"
-                    required
-                    disabled={!canProceed}
-                  />
+              {/* Ownership Check */}
+              {!ownershipStatus.isOwner && !ownershipStatus.loading && (
+                <div className="mb-6 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+                  <p className="text-red-400 text-sm">✗ You do not own this token</p>
                 </div>
               )}
+
+              {ownershipStatus.isOwner && (
+                <>
+                  {/* Approval Status */}
+                  {!approvalStatus.isApproved && !approvalStatus.loading && (
+                    <div className="mb-6 bg-amber-900/20 border border-amber-700/50 rounded-lg p-4">
+                      <p className="text-amber-400 text-sm font-medium mb-2">⚠ Approval required</p>
+                      <TransactionStatus
+                        hash={approvalHash}
+                        isPending={isApprovalPending}
+                        isConfirming={isApprovalConfirming}
+                        isSuccess={isApprovalSuccess}
+                        error={approvalError}
+                        successMessage="Approval granted!"
+                        onDismiss={resetApproval}
+                      />
+                      {!isApprovalPending && !isApprovalConfirming && !isApprovalSuccess && (
+                        <button
+                          type="button"
+                          onClick={handleApprove}
+                          className="w-full mt-3 px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors"
+                        >
+                          Approve Token #{selectedTokenId}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {approvalStatus.isApproved && (
+                    <ERC721ListingTypePage
+                      onSelectType={handleERC721ListingTypeSelect}
+                      onBack={handleWizardBack}
+                    />
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "AUCTION" && (
+            <>
+              {/* Back Button */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleWizardBack}
+                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              </div>
+
+              <ERC721AuctionConfigPage
+                contractAddress={selectedContract}
+                tokenId={selectedTokenId}
+                onBack={handleWizardBack}
+                onSubmit={handleERC721AuctionSubmit}
+                isSubmitting={isSubmitting}
+              />
+            </>
+          )}
+
+          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "FIXED_PRICE" && (
+            <>
+              {/* Back Button */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleWizardBack}
+                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              </div>
+
+              <ERC721FixedPriceConfigPage
+                contractAddress={selectedContract}
+                tokenId={selectedTokenId}
+                onBack={handleWizardBack}
+                onSubmit={handleERC721FixedPriceSubmit}
+                isSubmitting={isSubmitting}
+              />
+            </>
+          )}
+
+          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "OFFERS_ONLY" && (
+            <>
+              {/* Back Button */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleWizardBack}
+                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              </div>
+
+              <ERC721OffersOnlyPage
+                contractAddress={selectedContract}
+                tokenId={selectedTokenId}
+                onBack={handleWizardBack}
+                onSubmit={handleERC721OffersOnlySubmit}
+                isSubmitting={isSubmitting}
+              />
+            </>
+          )}
+
+          {/* Transaction Status - show on all pages */}
+          {(isPending || isConfirming || isSuccess || error) && (
+            <div className="mt-6">
+              <TransactionStatus
+                hash={hash}
+                isPending={isPending}
+                isConfirming={isConfirming}
+                isSuccess={isSuccess}
+                error={error}
+                successMessage="Listing created successfully!"
+              />
             </div>
-          </div>
+          )}
 
-          {/* Transaction Status */}
-          <TransactionStatus
-            hash={hash}
-            isPending={isPending}
-            isConfirming={isConfirming}
-            isSuccess={isSuccess}
-            error={error}
-            successMessage="Listing created successfully!"
-          />
-
-          {/* Action Buttons */}
-          {isSuccess ? (
-            <div className="flex gap-3">
+          {/* Success Actions */}
+          {isSuccess && (
+            <div className="mt-6 flex gap-3">
               {createdListingId !== null ? (
                 <button
                   type="button"
@@ -1729,30 +1626,9 @@ export default function CreateAuctionClient() {
                 Create Another
               </button>
             </div>
-          ) : (
-            <button
-              type="submit"
-              disabled={!isConnected || !canProceed || !approvalStatus.isApproved || !isValidERC20 || isPending || isConfirming || isSubmitting}
-              className="w-full px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] disabled:bg-[#333333] disabled:text-[#666666] disabled:cursor-not-allowed transition-colors"
-            >
-              {isPending
-                ? "Waiting for signature..."
-                : isConfirming
-                  ? "Confirming transaction..."
-                    : !approvalStatus.isApproved
-                    ? "Approve marketplace first"
-                    : !isValidERC20
-                    ? "Select valid payment token"
-                    : formData.listingType === "INDIVIDUAL_AUCTION"
-                    ? "Create Auction"
-                    : formData.listingType === "FIXED_PRICE"
-                    ? "Create Listing"
-                    : "Create Offers Listing"}
-            </button>
           )}
-        </form>
+        </div>
       </div>
     </div>
   );
 }
-

@@ -32,6 +32,8 @@ export const contractCache = pgTable('contract_cache', {
   name: text('name'), // Contract name from name() or Alchemy
   symbol: text('symbol'), // Contract symbol
   creatorAddress: text('creator_address'), // Contract creator/deployer
+  tokenType: text('token_type'), // 'ERC721' | 'ERC1155'
+  lastCheckedBlock: bigint('last_checked_block', { mode: 'number' }), // Last block checked for contract deployments (nullable)
   source: text('source').notNull(), // 'onchain' | 'alchemy' | 'manual'
   cachedAt: timestamp('cached_at').defaultNow().notNull(),
   expiresAt: timestamp('expires_at').notNull(), // TTL: 30 days
@@ -39,6 +41,7 @@ export const contractCache = pgTable('contract_cache', {
 }, (table) => ({
   creatorAddressIdx: index('contract_cache_creator_address_idx').on(table.creatorAddress),
   expiresAtIdx: index('contract_cache_expires_at_idx').on(table.expiresAt),
+  lastCheckedBlockIdx: index('contract_cache_last_checked_block_idx').on(table.lastCheckedBlock),
 }));
 
 // Type definitions for cached data
@@ -61,6 +64,8 @@ export interface ContractCacheData {
   name?: string | null;
   symbol?: string | null;
   creatorAddress?: string | null;
+  tokenType?: string | null;
+  lastCheckedBlock?: number | null;
   source: 'onchain' | 'alchemy' | 'manual';
   cachedAt: Date;
   expiresAt: Date;

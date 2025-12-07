@@ -21,6 +21,7 @@
     
     "db:create-image-cache": "tsx scripts/create-image-cache.ts",
     "db:create-follows-favorites": "tsx scripts/create-follows-favorites.ts",
+    "db:add-contract-cache-columns": "tsx scripts/add-contract-cache-columns.ts",
     "db:run-migration-0000": "tsx scripts/run-migration.ts"
   },
   "dependencies": {
