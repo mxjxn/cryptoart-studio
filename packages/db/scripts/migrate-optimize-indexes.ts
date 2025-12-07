@@ -41,8 +41,35 @@ if (!connectionString) {
 const url = new URL(connectionString);
 console.log(`\n🔗 Connecting to database: ${url.hostname}${url.pathname}\n`);
 
+async function executeWithRetry(sql: postgres.Sql, statement: string, maxRetries = 5): Promise<void> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = 3000 * attempt; // Exponential backoff: 3s, 6s, 9s, 12s, 15s
+        console.log(`    ⏳ Retry attempt ${attempt}/${maxRetries - 1} (waiting ${delay}ms)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      await sql.unsafe(statement);
+      return; // Success
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      const isTimeout = error?.code === 'XX000' || errorMsg.includes('timeout') || errorMsg.includes('pool');
+      
+      if (isTimeout && attempt < maxRetries - 1) {
+        continue; // Retry on timeout
+      }
+      throw error; // Re-throw if not timeout or last attempt
+    }
+  }
+}
+
 async function runOptimizeIndexesMigration() {
-  const sql = postgres(connectionString);
+  // Use minimal connection pool for migration
+  const sql = postgres(connectionString, {
+    max: 1, // Only need 1 connection
+    idle_timeout: 20,
+    connect_timeout: 30, // Longer timeout for Pro plan
+  });
   
   try {
     console.log('📦 Running optimize indexes migration (0005_optimize_indexes.sql)...\n');
@@ -105,7 +132,7 @@ async function runOptimizeIndexesMigration() {
       console.log(`[${i + 1}/${statements.length}] ${desc}...`);
       
       try {
-        await sql.unsafe(statement);
+        await executeWithRetry(sql, statement);
         console.log(`  ✅ Success\n`);
         executed++;
       } catch (error: any) {
@@ -119,9 +146,15 @@ async function runOptimizeIndexesMigration() {
           console.log(`  ⚠️  Skipped (already exists)\n`);
           skipped++;
         } else {
-          console.error(`\n  ❌ Error:`, error.message);
-          throw error;
+          console.error(`\n  ❌ Error after retries:`, error.message);
+          // Continue with other statements - indexes are idempotent
+          console.log(`  ⚠️  Continuing with next statement...\n`);
         }
+      }
+      
+      // Delay between statements to avoid overwhelming the pool
+      if (i < statements.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
       }
     }
     
