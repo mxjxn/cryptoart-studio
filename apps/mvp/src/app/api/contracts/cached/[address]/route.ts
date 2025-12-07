@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { getCachedContracts } from "~/lib/server/contract-cache";
 
 /**
@@ -9,7 +10,9 @@ import { getCachedContracts } from "~/lib/server/contract-cache";
  * Returns: { contracts: Array<{ address: string; name: string | null; tokenType: string }> }
  * 
  * This endpoint returns instantly from database cache without hitting Alchemy
+ * Route-level caching: 5 minutes (prevents database pool exhaustion)
  */
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
@@ -24,7 +27,21 @@ export async function GET(
       );
     }
 
-    const contracts = await getCachedContracts(address);
+    // Normalize address for cache key
+    const normalizedAddress = address.toLowerCase();
+
+    // Use unstable_cache to prevent database pool exhaustion
+    // The cache key includes the address so each address has its own cache entry
+    const contracts = await unstable_cache(
+      async () => {
+        return getCachedContracts(normalizedAddress);
+      },
+      ['cached-contracts', normalizedAddress],
+      {
+        revalidate: 300, // Cache for 5 minutes
+        tags: ['contracts', `contracts-${normalizedAddress}`], // Can be invalidated with revalidateTag
+      }
+    )();
 
     return NextResponse.json({
       contracts,

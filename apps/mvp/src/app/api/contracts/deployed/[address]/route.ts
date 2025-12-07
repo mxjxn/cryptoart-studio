@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { Alchemy, Network, AssetTransfersCategory } from "alchemy-sdk";
 import { 
   getCachedContracts, 
@@ -20,7 +21,9 @@ import {
  * - Returns cached contracts instantly from database
  * - If refresh=true, also checks for new contracts deployed after lastCheckedBlock
  * - Updates cache with new contracts and current block number
+ * - Route-level caching: 60 seconds (prevents database pool exhaustion)
  */
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
@@ -37,8 +40,22 @@ export async function GET(
       );
     }
 
-    // 1. Get cached contracts (instant return)
-    const cachedContracts = await getCachedContracts(address);
+    // Normalize address for cache key
+    const normalizedAddress = address.toLowerCase();
+
+    // 1. Get cached contracts (instant return, with route-level caching)
+    // Use unstable_cache to prevent database pool exhaustion
+    // The cache key includes the address so each address has its own cache entry
+    const cachedContracts = await unstable_cache(
+      async () => {
+        return getCachedContracts(normalizedAddress);
+      },
+      ['deployed-contracts', normalizedAddress],
+      {
+        revalidate: 60, // Cache for 60 seconds
+        tags: ['contracts', `contracts-${normalizedAddress}`], // Can be invalidated with revalidateTag
+      }
+    )();
     
     // If not refreshing, return cached results immediately
     if (!refresh) {
@@ -190,7 +207,17 @@ export async function GET(
     // Return cached results even on error
     try {
       const { address: errorAddress } = await params;
-      const cachedContracts = await getCachedContracts(errorAddress).catch(() => []);
+      const normalizedErrorAddress = errorAddress.toLowerCase();
+      const cachedContracts = await unstable_cache(
+        async () => {
+          return getCachedContracts(normalizedErrorAddress);
+        },
+        ['deployed-contracts', normalizedErrorAddress],
+        {
+          revalidate: 60,
+          tags: ['contracts', `contracts-${normalizedErrorAddress}`],
+        }
+      )().catch(() => []);
       return NextResponse.json({
         contracts: cachedContracts,
         error: "Failed to refresh contracts, returning cached results",
