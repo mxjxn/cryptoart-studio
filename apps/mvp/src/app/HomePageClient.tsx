@@ -94,14 +94,14 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </h1>
           <p></p>
           {isPro && (
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center justify-center gap-2">
               <div className="w-[80vw]">
                 <TransitionLink
                   href="/create"
                   prefetch={false}
                   className="block w-full px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors text-center"
                 >
-                  List an Artwork
+                  List an Artwork on Base
                 </TransitionLink>
               </div>
             </div>

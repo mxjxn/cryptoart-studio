@@ -1134,6 +1134,9 @@ export default function CreateAuctionClient() {
           <p className="text-sm text-[#cccccc]">
             List your NFT for sale. Choose between auction, fixed price, or offers-only.
           </p>
+          <p className="text-xs text-[#888888] mt-2">
+            Only Base is supported.
+          </p>
         </div>
 
         {!isConnected && (
