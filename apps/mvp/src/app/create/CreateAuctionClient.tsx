@@ -844,6 +844,7 @@ export default function CreateAuctionClient() {
   };
 
   // Wizard submission handlers - update formData and call submission
+  // NOTE: We pass overrides directly to handleSubmit to avoid React state race conditions
   const handleERC1155Submit = async (data: {
     price: string;
     quantity: number;
@@ -853,10 +854,10 @@ export default function CreateAuctionClient() {
     endTime: string | null;
     noTimeframe: boolean;
   }) => {
-    // Update formData
-    setFormData(prev => ({
-      ...prev,
-      listingType: "FIXED_PRICE",
+    // Build the override data to pass directly to handleSubmit
+    // This avoids the race condition where setFormData hasn't applied yet
+    const overrides = {
+      listingType: "FIXED_PRICE" as const,
       fixedPrice: data.price,
       totalAvailable: String(data.quantity),
       totalPerSale: "1", // People can only purchase one at a time
@@ -864,10 +865,13 @@ export default function CreateAuctionClient() {
       erc20Address: data.erc20Address,
       startTime: data.startTime || "",
       endTime: data.noTimeframe ? "" : (data.endTime || ""),
-    }));
-    // Wait a tick for state to update, then submit
-    await new Promise(resolve => setTimeout(resolve, 0));
-    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+    };
+    
+    // Also update formData for UI consistency
+    setFormData(prev => ({ ...prev, ...overrides }));
+    
+    // Pass overrides directly to handleSubmit
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent, overrides);
   };
 
   const handleERC721AuctionSubmit = async (data: {
@@ -879,18 +883,17 @@ export default function CreateAuctionClient() {
     useDuration: boolean;
     durationSeconds: number;
   }) => {
-    // Update formData
-    setFormData(prev => ({
-      ...prev,
-      listingType: "INDIVIDUAL_AUCTION",
+    // Build overrides to pass directly to handleSubmit (avoids race condition)
+    const overrides = {
+      listingType: "INDIVIDUAL_AUCTION" as const,
       reservePrice: data.reservePrice,
       paymentType: data.paymentType,
       erc20Address: data.erc20Address,
       startTime: data.startTime || "",
       endTime: data.useDuration ? String(data.durationSeconds) : (data.endTime || ""),
-    }));
-    await new Promise(resolve => setTimeout(resolve, 0));
-    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+    };
+    setFormData(prev => ({ ...prev, ...overrides }));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent, overrides);
   };
 
   const handleERC721FixedPriceSubmit = async (data: {
@@ -901,22 +904,21 @@ export default function CreateAuctionClient() {
     endTime: string | null;
     noTimeframe: boolean;
   }) => {
-    // Update formData
-    setFormData(prev => ({
-      ...prev,
-      listingType: "FIXED_PRICE",
+    // Build overrides to pass directly to handleSubmit (avoids race condition)
+    const overrides = {
+      listingType: "FIXED_PRICE" as const,
       fixedPrice: data.price,
       paymentType: data.paymentType,
       erc20Address: data.erc20Address,
       startTime: data.startTime || "",
       endTime: data.noTimeframe ? "" : (data.endTime || ""),
-    }));
-    await new Promise(resolve => setTimeout(resolve, 0));
-    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+    };
+    setFormData(prev => ({ ...prev, ...overrides }));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent, overrides);
   };
 
   const handleERC721OffersOnlySubmit = async () => {
-    // Update formData
+    // Build overrides to pass directly to handleSubmit (avoids race condition)
     const now = Math.floor(Date.now() / 1000);
     const futureTime = new Date((now + 60) * 1000);
     const year = futureTime.getFullYear();
@@ -926,17 +928,19 @@ export default function CreateAuctionClient() {
     const minutes = String(futureTime.getMinutes()).padStart(2, "0");
     const startTimeStr = `${year}-${month}-${day}T${hours}:${minutes}`;
     
-    setFormData(prev => ({
-      ...prev,
-      listingType: "OFFERS_ONLY",
+    const overrides = {
+      listingType: "OFFERS_ONLY" as const,
       startTime: startTimeStr,
       endTime: "",
-    }));
-    await new Promise(resolve => setTimeout(resolve, 0));
-    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+    };
+    setFormData(prev => ({ ...prev, ...overrides }));
+    handleSubmit({ preventDefault: () => {} } as React.FormEvent, overrides);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent,
+    overrides?: Partial<typeof formData>
+  ) => {
     e.preventDefault();
     if (!isConnected || !address) {
       alert("Please connect your wallet");
@@ -950,13 +954,16 @@ export default function CreateAuctionClient() {
 
     setIsSubmitting(true);
 
+    // Merge overrides with formData to handle race conditions from wizard submissions
+    const effectiveFormData = overrides ? { ...formData, ...overrides } : formData;
+
     try {
       const now = Math.floor(Date.now() / 1000);
       
       // Convert datetime-local to Unix timestamp (seconds)
-      const startTime = formData.startTime 
-        ? Math.floor(new Date(formData.startTime).getTime() / 1000)
-        : formData.listingType === "OFFERS_ONLY" 
+      const startTime = effectiveFormData.startTime 
+        ? Math.floor(new Date(effectiveFormData.startTime).getTime() / 1000)
+        : effectiveFormData.listingType === "OFFERS_ONLY" 
           ? now + 60 // OFFERS_ONLY requires startTime in future, default to 1 minute from now
           : 0; // 0 means start immediately on first bid/purchase
       
@@ -968,7 +975,7 @@ export default function CreateAuctionClient() {
       const MAX_UINT48 = 281474976710655;
       const SAFE_DURATION_100_YEARS = 3153600000; // 100 years in seconds
       
-      if (formData.listingType === "FIXED_PRICE" && !formData.endTime) {
+      if (effectiveFormData.listingType === "FIXED_PRICE" && !effectiveFormData.endTime) {
         // For FIXED_PRICE with no end time specified:
         // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
         // that gets added to block.timestamp on first purchase.
@@ -981,8 +988,8 @@ export default function CreateAuctionClient() {
           // Absolute timestamp - max uint48 means "never expires"
           endTime = MAX_UINT48;
         }
-      } else if (formData.endTime) {
-        endTime = Math.floor(new Date(formData.endTime).getTime() / 1000);
+      } else if (effectiveFormData.endTime) {
+        endTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
       } else {
         // For other listing types without endTime, use a safe duration
         if (startTime === 0) {
@@ -1002,7 +1009,7 @@ export default function CreateAuctionClient() {
       }
 
       // Validate endTime based on listing type and startTime
-      if (formData.listingType === "FIXED_PRICE") {
+      if (effectiveFormData.listingType === "FIXED_PRICE") {
         // FIXED_PRICE: endTime can be max uint48 (never expires) or a future timestamp
         if (endTime !== 281474976710655 && endTime <= now) {
           alert("End time must be in the future");
@@ -1034,7 +1041,7 @@ export default function CreateAuctionClient() {
       }
 
       // Validate listing type specific requirements
-      if (formData.listingType === "OFFERS_ONLY" && startTime <= now) {
+      if (effectiveFormData.listingType === "OFFERS_ONLY" && startTime <= now) {
         alert("Start time must be in the future for offers-only listings");
         setIsSubmitting(false);
         return;
@@ -1049,18 +1056,23 @@ export default function CreateAuctionClient() {
       let extensionInterval: number;
       let minIncrementBPS: number;
 
-      if (formData.listingType === "INDIVIDUAL_AUCTION") {
+      // Debug: Log the listing type being used
+      console.log('[CreateListing] Creating listing with type:', effectiveFormData.listingType, '→', 
+        effectiveFormData.listingType === "INDIVIDUAL_AUCTION" ? 1 : 
+        effectiveFormData.listingType === "FIXED_PRICE" ? 2 : 4);
+
+      if (effectiveFormData.listingType === "INDIVIDUAL_AUCTION") {
         listingType = 1;
-        initialAmount = parseEther(formData.reservePrice);
+        initialAmount = parseEther(effectiveFormData.reservePrice);
         totalAvailable = 1;
         totalPerSale = 1;
         extensionInterval = 0;
-        minIncrementBPS = parseInt(formData.minIncrementBPS);
-      } else if (formData.listingType === "FIXED_PRICE") {
+        minIncrementBPS = parseInt(effectiveFormData.minIncrementBPS);
+      } else if (effectiveFormData.listingType === "FIXED_PRICE") {
         listingType = 2;
-        initialAmount = parseEther(formData.fixedPrice);
-        totalAvailable = parseInt(formData.totalAvailable);
-        totalPerSale = parseInt(formData.totalPerSale);
+        initialAmount = parseEther(effectiveFormData.fixedPrice);
+        totalAvailable = parseInt(effectiveFormData.totalAvailable);
+        totalPerSale = parseInt(effectiveFormData.totalPerSale);
         extensionInterval = 0; // Must be 0 for FIXED_PRICE
         minIncrementBPS = 0; // Must be 0 for FIXED_PRICE
         
@@ -1090,8 +1102,8 @@ export default function CreateAuctionClient() {
       }
 
       // Determine ERC20 address (zero address for ETH)
-      const erc20Address = formData.paymentType === "ERC20" && formData.erc20Address
-        ? formData.erc20Address as Address
+      const erc20Address = effectiveFormData.paymentType === "ERC20" && effectiveFormData.erc20Address
+        ? effectiveFormData.erc20Address as Address
         : zeroAddress;
 
       // Prepare listing details
