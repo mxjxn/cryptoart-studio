@@ -5,7 +5,7 @@ import { CHAIN_ID } from '~/lib/contracts/marketplace';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
-import { normalizeListingType } from '~/lib/server/auction';
+import { normalizeListingType, normalizeTokenSpec } from '~/lib/server/auction';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 
 const getSubgraphEndpoint = (): string => {
@@ -184,9 +184,25 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     }
   }
 
+  // Normalize listing type and token spec for consistent handling
+  const normalizedListingType = normalizeListingType(listing.listingType, listing);
+  const normalizedTokenSpec = normalizeTokenSpec(listing.tokenSpec);
+  
+  // Debug logging for listing type and token spec normalization
+  console.log(`[fetchAuctionData] Listing ${listingId} normalization:`, {
+    rawListingType: listing.listingType,
+    rawListingTypeType: typeof listing.listingType,
+    normalizedListingType,
+    rawTokenSpec: listing.tokenSpec,
+    rawTokenSpecType: typeof listing.tokenSpec,
+    normalizedTokenSpec,
+    lazy: listing.lazy,
+  });
+
   const enriched: EnrichedAuctionData = {
     ...listing,
-    listingType: normalizeListingType(listing.listingType, listing),
+    listingType: normalizedListingType,
+    tokenSpec: normalizedTokenSpec,
     bidCount,
     highestBid: highestBid ? {
       amount: highestBid.amount,

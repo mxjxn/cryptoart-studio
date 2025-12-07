@@ -961,7 +961,13 @@ export default function CreateAuctionClient() {
           : 0; // 0 means start immediately on first bid/purchase
       
       // Handle endTime based on listing type
+      // CRITICAL: When startTime is 0 (starts on first interaction), the contract adds
+      // block.timestamp to endTime. If endTime is max uint48, this causes an overflow!
+      // So we must use a duration (like 100 years) instead of max uint48 when startTime is 0.
       let endTime: number;
+      const MAX_UINT48 = 281474976710655;
+      const SAFE_DURATION_100_YEARS = 3153600000; // 100 years in seconds
+      
       if (formData.listingType === "FIXED_PRICE" && !formData.endTime) {
         // For FIXED_PRICE with no end time specified:
         // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
@@ -969,16 +975,30 @@ export default function CreateAuctionClient() {
         // Using max uint48 would cause overflow, so use 100 years instead.
         // If startTime is set, endTime is an absolute timestamp, so max uint48 is fine.
         if (startTime === 0) {
-          // 100 years in seconds = 3,153,600,000 (safe duration that won't overflow)
-          endTime = 3153600000;
+          endTime = SAFE_DURATION_100_YEARS;
+          console.log('[CreateListing] Using safe duration (100 years) for open-ended FIXED_PRICE with startTime=0');
         } else {
           // Absolute timestamp - max uint48 means "never expires"
-          endTime = 281474976710655; // type(uint48).max
+          endTime = MAX_UINT48;
         }
       } else if (formData.endTime) {
         endTime = Math.floor(new Date(formData.endTime).getTime() / 1000);
       } else {
-        endTime = 0;
+        // For other listing types without endTime, use a safe duration
+        if (startTime === 0) {
+          // IMPORTANT: If startTime is 0, endTime becomes a duration added to block.timestamp
+          // Use 100 years as a safe "never expires" equivalent
+          endTime = SAFE_DURATION_100_YEARS;
+          console.log('[CreateListing] Using safe duration (100 years) for listing with startTime=0');
+        } else {
+          endTime = 0;
+        }
+      }
+      
+      // Safety check: Prevent the dangerous combination that causes contract overflow
+      if (startTime === 0 && endTime === MAX_UINT48) {
+        console.error('[CreateListing] CRITICAL: Preventing overflow - startTime=0 with endTime=max uint48');
+        endTime = SAFE_DURATION_100_YEARS;
       }
 
       // Validate endTime based on listing type and startTime

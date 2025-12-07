@@ -19,7 +19,7 @@ import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address, isAddress } from "viem";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
@@ -449,6 +449,18 @@ export default function AuctionDetailClient({
 
       const purchaseValue = isPaymentETH ? totalPrice : BigInt(0);
 
+      // DEBUG: Log referrer state
+      console.log('[Purchase] Referrer debug:', {
+        referrer,
+        referrerType: typeof referrer,
+        referrerIsNull: referrer === null,
+        referrerIsUndefined: referrer === undefined,
+        referrerBPS,
+        searchParamsRef: searchParams.get('ref'),
+        listingId,
+        purchaseQuantity,
+      });
+
       // Simulate transaction first to catch errors
       try {
         console.log('[Purchase] Simulating transaction for listing', listingId, {
@@ -456,6 +468,7 @@ export default function AuctionDetailClient({
           totalPrice: totalPrice.toString(),
           isPaymentETH,
           referrer: referrer || null,
+          referrerBPS,
           auctionData: {
             totalAvailable: auction.totalAvailable,
             totalSold: auction.totalSold,
@@ -471,25 +484,36 @@ export default function AuctionDetailClient({
         // When referrer exists, we need to call the 3-param version: purchase(referrer, listingId, count)
         // When no referrer, call the 2-param version: purchase(listingId, count)
         if (referrer) {
+          console.log('[Purchase] Using 3-param version with referrer:', {
+            referrer,
+            listingId: Number(listingId),
+            purchaseQuantity,
+            args: [referrer, Number(listingId), purchaseQuantity],
+          });
           // Call purchase(referrer, listingId, count) - 3 params
-          // Type assertion needed because wagmi has trouble with overload resolution
-          // when first param is address vs uint40
+          // Use split ABI to force correct function signature
           await publicClient.simulateContract({
             account: address,
             address: MARKETPLACE_ADDRESS,
-            abi: MARKETPLACE_ABI,
+            abi: PURCHASE_ABI_WITH_REFERRER,
             functionName: 'purchase',
-            args: [referrer, Number(listingId), purchaseQuantity] as readonly [Address, number, number],
+            args: [referrer, Number(listingId), purchaseQuantity],
             value: purchaseValue,
           });
         } else {
+          console.log('[Purchase] Using 2-param version without referrer:', {
+            listingId: Number(listingId),
+            purchaseQuantity,
+            args: [Number(listingId), purchaseQuantity],
+          });
           // Call purchase(listingId, count) - 2 params
+          // Use split ABI to force correct function signature
           await publicClient.simulateContract({
             account: address,
             address: MARKETPLACE_ADDRESS,
-            abi: MARKETPLACE_ABI,
+            abi: PURCHASE_ABI_NO_REFERRER,
             functionName: 'purchase',
-            args: [Number(listingId), purchaseQuantity] as readonly [number, number],
+            args: [Number(listingId), purchaseQuantity],
             value: purchaseValue,
           });
         }
@@ -579,25 +603,44 @@ export default function AuctionDetailClient({
 
       // Purchase with correct value (0 for ERC20, totalPrice for ETH)
       // Pass referrer if available and listing supports referrers
-      // Use explicit function selection to avoid overload resolution issues
+      // Use split ABI to force correct function signature
+      console.log('[Purchase] Executing purchase transaction:', {
+        hasReferrer: !!referrer,
+        referrer,
+        listingId: Number(listingId),
+        purchaseQuantity,
+        purchaseValue: purchaseValue.toString(),
+      });
+      
       if (referrer) {
         // Call purchase(referrer, listingId, count) - 3 params
-        // Type assertion needed because wagmi has trouble with overload resolution
-        // when first param is address vs uint40
+        // Use split ABI to force correct function signature
+        console.log('[Purchase] Calling with referrer ABI (3 params):', {
+          referrer,
+          listingId: Number(listingId),
+          purchaseQuantity,
+          args: [referrer, Number(listingId), purchaseQuantity],
+        });
         await purchaseListing({
           address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
+          abi: PURCHASE_ABI_WITH_REFERRER,
           functionName: 'purchase',
-          args: [referrer, Number(listingId), purchaseQuantity] as readonly [Address, number, number],
+          args: [referrer, Number(listingId), purchaseQuantity],
           value: purchaseValue,
         });
       } else {
         // Call purchase(listingId, count) - 2 params
+        // Use split ABI to force correct function signature
+        console.log('[Purchase] Calling without referrer ABI (2 params):', {
+          listingId: Number(listingId),
+          purchaseQuantity,
+          args: [Number(listingId), purchaseQuantity],
+        });
         await purchaseListing({
           address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
+          abi: PURCHASE_ABI_NO_REFERRER,
           functionName: 'purchase',
-          args: [Number(listingId), purchaseQuantity] as readonly [number, number],
+          args: [Number(listingId), purchaseQuantity],
           value: purchaseValue,
         });
       }
@@ -619,25 +662,32 @@ export default function AuctionDetailClient({
             const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
             
             // Pass referrer if available and listing supports referrers
-            // Use explicit function selection to avoid overload resolution issues
+            // Use split ABI to force correct function signature
+            console.log('[Purchase] Post-approval purchase:', {
+              hasReferrer: !!referrer,
+              referrer,
+              listingId: Number(listingId),
+              purchaseQuantity,
+            });
+            
             if (referrer) {
               // Call purchase(referrer, listingId, count) - 3 params
-              // Type assertion needed because wagmi has trouble with overload resolution
-              // when first param is address vs uint40
+              // Use split ABI to force correct function signature
               purchaseListing({
                 address: MARKETPLACE_ADDRESS,
-                abi: MARKETPLACE_ABI,
+                abi: PURCHASE_ABI_WITH_REFERRER,
                 functionName: 'purchase',
-                args: [referrer, Number(listingId), purchaseQuantity] as readonly [Address, number, number],
+                args: [referrer, Number(listingId), purchaseQuantity],
                 value: BigInt(0),
               });
             } else {
               // Call purchase(listingId, count) - 2 params
+              // Use split ABI to force correct function signature
               purchaseListing({
                 address: MARKETPLACE_ADDRESS,
-                abi: MARKETPLACE_ABI,
+                abi: PURCHASE_ABI_NO_REFERRER,
                 functionName: 'purchase',
-                args: [Number(listingId), purchaseQuantity] as readonly [number, number],
+                args: [Number(listingId), purchaseQuantity],
                 value: BigInt(0),
               });
             }

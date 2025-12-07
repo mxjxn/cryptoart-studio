@@ -115,14 +115,19 @@ const LAST_ACTIVE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Normalize listingType to ensure correct string format
- * Handles both number and string inputs, and corrects buggy mappings from old subgraph version
+ * Handles both number and string inputs from the subgraph
  * 
- * Old subgraph bug mapping:
- * - 0 (INVALID) -> "INDIVIDUAL_AUCTION" (should be "INVALID")
- * - 1 (INDIVIDUAL_AUCTION) -> "FIXED_PRICE" (should be "INDIVIDUAL_AUCTION")
- * - 2 (FIXED_PRICE) -> "DYNAMIC_PRICE" (should be "FIXED_PRICE")
- * - 3 (DYNAMIC_PRICE) -> "UNKNOWN" (should be "DYNAMIC_PRICE")
- * - 4 (OFFERS_ONLY) -> "UNKNOWN" (should be "OFFERS_ONLY")
+ * Contract/Subgraph enum values:
+ * - 0 = INVALID (should never happen, fallback to INDIVIDUAL_AUCTION)
+ * - 1 = INDIVIDUAL_AUCTION (timed auction with bids)
+ * - 2 = FIXED_PRICE (buy now at set price)
+ * - 3 = DYNAMIC_PRICE (price changes over time, must be lazy)
+ * - 4 = OFFERS_ONLY (accepts offers only)
+ * 
+ * The subgraph stores listingType as Int, but GraphQL may return it as:
+ * - number: 2
+ * - string number: "2"
+ * - string name: "FIXED_PRICE"
  * 
  * We can detect buggy "DYNAMIC_PRICE" entries because:
  * - DYNAMIC_PRICE listings MUST be lazy (per contract requirements)
@@ -132,9 +137,9 @@ export function normalizeListingType(
   listingType: string | number | undefined,
   listing?: { lazy?: boolean }
 ): "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY" {
-  // Handle number input (from subgraph that stores as Int)
-  if (typeof listingType === 'number') {
-    switch (listingType) {
+  // Type mapping from numeric values
+  const typeFromNumber = (num: number): "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY" => {
+    switch (num) {
       case 0: return "INDIVIDUAL_AUCTION"; // INVALID maps to INDIVIDUAL_AUCTION as fallback
       case 1: return "INDIVIDUAL_AUCTION";
       case 2: return "FIXED_PRICE";
@@ -142,25 +147,103 @@ export function normalizeListingType(
       case 4: return "OFFERS_ONLY";
       default: return "INDIVIDUAL_AUCTION";
     }
+  };
+
+  // Handle number input directly
+  if (typeof listingType === 'number') {
+    const result = typeFromNumber(listingType);
+    // Fix buggy DYNAMIC_PRICE: if not lazy, it's likely a FIXED_PRICE
+    if (result === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
+      return "FIXED_PRICE";
+    }
+    return result;
   }
   
-  // Handle string input
-  const typeStr = String(listingType || "").toUpperCase();
+  // Handle string input - could be a numeric string or a type name
+  const typeStr = String(listingType || "").trim();
+  
+  // First, check if it's a numeric string (e.g., "2")
+  const numericValue = parseInt(typeStr, 10);
+  if (!isNaN(numericValue) && String(numericValue) === typeStr) {
+    const result = typeFromNumber(numericValue);
+    // Fix buggy DYNAMIC_PRICE: if not lazy, it's likely a FIXED_PRICE
+    if (result === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
+      return "FIXED_PRICE";
+    }
+    return result;
+  }
+  
+  // Handle string type names
+  const upperTypeStr = typeStr.toUpperCase();
   
   // Fix buggy "DYNAMIC_PRICE" mapping: if it's marked as DYNAMIC_PRICE but not lazy,
   // it's likely a buggy FIXED_PRICE (type 2 was incorrectly mapped to DYNAMIC_PRICE)
-  if (typeStr === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
+  if (upperTypeStr === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
     return "FIXED_PRICE";
   }
   
   // Validate and return correct type
-  if (typeStr === "INDIVIDUAL_AUCTION" || typeStr === "FIXED_PRICE" || 
-      typeStr === "DYNAMIC_PRICE" || typeStr === "OFFERS_ONLY") {
-    return typeStr as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
+  if (upperTypeStr === "INDIVIDUAL_AUCTION" || upperTypeStr === "FIXED_PRICE" || 
+      upperTypeStr === "DYNAMIC_PRICE" || upperTypeStr === "OFFERS_ONLY") {
+    return upperTypeStr as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
   }
   
   // Default fallback
+  console.warn(`[normalizeListingType] Unknown listingType: "${listingType}" (type: ${typeof listingType}), defaulting to INDIVIDUAL_AUCTION`);
   return "INDIVIDUAL_AUCTION";
+}
+
+/**
+ * Normalize tokenSpec to ensure correct string format
+ * Handles both number and string inputs from the subgraph
+ * 
+ * Contract/Subgraph enum values:
+ * - 0 = NONE (invalid, fallback to ERC721)
+ * - 1 = ERC721
+ * - 2 = ERC1155
+ * 
+ * The subgraph stores tokenSpec as Int, but GraphQL may return it as:
+ * - number: 1 or 2
+ * - string number: "1" or "2"
+ * - string name: "ERC721" or "ERC1155"
+ */
+export function normalizeTokenSpec(
+  tokenSpec: string | number | undefined
+): "ERC721" | "ERC1155" {
+  // Type mapping from numeric values
+  const specFromNumber = (num: number): "ERC721" | "ERC1155" => {
+    switch (num) {
+      case 0: return "ERC721"; // NONE/invalid fallback to ERC721
+      case 1: return "ERC721";
+      case 2: return "ERC1155";
+      default: return "ERC721";
+    }
+  };
+
+  // Handle number input directly
+  if (typeof tokenSpec === 'number') {
+    return specFromNumber(tokenSpec);
+  }
+  
+  // Handle string input - could be a numeric string or a spec name
+  const specStr = String(tokenSpec || "").trim();
+  
+  // First, check if it's a numeric string (e.g., "2")
+  const numericValue = parseInt(specStr, 10);
+  if (!isNaN(numericValue) && String(numericValue) === specStr) {
+    return specFromNumber(numericValue);
+  }
+  
+  // Handle string spec names
+  const upperSpecStr = specStr.toUpperCase();
+  
+  if (upperSpecStr === "ERC721" || upperSpecStr === "ERC1155") {
+    return upperSpecStr as "ERC721" | "ERC1155";
+  }
+  
+  // Default fallback
+  console.warn(`[normalizeTokenSpec] Unknown tokenSpec: "${tokenSpec}" (type: ${typeof tokenSpec}), defaulting to ERC721`);
+  return "ERC721";
 }
 
 /**
@@ -222,9 +305,21 @@ export async function getAuctionServer(
       console.warn(`[OG Image] [getAuctionServer] No tokenAddress or tokenId, skipping metadata fetch`);
     }
 
+    // Normalize listing type and token spec for consistent handling
+    const normalizedListingType = normalizeListingType(listing.listingType, listing);
+    const normalizedTokenSpec = normalizeTokenSpec(listing.tokenSpec);
+    
+    console.log(`[OG Image] [getAuctionServer] Listing ${listingId} normalization:`, {
+      rawListingType: listing.listingType,
+      normalizedListingType,
+      rawTokenSpec: listing.tokenSpec,
+      normalizedTokenSpec,
+    });
+
     const enriched: EnrichedAuctionData = {
       ...listing,
-      listingType: normalizeListingType(listing.listingType, listing),
+      listingType: normalizedListingType,
+      tokenSpec: normalizedTokenSpec,
       bidCount,
       highestBid: highestBid
         ? {
@@ -376,6 +471,7 @@ async function fetchActiveAuctions(
         const enriched: EnrichedAuctionData = {
           ...listing,
           listingType: normalizeListingType(listing.listingType, listing),
+          tokenSpec: normalizeTokenSpec(listing.tokenSpec),
           bidCount,
           highestBid: highestBid ? {
             amount: highestBid.amount,

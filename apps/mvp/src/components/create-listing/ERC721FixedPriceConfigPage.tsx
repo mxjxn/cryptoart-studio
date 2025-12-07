@@ -183,7 +183,12 @@ export function ERC721FixedPriceConfigPage({
               onChange={() => setUseTimeframe(false)}
               className="w-4 h-4 text-white bg-black border-[#333333]"
             />
-            <span className="text-sm text-white">Available until sold</span>
+            <div>
+              <span className="text-sm text-white">Available until sold</span>
+              <p className="text-xs text-[#666666] mt-0.5">
+                Listing starts immediately and remains active until sold
+              </p>
+            </div>
           </label>
         </div>
 

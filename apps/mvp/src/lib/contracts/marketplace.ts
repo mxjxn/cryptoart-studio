@@ -8,6 +8,36 @@ export const MARKETPLACE_ADDRESS = (process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS 
 // Base Mainnet chain ID
 export const CHAIN_ID = base.id; // 8453
 
+// Split ABI for purchase function to avoid overload resolution issues
+// ABI for purchase(listingId, count) - 2 params, no referrer
+export const PURCHASE_ABI_NO_REFERRER = [
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+] as const;
+
+// ABI for purchase(referrer, listingId, count) - 3 params, with referrer
+export const PURCHASE_ABI_WITH_REFERRER = [
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'referrer', type: 'address', internalType: 'address' },
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+] as const;
+
 // ABI for the functions we need from IMarketplaceCore
 export const MARKETPLACE_ABI = [
   {

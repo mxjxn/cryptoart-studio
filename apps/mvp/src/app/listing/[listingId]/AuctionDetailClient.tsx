@@ -23,7 +23,7 @@ import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
 import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
@@ -337,13 +337,32 @@ export default function AuctionDetailClient({
         }
       }
 
+      const purchaseValue = isPaymentETH ? totalPrice : BigInt(0);
+
+      // Log purchase attempt for debugging
+      console.log('[Purchase] Executing purchase:', {
+        listingId: Number(listingId),
+        purchaseQuantity,
+        purchaseValue: purchaseValue.toString(),
+        totalPrice: totalPrice.toString(),
+        isPaymentETH,
+        auctionData: {
+          listingType: auction.listingType,
+          tokenSpec: auction.tokenSpec,
+          totalAvailable: auction.totalAvailable,
+          totalSold: auction.totalSold,
+          totalPerSale: auction.totalPerSale,
+        },
+      });
+
       // Purchase with correct value (0 for ERC20, totalPrice for ETH)
+      // Use the 2-param purchase function (no referrer)
       await purchaseListing({
         address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
+        abi: PURCHASE_ABI_NO_REFERRER,
         functionName: 'purchase',
         args: [Number(listingId), purchaseQuantity],
-        value: isPaymentETH ? totalPrice : BigInt(0),
+        value: purchaseValue,
       });
     } catch (err) {
       console.error("Error purchasing:", err);
@@ -361,9 +380,16 @@ export default function AuctionDetailClient({
             const price = auction.currentPrice || auction.initialAmount;
             const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
             
+            console.log('[Purchase] Executing post-approval purchase:', {
+              listingId: Number(listingId),
+              purchaseQuantity,
+              totalPrice: totalPrice.toString(),
+            });
+            
+            // Use the 2-param purchase function (no referrer)
             purchaseListing({
               address: MARKETPLACE_ADDRESS,
-              abi: MARKETPLACE_ABI,
+              abi: PURCHASE_ABI_NO_REFERRER,
               functionName: 'purchase',
               args: [Number(listingId), purchaseQuantity],
               value: BigInt(0),

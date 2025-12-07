@@ -211,7 +211,12 @@ export function ERC1155ConfigPage({
               onChange={() => setUseTimeframe(false)}
               className="w-4 h-4 text-white bg-black border-[#333333]"
             />
-            <span className="text-sm text-white">No timeframe - open until sold out</span>
+            <div>
+              <span className="text-sm text-white">No timeframe - open until sold out</span>
+              <p className="text-xs text-[#666666] mt-0.5">
+                Listing starts immediately and remains active for ~100 years or until all copies are sold
+              </p>
+            </div>
           </label>
         </div>
 
