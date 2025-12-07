@@ -6,10 +6,13 @@ import { getDatabase, userCache, contractCache, imageCache, notifications, lt, a
  * Vercel Cron Job endpoint for cleaning up expired cache entries
  * 
  * This cron job prevents unbounded table growth by removing:
- * - Expired user cache entries (older than 30 days)
- * - Expired contract cache entries (older than 30 days)
- * - Expired image cache entries (older than 3 days)
- * - Old read notifications (older than 90 days)
+ * - Expired user cache entries (expiresAt is set to 30 days from cachedAt)
+ * - Expired contract cache entries (expiresAt is set to 30 days from cachedAt)
+ * - Expired image cache entries (expiresAt is set to 3 days from cachedAt)
+ * - Old read notifications (older than 90 days from createdAt)
+ * 
+ * Note: The expiresAt timestamps are set when cache entries are created,
+ * so this job simply deletes entries where expiresAt < NOW()
  * 
  * Expected Impact: Prevents disk IO from growing unbounded over time
  * Recommended Schedule: Daily (configure in vercel.json)
@@ -31,7 +34,9 @@ export async function GET(req: NextRequest) {
     const startTime = Date.now();
     const results: Record<string, number> = {};
 
-    // 1. Clean up expired user cache entries (older than expiration date)
+    // 1. Clean up expired user cache entries
+    // These entries have an expiresAt timestamp set when created (30 days from cachedAt)
+    // We delete entries where expiresAt < NOW()
     try {
       const deletedUsers = await db
         .delete(userCache)
@@ -46,6 +51,8 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Clean up expired contract cache entries
+    // These entries have an expiresAt timestamp set when created (30 days from cachedAt)
+    // We delete entries where expiresAt < NOW()
     try {
       const deletedContracts = await db
         .delete(contractCache)
@@ -60,6 +67,8 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Clean up expired image cache entries
+    // These entries have an expiresAt timestamp set when created (3 days from cachedAt)
+    // We delete entries where expiresAt < NOW()
     try {
       const deletedImages = await db
         .delete(imageCache)

@@ -11,11 +11,11 @@
 CREATE INDEX IF NOT EXISTS "notifications_user_read_created_idx" ON "notifications" USING btree ("user_address", "read", "created_at" DESC);
 
 -- User Cache: Common query is checking expired entries for cleanup
--- This composite index covers: WHERE expires_at < NOW() for cleanup queries
-CREATE INDEX IF NOT EXISTS "user_cache_expired_cleanup_idx" ON "user_cache" USING btree ("expires_at") WHERE "expires_at" < NOW();
+-- This index covers: WHERE expires_at < NOW() for cleanup queries
+CREATE INDEX IF NOT EXISTS "user_cache_expired_cleanup_idx" ON "user_cache" USING btree ("expires_at");
 
 -- Contract Cache: Common query is checking expired entries for cleanup
-CREATE INDEX IF NOT EXISTS "contract_cache_expired_cleanup_idx" ON "contract_cache" USING btree ("expires_at") WHERE "expires_at" < NOW();
+CREATE INDEX IF NOT EXISTS "contract_cache_expired_cleanup_idx" ON "contract_cache" USING btree ("expires_at");
 
 -- Follows: Common queries are follower/following lookups with ordering
 -- These composite indexes cover joins and sorting in followers/following queries
