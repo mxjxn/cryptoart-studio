@@ -48,17 +48,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     // Get NFTs owned by the address from the specific contract
+    // Metadata is included by default in getNftsForOwner
     const response = await alchemy.nft.getNftsForOwner(owner, {
       contractAddresses: [contractAddress],
-      withMetadata: true,
     });
 
     // Format the NFTs for the response
     const nfts = response.ownedNfts.map((nft) => ({
       tokenId: nft.tokenId,
-      name: nft.name || nft.title || `Token #${nft.tokenId}`,
+      name: nft.name || `Token #${nft.tokenId}`,
       image: nft.image?.originalUrl || nft.image?.pngUrl || nft.image?.cachedUrl || null,
-      animationUrl: nft.media?.[0]?.gateway || nft.media?.[0]?.raw || nft.raw?.metadata?.animation_url || null,
+      animationUrl: nft.raw?.metadata?.animation_url || null,
       animationFormat: nft.raw?.metadata?.animation_details?.format || null,
       description: nft.description || null,
     }));

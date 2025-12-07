@@ -924,7 +924,7 @@ export default function AuctionDetailClient({
           return auction.image && (!animUrl || mediaType === 'image');
         })() && (
           <ImageOverlay
-            src={auction.image}
+            src={auction.image!}
             alt={title}
             isOpen={isImageOverlayOpen}
             onClose={() => setIsImageOverlayOpen(false)}
