@@ -213,6 +213,15 @@ export const MARKETPLACE_ABI = [
     name: 'purchase',
     inputs: [
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
       { name: 'count', type: 'uint24', internalType: 'uint24' },
     ],
     outputs: [],

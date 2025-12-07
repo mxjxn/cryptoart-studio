@@ -467,22 +467,29 @@ export default function AuctionDetailClient({
         });
 
         // Simulate with correct args based on whether referrer exists
+        // Use explicit function selection to avoid overload resolution issues
+        // When referrer exists, we need to call the 3-param version: purchase(referrer, listingId, count)
+        // When no referrer, call the 2-param version: purchase(listingId, count)
         if (referrer) {
+          // Call purchase(referrer, listingId, count) - 3 params
+          // Type assertion needed because wagmi has trouble with overload resolution
+          // when first param is address vs uint40
           await publicClient.simulateContract({
             account: address,
             address: MARKETPLACE_ADDRESS,
             abi: MARKETPLACE_ABI,
             functionName: 'purchase',
-            args: [referrer, Number(listingId), purchaseQuantity] as const,
+            args: [referrer, Number(listingId), purchaseQuantity] as readonly [Address, number, number],
             value: purchaseValue,
           });
         } else {
+          // Call purchase(listingId, count) - 2 params
           await publicClient.simulateContract({
             account: address,
             address: MARKETPLACE_ADDRESS,
             abi: MARKETPLACE_ABI,
             functionName: 'purchase',
-            args: [Number(listingId), purchaseQuantity] as const,
+            args: [Number(listingId), purchaseQuantity] as readonly [number, number],
             value: purchaseValue,
           });
         }
@@ -572,20 +579,25 @@ export default function AuctionDetailClient({
 
       // Purchase with correct value (0 for ERC20, totalPrice for ETH)
       // Pass referrer if available and listing supports referrers
+      // Use explicit function selection to avoid overload resolution issues
       if (referrer) {
+        // Call purchase(referrer, listingId, count) - 3 params
+        // Type assertion needed because wagmi has trouble with overload resolution
+        // when first param is address vs uint40
         await purchaseListing({
           address: MARKETPLACE_ADDRESS,
           abi: MARKETPLACE_ABI,
           functionName: 'purchase',
-          args: [referrer, Number(listingId), purchaseQuantity] as const,
+          args: [referrer, Number(listingId), purchaseQuantity] as readonly [Address, number, number],
           value: purchaseValue,
         });
       } else {
+        // Call purchase(listingId, count) - 2 params
         await purchaseListing({
           address: MARKETPLACE_ADDRESS,
           abi: MARKETPLACE_ABI,
           functionName: 'purchase',
-          args: [Number(listingId), purchaseQuantity] as const,
+          args: [Number(listingId), purchaseQuantity] as readonly [number, number],
           value: purchaseValue,
         });
       }
@@ -607,20 +619,25 @@ export default function AuctionDetailClient({
             const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
             
             // Pass referrer if available and listing supports referrers
+            // Use explicit function selection to avoid overload resolution issues
             if (referrer) {
+              // Call purchase(referrer, listingId, count) - 3 params
+              // Type assertion needed because wagmi has trouble with overload resolution
+              // when first param is address vs uint40
               purchaseListing({
                 address: MARKETPLACE_ADDRESS,
                 abi: MARKETPLACE_ABI,
                 functionName: 'purchase',
-                args: [referrer, Number(listingId), purchaseQuantity] as const,
+                args: [referrer, Number(listingId), purchaseQuantity] as readonly [Address, number, number],
                 value: BigInt(0),
               });
             } else {
+              // Call purchase(listingId, count) - 2 params
               purchaseListing({
                 address: MARKETPLACE_ADDRESS,
                 abi: MARKETPLACE_ABI,
                 functionName: 'purchase',
-                args: [Number(listingId), purchaseQuantity] as const,
+                args: [Number(listingId), purchaseQuantity] as readonly [number, number],
                 value: BigInt(0),
               });
             }
