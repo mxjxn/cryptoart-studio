@@ -1,5 +1,6 @@
 export { 
-  getDatabase, 
+  getDatabase,
+  resetDatabaseConnection,
   userCache, 
   contractCache,
   notifications,

@@ -1,4 +1,4 @@
-import { getDatabase, contractCache, eq, and, gte } from "@cryptoart/db";
+import { getDatabase, contractCache, eq, and, gte, resetDatabaseConnection } from "@cryptoart/db";
 import type { ContractCacheData } from "@cryptoart/db";
 
 /**
@@ -50,7 +50,45 @@ export async function getCachedContracts(
         return a.name.localeCompare(b.name);
       });
   } catch (error) {
-    console.error(`[getCachedContracts] Database error:`, error instanceof Error ? error.message : String(error));
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[getCachedContracts] Database error:`, errorMessage);
+    
+    // If connection is closed, reset it and retry once
+    if (errorMessage.includes('CONNECTION_CLOSED') || errorMessage.includes('connection closed')) {
+      try {
+        resetDatabaseConnection();
+        const db = getDatabase();
+        const now = new Date();
+        
+        const cached = await db
+          .select()
+          .from(contractCache)
+          .where(
+            and(
+              eq(contractCache.creatorAddress, normalizedAddress),
+              gte(contractCache.expiresAt, now),
+            )
+          );
+        
+        return cached
+          .filter((c) => c.tokenType)
+          .map((c) => ({
+            address: c.contractAddress,
+            name: c.name || null,
+            tokenType: c.tokenType || "ERC721",
+          }))
+          .sort((a, b) => {
+            if (!a.name && !b.name) return 0;
+            if (!a.name) return 1;
+            if (!b.name) return -1;
+            return a.name.localeCompare(b.name);
+          });
+      } catch (retryError) {
+        console.error(`[getCachedContracts] Retry failed:`, retryError instanceof Error ? retryError.message : String(retryError));
+        return [];
+      }
+    }
+    
     return [];
   }
 }
