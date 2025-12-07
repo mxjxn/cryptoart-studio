@@ -275,6 +275,14 @@ async function sendBatchedPushNotification(
     const result = await response.json();
     console.log(`[neynar-notifications] Batched notification sent to ${fids.length} FIDs:`, result);
     
+    // Check if notifications were actually delivered
+    const deliveredCount = result.notification_deliveries?.length || 0;
+    if (deliveredCount === 0) {
+      console.warn(`[neynar-notifications] No notifications delivered. Users may not have added the app or enabled notifications.`);
+    } else {
+      console.log(`[neynar-notifications] Successfully delivered ${deliveredCount} notification(s)`);
+    }
+    
     // Record push sent for rate limiting (only on success)
     for (const fid of fids) {
       recordPushSent(fid);

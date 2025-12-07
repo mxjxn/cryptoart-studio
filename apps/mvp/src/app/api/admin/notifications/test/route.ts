@@ -92,6 +92,10 @@ export async function POST(req: NextRequest) {
           targetUrl: `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/notifications`,
         }
       );
+      
+      // Note: With Neynar, we can't check delivery status from this endpoint
+      // If notification_deliveries is empty, it means the user hasn't added the app
+      // or hasn't enabled notifications. This is expected for testing.
     } else {
       // Self-hosting - need to look up token from database
       const { getDatabase, notificationTokens, eq } = await import('@cryptoart/db');
@@ -162,10 +166,16 @@ export async function POST(req: NextRequest) {
 
     console.log(`[test notification] Sent test notification to FID ${fid} by admin ${adminAddress}`);
     
+    // Return success with a note about delivery
     return NextResponse.json({ 
       success: true,
-      message: 'Test notification sent successfully',
+      message: neynarEnabled 
+        ? 'Test notification sent to Neynar API. If the user has added the app and enabled notifications, they will receive it.'
+        : 'Test notification sent successfully',
       fid,
+      note: neynarEnabled 
+        ? 'Note: If notification_deliveries is empty in logs, the user may not have added the mini app or enabled notifications yet.'
+        : undefined,
     });
   } catch (error) {
     console.error('[test notification] Error sending test notification:', error);

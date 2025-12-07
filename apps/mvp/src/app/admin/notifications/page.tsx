@@ -85,6 +85,11 @@ export default function NotificationsAdminPage() {
   const queryClient = useQueryClient();
   const { address } = useAccount();
   
+  // All hooks must be called at the top, before any conditional returns
+  const [testFid, setTestFid] = useState<string>('');
+  const [testTitle, setTestTitle] = useState<string>('Test Notification');
+  const [testBody, setTestBody] = useState<string>('This is a test notification from the admin panel');
+  
   const { data: settings, isLoading } = useQuery({
     queryKey: ['admin', 'notification-settings'],
     queryFn: () => fetch(`/api/admin/notifications/settings?adminAddress=${address}`).then(r => r.json()),
@@ -101,14 +106,6 @@ export default function NotificationsAdminPage() {
     onSuccess: () => 
       queryClient.invalidateQueries({ queryKey: ['admin', 'notification-settings'] }),
   });
-  
-  if (isLoading) {
-    return <p className="text-[var(--color-secondary)]">Loading settings...</p>;
-  }
-  
-  const [testFid, setTestFid] = useState<string>('');
-  const [testTitle, setTestTitle] = useState<string>('Test Notification');
-  const [testBody, setTestBody] = useState<string>('This is a test notification from the admin panel');
   
   const sendTestNotification = useMutation({
     mutationFn: async () => {
@@ -145,6 +142,11 @@ export default function NotificationsAdminPage() {
       alert(`Error: ${error.message}`);
     },
   });
+  
+  // Early return after all hooks are declared
+  if (isLoading) {
+    return <p className="text-[var(--color-secondary)]">Loading settings...</p>;
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
