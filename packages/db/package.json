@@ -13,6 +13,7 @@
     "db:migrate-all": "tsx scripts/migrate-all.ts",
     "db:migrate-admin": "tsx scripts/migrate-admin-tables.ts",
     "db:migrate-allowlist": "tsx scripts/migrate-allowlist-signatures.ts",
+    "db:migrate-optimize-indexes": "tsx scripts/migrate-optimize-indexes.ts",
     
     "db:status": "tsx scripts/check-tables.ts",
     "db:check": "tsx scripts/check-migrations.ts",
@@ -23,7 +24,8 @@
     "db:create-thumbnail-cache": "tsx scripts/create-thumbnail-cache.ts",
     "db:create-follows-favorites": "tsx scripts/create-follows-favorites.ts",
     "db:add-contract-cache-columns": "tsx scripts/add-contract-cache-columns.ts",
-    "db:run-migration-0000": "tsx scripts/run-migration.ts"
+    "db:run-migration-0000": "tsx scripts/run-migration.ts",
+    "db:run-migration-0005": "tsx scripts/run-migration-0005.ts"
   },
   "dependencies": {
     "@vercel/postgres": "^0.8.0",
