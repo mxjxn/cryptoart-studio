@@ -547,68 +547,169 @@ export default function ProfileClient() {
             )}
             {activeTab === "contracts" && (
               <div>
-                {deployedContractsLoading ? (
+                {deployedContracts.length === 0 && !deployedContractsFetched ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <div className="h-8 w-8 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-[#999999]">Loading your deployed contracts...</p>
+                    <p className="text-[#999999] mb-4">No contracts loaded yet.</p>
+                    <button
+                      onClick={async () => {
+                        if (allVerifiedAddresses.length === 0) return;
+                        setDeployedContractsLoading(true);
+                        try {
+                          // Fetch contracts from all verified addresses (Base only)
+                          const contractPromises = allVerifiedAddresses.map((addr) =>
+                            fetch(`/api/contracts/deployed/${addr}`).then((res) => {
+                              if (res.ok) {
+                                return res.json().then((data) => data.contracts || []);
+                              }
+                              return [];
+                            })
+                          );
+                          
+                          const allContractsArrays = await Promise.all(contractPromises);
+                          const allContracts = allContractsArrays.flat();
+                          
+                          // Remove duplicates by address (case-insensitive)
+                          const uniqueContracts = Array.from(
+                            new Map(allContracts.map((contract) => [contract.address.toLowerCase(), contract])).values()
+                          );
+                          
+                          // Sort by name
+                          uniqueContracts.sort((a, b) => {
+                            if (!a.name && !b.name) return 0;
+                            if (!a.name) return 1;
+                            if (!b.name) return -1;
+                            return a.name.localeCompare(b.name);
+                          });
+                          
+                          setDeployedContracts(uniqueContracts);
+                          setDeployedContractsFetched(true);
+                        } catch (error) {
+                          console.error('Error fetching deployed contracts:', error);
+                          alert('Error fetching contracts. Please try again.');
+                        } finally {
+                          setDeployedContractsLoading(false);
+                        }
+                      }}
+                      className="px-6 py-3 bg-white text-black rounded-lg font-medium hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      disabled={deployedContractsLoading || allVerifiedAddresses.length === 0}
+                    >
+                      {deployedContractsLoading && (
+                        <div className="h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                      Fetch All Contracts I've Created
+                    </button>
                   </div>
-                ) : deployedContracts.length === 0 ? (
+                ) : deployedContracts.length === 0 && deployedContractsFetched ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    {!deployedContractsFetched ? (
-                      <>
-                        <p className="text-[#999999] mb-4">No contracts loaded yet.</p>
-                        <button
-                          onClick={async () => {
-                            if (allVerifiedAddresses.length === 0) return;
-                            setDeployedContractsLoading(true);
-                            try {
-                              // Fetch contracts from all verified addresses (Base only)
-                              const contractPromises = allVerifiedAddresses.map((addr) =>
-                                fetch(`/api/contracts/deployed/${addr}`).then((res) => {
-                                  if (res.ok) {
-                                    return res.json().then((data) => data.contracts || []);
-                                  }
-                                  return [];
-                                })
-                              );
-                              
-                              const allContractsArrays = await Promise.all(contractPromises);
-                              const allContracts = allContractsArrays.flat();
-                              
-                              // Remove duplicates by address (case-insensitive)
-                              const uniqueContracts = Array.from(
-                                new Map(allContracts.map((contract) => [contract.address.toLowerCase(), contract])).values()
-                              );
-                              
-                              // Sort by name
-                              uniqueContracts.sort((a, b) => {
-                                if (!a.name && !b.name) return 0;
-                                if (!a.name) return 1;
-                                if (!b.name) return -1;
-                                return a.name.localeCompare(b.name);
-                              });
-                              
-                              setDeployedContracts(uniqueContracts);
-                              setDeployedContractsFetched(true);
-                            } catch (error) {
-                              console.error('Error fetching deployed contracts:', error);
-                              alert('Error fetching contracts. Please try again.');
-                            } finally {
-                              setDeployedContractsLoading(false);
-                            }
-                          }}
-                          className="px-6 py-3 bg-white text-black rounded-lg font-medium hover:bg-[#cccccc] transition-colors"
-                          disabled={deployedContractsLoading || allVerifiedAddresses.length === 0}
-                        >
-                          Fetch All Contracts I've Created
-                        </button>
-                      </>
-                    ) : (
-                      <p className="text-[#999999]">No NFT contracts found on Base. Deploy a contract to see it here.</p>
-                    )}
+                    <p className="text-[#999999] mb-4">No NFT contracts found on Base. Deploy a contract to see it here.</p>
+                    <button
+                      onClick={async () => {
+                        if (allVerifiedAddresses.length === 0) return;
+                        setDeployedContractsLoading(true);
+                        setDeployedContractsFetched(false);
+                        try {
+                          // Fetch contracts from all verified addresses (Base only)
+                          const contractPromises = allVerifiedAddresses.map((addr) =>
+                            fetch(`/api/contracts/deployed/${addr}`).then((res) => {
+                              if (res.ok) {
+                                return res.json().then((data) => data.contracts || []);
+                              }
+                              return [];
+                            })
+                          );
+                          
+                          const allContractsArrays = await Promise.all(contractPromises);
+                          const allContracts = allContractsArrays.flat();
+                          
+                          // Remove duplicates by address (case-insensitive)
+                          const uniqueContracts = Array.from(
+                            new Map(allContracts.map((contract) => [contract.address.toLowerCase(), contract])).values()
+                          );
+                          
+                          // Sort by name
+                          uniqueContracts.sort((a, b) => {
+                            if (!a.name && !b.name) return 0;
+                            if (!a.name) return 1;
+                            if (!b.name) return -1;
+                            return a.name.localeCompare(b.name);
+                          });
+                          
+                          setDeployedContracts(uniqueContracts);
+                          setDeployedContractsFetched(true);
+                        } catch (error) {
+                          console.error('Error fetching deployed contracts:', error);
+                          alert('Error fetching contracts. Please try again.');
+                        } finally {
+                          setDeployedContractsLoading(false);
+                        }
+                      }}
+                      className="px-6 py-3 bg-white text-black rounded-lg font-medium hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      disabled={deployedContractsLoading || allVerifiedAddresses.length === 0}
+                    >
+                      {deployedContractsLoading && (
+                        <div className="h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                      Refresh Contracts
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-light">Your Contracts</h3>
+                      <button
+                        onClick={async () => {
+                          if (allVerifiedAddresses.length === 0) return;
+                          setDeployedContractsLoading(true);
+                          try {
+                            // Fetch contracts from all verified addresses (Base only)
+                            const contractPromises = allVerifiedAddresses.map((addr) =>
+                              fetch(`/api/contracts/deployed/${addr}`).then((res) => {
+                                if (res.ok) {
+                                  return res.json().then((data) => data.contracts || []);
+                                }
+                                return [];
+                              })
+                            );
+                            
+                            const allContractsArrays = await Promise.all(contractPromises);
+                            const allContracts = allContractsArrays.flat();
+                            
+                            // Remove duplicates by address (case-insensitive)
+                            const uniqueContracts = Array.from(
+                              new Map(allContracts.map((contract) => [contract.address.toLowerCase(), contract])).values()
+                            );
+                            
+                            // Sort by name
+                            uniqueContracts.sort((a, b) => {
+                              if (!a.name && !b.name) return 0;
+                              if (!a.name) return 1;
+                              if (!b.name) return -1;
+                              return a.name.localeCompare(b.name);
+                            });
+                            
+                            setDeployedContracts(uniqueContracts);
+                            setDeployedContractsFetched(true);
+                          } catch (error) {
+                            console.error('Error fetching deployed contracts:', error);
+                            alert('Error fetching contracts. Please try again.');
+                          } finally {
+                            setDeployedContractsLoading(false);
+                          }
+                        }}
+                        className="px-4 py-2 text-sm bg-[#1a1a1a] border border-[#333333] text-white rounded-lg hover:border-[#555555] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        disabled={deployedContractsLoading || allVerifiedAddresses.length === 0}
+                      >
+                        {deployedContractsLoading && (
+                          <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        )}
+                        Refresh
+                      </button>
+                    </div>
+                    {deployedContractsLoading && deployedContracts.length > 0 ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="h-6 w-6 border-2 border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : null}
                     {deployedContracts.map((contract) => (
                       <div
                         key={contract.address}
