@@ -51,16 +51,17 @@ pnpm run db:push
 
 ## Apps
 
-### Cryptoart Studio App
+### MVP App
 
-**Location**: `apps/cryptoart-studio-app/`
+**Location**: `apps/mvp/`
 
 **Deployment**: Vercel (recommended) or any Next.js-compatible platform
 
 **Quick Deploy:**
 ```bash
-cd apps/cryptoart-studio-app
-npm run deploy:vercel
+cd apps/mvp
+npm run build
+# Deploy to your platform
 ```
 
 **Environment Variables:**
@@ -72,60 +73,7 @@ npm run deploy:vercel
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` - Redis (optional)
 
 **Documentation:**
-- See `apps/cryptoart-studio-app/README.md`
-- See `apps/cryptoart-studio-app/ENV_VARS.md` for complete environment variable list
-- See `apps/cryptoart-studio-app/DEVELOPER_GUIDE.md` for development details
-
-### Auctionhouse App
-
-**Location**: `apps/auctionhouse/`
-
-**Deployment**: Vercel (recommended) or any Next.js-compatible platform
-
-**Quick Deploy:**
-```bash
-cd apps/auctionhouse
-npm run deploy:vercel
-```
-
-**Environment Variables:**
-- `NEYNAR_API_KEY` - Neynar API key
-- `NEYNAR_CLIENT_ID` - Neynar client ID
-- `POSTGRES_URL` - Shared database connection
-- `NEXT_PUBLIC_URL` - Public URL of the app
-- `KV_REST_API_URL` / `KV_REST_API_TOKEN` - Redis (optional)
-
-**Documentation:**
-- See `apps/auctionhouse/README.md`
-
-### Such Gallery
-
-**Location**: `apps/such-gallery/`
-
-**Deployment**: Vercel (recommended) or any Next.js-compatible platform
-
-**Quick Deploy:**
-```bash
-cd apps/such-gallery
-npm run build
-# Deploy to your platform
-```
-
-**Environment Variables:**
-- `POSTGRES_URL` - Shared database connection
-- `NEYNAR_API_KEY` - Neynar API key
-- `ALCHEMY_API_KEY` - For NFT metadata
-- `NEXT_PUBLIC_URL` - Public URL of the app
-
-**Database Setup:**
-```bash
-cd packages/db
-pnpm run db:push
-```
-
-**Documentation:**
-- See `apps/such-gallery/README.md`
-- See `apps/such-gallery/TESTING_GUIDE.md` for testing instructions
+- See `apps/mvp/README.md`
 
 ## Packages
 
@@ -297,21 +245,9 @@ For a complete deployment, follow this order:
 
 ### 5. App Deployment
 
-1. **Deploy Cryptoart Studio App:**
+1. **Deploy MVP App:**
    ```bash
-   cd apps/cryptoart-studio-app
-   npm run deploy:vercel
-   ```
-
-2. **Deploy Auctionhouse App:**
-   ```bash
-   cd apps/auctionhouse
-   npm run deploy:vercel
-   ```
-
-3. **Deploy Such Gallery:**
-   ```bash
-   cd apps/such-gallery
+   cd apps/mvp
    npm run build
    # Deploy to your platform
    ```

@@ -6,11 +6,9 @@ A monorepo containing all projects related to the Cryptoart channel on farcaster
 
 This monorepo contains several projects that work together:
 
-1. **Cryptoart Studio App** - Next.js Farcaster Mini App for creator tools
-2. **Auctionhouse App** - Next.js Farcaster Mini App for auctionhouse functionality
-3. **Such Gallery** - Next.js Farcaster Mini App for NFT curation and gallery
-4. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
-5. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
+1. **MVP App** - Next.js Farcaster Mini App for the main application
+2. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
+3. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
 
 ## Related Projects
 
@@ -41,21 +39,20 @@ The [LSSVM Development Suite](https://github.com/mxjxn/such-lssvm) is a separate
 ```
 cryptoart-monorepo/
 ├── apps/
-│   ├── cryptoart-studio-app/  # Next.js Farcaster Mini App for creator tools
-│   ├── auctionhouse/          # Next.js Farcaster Mini App for auctionhouse
-│   └── such-gallery/          # Next.js Farcaster Mini App for NFT curation
+│   ├── mvp/                   # Next.js Farcaster Mini App for main application
+│   └── docs/                  # Documentation site
 ├── packages/
 │   ├── creator-core-contracts/ # ERC721/ERC1155 NFT framework
 │   ├── auctionhouse-contracts/ # Solidity auction house contracts
 │   ├── auctionhouse-subgraph/  # The Graph subgraph for auctionhouse events
 │   ├── unified-indexer/         # Unified indexer for LSSVM pools and auctions
+│   ├── creator-core-indexer/   # Creator Core event indexer
 │   ├── cache/                  # Hypersub caching layer
 │   ├── db/                     # Database layer with Drizzle ORM
 │   ├── eslint-config/          # Shared ESLint configuration
 │   ├── typescript-config/      # Shared TypeScript configuration
 │   └── ui/                     # Shared UI component library
-├── llms-full.md               # Complete technical documentation
-├── PACKAGES.md                 # Additional packages documentation
+├── docs/                       # Documentation files
 ├── README.md                   # This file
 ├── turbo.json                  # Turborepo configuration
 └── package.json                # Root workspace configuration
@@ -93,15 +90,15 @@ For complete deployment instructions for all projects, see **[DEPLOYMENT.md](./d
 2. Deploy contracts (Creator Core, Auctionhouse)
 3. Deploy indexers (Creator Core Indexer)
 4. Deploy subgraphs
-5. Deploy apps (Cryptoart Studio, Auctionhouse, Such Gallery)
+5. Deploy apps (MVP App)
 
 ## Projects
 
 ### Apps
 
-#### Cryptoart Studio App (`apps/cryptoart-studio-app/`)
+#### MVP App (`apps/mvp/`)
 
-Next.js Farcaster Mini App for creator tools, subscription management, and community analytics.
+Next.js Farcaster Mini App serving as the main application for the Cryptoart channel.
 
 **Tech Stack:**
 - Next.js 15
@@ -113,60 +110,11 @@ Next.js Farcaster Mini App for creator tools, subscription management, and commu
 
 **Getting Started:**
 ```bash
-cd apps/cryptoart-studio-app
+cd apps/mvp
 pnpm run dev
 ```
 
-**Documentation:** See `apps/cryptoart-studio-app/README.md` and `apps/cryptoart-studio-app/DEVELOPER_GUIDE.md`
-
-#### Auctionhouse App (`apps/auctionhouse/`)
-
-Next.js Farcaster Mini App for auctionhouse functionality on the Cryptoart channel.
-
-**Tech Stack:**
-- Next.js 15
-- TypeScript
-- React 19
-- Tailwind CSS
-- Wagmi + Viem
-- Farcaster Mini App SDK
-
-**Getting Started:**
-```bash
-cd apps/auctionhouse
-pnpm run dev
-```
-
-**Documentation:** See `apps/auctionhouse/README.md`
-
-#### Such Gallery (`apps/such-gallery/`)
-
-Next.js Farcaster Mini App for NFT curation. Artists can submit their art, anyone can curate collections with quote-cast integration for referral fees.
-
-**Tech Stack:**
-- Next.js 15
-- TypeScript
-- React 18
-- Tailwind CSS
-- Drizzle ORM + PostgreSQL
-- Alchemy API for NFT metadata
-- Farcaster Mini App SDK
-
-**Features:**
-- Create and manage curated collections
-- Quote-cast collections/NFTs with referral tracking
-- NFT metadata caching with manual refresh
-- Integration with LSSVM pools and Auctionhouse listings
-
-**Getting Started:**
-```bash
-cd apps/such-gallery
-pnpm run dev
-```
-
-**Documentation:** See `apps/such-gallery/README.md`
-
-⚠️ **Note:** This app is newly modernized and has not been fully tested yet.
+**Documentation:** See `apps/mvp/README.md`
 
 ### Packages
 
@@ -270,15 +218,7 @@ You can work on individual projects directly:
 
 ```bash
 # Frontend development
-cd apps/cryptoart-studio-app
-pnpm run dev
-
-# Auctionhouse app development
-cd apps/auctionhouse
-pnpm run dev
-
-# Such Gallery app development
-cd apps/such-gallery
+cd apps/mvp
 pnpm run dev
 
 # Contract development
