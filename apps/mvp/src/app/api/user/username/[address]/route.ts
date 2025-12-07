@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { getUserFromCache } from "~/lib/server/user-cache";
 
+/**
+ * Get username for an address
+ * 
+ * GET /api/user/username/[address]
+ * 
+ * Returns: { username: string | null }
+ * 
+ * Route-level caching: 5 minutes (prevents database pool exhaustion)
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
@@ -14,7 +24,19 @@ export async function GET(
     );
   }
 
-  const user = await getUserFromCache(address.toLowerCase());
+  const normalizedAddress = address.toLowerCase();
+
+  // Use unstable_cache to prevent database pool exhaustion
+  const user = await unstable_cache(
+    async () => {
+      return getUserFromCache(normalizedAddress);
+    },
+    ['user-username', normalizedAddress],
+    {
+      revalidate: 300, // Cache for 5 minutes
+      tags: ['users', `user-${normalizedAddress}`], // Can be invalidated with revalidateTag
+    }
+  )();
   
   if (user && user.username) {
     return NextResponse.json({ username: user.username });

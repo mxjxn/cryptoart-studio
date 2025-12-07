@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { getArtistOverride } from "~/lib/artistOverrides";
 import { getContractCreator } from "~/lib/contract-creator";
 import {
@@ -20,6 +21,8 @@ import {
  * 
  * GET /api/artist/[address]?contractAddress=0x...&tokenId=123
  * Returns: { name: string | null, source: 'farcaster' | 'ens' | 'override' | 'contract-creator' | null }
+ * 
+ * Route-level caching: 5 minutes (prevents database pool exhaustion)
  */
 
 type NameSource = "farcaster" | "ens" | "override" | "contract-creator" | null;
@@ -31,22 +34,15 @@ interface ArtistNameResponse {
   creatorAddress?: string | null; // Contract creator address if found but name not resolved
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ address: string }> }
-): Promise<NextResponse<ArtistNameResponse>> {
-  const { address } = await params;
-  const { searchParams } = new URL(request.url);
-  const contractAddress = searchParams.get("contractAddress");
-  const tokenIdParam = searchParams.get("tokenId");
-
+async function resolveArtistName(
+  address: string,
+  contractAddress: string | null,
+  tokenIdParam: string | null
+): Promise<ArtistNameResponse> {
   // If contractAddress is provided, we can skip address validation
   // (address might be a dummy value when only looking up contract creator)
   if (!contractAddress && (!address || !/^0x[a-fA-F0-9]{40}$/.test(address))) {
-    return NextResponse.json(
-      { name: null, source: null, address: address || "" },
-      { status: 400 }
-    );
+    return { name: null, source: null, address: address || "" };
   }
 
   // Normalize address (use dummy if not provided but contractAddress is)
@@ -70,43 +66,43 @@ export async function GET(
         const creatorNeynar = await lookupNeynarByAddress(creatorAddress);
         
         if (creatorNeynar) {
-          return NextResponse.json({
+          return {
             name: creatorNeynar.name,
             source: "contract-creator",
             address: normalizedAddress,
             creatorAddress: creatorAddress,
-          });
+          };
         }
         
         // Try ENS for creator
         const creatorEns = await resolveEnsName(creatorAddress);
         if (creatorEns) {
-          return NextResponse.json({
+          return {
             name: creatorEns,
             source: "contract-creator",
             address: normalizedAddress,
             creatorAddress: creatorAddress,
-          });
+          };
         }
         
         // Try manual overrides for creator
         const creatorOverride = getArtistOverride(creatorAddress);
         if (creatorOverride) {
-          return NextResponse.json({
+          return {
             name: creatorOverride,
             source: "contract-creator",
             address: normalizedAddress,
             creatorAddress: creatorAddress,
-          });
+          };
         }
         
         // Creator found but name couldn't be resolved - return creator address
-        return NextResponse.json({
+        return {
           name: null,
           source: "contract-creator",
           address: normalizedAddress,
           creatorAddress: creatorAddress,
-        });
+        };
       }
     } catch (error) {
       console.error("Error checking contract creator:", error);
@@ -119,38 +115,66 @@ export async function GET(
   // 1. Try Neynar (Farcaster)
   const neynarResult = await lookupNeynarByAddress(normalizedAddress);
   if (neynarResult) {
-    return NextResponse.json({
+    return {
       name: neynarResult.name,
       source: "farcaster",
       address: normalizedAddress,
-    });
+    };
   }
 
   // 2. Try ENS
   const ensName = await resolveEnsName(normalizedAddress);
   if (ensName) {
-    return NextResponse.json({
+    return {
       name: ensName,
       source: "ens",
       address: normalizedAddress,
-    });
+    };
   }
 
   // 3. Try manual overrides
   const overrideName = getArtistOverride(normalizedAddress);
   if (overrideName) {
-    return NextResponse.json({
+    return {
       name: overrideName,
       source: "override",
       address: normalizedAddress,
-    });
+    };
   }
 
   // No name found
-  return NextResponse.json({
+  return {
     name: null,
     source: null,
     address: normalizedAddress,
-  });
+  };
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ address: string }> }
+): Promise<NextResponse<ArtistNameResponse>> {
+  const { address } = await params;
+  const { searchParams } = new URL(request.url);
+  const contractAddress = searchParams.get("contractAddress");
+  const tokenIdParam = searchParams.get("tokenId");
+
+  // Normalize address for cache key
+  const normalizedAddress = address ? address.toLowerCase() : '0x0000000000000000000000000000000000000000';
+  const cacheKey = `artist-${normalizedAddress}-${contractAddress || ''}-${tokenIdParam || ''}`;
+
+  // Use unstable_cache to prevent database pool exhaustion
+  const result = await unstable_cache(
+    async () => {
+      return resolveArtistName(address, contractAddress, tokenIdParam);
+    },
+    ['artist-name', cacheKey],
+    {
+      revalidate: 300, // Cache for 5 minutes
+      tags: ['artists', `artist-${normalizedAddress}`], // Can be invalidated with revalidateTag
+    }
+  )();
+
+  return NextResponse.json(result);
 }
 
