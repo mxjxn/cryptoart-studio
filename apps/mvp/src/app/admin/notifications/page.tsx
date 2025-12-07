@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
+import { useState } from 'react';
 
 interface NotificationSettings {
   newBidOnYourAuction: boolean;
@@ -105,6 +106,46 @@ export default function NotificationsAdminPage() {
     return <p className="text-[var(--color-secondary)]">Loading settings...</p>;
   }
   
+  const [testFid, setTestFid] = useState<string>('');
+  const [testTitle, setTestTitle] = useState<string>('Test Notification');
+  const [testBody, setTestBody] = useState<string>('This is a test notification from the admin panel');
+  
+  const sendTestNotification = useMutation({
+    mutationFn: async () => {
+      if (!testFid || !testTitle || !testBody) {
+        throw new Error('Please fill in all fields');
+      }
+      const fid = parseInt(testFid, 10);
+      if (isNaN(fid)) {
+        throw new Error('FID must be a valid number');
+      }
+      
+      const response = await fetch('/api/admin/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fid,
+          title: testTitle,
+          body: testBody,
+          adminAddress: address,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send test notification');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      alert('Test notification sent successfully!');
+    },
+    onError: (error: Error) => {
+      alert(`Error: ${error.message}`);
+    },
+  });
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="bg-yellow-900/20 border border-yellow-500/30 p-4">
@@ -112,6 +153,69 @@ export default function NotificationsAdminPage() {
           <strong>Note:</strong> Disabling a notification type will prevent it from 
           being sent to all users, regardless of their personal preferences.
         </p>
+      </div>
+
+      {/* Test Notification Section */}
+      <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">
+        <h3 className="font-semibold text-[var(--color-text)] mb-4">Test Notification</h3>
+        <p className="text-sm text-[var(--color-secondary)] mb-4">
+          Send a test notification to verify the notification system is working.
+        </p>
+        
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-[var(--color-text)] mb-1">
+              Farcaster ID (FID)
+            </label>
+            <input
+              type="number"
+              value={testFid}
+              onChange={(e) => setTestFid(e.target.value)}
+              placeholder="Enter FID (e.g., 4905)"
+              className="w-full px-3 py-2 bg-[var(--color-background)] border border-[var(--color-border)] text-[var(--color-text)] rounded"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-[var(--color-text)] mb-1">
+              Title (max 32 chars)
+            </label>
+            <input
+              type="text"
+              value={testTitle}
+              onChange={(e) => setTestTitle(e.target.value.slice(0, 32))}
+              maxLength={32}
+              className="w-full px-3 py-2 bg-[var(--color-background)] border border-[var(--color-border)] text-[var(--color-text)] rounded"
+            />
+            <p className="text-xs text-[var(--color-secondary)] mt-1">
+              {testTitle.length}/32 characters
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm text-[var(--color-text)] mb-1">
+              Body (max 128 chars)
+            </label>
+            <textarea
+              value={testBody}
+              onChange={(e) => setTestBody(e.target.value.slice(0, 128))}
+              maxLength={128}
+              rows={3}
+              className="w-full px-3 py-2 bg-[var(--color-background)] border border-[var(--color-border)] text-[var(--color-text)] rounded"
+            />
+            <p className="text-xs text-[var(--color-secondary)] mt-1">
+              {testBody.length}/128 characters
+            </p>
+          </div>
+          
+          <button
+            onClick={() => sendTestNotification.mutate()}
+            disabled={sendTestNotification.isPending || !testFid || !testTitle || !testBody}
+            className="px-4 py-2 bg-[var(--color-primary)] text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {sendTestNotification.isPending ? 'Sending...' : 'Send Test Notification'}
+          </button>
+        </div>
       </div>
       
       {NOTIFICATION_SECTIONS.map((section) => (

@@ -20,9 +20,11 @@ pnpm db:migrate-admin
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `migrate-all.ts` | `pnpm db:migrate-all` | Runs all migrations in order (0000 → 0004). Idempotent - skips existing. |
+| `migrate-all.ts` | `pnpm db:migrate-all` | Runs all migrations in order (0000 → 0006). Idempotent - skips existing. |
 | `migrate-admin-tables.ts` | `pnpm db:migrate-admin` | Runs only the admin tables migration (0003). |
 | `migrate-allowlist-signatures.ts` | `pnpm db:migrate-allowlist` | Runs only the allowlist signatures migration (0004). |
+| `migrate-optimize-indexes.ts` | `pnpm db:migrate-optimize-indexes` | Runs only the optimize indexes migration (0005). |
+| `migrate-notification-tokens.ts` | `pnpm db:migrate-notification-tokens` | Runs only the notification tokens migration (0006). |
 | `run-migration.ts` | `pnpm db:run-migration-0000` | Runs only the initial migration (0000). Legacy. |
 | `create-image-cache.ts` | `pnpm db:create-image-cache` | Creates image_cache table directly (alternative to migration). |
 | `create-follows-favorites.ts` | `pnpm db:create-follows-favorites` | Creates follows/favorites tables directly (alternative to migration). |
@@ -45,6 +47,8 @@ Migrations should be applied in this order:
 3. **0002_add_follows_favorites.sql** - Follows and favorites tables  
 4. **0003_add_admin_tables.sql** - Admin system tables (featured, hidden users, analytics, etc.)
 5. **0004_add_pending_allowlist_signatures.sql** - Pending allowlist signatures table
+6. **0005_optimize_indexes.sql** - Optimize database indexes for reduced disk IO
+7. **0006_add_notification_tokens.sql** - Notification tokens table for Farcaster Mini App notifications
 
 ## Environment Variables
 

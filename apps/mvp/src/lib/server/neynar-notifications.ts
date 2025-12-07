@@ -287,9 +287,12 @@ async function sendBatchedPushNotification(
 }
 
 /**
- * Send push notification via Neynar API (legacy single-user method)
+ * Send push notification via Neynar API or self-hosted tokens
  * 
- * @deprecated Use queuePushNotification for better efficiency
+ * If Neynar is enabled (NEYNAR_API_KEY and NEYNAR_CLIENT_ID set), uses Neynar's managed service.
+ * Otherwise, looks up stored notification tokens from database and sends directly.
+ * 
+ * @deprecated Use queuePushNotification for better efficiency when using Neynar
  * This method still works but makes individual API calls per user.
  * For batch processing, use queuePushNotification + flushAllNotificationBatches
  */
@@ -306,13 +309,80 @@ export async function sendPushNotification(
     return;
   }
   
-  // Build target URL
-  const targetUrl = options?.targetUrl || 
-    (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
-     `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}`);
+  const neynarEnabled = process.env.NEYNAR_API_KEY && process.env.NEYNAR_CLIENT_ID;
   
-  // Use the queue system for batched sending
-  await queuePushNotification(fid, title, message, targetUrl, options?.metadata);
+  if (neynarEnabled) {
+    // Using Neynar managed service - use their API
+    const targetUrl = options?.targetUrl || 
+      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
+       `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}`);
+    
+    // Use the queue system for batched sending
+    await queuePushNotification(fid, title, message, targetUrl, options?.metadata);
+  } else {
+    // Self-hosting - look up token from database and send directly
+    const { getDatabase, notificationTokens, eq } = await import('@cryptoart/db');
+    const db = getDatabase();
+    
+    const tokens = await db
+      .select()
+      .from(notificationTokens)
+      .where(eq(notificationTokens.fid, fid))
+      .limit(1);
+    
+    if (tokens.length === 0) {
+      console.warn(`[neynar-notifications] No notification token found for FID ${fid}, cannot send push notification`);
+      return;
+    }
+    
+    const token = tokens[0];
+    const targetUrl = options?.targetUrl || 
+      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
+       `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/notifications`);
+    
+    const notificationId = `${options?.type || 'notification'}-${Date.now()}-${fid}`;
+    
+    try {
+      const response = await fetch(token.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notificationId,
+          title,
+          body: message,
+          targetUrl,
+          tokens: [token.token],
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to send notification: ${response.status} ${errorText}`);
+      }
+      
+      const result = await response.json();
+      
+      // Handle invalid tokens - remove from database
+      if (result.invalidTokens && result.invalidTokens.includes(token.token)) {
+        await db
+          .delete(notificationTokens)
+          .where(eq(notificationTokens.token, token.token));
+        console.log(`[neynar-notifications] Removed invalid token for FID ${fid}`);
+      }
+      
+      // Handle rate-limited tokens (could implement retry logic here)
+      if (result.rateLimitedTokens && result.rateLimitedTokens.includes(token.token)) {
+        console.warn(`[neynar-notifications] Rate limited for FID ${fid}`);
+      }
+      
+      console.log(`[neynar-notifications] Sent notification to FID ${fid} via self-hosted token`);
+    } catch (error) {
+      console.error(`[neynar-notifications] Error sending notification to FID ${fid}:`, error);
+      throw error;
+    }
+  }
 }
 
 /**

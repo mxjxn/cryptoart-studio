@@ -1,18 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Script to run all pending migrations in order.
- * Each migration is idempotent - it will skip if tables/constraints already exist.
+ * Script to run the notification tokens migration (0006).
+ * This creates the notification_tokens table for storing Farcaster Mini App notification tokens.
  * 
- * Usage: pnpm db:migrate-all
- * 
- * Migration order:
- *   0000_broad_blur.sql       - Initial tables (user_cache, contract_cache, notifications, etc.)
- *   0001_add_image_cache.sql  - Image cache table
- *   0002_add_follows_favorites.sql - Follows and favorites tables
- *   0003_add_admin_tables.sql - Admin system tables (featured, hidden users, analytics, etc.)
- *   0004_add_pending_allowlist_signatures.sql - Pending allowlist signatures table
- *   0005_optimize_indexes.sql - Optimize database indexes for reduced disk IO
- *   0006_add_notification_tokens.sql - Notification tokens table for Farcaster Mini App notifications
+ * Usage: pnpm db:migrate-notification-tokens
  */
 
 import { config } from 'dotenv';
@@ -37,17 +28,6 @@ if (!connectionString) {
   process.exit(1);
 }
 
-// Ordered list of migrations
-const MIGRATIONS = [
-  '0000_broad_blur.sql',
-  '0001_add_image_cache.sql',
-  '0002_add_follows_favorites.sql',
-  '0003_add_admin_tables.sql',
-  '0004_add_pending_allowlist_signatures.sql',
-  '0005_optimize_indexes.sql',
-  '0006_add_notification_tokens.sql',
-];
-
 // Log which database we're connecting to (without exposing credentials)
 const url = new URL(connectionString);
 console.log(`\n🔗 Connecting to database: ${url.hostname}${url.pathname}\n`);
@@ -63,7 +43,6 @@ async function executeMigration(sql: postgres.Sql, migrationFile: string): Promi
   const migrationSQL = readFileSync(migrationPath, 'utf-8');
   
   // Split by statement breakpoints if they exist, otherwise treat as single statement
-  // Note: Don't filter out statements starting with '--' as they may have SQL after the comment
   let statements: string[];
   if (migrationSQL.includes('--> statement-breakpoint')) {
     statements = migrationSQL
@@ -108,23 +87,17 @@ async function executeMigration(sql: postgres.Sql, migrationFile: string): Promi
   return true;
 }
 
-async function runAllMigrations() {
+async function runMigration() {
   const sql = postgres(connectionString);
   
   try {
-    console.log('📦 Running all database migrations...\n');
+    console.log('📦 Running notification tokens migration (0006)...\n');
     console.log('═'.repeat(60));
     
-    for (let i = 0; i < MIGRATIONS.length; i++) {
-      const migration = MIGRATIONS[i];
-      console.log(`\n[${i + 1}/${MIGRATIONS.length}] ${migration}`);
-      console.log('─'.repeat(60));
-      
-      await executeMigration(sql, migration);
-    }
+    await executeMigration(sql, '0006_add_notification_tokens.sql');
     
     console.log('═'.repeat(60));
-    console.log('\n✅ All migrations completed successfully!\n');
+    console.log('\n✅ Migration completed successfully!\n');
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Migration failed:', error);
@@ -134,5 +107,5 @@ async function runAllMigrations() {
   }
 }
 
-runAllMigrations();
+runMigration();
 

@@ -110,6 +110,25 @@ export const notificationPreferences = pgTable('notification_preferences', {
   fidIdx: index('notification_preferences_fid_idx').on(table.fid),
 }));
 
+/**
+ * Notification tokens table - Store Farcaster Mini App notification tokens
+ * Used when self-hosting webhooks (not using Neynar managed service)
+ * Each FID can have multiple tokens (one per client app)
+ */
+export const notificationTokens = pgTable('notification_tokens', {
+  id: serial('id').primaryKey(),
+  fid: integer('fid').notNull(), // Farcaster ID
+  url: text('url').notNull(), // Notification URL from webhook
+  token: text('token').notNull(), // Notification token from webhook
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  fidIdx: index('notification_tokens_fid_idx').on(table.fid),
+  tokenIdx: index('notification_tokens_token_idx').on(table.token),
+  // Composite index for quick lookups
+  fidTokenIdx: index('notification_tokens_fid_token_idx').on(table.fid, table.token),
+}));
+
 // Type definitions for notifications
 export type NotificationType = 
   | 'LISTING_CREATED'
@@ -152,6 +171,15 @@ export interface NotificationPreferencesData {
   pushEnabled: boolean;
   inAppEnabled: boolean;
   emailEnabled: boolean;
+  updatedAt: Date;
+}
+
+export interface NotificationTokenData {
+  id: number;
+  fid: number;
+  url: string;
+  token: string;
+  createdAt: Date;
   updatedAt: Date;
 }
 
