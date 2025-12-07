@@ -51,6 +51,15 @@ export interface NFTMetadata {
   // Additional OpenSea fields
   external_url?: string;
   background_color?: string;
+  // Animation details (from Manifold and similar platforms)
+  animation_details?: {
+    format?: string;
+    duration?: number;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    codecs?: string[];
+  };
 }
 
 /**

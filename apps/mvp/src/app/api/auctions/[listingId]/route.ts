@@ -65,17 +65,98 @@ const LISTING_BY_ID_QUERY = gql`
 `;
 
 /**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Check if an error is a rate limit error (429 or similar)
+ */
+function isRateLimitError(error: any): boolean {
+  if (!error) return false;
+  
+  // Check for HTTP 429 status
+  if (error.response?.status === 429) return true;
+  
+  // Check for rate limit in error message
+  const errorMessage = error.message?.toLowerCase() || '';
+  if (errorMessage.includes('rate limit') || 
+      errorMessage.includes('too many requests') ||
+      errorMessage.includes('429')) {
+    return true;
+  }
+  
+  // Check for rate limit in GraphQL errors
+  if (error.response?.errors) {
+    for (const gqlError of error.response.errors) {
+      const msg = gqlError.message?.toLowerCase() || '';
+      if (msg.includes('rate limit') || msg.includes('too many requests')) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Retry a function with exponential backoff
+ * @param fn - Function to retry
+ * @param maxRetries - Maximum number of retries (default: 3)
+ * @param initialDelay - Initial delay in ms (default: 1000)
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Only retry on rate limit errors
+      if (!isRateLimitError(error) || attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Calculate exponential backoff delay
+      const delay = initialDelay * Math.pow(2, attempt);
+      console.warn(
+        `[fetchAuctionData] Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`
+      );
+      
+      await sleep(delay);
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Fetch and enrich auction data from subgraph
  * This function is cached for 2 minutes to reduce subgraph load
+ * Includes retry logic with exponential backoff for rate limiting
  */
 async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData | null> {
   const endpoint = getSubgraphEndpoint();
+  const headers = getSubgraphHeaders();
   
-  const data = await request<{ listing: any | null }>(
-    endpoint,
-    LISTING_BY_ID_QUERY,
-    { id: listingId },
-    getSubgraphHeaders()
+  // Use retry logic with exponential backoff for rate limiting
+  const data = await retryWithBackoff(
+    () => request<{ listing: any | null }>(
+      endpoint,
+      LISTING_BY_ID_QUERY,
+      { id: listingId },
+      headers
+    ),
+    3, // Max 3 retries
+    1000 // Start with 1 second delay
   );
 
   if (!data.listing) {
@@ -182,8 +263,19 @@ export async function GET(
       success: true,
       auction: enriched,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching auction:', error);
+    
+    // Check if it's a rate limit error
+    if (isRateLimitError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Rate limited. Please try again in a moment.',
+        },
+        { status: 429 }
+      );
+    }
     
     return NextResponse.json(
       {

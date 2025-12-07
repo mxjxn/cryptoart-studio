@@ -23,10 +23,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={mekMono.variable}>
-      <body className="flex flex-col min-h-screen">
+    <html lang="en" className={mekMono.variable} style={{ background: 'var(--color-background)' }}>
+      <body className="flex flex-col min-h-screen" style={{ background: 'var(--color-background)' }}>
         <Providers>
-          <div className="flex-grow">
+          <div className="flex-grow" style={{ background: 'var(--color-background)' }}>
             {children}
           </div>
           <Footer />

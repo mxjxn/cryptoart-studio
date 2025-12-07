@@ -16,7 +16,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
 import { MediaDisplay } from "~/components/media";
-import { getMediaType } from "~/lib/media-utils";
+import { getMediaType, getMediaTypeFromFormat } from "~/lib/media-utils";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useMiniApp } from "@neynar/react";
@@ -893,19 +893,36 @@ export default function AuctionDetailClient({
           <MediaDisplay
             imageUrl={auction.image}
             animationUrl={auction.metadata?.animation_url}
+            animationFormat={auction.metadata?.animation_details?.format}
             alt={title}
             onImageClick={
               // Only enable fullscreen overlay for images (not audio/video/3D/HTML - they have their own controls)
-              auction.image && (!auction.metadata?.animation_url || getMediaType(auction.metadata.animation_url) === 'image')
-                ? () => setIsImageOverlayOpen(true)
-                : undefined
+              (() => {
+                const animUrl = auction.metadata?.animation_url;
+                const animFormat = auction.metadata?.animation_details?.format;
+                if (!animUrl) return auction.image ? () => setIsImageOverlayOpen(true) : undefined;
+                // Check both URL extension and format hint to determine if it's non-image media
+                let mediaType = getMediaType(animUrl);
+                if (mediaType === 'image' && animFormat) {
+                  mediaType = getMediaTypeFromFormat(animFormat);
+                }
+                return mediaType === 'image' ? () => setIsImageOverlayOpen(true) : undefined;
+              })()
             }
             viewTransitionName={`artwork-${listingId}`}
           />
         </div>
 
         {/* Fullscreen image overlay - only for images */}
-        {auction.image && (!auction.metadata?.animation_url || getMediaType(auction.metadata.animation_url) === 'image') && (
+        {(() => {
+          const animUrl = auction.metadata?.animation_url;
+          const animFormat = auction.metadata?.animation_details?.format;
+          let mediaType = animUrl ? getMediaType(animUrl) : 'image';
+          if (mediaType === 'image' && animFormat) {
+            mediaType = getMediaTypeFromFormat(animFormat);
+          }
+          return auction.image && (!animUrl || mediaType === 'image');
+        })() && (
           <ImageOverlay
             src={auction.image}
             alt={title}

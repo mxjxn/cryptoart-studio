@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAccount } from "wagmi";
 import { useMiniApp } from "@neynar/react";
 import { useProfile } from "@farcaster/auth-kit";
@@ -15,7 +15,7 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import type { EnrichedAuctionData } from "~/lib/types";
 
-type TabType = "created" | "collected" | "bids" | "offers" | "saved";
+type TabType = "created" | "collected" | "bids" | "offers" | "saved" | "contracts";
 
 type FarcasterHandle = {
   fid: number;
@@ -171,6 +171,57 @@ export default function ProfileClient() {
   // Saved listings state
   const [savedListings, setSavedListings] = useState<EnrichedAuctionData[]>([]);
   const [savedListingsLoading, setSavedListingsLoading] = useState(false);
+  
+  // Deployed contracts state
+  const [deployedContracts, setDeployedContracts] = useState<Array<{ address: string; name: string | null; tokenType: string }>>([]);
+  const [deployedContractsLoading, setDeployedContractsLoading] = useState(false);
+  const [deployedContractsFetched, setDeployedContractsFetched] = useState(false);
+  
+  // Get all verified addresses when in mini-app (Base only)
+  const allVerifiedAddresses = useMemo(() => {
+    const addresses: string[] = [];
+    
+    if (isMiniApp && context?.user) {
+      const user = context.user as any;
+      const verifiedAddrs = user.verified_addresses;
+      
+      // Get all verified eth addresses
+      if (verifiedAddrs?.eth_addresses) {
+        addresses.push(...verifiedAddrs.eth_addresses.map((addr: string) => addr.toLowerCase()));
+      }
+      
+      // Add primary address if not already included
+      if (verifiedAddrs?.primary?.eth_address) {
+        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+        if (!addresses.includes(primaryAddr)) {
+          addresses.push(primaryAddr);
+        }
+      }
+      
+      // Add legacy verifications array
+      if (user.verifications) {
+        user.verifications.forEach((addr: string) => {
+          const lowerAddr = addr.toLowerCase();
+          if (!addresses.includes(lowerAddr)) {
+            addresses.push(lowerAddr);
+          }
+        });
+      }
+      
+      // Add custody address if not already included
+      if (user.custody_address) {
+        const custodyAddr = user.custody_address.toLowerCase();
+        if (!addresses.includes(custodyAddr)) {
+          addresses.push(custodyAddr);
+        }
+      }
+    } else if (userAddress) {
+      // On web, just use the connected address
+      addresses.push(userAddress.toLowerCase());
+    }
+    
+    return addresses;
+  }, [isMiniApp, context?.user, userAddress]);
   
   // FIXME: Infinite loop bug - savedListings.length is in the dependency array (line 104),
   // which causes the effect to re-run when listings are fetched, creating an infinite loop.
@@ -344,6 +395,16 @@ export default function ProfileClient() {
             >
               Offers ({activeOffers.length})
             </button>
+            <button
+              onClick={() => setActiveTab("contracts")}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === "contracts"
+                  ? "border-b-2 border-white text-white"
+                  : "text-[#999999] hover:text-[#cccccc]"
+              }`}
+            >
+              Contracts ({deployedContracts.length})
+            </button>
             {/* Saved tab hidden - was glitching with infinite loop */}
             {/* <button
               onClick={() => setActiveTab("saved")}
@@ -496,6 +557,94 @@ export default function ProfileClient() {
                         gradient={gradients[index % gradients.length]}
                         index={index}
                       />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "contracts" && (
+              <div>
+                {deployedContractsLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="h-8 w-8 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-[#999999]">Loading your deployed contracts...</p>
+                  </div>
+                ) : deployedContracts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    {!deployedContractsFetched ? (
+                      <>
+                        <p className="text-[#999999] mb-4">No contracts loaded yet.</p>
+                        <button
+                          onClick={async () => {
+                            if (allVerifiedAddresses.length === 0) return;
+                            setDeployedContractsLoading(true);
+                            try {
+                              // Fetch contracts from all verified addresses (Base only)
+                              const contractPromises = allVerifiedAddresses.map((addr) =>
+                                fetch(`/api/contracts/deployed/${addr}`).then((res) => {
+                                  if (res.ok) {
+                                    return res.json().then((data) => data.contracts || []);
+                                  }
+                                  return [];
+                                })
+                              );
+                              
+                              const allContractsArrays = await Promise.all(contractPromises);
+                              const allContracts = allContractsArrays.flat();
+                              
+                              // Remove duplicates by address (case-insensitive)
+                              const uniqueContracts = Array.from(
+                                new Map(allContracts.map((contract) => [contract.address.toLowerCase(), contract])).values()
+                              );
+                              
+                              // Sort by name
+                              uniqueContracts.sort((a, b) => {
+                                if (!a.name && !b.name) return 0;
+                                if (!a.name) return 1;
+                                if (!b.name) return -1;
+                                return a.name.localeCompare(b.name);
+                              });
+                              
+                              setDeployedContracts(uniqueContracts);
+                              setDeployedContractsFetched(true);
+                            } catch (error) {
+                              console.error('Error fetching deployed contracts:', error);
+                              alert('Error fetching contracts. Please try again.');
+                            } finally {
+                              setDeployedContractsLoading(false);
+                            }
+                          }}
+                          className="px-6 py-3 bg-white text-black rounded-lg font-medium hover:bg-[#cccccc] transition-colors"
+                          disabled={deployedContractsLoading || allVerifiedAddresses.length === 0}
+                        >
+                          Fetch All Contracts I've Created
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-[#999999]">No NFT contracts found on Base. Deploy a contract to see it here.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {deployedContracts.map((contract) => (
+                      <div
+                        key={contract.address}
+                        className="bg-[#1a1a1a] border border-[#333333] rounded-lg p-4 hover:border-[#555555] transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-white font-medium mb-1">
+                              {contract.name || "Unnamed Contract"}
+                            </h3>
+                            <p className="text-sm text-[#999999] font-mono break-all">
+                              {contract.address}
+                            </p>
+                            <span className="inline-block mt-2 px-2 py-1 text-xs font-medium rounded bg-purple-900/30 text-purple-300 border border-purple-700/50">
+                              {contract.tokenType}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}

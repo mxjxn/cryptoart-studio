@@ -13,7 +13,9 @@ interface ArtistNameResult {
 }
 
 // In-memory cache for artist names to avoid repeated API calls
-const artistNameCache = new Map<string, { name: string | null; source: NameSource }>();
+const artistNameCache = new Map<string, { name: string | null; source: NameSource; creatorAddress?: string | null }>();
+// Pending requests to deduplicate in-flight fetches
+const pendingArtistRequests = new Map<string, Promise<{ name: string | null; source: NameSource; creatorAddress?: string | null }>>();
 
 /**
  * Hook to resolve an artist name from an Ethereum address.
@@ -77,8 +79,23 @@ export function useArtistName(
     if (cached) {
       setArtistName(cached.name);
       setSource(cached.source);
+      setCreatorAddress(cached.creatorAddress || null);
       setIsLoading(false);
       setError(null);
+      return;
+    }
+
+    // Check if there's already a pending request for this cache key
+    if (pendingArtistRequests.has(cacheKey)) {
+      setIsLoading(true);
+      pendingArtistRequests.get(cacheKey)!.then((result) => {
+        setArtistName(result.name);
+        setSource(result.source);
+        setCreatorAddress(result.creatorAddress || null);
+        setIsLoading(false);
+      }).catch(() => {
+        setIsLoading(false);
+      });
       return;
     }
 
@@ -87,49 +104,54 @@ export function useArtistName(
       return;
     }
 
-    async function fetchArtistName() {
-      fetchedRef.current = cacheKey;
-      setIsLoading(true);
-      setError(null);
+    fetchedRef.current = cacheKey;
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        // Build URL with optional contract address and tokenId
-        const url = new URL(`/api/artist/${normalizedAddress}`, window.location.origin);
-        if (contractAddress) {
-          url.searchParams.set("contractAddress", contractAddress);
-        }
-        if (tokenId !== undefined && tokenId !== null) {
-          url.searchParams.set("tokenId", String(tokenId));
-        }
+    // Build URL with optional contract address and tokenId
+    const url = new URL(`/api/artist/${normalizedAddress}`, window.location.origin);
+    if (contractAddress) {
+      url.searchParams.set("contractAddress", contractAddress);
+    }
+    if (tokenId !== undefined && tokenId !== null) {
+      url.searchParams.set("tokenId", String(tokenId));
+    }
 
-        const response = await fetch(url.toString());
-        
+    // Create and store the pending request
+    const request = fetch(url.toString())
+      .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to fetch artist name: ${response.status}`);
         }
+        return response.json();
+      })
+      .then((data) => {
+        const result = {
+          name: data.name as string | null,
+          source: data.source as NameSource,
+          creatorAddress: data.creatorAddress as string | null | undefined,
+        };
+        artistNameCache.set(cacheKey, result);
+        return result;
+      })
+      .finally(() => {
+        pendingArtistRequests.delete(cacheKey);
+      });
 
-        const data = await response.json();
-        
-        // Cache the result using the cache key (includes contractAddress when provided)
-        artistNameCache.set(cacheKey, {
-          name: data.name,
-          source: data.source,
-        });
+    pendingArtistRequests.set(cacheKey, request);
 
-        setArtistName(data.name);
-        setSource(data.source);
-        setCreatorAddress(data.creatorAddress || null);
-      } catch (err) {
-        console.error("Error fetching artist name:", err);
-        setError(err instanceof Error ? err : new Error("Unknown error"));
-        setArtistName(null);
-        setSource(null);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchArtistName();
+    request.then((result) => {
+      setArtistName(result.name);
+      setSource(result.source);
+      setCreatorAddress(result.creatorAddress || null);
+      setIsLoading(false);
+    }).catch((err) => {
+      console.error("Error fetching artist name:", err);
+      setError(err instanceof Error ? err : new Error("Unknown error"));
+      setArtistName(null);
+      setSource(null);
+      setIsLoading(false);
+    });
   }, [address, contractAddress, tokenId]);
 
   return { artistName, source, isLoading, error, creatorAddress };

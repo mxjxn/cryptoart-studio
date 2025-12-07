@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getMediaType, type MediaType } from "~/lib/media-utils";
+import { getMediaType, getMediaTypeFromFormat, type MediaType } from "~/lib/media-utils";
 import { AudioPlayer } from "./AudioPlayer";
 import { VideoPlayer } from "./VideoPlayer";
 import { ModelViewer } from "./ModelViewer";
@@ -12,6 +12,8 @@ interface MediaDisplayProps {
   imageUrl?: string;
   /** The animation URL (audio, video, 3D, HTML) */
   animationUrl?: string;
+  /** Optional format hint from metadata (e.g., "MP4", "mp3", "glb") for URLs without extensions */
+  animationFormat?: string;
   /** Alt text for accessibility */
   alt?: string;
   /** Optional click handler for fullscreen/overlay */
@@ -33,6 +35,7 @@ interface MediaDisplayProps {
 export function MediaDisplay({
   imageUrl,
   animationUrl,
+  animationFormat,
   alt = "NFT Artwork",
   onImageClick,
   viewTransitionName,
@@ -41,8 +44,19 @@ export function MediaDisplay({
   const [imageError, setImageError] = useState(false);
   const [animationError, setAnimationError] = useState(false);
 
-  // Determine media type from animation URL
-  const animationMediaType: MediaType | null = animationUrl ? getMediaType(animationUrl) : null;
+  // Determine media type from animation URL, falling back to format hint if URL detection fails
+  let animationMediaType: MediaType | null = null;
+  if (animationUrl) {
+    animationMediaType = getMediaType(animationUrl);
+    // If URL-based detection returned 'image' but we have a format hint, use that instead
+    // This handles Arweave/IPFS URLs that don't have file extensions
+    if (animationMediaType === 'image' && animationFormat) {
+      const formatType = getMediaTypeFromFormat(animationFormat);
+      if (formatType !== 'image') {
+        animationMediaType = formatType;
+      }
+    }
+  }
   
   // Determine what to display
   // Use animation_url if it's non-image media and hasn't errored

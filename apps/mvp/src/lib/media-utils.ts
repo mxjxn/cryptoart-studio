@@ -71,24 +71,45 @@ function getFileExtension(url: string): string | null {
 }
 
 /**
- * Audio file extensions
+ * Audio file extensions and formats
  */
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a'];
+const AUDIO_FORMATS = ['mp3', 'wav', 'ogg', 'oga', 'flac', 'aac', 'm4a', 'audio'];
 
 /**
- * Video file extensions
+ * Video file extensions and formats
  */
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'm4v', 'ogv', 'mov', 'avi'];
+const VIDEO_FORMATS = ['mp4', 'webm', 'm4v', 'ogv', 'mov', 'avi', 'video', 'h.264', 'h264', 'hevc', 'vp8', 'vp9'];
 
 /**
- * 3D model file extensions
+ * 3D model file extensions and formats
  */
 const MODEL_EXTENSIONS = ['glb', 'gltf'];
+const MODEL_FORMATS = ['glb', 'gltf', '3d', 'model'];
 
 /**
- * HTML file extensions
+ * HTML file extensions and formats
  */
 const HTML_EXTENSIONS = ['html', 'htm'];
+const HTML_FORMATS = ['html', 'htm'];
+
+/**
+ * Determine the media type from a format string (e.g., "MP4", "mp3", "glb")
+ * This is useful for Arweave/IPFS URLs that don't have file extensions
+ */
+export function getMediaTypeFromFormat(format: string): MediaType {
+  if (!format) return 'image';
+  
+  const normalizedFormat = format.toLowerCase().trim();
+  
+  if (AUDIO_FORMATS.includes(normalizedFormat)) return 'audio';
+  if (VIDEO_FORMATS.includes(normalizedFormat)) return 'video';
+  if (MODEL_FORMATS.includes(normalizedFormat)) return '3d';
+  if (HTML_FORMATS.includes(normalizedFormat)) return 'html';
+  
+  return 'image';
+}
 
 /**
  * Determine the media type from a URL or data URI

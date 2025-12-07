@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Transpile monorepo packages that use TypeScript
   transpilePackages: ['@cryptoart/db'],
+  // Next.js 16 uses Turbopack by default - empty config silences the webpack warning
+  turbopack: {},
   images: {
     remotePatterns: [
       {

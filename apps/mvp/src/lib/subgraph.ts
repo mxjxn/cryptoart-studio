@@ -48,23 +48,62 @@ export async function getActiveAuctions(options?: {
 /**
  * Query a single auction by listing ID
  * Returns enriched auction with metadata and bid information
+ * Includes retry logic with exponential backoff for rate limiting
  */
 export async function getAuction(listingId: string): Promise<EnrichedAuctionData | null> {
-  try {
-    // Use relative URL for client-side calls
-    const response = await fetch(`/api/auctions/${listingId}`);
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
+  const maxRetries = 3;
+  const initialDelay = 1000;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Use relative URL for client-side calls
+      const response = await fetch(`/api/auctions/${listingId}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        
+        // Handle rate limiting with retry
+        if (response.status === 429 && attempt < maxRetries) {
+          const delay = initialDelay * Math.pow(2, attempt);
+          console.warn(
+            `[getAuction] Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch auction: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
       }
-      throw new Error(`Failed to fetch auction: ${response.statusText}`);
+      
+      const data = await response.json();
+      return data.auction || null;
+    } catch (error) {
+      // If this is the last attempt, throw the error
+      if (attempt === maxRetries) {
+        console.error('Error fetching auction:', error);
+        throw error;
+      }
+      
+      // For network errors, retry with backoff
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        const delay = initialDelay * Math.pow(2, attempt);
+        console.warn(
+          `[getAuction] Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`
+        );
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // For other errors, throw immediately
+      console.error('Error fetching auction:', error);
+      throw error;
     }
-    const data = await response.json();
-    return data.auction || null;
-  } catch (error) {
-    console.error('Error fetching auction:', error);
-    return null;
   }
+  
+  return null;
 }
 
 /**

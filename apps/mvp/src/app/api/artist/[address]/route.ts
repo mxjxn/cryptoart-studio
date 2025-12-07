@@ -55,29 +55,21 @@ export async function GET(
   // If contractAddress provided, prioritize contract creator lookup
   // This ensures we show the NFT creator, not the auction seller
   if (contractAddress && /^0x[a-fA-F0-9]{40}$/i.test(contractAddress)) {
-    console.log('[artist API] Contract address provided:', contractAddress);
     try {
       const tokenId = tokenIdParam ? BigInt(tokenIdParam) : undefined;
-      console.log('[artist API] Getting contract creator for:', contractAddress, 'tokenId:', tokenId);
       const creatorResult = await getContractCreator(contractAddress, tokenId);
-      console.log('[artist API] Contract creator result:', creatorResult);
       
       if (creatorResult.creator && creatorResult.creator.toLowerCase() === normalizedAddress) {
         // The address IS the contract creator, but we couldn't resolve a name
         // This is fine - we'll return null and let the UI show "Unknown Artist"
-        console.log('[artist API] Address is the contract creator, but no name resolved');
       } else if (creatorResult.creator && creatorResult.creator.toLowerCase() !== normalizedAddress) {
         // The contract creator is different - resolve the creator's name
         const creatorAddress = creatorResult.creator.toLowerCase();
-        console.log('[artist API] Contract creator found:', creatorAddress, 'different from address:', normalizedAddress);
         
         // Try to resolve the creator's name (prioritize creator over seller)
-        console.log('[artist API] Looking up creator name via Neynar for:', creatorAddress);
         const creatorNeynar = await lookupNeynarByAddress(creatorAddress);
-        console.log('[artist API] Creator Neynar lookup result:', creatorNeynar);
         
         if (creatorNeynar) {
-          console.log('[artist API] Returning creator name:', creatorNeynar.name);
           return NextResponse.json({
             name: creatorNeynar.name,
             source: "contract-creator",

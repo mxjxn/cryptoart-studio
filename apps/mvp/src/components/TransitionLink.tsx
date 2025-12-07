@@ -8,6 +8,7 @@ interface TransitionLinkProps extends Omit<LinkProps, "onClick"> {
   children: ReactNode;
   className?: string;
   onClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
+  prefetch?: boolean;
 }
 
 /**
@@ -19,6 +20,7 @@ export function TransitionLink({
   children,
   className,
   onClick,
+  prefetch,
   ...props
 }: TransitionLinkProps) {
   const router = useRouter();
@@ -58,7 +60,7 @@ export function TransitionLink({
   };
 
   return (
-    <Link href={href} className={className} onClick={handleClick} {...props}>
+    <Link href={href} className={className} onClick={handleClick} prefetch={prefetch} {...props}>
       {children}
     </Link>
   );

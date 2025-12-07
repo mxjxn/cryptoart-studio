@@ -3,7 +3,7 @@ import { useMiniApp } from '@neynar/react';
 import { useProfile } from '@farcaster/auth-kit';
 import { STP_V2_CONTRACT_ADDRESS } from '~/lib/constants';
 import { type Address } from 'viem';
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 
 // STP v2 ABI for subscription status (ERC721 NFT contract)
 const STP_V2_ABI = [
@@ -369,29 +369,48 @@ export function useMembershipStatus(): MembershipStatus {
   // Extract isFarcasterWallet from primary membership (already calculated in membershipData)
   const isFarcasterWallet = membershipData.primaryMembership?.isFarcasterWallet || false;
   
-  // Always log membership check results (not just in development)
-  console.log('[useMembershipStatus] Final membership check result:', {
-    totalMemberships: membershipData.memberships.length,
-    isPro: membershipData.isPro,
-    membershipAddress: membershipData.membershipAddress,
-    connectedAddress: connectedAddress?.toLowerCase(),
-    firstVerifiedAddress: verifiedAddresses[0],
-    farcasterNativeWallets,
-    isFarcasterWallet,
-    allVerifiedAddresses: verifiedAddresses,
-    primaryMembership: membershipData.primaryMembership ? {
-      address: membershipData.primaryMembership.address,
-      timeRemainingSeconds: membershipData.primaryMembership.timeRemainingSeconds,
-      isFarcasterWallet: membershipData.primaryMembership.isFarcasterWallet,
-    } : null,
-    allMemberships: membershipData.memberships.map(m => ({
-      address: m.address,
-      timeRemainingSeconds: m.timeRemainingSeconds,
-      isFarcasterWallet: m.isFarcasterWallet,
-    })),
-    timeRemainingSeconds: membershipData.timeRemainingSeconds,
-    expirationDate: membershipData.expirationDate?.toISOString(),
-  });
+  // Use a ref to track previous membership data to avoid logging on every render
+  const prevMembershipDataRef = useRef<string | null>(null);
+  
+  // Only log when membership data actually changes
+  useEffect(() => {
+    // Create a stable string representation of the membership data for comparison
+    const membershipKey = JSON.stringify({
+      totalMemberships: membershipData.memberships.length,
+      isPro: membershipData.isPro,
+      membershipAddress: membershipData.membershipAddress,
+      timeRemainingSeconds: membershipData.timeRemainingSeconds,
+      primaryAddress: membershipData.primaryMembership?.address,
+    });
+    
+    // Only log if the data has actually changed
+    if (prevMembershipDataRef.current !== membershipKey) {
+      prevMembershipDataRef.current = membershipKey;
+      
+      console.log('[useMembershipStatus] Final membership check result:', {
+        totalMemberships: membershipData.memberships.length,
+        isPro: membershipData.isPro,
+        membershipAddress: membershipData.membershipAddress,
+        connectedAddress: connectedAddress?.toLowerCase(),
+        firstVerifiedAddress: verifiedAddresses[0],
+        farcasterNativeWallets,
+        isFarcasterWallet,
+        allVerifiedAddresses: verifiedAddresses,
+        primaryMembership: membershipData.primaryMembership ? {
+          address: membershipData.primaryMembership.address,
+          timeRemainingSeconds: membershipData.primaryMembership.timeRemainingSeconds,
+          isFarcasterWallet: membershipData.primaryMembership.isFarcasterWallet,
+        } : null,
+        allMemberships: membershipData.memberships.map(m => ({
+          address: m.address,
+          timeRemainingSeconds: m.timeRemainingSeconds,
+          isFarcasterWallet: m.isFarcasterWallet,
+        })),
+        timeRemainingSeconds: membershipData.timeRemainingSeconds,
+        expirationDate: membershipData.expirationDate?.toISOString(),
+      });
+    }
+  }, [membershipData, connectedAddress, verifiedAddresses, farcasterNativeWallets, isFarcasterWallet]);
 
   return {
     memberships: membershipData.memberships,

@@ -80,49 +80,34 @@ async function getContractCreatorFromEtherscan(
   contractAddress: string,
   chainId: number = CHAIN_ID
 ): Promise<Address | null> {
-  console.log('[getContractCreatorFromEtherscan] Starting lookup for contract:', contractAddress, 'chainId:', chainId);
   const apiKey = process.env.ETHERSCAN_API_KEY;
   if (!apiKey) {
-    console.warn('[getContractCreatorFromEtherscan] ETHERSCAN_API_KEY not set, skipping Etherscan API lookup');
     return null;
   }
 
   try {
-    // Etherscan API supports multiple chains via the chainid parameter
-    // Use the same endpoint for all supported chains (Ethereum, Base, etc.)
     const baseUrl = 'https://api.etherscan.io/v2/api';
-    
     const url = `${baseUrl}?apikey=${apiKey}&chainid=${chainId}&module=contract&action=getcontractcreation&contractaddresses=${contractAddress}`;
-    console.log('[getContractCreatorFromEtherscan] Fetching from URL:', url.replace(apiKey, 'REDACTED'));
     
     const response = await fetch(url, { method: 'GET' });
-    console.log('[getContractCreatorFromEtherscan] Response status:', response.status);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.warn(`[getContractCreatorFromEtherscan] Etherscan API returned ${response.status} for ${contractAddress}:`, errorText);
       return null;
     }
 
     const data = await response.json();
-    console.log('[getContractCreatorFromEtherscan] Response data:', JSON.stringify(data, null, 2));
     
     // Etherscan API response structure:
     // { status: "1", message: "OK", result: [{ contractAddress: "...", contractCreator: "...", txHash: "..." }] }
     if (data.status === "1" && data.result && data.result.length > 0) {
       const creator = data.result[0].contractCreator;
-      console.log('[getContractCreatorFromEtherscan] Found creator:', creator);
       if (creator && isAddress(creator)) {
-        const normalizedCreator = creator.toLowerCase() as Address;
-        console.log('[getContractCreatorFromEtherscan] Returning normalized creator:', normalizedCreator);
-        return normalizedCreator;
+        return creator.toLowerCase() as Address;
       }
     }
     
-    console.log('[getContractCreatorFromEtherscan] No creator found in response');
     return null;
-  } catch (error) {
-    console.error(`[getContractCreatorFromEtherscan] Error fetching from Etherscan API for ${contractAddress}:`, error);
+  } catch {
     return null;
   }
 }
@@ -159,33 +144,27 @@ export async function getContractCreator(
           : cachedSource === "onchain" || cachedSource === "alchemy" || cachedSource === "manual"
             ? "owner"
             : null;
-      console.log(`[getContractCreator] Cache hit for ${address}, source: ${cached.source}`);
       return { creator: cachedCreator, source };
     }
-  } catch (error) {
-    console.warn(`[getContractCreator] Cache lookup failed for ${address}:`, error);
-    // continue to fallbacks
+  } catch {
+    // Cache lookup failed, continue to fallbacks
   }
 
   // 1. Try Etherscan/Basescan API first (most reliable - gets actual deployer)
-  console.log(`[getContractCreator] Trying Etherscan API for ${contractAddress}`);
   try {
     const etherscanCreator = await getContractCreatorFromEtherscan(address, CHAIN_ID);
-    console.log(`[getContractCreator] Etherscan API result:`, etherscanCreator);
     if (etherscanCreator && etherscanCreator !== "0x0000000000000000000000000000000000000000") {
-      console.log(`[getContractCreator] Returning creator from Etherscan:`, etherscanCreator);
       // Discover and cache user data for the creator (non-blocking)
       discoverAndCacheUserBackground(etherscanCreator);
       // Cache the contract-creator relationship (non-blocking)
       cacheContractInfo(contractAddress, {
         creatorAddress: etherscanCreator,
         source: 'etherscan',
-      }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
+      }).catch(() => { /* ignore cache errors */ });
       return { creator: etherscanCreator, source: "etherscan" };
     }
   } catch (error) {
-    console.error(`[getContractCreator] Etherscan API lookup failed for ${contractAddress}:`, error);
-    // Continue to on-chain methods
+    // Etherscan failed, continue to on-chain methods
   }
 
   // 2. Fall back to on-chain methods
@@ -206,7 +185,7 @@ export async function getContractCreator(
         cacheContractInfo(contractAddress, {
           creatorAddress: owner,
           source: 'onchain',
-        }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
+        }).catch(() => { /* ignore cache errors */ });
         return { creator: owner as Address, source: "owner" };
       }
     } catch (error) {
@@ -228,7 +207,7 @@ export async function getContractCreator(
         cacheContractInfo(contractAddress, {
           creatorAddress: creator,
           source: 'onchain',
-        }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
+        }).catch(() => { /* ignore cache errors */ });
         return { creator: creator as Address, source: "creator" };
       }
     } catch (error) {
@@ -252,7 +231,7 @@ export async function getContractCreator(
         cacheContractInfo(contractAddress, {
           creatorAddress: receiver,
           source: 'onchain',
-        }).catch(err => console.warn(`[getContractCreator] Failed to cache contract:`, err));
+        }).catch(() => { /* ignore cache errors */ });
         return { creator: receiver as Address, source: "royalty" };
       }
     } catch (error) {
@@ -262,8 +241,8 @@ export async function getContractCreator(
 
     // No creator found via any method
     return { creator: null, source: null };
-  } catch (error) {
-    console.error(`[ContractCreator] Error getting creator for ${contractAddress}:`, error);
+  } catch {
+    // Errors during contract reads are expected for non-standard contracts
     return { creator: null, source: null };
   }
 }

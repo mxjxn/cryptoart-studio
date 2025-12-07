@@ -24,8 +24,13 @@
   --radius: 0;
 }
 
+html {
+  background: var(--color-background) !important;
+  color: var(--color-text);
+}
+
 body {
-  background: var(--color-background-gradient, var(--color-background));
+  background: var(--color-background-gradient, var(--color-background)) !important;
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   min-height: 100vh;
@@ -33,6 +38,12 @@ body {
   padding: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure Next.js root divs have black background to prevent white flash */
+#__next,
+[data-nextjs-scroll-focus-boundary] {
+  background: var(--color-background) !important;
 }
 
 /* Minimalist design principles */
@@ -148,10 +159,18 @@ button {
 
 ::view-transition-old(root) {
   animation: fadeOut 100ms ease-out;
+  background: var(--color-background) !important;
 }
 
 ::view-transition-new(root) {
   animation: fadeIn 100ms ease-in;
+  background: var(--color-background) !important;
+}
+
+/* Ensure view transition container has black background */
+::view-transition-group(root),
+::view-transition-image-pair(root) {
+  background: var(--color-background) !important;
 }
 
 /* Prevent Farcaster auth-kit from showing full-screen error overlays */

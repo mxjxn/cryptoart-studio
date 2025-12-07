@@ -80,14 +80,7 @@ export async function GET(req: NextRequest) {
     const orderBy = searchParams.get("orderBy") || "listingId";
     const orderDirection = searchParams.get("orderDirection") || "desc";
     
-    console.log('[API /listings/browse] Request:', { first, skip, enrich, orderBy, orderDirection });
-    
-    // Future: support filtering by artist and listing type
-    // const artist = searchParams.get("artist");
-    // const listingType = searchParams.get("listingType");
-
     const endpoint = getSubgraphEndpoint();
-    console.log('[API /listings/browse] Subgraph endpoint:', endpoint ? 'configured' : 'missing');
     
     const data = await request<{ listings: any[] }>(
       endpoint,
@@ -101,7 +94,6 @@ export async function GET(req: NextRequest) {
       getSubgraphHeaders()
     );
     
-    console.log('[API /listings/browse] Subgraph returned', data.listings?.length || 0, 'listings');
     const activeListings = data.listings.filter(listing => listing.status !== "CANCELLED");
 
     let enrichedListings: EnrichedAuctionData[] = activeListings;
@@ -141,8 +133,8 @@ export async function GET(req: NextRequest) {
                 // Discover creator in background (non-blocking)
                 discoverAndCacheUserBackground(creatorResult.creator);
               }
-            } catch (error) {
-              console.error(`Error discovering contract creator for ${listing.tokenAddress}:`, error);
+            } catch {
+              // Ignore creator discovery errors
             }
           }
 
@@ -154,8 +146,8 @@ export async function GET(req: NextRequest) {
                 listing.tokenId,
                 listing.tokenSpec
               );
-            } catch (error) {
-              console.error(`Error fetching metadata:`, error);
+            } catch {
+              // Ignore metadata fetch errors
             }
           }
 
@@ -179,8 +171,6 @@ export async function GET(req: NextRequest) {
         })
       );
     }
-
-    console.log('[API /listings/browse] Returning', enrichedListings.length, 'enriched listings');
 
     return NextResponse.json({
       success: true,

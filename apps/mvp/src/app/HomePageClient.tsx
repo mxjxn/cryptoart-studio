@@ -98,6 +98,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
               <div className="w-[80vw]">
                 <TransitionLink
                   href="/create"
+                  prefetch={false}
                   className="block w-full px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors text-center"
                 >
                   List an Artwork
@@ -177,6 +178,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             {isPro && (
               <TransitionLink
                 href="/create"
+                prefetch={false}
                 className="text-white hover:underline"
               >
                 Create your first listing

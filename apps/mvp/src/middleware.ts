@@ -11,14 +11,23 @@ const BLOCKED_IPS = new Set<string>([
   // '5.6.7.8',
 ]);
 
-// Rate limit configuration - STRICT for DDoS protection
+// Whitelisted IPs (localhost, development)
+const WHITELISTED_IPS = new Set<string>([
+  '127.0.0.1',
+  '::1',
+  '::ffff:127.0.0.1',
+  'localhost',
+  'unknown', // Local dev fallback
+]);
+
+// Rate limit configuration
 const RATE_LIMITS = {
   api: {
-    requests: 20, // requests per window (stricter for API)
+    requests: 100, // requests per window (allow reasonable page loads)
     window: 60 * 1000, // 1 minute in milliseconds
   },
   general: {
-    requests: 60, // requests per window
+    requests: 200, // requests per window
     window: 60 * 1000, // 1 minute in milliseconds
   },
 };
@@ -104,6 +113,11 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Access Denied', { status: 403 });
   }
   
+  // Skip rate limiting for whitelisted IPs (localhost/development)
+  if (WHITELISTED_IPS.has(ip)) {
+    return NextResponse.next();
+  }
+  
   // Skip rate limiting for static assets and Next.js internals
   if (
     path.startsWith('/_next/') ||
@@ -118,7 +132,10 @@ export function middleware(request: NextRequest) {
   const rateLimit = checkRateLimit(ip, path);
   
   if (!rateLimit.allowed) {
-    console.warn(`[DDoS Protection] Rate limit exceeded for IP: ${ip} on ${path}`);
+    // Log only periodically to avoid log spam
+    if (Math.random() < 0.1) {
+      console.warn(`[DDoS Protection] Rate limit exceeded for IP: ${ip} on ${path}`);
+    }
     
     // Return 429 Too Many Requests
     const response = new NextResponse('Too Many Requests', { status: 429 });

@@ -5,6 +5,7 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useCha
 import { useRouter } from "next/navigation";
 import { type Address, parseEther, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
+import { MediaDisplay } from "~/components/media";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { zeroAddress } from "viem";
@@ -109,6 +110,53 @@ function getDefaultEndTime(): string {
 export default function CreateAuctionClient() {
   // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
   const { address, isConnected, isMiniApp: isMiniAppContext } = useEffectiveAddress();
+  const { context } = useMiniApp();
+  
+  // Get all verified addresses when in mini-app
+  const allVerifiedAddresses = useMemo(() => {
+    const addresses: string[] = [];
+    
+    if (isMiniAppContext && context?.user) {
+      const user = context.user as any;
+      const verifiedAddrs = user.verified_addresses;
+      
+      // Get all verified eth addresses
+      if (verifiedAddrs?.eth_addresses) {
+        addresses.push(...verifiedAddrs.eth_addresses.map((addr: string) => addr.toLowerCase()));
+      }
+      
+      // Add primary address if not already included
+      if (verifiedAddrs?.primary?.eth_address) {
+        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
+        if (!addresses.includes(primaryAddr)) {
+          addresses.push(primaryAddr);
+        }
+      }
+      
+      // Add legacy verifications array
+      if (user.verifications) {
+        user.verifications.forEach((addr: string) => {
+          const lowerAddr = addr.toLowerCase();
+          if (!addresses.includes(lowerAddr)) {
+            addresses.push(lowerAddr);
+          }
+        });
+      }
+      
+      // Add custody address if not already included
+      if (user.custody_address) {
+        const custodyAddr = user.custody_address.toLowerCase();
+        if (!addresses.includes(custodyAddr)) {
+          addresses.push(custodyAddr);
+        }
+      }
+    } else if (address) {
+      // On web, just use the connected address
+      addresses.push(address.toLowerCase());
+    }
+    
+    return addresses;
+  }, [isMiniAppContext, context?.user, address]);
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
   // Use the effective address context detection instead of separate hook
@@ -138,6 +186,32 @@ export default function CreateAuctionClient() {
   const [alchemyName, setAlchemyName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
+  
+  // Deployed contracts state
+  const [deployedContracts, setDeployedContracts] = useState<Array<{ address: string; name: string | null; tokenType: string }>>([]);
+  const [deployedContractsLoading, setDeployedContractsLoading] = useState(false);
+  const [deployedContractsFetched, setDeployedContractsFetched] = useState(false);
+  
+  // NFTs owned from selected contract state
+  const [ownedNFTs, setOwnedNFTs] = useState<Array<{ 
+    tokenId: string; 
+    name: string | null; 
+    image: string | null;
+    animationUrl?: string | null;
+    animationFormat?: string | null;
+  }>>([]);
+  const [ownedNFTsLoading, setOwnedNFTsLoading] = useState(false);
+  
+  // Selected NFT metadata for media display
+  const selectedNFT = useMemo(() => {
+    if (!formData.tokenId) return null;
+    // First try to find in ownedNFTs (from dropdown selection)
+    const ownedNFT = ownedNFTs.find(nft => nft.tokenId === formData.tokenId);
+    if (ownedNFT) return ownedNFT;
+    // If not found in ownedNFTs but we have a valid contract and token ID,
+    // we could fetch metadata here, but for now we'll only show preview for selected NFTs
+    return null;
+  }, [formData.tokenId, ownedNFTs]);
 
   const { writeContract, data: hash, isPending, error, reset: resetListing } = useWriteContract();
   const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -256,6 +330,81 @@ export default function CreateAuctionClient() {
     resetApproval();
     resetListing();
   }, [formData.nftContract, formData.tokenId, resetApproval, resetListing]);
+
+  // Fetch deployed contracts when addresses are available
+  useEffect(() => {
+    if (allVerifiedAddresses.length > 0 && !deployedContractsLoading && !deployedContractsFetched) {
+      async function fetchDeployedContracts() {
+        setDeployedContractsLoading(true);
+        try {
+          // Fetch contracts from all verified addresses (Base only)
+          const contractPromises = allVerifiedAddresses.map((addr) =>
+            fetch(`/api/contracts/deployed/${addr}`).then((res) => {
+              if (res.ok) {
+                return res.json().then((data) => data.contracts || []);
+              }
+              return [];
+            })
+          );
+          
+          const allContractsArrays = await Promise.all(contractPromises);
+          const allContracts = allContractsArrays.flat();
+          
+          // Remove duplicates by address (case-insensitive)
+          const uniqueContracts = Array.from(
+            new Map(allContracts.map((contract) => [contract.address.toLowerCase(), contract])).values()
+          );
+          
+          // Sort by name
+          uniqueContracts.sort((a, b) => {
+            if (!a.name && !b.name) return 0;
+            if (!a.name) return 1;
+            if (!b.name) return -1;
+            return a.name.localeCompare(b.name);
+          });
+          
+          setDeployedContracts(uniqueContracts);
+          setDeployedContractsFetched(true);
+        } catch (error) {
+          console.error('Error fetching deployed contracts:', error);
+        } finally {
+          setDeployedContractsLoading(false);
+        }
+      }
+      fetchDeployedContracts();
+    }
+  }, [allVerifiedAddresses, deployedContractsLoading, deployedContractsFetched]);
+
+  // Fetch NFTs owned from selected contract when contract address changes
+  useEffect(() => {
+    if (isValidContract && contractAddress && address) {
+      async function fetchOwnedNFTs() {
+        setOwnedNFTsLoading(true);
+        setOwnedNFTs([]); // Clear previous NFTs
+        setFormData(prev => ({ ...prev, tokenId: "" })); // Clear token ID when contract changes
+        try {
+          const response = await fetch(
+            `/api/nfts/for-owner?owner=${address}&contractAddress=${contractAddress}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setOwnedNFTs(data.nfts || []);
+          } else {
+            console.error('Failed to fetch owned NFTs:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching owned NFTs:', error);
+        } finally {
+          setOwnedNFTsLoading(false);
+        }
+      }
+      fetchOwnedNFTs();
+    } else {
+      // Clear NFTs if contract is invalid or address is not available
+      setOwnedNFTs([]);
+      setFormData(prev => ({ ...prev, tokenId: "" })); // Clear token ID
+    }
+  }, [contractAddress, address, isValidContract]);
 
   // Automatically switch to Base network when on wrong network (web only)
   useEffect(() => {
@@ -1040,21 +1189,47 @@ export default function CreateAuctionClient() {
             <label className="block text-sm font-medium text-[#cccccc] mb-2">
               NFT Contract Address
             </label>
-            <input
-              type="text"
-              value={formData.nftContract}
-              onChange={(e) => setFormData({ ...formData, nftContract: e.target.value })}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black ${
-                formData.nftContract && !isValidAddressFormat(formData.nftContract)
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                  : 'border-[#333333]'
-              }`}
-              placeholder="0x..."
-              required
-            />
+            {deployedContracts.length > 0 && (
+              <select
+                value={formData.nftContract}
+                onChange={(e) => setFormData({ ...formData, nftContract: e.target.value })}
+                className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black mb-2"
+              >
+                <option value="">Select a contract...</option>
+                {deployedContracts.map((contract) => (
+                  <option key={contract.address} value={contract.address}>
+                    {contract.name || contract.address} ({contract.tokenType})
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.nftContract}
+                onChange={(e) => setFormData({ ...formData, nftContract: e.target.value })}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black ${
+                  formData.nftContract && !isValidAddressFormat(formData.nftContract)
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-[#333333]'
+                }`}
+                placeholder={deployedContracts.length > 0 ? "Or enter contract address manually..." : "0x..."}
+                required
+              />
+            </div>
             {formData.nftContract && !isValidAddressFormat(formData.nftContract) && (
               <p className="mt-1 text-sm text-red-400">
                 Please enter a valid Ethereum address (42 characters, starting with 0x)
+              </p>
+            )}
+            {deployedContractsLoading && (
+              <p className="mt-1 text-sm text-[#999999]">
+                Loading your deployed contracts...
+              </p>
+            )}
+            {!deployedContractsLoading && deployedContractsFetched && deployedContracts.length === 0 && address && (
+              <p className="mt-1 text-sm text-[#999999]">
+                No NFT contracts found. You can enter a contract address manually.
               </p>
             )}
           </div>
@@ -1114,15 +1289,61 @@ export default function CreateAuctionClient() {
             <label className="block text-sm font-medium text-[#cccccc] mb-2">
               Token ID
             </label>
-            <input
-              type="text"
-              value={formData.tokenId}
-              onChange={(e) => setFormData({ ...formData, tokenId: e.target.value })}
-              className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
-              placeholder="1"
-              required
-            />
+            {ownedNFTs.length > 0 && (
+              <select
+                value={formData.tokenId}
+                onChange={(e) => setFormData({ ...formData, tokenId: e.target.value })}
+                className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black mb-2"
+              >
+                <option value="">Select a token...</option>
+                {ownedNFTs.map((nft) => (
+                  <option key={nft.tokenId} value={nft.tokenId}>
+                    {nft.name} (#{nft.tokenId})
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.tokenId}
+                onChange={(e) => setFormData({ ...formData, tokenId: e.target.value })}
+                className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
+                placeholder={ownedNFTs.length > 0 ? "Or enter token ID manually..." : "1"}
+                required
+              />
+            </div>
+            {ownedNFTsLoading && (
+              <p className="mt-1 text-sm text-[#999999]">
+                Loading your NFTs from this contract...
+              </p>
+            )}
+            {!ownedNFTsLoading && ownedNFTs.length === 0 && isValidContract && address && (
+              <p className="mt-1 text-sm text-[#999999]">
+                No NFTs found. You can enter a token ID manually.
+              </p>
+            )}
           </div>
+
+          {/* NFT Media Preview - Compact inline display */}
+          {selectedNFT && formData.tokenId && (
+            <div className="border border-[#333333] rounded-lg overflow-hidden bg-[#0a0a0a]">
+              <div className="bg-[#1a1a1a] px-3 py-2 border-b border-[#333333]">
+                <p className="text-sm font-medium text-white">
+                  Preview: {selectedNFT.name || `Token #${selectedNFT.tokenId}`}
+                </p>
+              </div>
+              <div className="w-full max-w-[300px] mx-auto aspect-square">
+                <MediaDisplay
+                  imageUrl={selectedNFT.image || undefined}
+                  animationUrl={selectedNFT.animationUrl || undefined}
+                  animationFormat={selectedNFT.animationFormat || undefined}
+                  alt={selectedNFT.name || `Token #${selectedNFT.tokenId}`}
+                  className="w-full h-full max-h-[300px]"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Ownership Status */}
           {isValidContract && hasValidTokenId && (

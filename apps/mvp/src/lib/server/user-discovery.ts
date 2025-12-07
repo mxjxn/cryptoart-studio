@@ -65,7 +65,7 @@ export async function discoverAndCacheUser(
     // Step 1: Check cache first
     const cached = await getUserFromCache(normalizedAddress);
     if (cached && cached.expiresAt > new Date()) {
-      console.log(`[discoverAndCacheUser] Using cached data for: ${normalizedAddress}`);
+      // Cache hit - no logging needed
       return {
         address: normalizedAddress,
         fid: cached.fid || undefined,
@@ -84,7 +84,6 @@ export async function discoverAndCacheUser(
     }
 
     // Step 2: Try Neynar lookup (Farcaster)
-    console.log(`[discoverAndCacheUser] Looking up ${normalizedAddress} via Neynar...`);
     const neynarResult = await lookupNeynarByAddress(normalizedAddress);
     
     if (neynarResult) {
@@ -106,7 +105,6 @@ export async function discoverAndCacheUser(
     }
 
     // Step 3: Fallback to ENS lookup
-    console.log(`[discoverAndCacheUser] Trying ENS lookup for ${normalizedAddress}...`);
     const ensName = await resolveEnsName(normalizedAddress);
     
     if (ensName) {
@@ -134,10 +132,9 @@ export async function discoverAndCacheUser(
       });
     }
 
-    console.log(`[discoverAndCacheUser] No user data found for: ${normalizedAddress}`);
     return null;
   } catch (error) {
-    console.error(`[discoverAndCacheUser] Error discovering user for ${normalizedAddress}:`, error);
+    // Only log actual errors, not cache misses
     
     if (failSilently) {
       return null;
@@ -196,8 +193,8 @@ export async function discoverAndCacheUsers(
  */
 export function discoverAndCacheUserBackground(address: string): void {
   // Fire and forget - don't await
-  discoverAndCacheUser(address, { failSilently: true }).catch((error) => {
-    console.error(`[discoverAndCacheUserBackground] Background lookup failed for ${address}:`, error);
+  discoverAndCacheUser(address, { failSilently: true }).catch(() => {
+    // Silently ignore background lookup failures
   });
 }
 
