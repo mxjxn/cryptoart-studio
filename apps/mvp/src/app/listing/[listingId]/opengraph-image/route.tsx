@@ -344,6 +344,9 @@ export async function GET(
           
           let fetchedContentType: string | null = null;
           
+          // Maximum image size: 5MB (to prevent memory issues and database timeouts)
+          const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+          
           for (const url of urlsToTry) {
             try {
               const response = await fetch(url, {
@@ -365,8 +368,24 @@ export async function GET(
                 continue;
               }
               
+              // Check Content-Length header before downloading
+              const contentLength = response.headers.get('content-length');
+              if (contentLength) {
+                const size = parseInt(contentLength, 10);
+                if (size > MAX_IMAGE_SIZE) {
+                  console.warn(`[OG Image] Image too large (${size} bytes > ${MAX_IMAGE_SIZE} bytes) for ${url}, skipping...`);
+                  continue;
+                }
+              }
+              
               const arrayBuffer = await response.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
+              
+              // Check actual buffer size after download
+              if (buffer.length > MAX_IMAGE_SIZE) {
+                console.warn(`[OG Image] Image too large after download (${buffer.length} bytes > ${MAX_IMAGE_SIZE} bytes) for ${url}, skipping...`);
+                continue;
+              }
               
               // Validate it's actually image data (check magic bytes)
               const magicBytes = buffer.subarray(0, 4);
@@ -386,9 +405,14 @@ export async function GET(
               
               console.log(`[OG Image] Image fetched successfully from ${url}, size: ${buffer.length} bytes, type: ${contentType}`);
               
-              // Cache the image for future use
-              if (fetchedContentType) {
-                await cacheImage(originalImageUrl, artworkImageDataUrl, fetchedContentType);
+              // Cache the image for future use (only if under size limit)
+              if (fetchedContentType && buffer.length <= MAX_IMAGE_SIZE) {
+                try {
+                  await cacheImage(originalImageUrl, artworkImageDataUrl, fetchedContentType);
+                } catch (cacheError) {
+                  // Don't fail the request if caching fails
+                  console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
+                }
               }
               
               break; // Success, exit loop

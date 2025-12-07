@@ -38,6 +38,24 @@ const nextConfig: NextConfig = {
       };
     }
     
+    // Mark @vercel/blob as external for server-side builds since it's only used conditionally
+    if (isServer) {
+      config.externals = config.externals || [];
+      if (typeof config.externals === 'function') {
+        const originalExternals = config.externals;
+        config.externals = [
+          originalExternals,
+          ({ request }: { request?: string }) => {
+            if (request === '@vercel/blob') {
+              return `commonjs ${request}`;
+            }
+          },
+        ];
+      } else if (Array.isArray(config.externals)) {
+        config.externals.push('@vercel/blob');
+      }
+    }
+    
     return config;
   },
 };

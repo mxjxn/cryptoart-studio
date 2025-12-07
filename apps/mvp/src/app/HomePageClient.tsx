@@ -5,6 +5,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
+import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -198,6 +199,9 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         )}
       </section>
+
+      {/* Admin Tools Panel - Only visible when admin mode is enabled */}
+      <AdminToolsPanel />
     </div>
   );
 }

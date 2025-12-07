@@ -27,6 +27,7 @@ function ipfsToGateway(url: string): string {
 /**
  * Fetch image and convert to data URL for use in ImageResponse
  * Tries multiple IPFS gateways if the first fails
+ * Includes size limits to prevent memory issues
  */
 async function fetchImageAsDataUrl(imageUrl: string): Promise<string | null> {
   const gateways = [
@@ -34,6 +35,9 @@ async function fetchImageAsDataUrl(imageUrl: string): Promise<string | null> {
     "https://ipfs.io",
     "https://gateway.pinata.cloud",
   ];
+  
+  // Maximum image size: 5MB (to prevent memory issues and database timeouts)
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
   
   // Check if it's an IPFS URL and try multiple gateways
   let urlsToTry = [imageUrl];
@@ -57,13 +61,37 @@ async function fetchImageAsDataUrl(imageUrl: string): Promise<string | null> {
         continue;
       }
       
+      // Check content-type - must be an image
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) {
+        console.warn(`[OG Image] [fetchImageAsDataUrl] Response is not an image (content-type: ${contentType}), trying next...`);
+        continue;
+      }
+      
+      // Check Content-Length header before downloading
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        const size = parseInt(contentLength, 10);
+        if (size > MAX_IMAGE_SIZE) {
+          console.warn(`[OG Image] [fetchImageAsDataUrl] Image too large (${size} bytes > ${MAX_IMAGE_SIZE} bytes), skipping...`);
+          continue;
+        }
+      }
+      
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const base64 = buffer.toString('base64');
-      const contentType = response.headers.get('content-type') || 'image/png';
-      const dataUrl = `data:${contentType};base64,${base64}`;
       
-      console.log(`[OG Image] [fetchImageAsDataUrl] Image fetched successfully from ${url.substring(0, 50)}..., size: ${buffer.length} bytes, type: ${contentType}`);
+      // Check actual buffer size after download
+      if (buffer.length > MAX_IMAGE_SIZE) {
+        console.warn(`[OG Image] [fetchImageAsDataUrl] Image too large after download (${buffer.length} bytes > ${MAX_IMAGE_SIZE} bytes), skipping...`);
+        continue;
+      }
+      
+      const base64 = buffer.toString('base64');
+      const finalContentType = contentType || 'image/png';
+      const dataUrl = `data:${finalContentType};base64,${base64}`;
+      
+      console.log(`[OG Image] [fetchImageAsDataUrl] Image fetched successfully from ${url.substring(0, 50)}..., size: ${buffer.length} bytes, type: ${finalContentType}`);
       return dataUrl;
     } catch (error) {
       console.warn(`[OG Image] [fetchImageAsDataUrl] Error fetching from ${url.substring(0, 50)}...:`, error instanceof Error ? error.message : String(error));

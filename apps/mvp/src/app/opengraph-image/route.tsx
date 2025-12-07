@@ -417,6 +417,9 @@ export async function GET(request: NextRequest) {
             "https://gateway.pinata.cloud",
           ];
           
+          // Maximum image size: 2MB for OG-sized thumbnails (smaller than full images)
+          const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+          
           let urlsToTry = [httpUrl];
           if (httpUrl.includes('/ipfs/')) {
             const ipfsHash = httpUrl.split('/ipfs/')[1]?.split('/')[0];
@@ -440,8 +443,24 @@ export async function GET(request: NextRequest) {
               const contentType = response.headers.get('content-type') || '';
               if (!contentType.startsWith('image/')) continue;
               
+              // Check Content-Length header before downloading
+              const contentLength = response.headers.get('content-length');
+              if (contentLength) {
+                const size = parseInt(contentLength, 10);
+                if (size > MAX_IMAGE_SIZE) {
+                  console.warn(`[OG Image] Image too large (${size} bytes > ${MAX_IMAGE_SIZE} bytes) for ${url}, skipping...`);
+                  continue;
+                }
+              }
+              
               const arrayBuffer = await response.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
+              
+              // Check actual buffer size after download
+              if (buffer.length > MAX_IMAGE_SIZE) {
+                console.warn(`[OG Image] Image too large after download (${buffer.length} bytes > ${MAX_IMAGE_SIZE} bytes) for ${url}, skipping...`);
+                continue;
+              }
               
               // Validate image
               const magicBytes = buffer.subarray(0, 4);
@@ -455,8 +474,15 @@ export async function GET(request: NextRequest) {
               const base64 = buffer.toString('base64');
               const dataUrl = `data:${contentType};base64,${base64}`;
               
-              // Cache the image
-              await cacheImage(cacheKey, dataUrl, contentType);
+              // Cache the image (only if under size limit)
+              if (buffer.length <= MAX_IMAGE_SIZE) {
+                try {
+                  await cacheImage(cacheKey, dataUrl, contentType);
+                } catch (cacheError) {
+                  // Don't fail the request if caching fails
+                  console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
+                }
+              }
               
               return dataUrl;
             } catch (error) {
