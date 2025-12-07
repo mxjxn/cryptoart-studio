@@ -142,13 +142,13 @@ ORDER BY duration DESC;
 # Check index usage statistics
 SELECT 
   schemaname,
-  tablename,
-  indexname,
+  relname AS tablename,
+  indexrelname AS indexname,
   idx_scan as index_scans,
   idx_tup_read as tuples_read,
   idx_tup_fetch as tuples_fetched
 FROM pg_stat_user_indexes
-WHERE indexname LIKE '%_idx'
+WHERE indexrelname LIKE '%_idx'
 ORDER BY idx_scan DESC;
 ```
 
