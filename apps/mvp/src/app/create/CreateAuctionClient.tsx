@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
 import { useRouter } from "next/navigation";
 import { type Address, parseEther, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
@@ -10,8 +10,8 @@ import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { zeroAddress } from "viem";
 import { TransactionStatus } from "~/components/TransactionStatus";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
-import { useAuthMode } from "~/hooks/useAuthMode";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
+import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { TransitionLink } from "~/components/TransitionLink";
@@ -107,10 +107,12 @@ function getDefaultEndTime(): string {
 }
 
 export default function CreateAuctionClient() {
-  const { address, isConnected } = useAccount();
+  // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
+  const { address, isConnected, isMiniApp: isMiniAppContext } = useEffectiveAddress();
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
-  const { isMiniApp } = useAuthMode();
+  // Use the effective address context detection instead of separate hook
+  const isMiniApp = isMiniAppContext;
   const { isWrongNetwork, switchToBase, isSwitching } = useNetworkGuard();
   const chainId = useChainId();
   const [formData, setFormData] = useState({

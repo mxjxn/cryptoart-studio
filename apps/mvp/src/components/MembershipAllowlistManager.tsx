@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useAccount, usePublicClient } from "wagmi";
+import { usePublicClient } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
 import { useMiniApp } from "@neynar/react";
+import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useMembershipAllowlist } from "~/hooks/useMembershipAllowlist";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { isAddress, type Address } from "viem";
@@ -25,7 +26,8 @@ interface VerifiedAddressStatus {
  * Allows membership holders to register Farcaster verified addresses so they can also sell
  */
 export function MembershipAllowlistManager({ membershipAddress }: MembershipAllowlistManagerProps) {
-  const { address: connectedAddress, isConnected } = useAccount();
+  // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
+  const { address: connectedAddress, isConnected } = useEffectiveAddress();
   const { context } = useMiniApp();
   const { profile: farcasterProfile } = useProfile();
   const primaryWallet = usePrimaryWallet();

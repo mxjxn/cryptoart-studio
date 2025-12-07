@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect, useBalance, usePublicClient } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect, useBalance, usePublicClient } from "wagmi";
 import { useProfile } from "@farcaster/auth-kit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
+import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { type Address, parseEther, formatEther, decodeErrorResult, encodeFunctionData } from "viem";
 import { base } from "viem/chains";
@@ -141,7 +142,8 @@ const ERC721_ABI = [
 ] as const;
 
 export default function MembershipClient() {
-  const { address, isConnected } = useAccount();
+  // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
+  const { address, isConnected } = useEffectiveAddress();
   const { connect, connectors, isPending: isConnectPending } = useConnect();
   const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const { memberships, primaryMembership, isPro, expirationDate, membershipAddress, timeRemainingSeconds, isFarcasterWallet, loading: statusLoading } = useMembershipStatus();

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
+import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
 import { ShareButton } from "~/components/ShareButton";
@@ -54,7 +55,8 @@ interface AuctionDetailClientProps {
 export default function AuctionDetailClient({
   listingId,
 }: AuctionDetailClientProps) {
-  const { address, isConnected } = useAccount();
+  // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
+  const { address, isConnected } = useEffectiveAddress();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isSDKLoaded, actions, context } = useMiniApp();
