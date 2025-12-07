@@ -16,7 +16,8 @@ import {
 } from '@rainbow-me/rainbowkit/wallets';
 
 // WalletConnect Project ID - required for WalletConnect-based wallets
-const WALLETCONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '';
+// Get a free projectId at https://cloud.walletconnect.com
+const WALLETCONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '21fef48091f12692cad574a6f7753643';
 
 // Create connectors with RainbowKit wallets + farcasterFrame for mini-app
 const connectors = connectorsForWallets(
@@ -24,9 +25,9 @@ const connectors = connectorsForWallets(
     {
       groupName: 'Popular',
       wallets: [
-        rainbowWallet,
         coinbaseWallet,
         metaMaskWallet,
+        rainbowWallet,
         walletConnectWallet,
         phantomWallet,
       ],
