@@ -38,16 +38,33 @@ export function ContractSelector({
       setLoading(true);
       try {
         // Fetch from cached endpoint (instant)
-        const response = await fetch(`/api/contracts/cached/${encodeURIComponent(address!)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setContracts(data.contracts || []);
+        const cachedResponse = await fetch(`/api/contracts/cached/${encodeURIComponent(address!)}`);
+        if (cachedResponse.ok) {
+          const cachedData = await cachedResponse.json();
+          const cachedContracts = cachedData.contracts || [];
+          setContracts(cachedContracts);
+          
+          // If no cached contracts, fetch directly (will also cache them)
+          if (cachedContracts.length === 0) {
+            const deployedResponse = await fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`);
+            if (deployedResponse.ok) {
+              const deployedData = await deployedResponse.json();
+              setContracts(deployedData.contracts || []);
+            }
+          } else {
+            // Trigger background refresh if we have cached data
+            fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`).catch(() => {
+              // Silently fail background refresh
+            });
+          }
+        } else {
+          // If cached endpoint fails, try direct fetch
+          const deployedResponse = await fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}`);
+          if (deployedResponse.ok) {
+            const deployedData = await deployedResponse.json();
+            setContracts(deployedData.contracts || []);
+          }
         }
-        
-        // Optionally trigger background refresh
-        fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`).catch(() => {
-          // Silently fail background refresh
-        });
       } catch (error) {
         console.error("Error fetching contracts:", error);
       } finally {
