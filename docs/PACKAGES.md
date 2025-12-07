@@ -59,7 +59,7 @@ await cache.setSubscriptions(fid, subscriptionData);
 
 **Relationship to Other Packages**:
 - Depends on `@cryptoart/db` for database access
-- Used by `apps/cryptoart-studio-app/` for caching Hypersub data
+- Used by apps for caching Hypersub data
 
 ---
 
@@ -125,7 +125,7 @@ const result = await db.select().from(subscriptionsCache);
 
 **Relationship to Other Packages**:
 - Used by `@cryptoart/cache` for database operations
-- Used by `apps/cryptoart-studio-app/` for data persistence
+- Used by apps for data persistence
 
 ---
 
@@ -229,7 +229,7 @@ import { Card } from '@cryptoart/ui/card';
 ## Package Relationships
 
 ```
-apps/cryptoart-studio-app/
+apps/mvp/
   ├── Uses: @cryptoart/ui (for UI components)
   ├── Uses: @cryptoart/cache (for caching)
   └── Uses: @cryptoart/db (for database access)
@@ -254,7 +254,7 @@ packages/typescript-config/
 
 ### Current Usage
 
-- **cryptoart-studio-app**: Uses `@cryptoart/db` and `@cryptoart/cache` for data management
+- **MVP app**: Uses `@cryptoart/db` and `@cryptoart/cache` for data management
 - **ui package**: Shared components available but adoption pending
 - **config packages**: Used internally but relationship to main project needs clarification
 

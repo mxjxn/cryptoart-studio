@@ -1,5 +1,0 @@
-{
-  "buildCommand": "cd ../.. && cd packages/unified-indexer && npm run build && cd ../../apps/cryptoart-studio-app && npm run build",
-  "installCommand": "cd ../.. && node scripts/convert-workspace-deps.js && npm install --legacy-peer-deps",
-  "framework": "nextjs"
-} 

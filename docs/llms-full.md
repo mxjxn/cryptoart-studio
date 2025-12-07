@@ -4,7 +4,7 @@
 > - Creator Core: `packages/creator-core-contracts/`
 > - Auctionhouse Contracts: `packages/auctionhouse-contracts/`
 > - Backend: `apps/backend/`
-> - Cryptoart Studio App: `apps/cryptoart-studio-app/`
+> - MVP App: `apps/mvp/`
 
 ---
 
@@ -22,9 +22,6 @@
    - [Overview](#backend-overview)
    - [Implementation Guide](#backend-implementation)
    - [Technical Notes](#backend-technical-notes)
-4. [Cryptoart Studio App](#cryptoart-studio-app)
-   - [Overview](#cryptoart-studio-app-overview)
-   - [Development Guide](#cryptoart-studio-app-development)
 
 ---
 
@@ -625,56 +622,6 @@ The indexer scans blocks and processes events:
 
 ---
 
-# Cryptoart Studio App
-
-## Cryptoart Studio App Overview
-
-**Source**: `apps/cryptoart-studio-app/README.md`
-
-A Farcaster Mini App built with Next.js + TypeScript + React for the cryptoart platform. This is the main frontend application for managing subscriptions, airdrops, and channel data.
-
-### Tech Stack
-
-- **Framework**: Next.js 15
-- **Language**: TypeScript
-- **UI**: React 18, Tailwind CSS
-- **Blockchain**: Wagmi, Viem
-- **Farcaster**: @farcaster/miniapp-sdk, @neynar/nodejs-sdk
-- **Auth**: NextAuth, Neynar Auth
-
-### Getting Started
-
-```bash
-npm run dev
-```
-
-### Deployment
-
-```bash
-npm run deploy:vercel
-```
-
----
-
-## Cryptoart Studio App Development
-
-### Scripts
-
-- `dev`: Start development server
-- `build`: Build for production
-- `start`: Start production server
-- `lint`: Run ESLint
-- `deploy:vercel`: Deploy to Vercel
-
-### Environment Variables
-
-The app requires various environment variables for:
-- Farcaster authentication
-- Neynar API keys
-- Blockchain RPC endpoints
-- NextAuth configuration
-- Database connection (PostgreSQL)
-
 ---
 
 ## Cross-References
@@ -684,7 +631,7 @@ For detailed documentation, see the original source files:
 - **Creator Core**: `packages/creator-core-contracts/README.md`, `ARCHITECTURE.md`, `DEPLOYMENT_GUIDE.md`, `QUICK_REFERENCE.md`
 - **Auctionhouse Contracts**: `packages/auctionhouse-contracts/README.md`
 - **Backend**: `apps/backend/guide.md`, `config.js`, `index.js`
-- **Cryptoart Studio App**: `apps/cryptoart-studio-app/README.md`
+- **MVP App**: `apps/mvp/README.md`
 
 For information about additional packages (cache, db, eslint-config, typescript-config, ui), see `PACKAGES.md`.
 
