@@ -22,31 +22,68 @@ config({ path: resolve(__dirname, '../.env.local') });
 // Fallback to local .env if exists
 config({ path: resolve(__dirname, '../.env') });
 
-let connectionString = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
+// Prefer direct connection for DDL, fallback to pooled
+let connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.STORAGE_POSTGRES_URL_NON_POOLING;
+let isPooled = false;
+
+// If no direct connection URL, try to construct one from env vars or use pooled
 if (!connectionString) {
-  console.error('❌ STORAGE_POSTGRES_URL or POSTGRES_URL environment variable is required');
-  process.exit(1);
+  connectionString = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    console.error('❌ STORAGE_POSTGRES_URL or POSTGRES_URL environment variable is required');
+    process.exit(1);
+  }
+  
+  // Try to construct direct connection from pooled URL
+  const url = new URL(connectionString);
+  isPooled = url.port === '6543' || connectionString.includes('pooler') || connectionString.includes('pgbouncer=true');
+  
+  if (isPooled) {
+    // Construct direct connection URL from pooled URL
+    // Replace pooler hostname with direct hostname (db.*.supabase.co)
+    const directHost = process.env.STORAGE_POSTGRES_HOST || url.hostname.replace('pooler', 'db').replace('aws-1-us-east-1.pooler', 'db');
+    
+    // Build direct connection URL
+    const directUrl = new URL(connectionString);
+    directUrl.hostname = directHost;
+    directUrl.port = '5432';
+    directUrl.searchParams.delete('pgbouncer');
+    directUrl.searchParams.delete('supa');
+    connectionString = directUrl.toString();
+    
+    console.log('⚠️  Constructed direct connection from pooled URL\n');
+    console.log(`   Direct host: ${directHost}:5432\n`);
+  }
+} else {
+  // Check if the non-pooling URL is actually using pooler hostname (incorrect)
+  const url = new URL(connectionString);
+  if (url.hostname.includes('pooler') && url.port === '5432') {
+    // Fix it - replace pooler hostname with direct hostname
+    const directHost = process.env.STORAGE_POSTGRES_HOST || url.hostname.replace('pooler', 'db').replace('aws-1-us-east-1.pooler', 'db');
+    url.hostname = directHost;
+    connectionString = url.toString();
+    console.log('⚠️  Fixed non-pooling URL to use direct hostname\n');
+  }
 }
 
-// For DDL operations (CREATE TABLE), use direct connection instead of pooled
-// Convert pooled connection (port 6543) to direct connection (port 5432)
 const url = new URL(connectionString);
-if (url.port === '6543' || connectionString.includes('pooler') || connectionString.includes('pgbouncer=true')) {
-  // Use direct connection for DDL operations
-  url.port = '5432';
-  url.searchParams.delete('pgbouncer');
-  connectionString = url.toString();
-  console.log('⚠️  Using direct connection (port 5432) for DDL operations\n');
+isPooled = url.port === '6543' || connectionString.includes('pooler') || connectionString.includes('pgbouncer=true');
+
+if (isPooled) {
+  console.log('⚠️  Using pooled connection - CREATE TABLE should work, but may be slower\n');
+} else {
+  console.log('✅ Using direct connection for DDL operations\n');
 }
 
 console.log(`🔗 Connecting to database: ${url.hostname}${url.pathname}\n`);
 
 async function createThumbnailCacheTable() {
   // Use minimal connection pool for one-off script
+  // Increase timeout for direct connections which may be slower
   const sql = postgres(connectionString, {
     max: 1, // Only need 1 connection for this script
     idle_timeout: 20,
-    connect_timeout: 10,
+    connect_timeout: isPooled ? 10 : 30, // Longer timeout for direct connections
   });
   
   // Retry logic for connection pool exhaustion
