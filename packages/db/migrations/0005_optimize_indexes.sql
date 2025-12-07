@@ -1,6 +1,6 @@
 -- Migration: Optimize Database Indexes for Reduced Disk IO
 -- Purpose: Add composite indexes and optimize query patterns to dramatically reduce disk IO
--- Expected Impact: 15-25% reduction in disk IO from better index usage
+-- Expected Impact: 10-15% reduction in disk IO from better index usage
 
 -- ============================================
 -- COMPOSITE INDEXES FOR COMMON QUERY PATTERNS
