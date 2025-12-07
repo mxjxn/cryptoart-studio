@@ -26,12 +26,22 @@ export async function GET(req: NextRequest) {
 
     console.log('[API /auctions/active] Returning', enrichedAuctions.length, 'auctions');
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       auctions: enrichedAuctions,
       count: enrichedAuctions.length,
       cached: useCache,
     });
+
+    // Add HTTP cache headers for CDN/edge caching
+    // Cache for 30 seconds, allow stale for 60 seconds while revalidating
+    // This dramatically reduces disk IO by serving cached responses from the edge
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=30, stale-while-revalidate=60'
+    );
+
+    return response;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch active auctions';
     console.error('[API /auctions/active] Error:', errorMessage, error);
