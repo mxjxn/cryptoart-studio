@@ -103,7 +103,7 @@ if (typeof setInterval !== 'undefined') {
   }, 5 * 60 * 1000);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const ip = getClientIP(request);
   const path = request.nextUrl.pathname;
   

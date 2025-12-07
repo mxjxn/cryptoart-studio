@@ -23,3 +23,4 @@ CREATE INDEX "pending_allowlist_signatures_expires_at_idx" ON "pending_allowlist
 --> statement-breakpoint
 CREATE UNIQUE INDEX "pending_allowlist_signatures_unique_idx" ON "pending_allowlist_signatures" USING btree ("associated_address", "membership_holder", "nonce");
 
+

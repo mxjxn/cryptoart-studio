@@ -22,3 +22,4 @@ CREATE INDEX "favorites_unique_favorite_idx" ON "favorites" USING btree ("user_a
 ALTER TABLE "favorites" ADD CONSTRAINT "favorites_unique_user_listing" UNIQUE ("user_address", "listing_id");
 
 
+
