@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useConnect, useBalance, usePublicClient } from "wagmi";
-import { useProfile } from "@farcaster/auth-kit";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useBalance, usePublicClient } from "wagmi";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
@@ -114,13 +113,12 @@ function formatTimeRemaining(seconds: number): string {
 
 export default function MembershipClient() {
   const { address, isConnected } = useEffectiveAddress();
-  const { connect, connectors, isPending: isConnectPending } = useConnect();
-  const { isAuthenticated: isFarcasterAuth } = useProfile();
+  // useConnect removed - with RainbowKit, wallet connection is handled by the ConnectButton
   const { memberships, primaryMembership, loading: statusLoading } = useMembershipStatus();
   const [periods, setPeriods] = useState(12);
   const [showMintForm, setShowMintForm] = useState(false);
   
-  const isAuthenticated = isConnected || isFarcasterAuth;
+  const isAuthenticated = isConnected;
   
   // Split memberships: current wallet vs other wallets
   const currentWalletMembership = memberships.find(m => 
@@ -239,7 +237,7 @@ export default function MembershipClient() {
     );
   }
 
-  const needsWalletForTransaction = isFarcasterAuth && !isConnected;
+  // With RainbowKit, users connect their wallet directly, no separate auth flow
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -411,28 +409,13 @@ export default function MembershipClient() {
                 )}
 
                 {/* Action */}
-                {needsWalletForTransaction ? (
-                  <div className="space-y-2">
-                    {connectors.map((connector) => (
-                      <button
-                        key={connector.uid}
-                        onClick={() => connect({ connector })}
-                        disabled={isConnectPending}
-                        className="w-full px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors disabled:opacity-50"
-                      >
-                        {isConnectPending ? "Connecting..." : `Connect ${connector.name}`}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleSubscribe}
-                    disabled={isPending || isConfirming || hasInsufficientBalance}
-                    className="w-full px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors disabled:opacity-50"
-                  >
-                    {isPending || isConfirming ? "Processing..." : isSuccess ? "Success!" : hasMembershipInCurrentWallet ? "Add Time" : "Get Membership"}
-                  </button>
-                )}
+                <button
+                  onClick={handleSubscribe}
+                  disabled={isPending || isConfirming || hasInsufficientBalance}
+                  className="w-full px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors disabled:opacity-50"
+                >
+                  {isPending || isConfirming ? "Processing..." : isSuccess ? "Success!" : hasMembershipInCurrentWallet ? "Add Time" : "Get Membership"}
+                </button>
               </div>
             )}
           </div>

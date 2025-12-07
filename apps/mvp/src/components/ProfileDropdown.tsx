@@ -3,8 +3,8 @@
 import { TransitionLink } from "~/components/TransitionLink";
 import { useState, useRef, useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useProfile } from "@farcaster/auth-kit";
+import { useAccount, useDisconnect } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
@@ -13,7 +13,6 @@ import { ThemeToggle } from "~/components/ThemeToggle";
 import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
 import { useAdminMode } from "~/hooks/useAdminMode";
-import { SafeSignInButton } from "~/components/SafeSignInButton";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
   pfpUrl: string | undefined; 
@@ -90,39 +89,34 @@ export function ProfileDropdown() {
   const { isMiniApp, isLoading: authModeLoading } = useAuthMode();
   const { context } = useMiniApp();
   const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending: isConnectPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading } = useMembershipStatus();
   const { mode } = useColorScheme();
   const [isOpen, setIsOpen] = useState(false);
-  const [showSignInOptions, setShowSignInOptions] = useState(false);
   const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // Resolve ENS name and avatar for address when not logged in via Farcaster mini-app
-  const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
+  // Resolve ENS name and avatar for address when not in mini-app context
+  const shouldResolveEns = !isMiniApp && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
   const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
 
   // Determine the profile URL based on auth mode
-  // Priority: Farcaster pfp > ENS avatar > undefined
+  // Priority: Farcaster mini-app pfp > ENS avatar > undefined
   const pfpUrl = isMiniApp
     ? context?.user?.pfpUrl
-    : isFarcasterAuth
-    ? farcasterProfile?.pfpUrl
     : ensAvatar || undefined;
 
   // Determine if user is authenticated
+  // Mini-app: check context.user exists
+  // Web: check wagmi isConnected
   const isAuthenticated = isMiniApp
     ? !!context?.user
-    : isFarcasterAuth || isConnected;
+    : isConnected;
 
   // Get display name
   const displayName = isMiniApp
     ? context?.user?.displayName || context?.user?.username
-    : isFarcasterAuth
-    ? farcasterProfile?.displayName || farcasterProfile?.username
     : address
     ? (ensName || `${address.slice(0, 6)}...${address.slice(-4)}`)
     : undefined;
@@ -166,58 +160,9 @@ export function ProfileDropdown() {
     );
   }
 
-  // Web context: Not authenticated - show sign-in button
+  // Web context: Not authenticated - show RainbowKit ConnectButton
   if (!isMiniApp && !isAuthenticated) {
-    return (
-      <div className="relative" ref={dropdownRef}>
-        <button
-          onClick={() => setShowSignInOptions(!showSignInOptions)}
-          className="px-4 py-2 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors"
-        >
-          Sign In
-        </button>
-
-        {showSignInOptions && (
-          <div className="absolute top-full right-0 mt-2 w-64 bg-black border border-[#333333] rounded-lg shadow-lg z-50">
-            <div className="py-2">
-              {/* Farcaster Sign-In */}
-              <div className="px-4 py-2 border-b border-[#333333]">
-                <div className="text-xs text-[#999999] mb-2">Sign in with Farcaster</div>
-                <SafeSignInButton
-                  onSuccess={() => {
-                    setShowSignInOptions(false);
-                  }}
-                  onError={(error) => {
-                    console.error("Farcaster sign-in error:", error);
-                    // Error is already handled by SafeSignInButton
-                  }}
-                />
-              </div>
-
-              {/* Wallet Connectors */}
-              <div className="px-4 py-2">
-                <div className="text-xs text-[#999999] mb-2">Or connect wallet</div>
-                {connectors
-                  .filter((c) => c.name !== "Farcaster Frame")
-                  .map((connector) => (
-                    <button
-                      key={connector.uid}
-                      onClick={() => {
-                        connect({ connector });
-                        setShowSignInOptions(false);
-                      }}
-                      disabled={isConnectPending}
-                      className="w-full py-2 text-sm text-white hover:text-[#cccccc] transition-colors text-left"
-                    >
-                      {isConnectPending ? "Connecting..." : connector.name}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    return <ConnectButton />;
   }
 
   // Authenticated state (mini-app or web)

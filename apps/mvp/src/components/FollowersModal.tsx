@@ -6,7 +6,6 @@ import Link from "next/link";
 import { FollowButton } from "./FollowButton";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { useAccount } from "wagmi";
-import { useProfile } from "@farcaster/auth-kit";
 import { useMiniApp } from "@neynar/react";
 
 interface FollowerUser {
@@ -32,7 +31,6 @@ export function FollowersModal({ isOpen, onClose, address, type }: FollowersModa
   
   const primaryWallet = usePrimaryWallet();
   const { address: connectedAddress } = useAccount();
-  const { profile: farcasterProfile } = useProfile();
   const { context } = useMiniApp();
   
   // Get current user address for determining if we can show unfollow buttons
@@ -40,10 +38,7 @@ export function FollowersModal({ isOpen, onClose, address, type }: FollowersModa
     connectedAddress || 
     (context?.user as any)?.verified_addresses?.primary?.eth_address ||
     (context?.user as any)?.custody_address ||
-    ((context?.user as any)?.verifications?.[0] as string) ||
-    (farcasterProfile as any)?.verified_addresses?.primary?.eth_address ||
-    (farcasterProfile as any)?.custody_address ||
-    ((farcasterProfile as any)?.verifications?.[0] as string);
+    ((context?.user as any)?.verifications?.[0] as string);
   
   const isOwnProfile = currentUserAddress?.toLowerCase() === address.toLowerCase();
   

@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { useAccount } from "wagmi";
-import { useProfile } from "@farcaster/auth-kit";
 import { useMiniApp } from "@neynar/react";
 
 interface FollowButtonProps {
@@ -17,7 +16,6 @@ export function FollowButton({ followingAddress, className = "" }: FollowButtonP
   const [isToggling, setIsToggling] = useState(false);
   const primaryWallet = usePrimaryWallet();
   const { address } = useAccount();
-  const { profile: farcasterProfile } = useProfile();
   const { context } = useMiniApp();
   
   // Get all verified addresses for the current user
@@ -57,44 +55,6 @@ export function FollowButton({ followingAddress, className = "" }: FollowButtonP
       }
     }
     
-    // Get verified addresses from Farcaster web auth profile
-    if (farcasterProfile) {
-      const profile = farcasterProfile as any;
-      const verifiedAddrs = profile.verified_addresses;
-      
-      if (verifiedAddrs?.eth_addresses) {
-        verifiedAddrs.eth_addresses.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-      
-      if (verifiedAddrs?.primary?.eth_address) {
-        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-        if (!addresses.includes(primaryAddr)) {
-          addresses.push(primaryAddr);
-        }
-      }
-      
-      if (profile.verifications) {
-        profile.verifications.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-      
-      if (profile.custody_address) {
-        const custodyAddr = profile.custody_address.toLowerCase();
-        if (!addresses.includes(custodyAddr)) {
-          addresses.push(custodyAddr);
-        }
-      }
-    }
-    
     // Add connected wallet
     if (address) {
       const connectedAddrLower = address.toLowerCase();
@@ -112,17 +72,14 @@ export function FollowButton({ followingAddress, className = "" }: FollowButtonP
     }
     
     return addresses;
-  }, [context?.user, farcasterProfile, address, primaryWallet]);
+  }, [context?.user, address, primaryWallet]);
   
   // Get current user address (primary one for API calls)
   const currentUserAddress = primaryWallet || 
     address || 
     (context?.user as any)?.verified_addresses?.primary?.eth_address ||
     (context?.user as any)?.custody_address ||
-    ((context?.user as any)?.verifications?.[0] as string) ||
-    (farcasterProfile as any)?.verified_addresses?.primary?.eth_address ||
-    (farcasterProfile as any)?.custody_address ||
-    ((farcasterProfile as any)?.verifications?.[0] as string);
+    ((context?.user as any)?.verifications?.[0] as string);
   
   // Check if user is authenticated
   const isAuthenticated = !!currentUserAddress;

@@ -1,12 +1,15 @@
 import { useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { useMiniApp } from '@neynar/react';
-import { isAddress, type Address } from 'viem';
+import { type Address } from 'viem';
 
 /**
  * Hook to get the effective wallet address for transactions.
  * 
- * In miniapp context: Uses verified_addresses.primary.eth_address from Farcaster
+ * In miniapp context: Uses wagmi's farcasterFrame connector which provides
+ * the wallet address through the Farcaster wallet provider. The context.user
+ * only contains metadata (fid, username, pfp) - NOT wallet addresses.
+ * 
  * On web: Uses useAccount().address from standard web3 connector
  * 
  * This ensures transactions are signed by the correct wallet in each context.
@@ -20,61 +23,16 @@ export function useEffectiveAddress(): {
   const { context } = useMiniApp();
 
   const result = useMemo(() => {
-    // Check if we're in miniapp context
+    // Check if we're in miniapp context (context.user contains fid, username, etc.)
     const isMiniApp = !!context?.user;
 
-    if (isMiniApp) {
-      const user = context.user as any;
-      
-      // In miniapp: ALWAYS use primary verified address
-      // This is the wallet that Farcaster uses for signing transactions
-      const primaryAddress = user.verified_addresses?.primary?.eth_address;
-      
-      if (primaryAddress && isAddress(primaryAddress)) {
-        return {
-          address: primaryAddress.toLowerCase() as Address,
-          isConnected: true,
-          isMiniApp: true,
-        };
-      }
-      
-      // Fallback: If no primary, use first eth_address
-      const ethAddresses = user.verified_addresses?.eth_addresses;
-      if (Array.isArray(ethAddresses) && ethAddresses.length > 0) {
-        const firstAddr = ethAddresses[0];
-        if (isAddress(firstAddr)) {
-          return {
-            address: firstAddr.toLowerCase() as Address,
-            isConnected: true,
-            isMiniApp: true,
-          };
-        }
-      }
-      
-      // Last resort: custody address (should rarely happen)
-      const custodyAddress = user.custody_address;
-      if (custodyAddress && isAddress(custodyAddress)) {
-        console.warn('[useEffectiveAddress] Falling back to custody address - this may cause transaction issues');
-        return {
-          address: custodyAddress.toLowerCase() as Address,
-          isConnected: true,
-          isMiniApp: true,
-        };
-      }
-      
-      // No valid address found in miniapp context
-      return {
-        address: undefined,
-        isConnected: false,
-        isMiniApp: true,
-      };
-    }
-
-    // On web: Use standard wagmi connector
+    // In both mini-app and web contexts, use wagmi's connected address.
+    // In mini-app: the farcasterFrame() connector provides the wallet address
+    // On web: standard wallet connectors (Coinbase, MetaMask) provide the address
     return {
       address: wagmiAddress,
       isConnected: wagmiConnected,
-      isMiniApp: false,
+      isMiniApp,
     };
   }, [context?.user, wagmiAddress, wagmiConnected]);
 

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { useAccount } from "wagmi";
-import { useProfile } from "@farcaster/auth-kit";
 import { useMiniApp } from "@neynar/react";
 
 interface FavoriteButtonProps {
@@ -18,7 +17,6 @@ export function FavoriteButton({ listingId, className = "" }: FavoriteButtonProp
   const [showSavedChip, setShowSavedChip] = useState(false);
   const primaryWallet = usePrimaryWallet();
   const { address } = useAccount();
-  const { profile: farcasterProfile } = useProfile();
   const { context } = useMiniApp();
   
   // Get current user address
@@ -26,10 +24,7 @@ export function FavoriteButton({ listingId, className = "" }: FavoriteButtonProp
     address || 
     (context?.user as any)?.verified_addresses?.primary?.eth_address ||
     (context?.user as any)?.custody_address ||
-    ((context?.user as any)?.verifications?.[0] as string) ||
-    (farcasterProfile as any)?.verified_addresses?.primary?.eth_address ||
-    (farcasterProfile as any)?.custody_address ||
-    ((farcasterProfile as any)?.verifications?.[0] as string);
+    ((context?.user as any)?.verifications?.[0] as string);
   
   // Check if user is authenticated
   const isAuthenticated = !!currentUserAddress;

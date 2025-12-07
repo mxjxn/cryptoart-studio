@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { useMiniApp } from '@neynar/react';
-import { useProfile } from '@farcaster/auth-kit';
 import type { AuctionData } from '~/lib/types';
 import { getAuctionsBySeller, getAuctionsWithBids, getAuctionsWithOffers } from '~/lib/subgraph';
 import { Address } from 'viem';
@@ -9,7 +8,6 @@ import { Address } from 'viem';
 export function useUserAuctions() {
   const { address } = useAccount();
   const { context } = useMiniApp();
-  const { profile: farcasterProfile } = useProfile();
   
   // Get verified addresses from Farcaster mini-app if available
   const farcasterMiniAppAddress = useMemo(() => {
@@ -21,18 +19,8 @@ export function useUserAuctions() {
     );
   }, [context?.user]);
   
-  // Get verified address from Farcaster web auth profile if available
-  const farcasterWebAddress = useMemo(() => {
-    if (!farcasterProfile) return null;
-    return (
-      (farcasterProfile as any).verified_addresses?.primary?.eth_address ||
-      (farcasterProfile as any).custody_address ||
-      ((farcasterProfile as any).verifications?.[0] as string)
-    );
-  }, [farcasterProfile]);
-  
   // Use connected wallet address, or fall back to Farcaster verified address
-  const userAddress = address || farcasterMiniAppAddress || farcasterWebAddress;
+  const userAddress = address || farcasterMiniAppAddress;
   
   const [createdAuctions, setCreatedAuctions] = useState<AuctionData[]>([]);
   const [activeBids, setActiveBids] = useState<AuctionData[]>([]);

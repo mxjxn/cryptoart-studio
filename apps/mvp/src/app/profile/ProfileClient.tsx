@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAccount } from "wagmi";
 import { useMiniApp } from "@neynar/react";
-import { useProfile } from "@farcaster/auth-kit";
 import { useUserAuctions } from "~/hooks/useUserAuctions";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
@@ -27,7 +26,6 @@ type FarcasterHandle = {
 export default function ProfileClient() {
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
-  const { isAuthenticated: isFarcasterAuth, profile: farcasterProfile } = useProfile();
   const [activeTab, setActiveTab] = useState<TabType>("created");
   
   // Farcaster handles state
@@ -43,41 +41,33 @@ export default function ProfileClient() {
       ((context.user as any).verifications?.[0] as string)
     : null;
   
-  // Get verified address from Farcaster web auth profile if available
-  const farcasterWebAddress = farcasterProfile
-    ? (farcasterProfile as any).verified_addresses?.primary?.eth_address ||
-      (farcasterProfile as any).custody_address ||
-      ((farcasterProfile as any).verifications?.[0] as string)
-    : null;
-  
   // Use connected wallet address, or fall back to Farcaster verified address
-  const userAddress = address || farcasterMiniAppAddress || farcasterWebAddress;
+  const userAddress = address || farcasterMiniAppAddress;
   
   // Determine if we're in mini-app context
   const isMiniApp = !!context?.user;
   
-  // Determine if user is authenticated (matching ProfileDropdown logic)
-  // Check farcasterProfile first as it's the most reliable indicator of authentication
+  // Determine if user is authenticated
   const isAuthenticated = isMiniApp
     ? !!context?.user
-    : !!farcasterProfile || isFarcasterAuth || isConnected;
+    : isConnected;
   
-  // Resolve ENS name and avatar for address when not logged in via Farcaster
-  const shouldResolveEns = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
+  // Resolve ENS name and avatar for address when not in mini-app context
+  const shouldResolveEns = !isMiniApp && isConnected && !!address;
   const ensName = useEnsNameForAddress(address, shouldResolveEns);
   const ensAvatar = useEnsAvatarForAddress(address, shouldResolveEns);
   
-  // Determine avatar URL: Farcaster pfp (mini-app) > Farcaster pfp (web) > ENS avatar > undefined
-  const avatarUrl = context?.user?.pfpUrl || farcasterProfile?.pfpUrl || ensAvatar || undefined;
+  // Determine avatar URL: Farcaster pfp (mini-app) > ENS avatar > undefined
+  const avatarUrl = context?.user?.pfpUrl || ensAvatar || undefined;
   
   // Determine currently logged-in Farcaster handle (for status chip highlighting)
   const currentFarcasterFid = isMiniApp
     ? (context?.user as any)?.fid
-    : (farcasterProfile as any)?.fid;
+    : null;
   
   // Determine if we should fetch Farcaster handles
-  // Only fetch when authenticated with wallet/ENS (not Farcaster) and address is available
-  const shouldFetchFarcasterHandles = !isMiniApp && !isFarcasterAuth && isConnected && !!address;
+  // Only fetch when authenticated with wallet/ENS (not mini-app) and address is available
+  const shouldFetchFarcasterHandles = !isMiniApp && isConnected && !!address;
   
   // Fetch Farcaster handles when authenticated with wallet/ENS
   useEffect(() => {
@@ -113,15 +103,13 @@ export default function ProfileClient() {
       console.log('[ProfileClient] Auth state:', {
         isMiniApp,
         hasContextUser: !!context?.user,
-        isFarcasterAuth,
-        hasFarcasterProfile: !!farcasterProfile,
         isConnected,
         hasAddress: !!address,
         userAddress,
         isAuthenticated,
       });
     }
-  }, [isMiniApp, context?.user, isFarcasterAuth, farcasterProfile, isConnected, address, userAddress, isAuthenticated]);
+  }, [isMiniApp, context?.user, isConnected, address, userAddress, isAuthenticated]);
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   
@@ -253,8 +241,6 @@ export default function ProfileClient() {
   // Get display name
   const displayName = context?.user
     ? context.user.displayName || context.user.username
-    : farcasterProfile
-    ? farcasterProfile.displayName || farcasterProfile.username
     : ensName || `${userAddress?.slice(0, 6)}...${userAddress?.slice(-4)}`;
 
   const gradients = [
@@ -309,9 +295,6 @@ export default function ProfileClient() {
               <h1 className="text-2xl font-light mb-1">{displayName}</h1>
               {context?.user?.username && (
                 <p className="text-sm text-[#999999]">@{context.user.username}</p>
-              )}
-              {farcasterProfile?.username && (
-                <p className="text-sm text-[#999999]">@{farcasterProfile.username}</p>
               )}
               {ensName && (
                 <p className="text-sm text-[#999999]">{ensName}</p>

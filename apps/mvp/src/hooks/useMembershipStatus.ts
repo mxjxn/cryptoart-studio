@@ -1,6 +1,5 @@
 import { useAccount, useReadContracts } from 'wagmi';
 import { useMiniApp } from '@neynar/react';
-import { useProfile } from '@farcaster/auth-kit';
 import { STP_V2_CONTRACT_ADDRESS } from '~/lib/constants';
 import { type Address } from 'viem';
 import { useMemo, useEffect, useRef } from 'react';
@@ -39,13 +38,13 @@ export interface MembershipStatus {
 export function useMembershipStatus(): MembershipStatus {
   const { address: connectedAddress, isConnected } = useAccount();
   const { context } = useMiniApp();
-  const { profile: farcasterProfile } = useProfile();
 
-  // Get all verified addresses from Farcaster SDK (miniapp) and auth-kit (web)
+  // Get all verified addresses from Farcaster SDK (miniapp) and wagmi (web)
   const verifiedAddresses = useMemo(() => {
     const addresses: string[] = [];
     
-    // Get verified addresses from miniapp context
+    // Get verified addresses from miniapp context (mini-app provides user metadata)
+    // Note: The mini-app context.user may not have verified_addresses in all SDK versions
     if (context?.user) {
       const user = context.user as any;
       
@@ -54,10 +53,10 @@ export function useMembershipStatus(): MembershipStatus {
         custody_address: user.custody_address,
         verified_addresses: user.verified_addresses,
         verifications: user.verifications,
-        full_user: user,
+        fid: user.fid,
       });
       
-      // Check if there's a verified_addresses field
+      // Check if there's a verified_addresses field (may not exist in newer SDK)
       const verifiedAddrs = user.verified_addresses;
       if (verifiedAddrs?.eth_addresses) {
         const ethAddrs = verifiedAddrs.eth_addresses.map((addr: string) => addr.toLowerCase());
@@ -95,59 +94,7 @@ export function useMembershipStatus(): MembershipStatus {
       }
     }
     
-    // Get verified addresses from Farcaster web auth profile (when signed in via QR code on web)
-    if (farcasterProfile) {
-      const profile = farcasterProfile as any;
-      
-      console.log('[useMembershipStatus] Farcaster web auth profile:', {
-        custody_address: profile.custody_address,
-        verified_addresses: profile.verified_addresses,
-        verifications: profile.verifications,
-      });
-      
-      // Check verified_addresses.eth_addresses
-      const verifiedAddrs = profile.verified_addresses;
-      if (verifiedAddrs?.eth_addresses) {
-        const ethAddrs = verifiedAddrs.eth_addresses.map((addr: string) => addr.toLowerCase());
-        console.log('[useMembershipStatus] Web auth eth_addresses:', ethAddrs);
-        ethAddrs.forEach((addr: string) => {
-          if (!addresses.includes(addr)) {
-            addresses.push(addr);
-          }
-        });
-      }
-      
-      // Check primary address
-      if (verifiedAddrs?.primary?.eth_address) {
-        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-        console.log('[useMembershipStatus] Web auth primary address:', primaryAddr);
-        if (!addresses.includes(primaryAddr)) {
-          addresses.push(primaryAddr);
-        }
-      }
-      
-      // Check verifications array (legacy format)
-      if (profile.verifications) {
-        console.log('[useMembershipStatus] Web auth verifications array:', profile.verifications);
-        profile.verifications.forEach((addr: string) => {
-          const lowerAddr = addr.toLowerCase();
-          if (!addresses.includes(lowerAddr)) {
-            addresses.push(lowerAddr);
-          }
-        });
-      }
-      
-      // Add custody address if it exists
-      if (profile.custody_address) {
-        const custodyAddr = profile.custody_address.toLowerCase();
-        console.log('[useMembershipStatus] Web auth custody address:', custodyAddr);
-        if (!addresses.includes(custodyAddr)) {
-          addresses.push(custodyAddr);
-        }
-      }
-    }
-    
-    // Add connected wallet if not already in list
+    // Add connected wallet (from wagmi - works for both mini-app and web)
     if (connectedAddress) {
       const connectedAddrLower = connectedAddress.toLowerCase();
       console.log('[useMembershipStatus] Connected address:', connectedAddrLower);
@@ -158,7 +105,7 @@ export function useMembershipStatus(): MembershipStatus {
     
     console.log('[useMembershipStatus] All verified addresses to check:', addresses);
     return addresses;
-  }, [context?.user, farcasterProfile, connectedAddress]);
+  }, [context?.user, connectedAddress]);
 
   // Get Farcaster native wallet addresses (custody + primary)
   // These are the "native" Farcaster wallets that should NOT show "manage on hypersub"
@@ -197,35 +144,14 @@ export function useMembershipStatus(): MembershipStatus {
       }
     }
     
-    // From web auth profile
-    if (farcasterProfile) {
-      const profile = farcasterProfile as any;
-      
-      // Add custody address
-      const custodyAddr = profile.custody_address;
-      if (custodyAddr && !wallets.includes(custodyAddr.toLowerCase())) {
-        wallets.push(custodyAddr.toLowerCase());
-      }
-      
-      // Add primary verified address
-      const verifiedAddrs = profile.verified_addresses;
-      if (verifiedAddrs?.primary?.eth_address) {
-        const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-        if (!wallets.includes(primaryAddr)) {
-          wallets.push(primaryAddr);
-        }
-      }
-    }
-    
     // Log what we found (always log for debugging)
     console.log('[useMembershipStatus] Farcaster native wallets:', {
       fromMiniApp: !!context?.user,
-      fromWebAuth: !!farcasterProfile,
       farcasterNativeWallets: wallets,
     });
     
     return wallets;
-  }, [context?.user, farcasterProfile]);
+  }, [context?.user]);
   
   // For backward compatibility, keep farcasterWallet as the primary one
   const farcasterWallet = farcasterNativeWallets[0] || null;
