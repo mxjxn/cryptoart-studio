@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
@@ -66,11 +66,13 @@ export default function AuctionDetailClient({
   const isMiniAppInstalled = context?.client?.added ?? false;
   const { auction, loading } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
+  const publicClient = usePublicClient();
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
+  const [purchaseSimulationError, setPurchaseSimulationError] = useState<string | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -415,11 +417,12 @@ export default function AuctionDetailClient({
   };
 
   const handlePurchase = async () => {
-    if (!isConnected || !auction || !address) {
+    if (!isConnected || !auction || !address || !publicClient) {
       return;
     }
 
     try {
+      setPurchaseSimulationError(null);
       const price = auction.currentPrice || auction.initialAmount;
       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
       
@@ -444,6 +447,129 @@ export default function AuctionDetailClient({
         }
       }
 
+      const purchaseValue = isPaymentETH ? totalPrice : BigInt(0);
+
+      // Simulate transaction first to catch errors
+      try {
+        console.log('[Purchase] Simulating transaction for listing', listingId, {
+          purchaseQuantity,
+          totalPrice: totalPrice.toString(),
+          isPaymentETH,
+          referrer: referrer || null,
+          auctionData: {
+            totalAvailable: auction.totalAvailable,
+            totalSold: auction.totalSold,
+            totalPerSale: auction.totalPerSale,
+            tokenSpec: auction.tokenSpec,
+            listingType: auction.listingType,
+            status: auction.status,
+          },
+        });
+
+        // Simulate with correct args based on whether referrer exists
+        if (referrer) {
+          await publicClient.simulateContract({
+            account: address,
+            address: MARKETPLACE_ADDRESS,
+            abi: MARKETPLACE_ABI,
+            functionName: 'purchase',
+            args: [referrer, Number(listingId), purchaseQuantity] as const,
+            value: purchaseValue,
+          });
+        } else {
+          await publicClient.simulateContract({
+            account: address,
+            address: MARKETPLACE_ADDRESS,
+            abi: MARKETPLACE_ABI,
+            functionName: 'purchase',
+            args: [Number(listingId), purchaseQuantity] as const,
+            value: purchaseValue,
+          });
+        }
+
+        console.log('[Purchase] Simulation successful, proceeding with transaction');
+      } catch (simErr: any) {
+        console.error('[Purchase] Transaction simulation failed:', simErr);
+        
+        // Try to extract the actual revert reason from the error
+        let errorMessage = simErr?.message || simErr?.shortMessage || simErr?.cause?.message || String(simErr);
+        let revertReason = null;
+        
+        // Check for revert reason in various error formats
+        if (simErr?.cause?.data?.message) {
+          revertReason = simErr.cause.data.message;
+        } else if (simErr?.data?.message) {
+          revertReason = simErr.data.message;
+        } else if (simErr?.cause?.data?.errorName) {
+          revertReason = simErr.cause.data.errorName;
+        } else if (simErr?.cause?.reason) {
+          revertReason = simErr.cause.reason;
+        } else if (typeof simErr === 'string' && simErr.includes('revert')) {
+          revertReason = simErr;
+        }
+        
+        // Try to extract from error details
+        if (simErr?.details) {
+          console.log('[Purchase] Error details object:', simErr.details);
+          if (simErr.details.reason) revertReason = simErr.details.reason;
+          if (simErr.details.data?.message) revertReason = simErr.details.data.message;
+        }
+        
+        // Use revert reason if found, otherwise use the general error message
+        const displayError = revertReason || errorMessage;
+        setPurchaseSimulationError(displayError);
+        
+        // Get contract state for comparison
+        const contractTotalAvailable = listingData?.details?.totalAvailable?.toString() || 'unknown';
+        const contractTotalSold = listingData?.totalSold?.toString() || 'unknown';
+        const contractTotalPerSale = listingData?.details?.totalPerSale?.toString() || 'unknown';
+        const contractFinalized = listingData?.finalized || false;
+        const contractStartTime = listingData?.details?.startTime?.toString() || 'unknown';
+        const contractEndTime = listingData?.details?.endTime?.toString() || 'unknown';
+        const now = Math.floor(Date.now() / 1000);
+        const isWithinTimeWindow = contractStartTime !== 'unknown' && contractEndTime !== 'unknown' 
+          ? parseInt(contractStartTime) <= now && parseInt(contractEndTime) > now 
+          : 'unknown';
+        
+        // Log detailed error info for debugging
+        console.error('[Purchase] Simulation error details:', {
+          error: simErr,
+          errorMessage,
+          revertReason,
+          listingId,
+          purchaseQuantity,
+          totalPrice: totalPrice.toString(),
+          // Subgraph data
+          subgraph: {
+            totalAvailable: auction.totalAvailable,
+            totalSold: auction.totalSold,
+            totalPerSale: auction.totalPerSale,
+            status: auction.status,
+            calculatedRemaining: parseInt(auction.totalAvailable || "0") - parseInt(auction.totalSold || "0"),
+            calculatedMaxPurchases: Math.floor((parseInt(auction.totalAvailable || "0") - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1")),
+          },
+          // Contract data
+          contract: {
+            totalAvailable: contractTotalAvailable,
+            totalSold: contractTotalSold,
+            totalPerSale: contractTotalPerSale,
+            finalized: contractFinalized,
+            startTime: contractStartTime,
+            endTime: contractEndTime,
+            isWithinTimeWindow,
+            calculatedRemaining: contractTotalAvailable !== 'unknown' && contractTotalSold !== 'unknown'
+              ? parseInt(contractTotalAvailable) - parseInt(contractTotalSold)
+              : 'unknown',
+            calculatedMaxPurchases: contractTotalAvailable !== 'unknown' && contractTotalSold !== 'unknown' && contractTotalPerSale !== 'unknown'
+              ? Math.floor((parseInt(contractTotalAvailable) - parseInt(contractTotalSold)) / parseInt(contractTotalPerSale))
+              : 'unknown',
+          },
+        });
+        
+        alert(`Transaction would fail: ${displayError}\n\nCheck console for detailed comparison between contract and subgraph data. You can also visit /api/debug/listing/${listingId} to see the full comparison.`);
+        return;
+      }
+
       // Purchase with correct value (0 for ERC20, totalPrice for ETH)
       // Pass referrer if available and listing supports referrers
       if (referrer) {
@@ -452,7 +578,7 @@ export default function AuctionDetailClient({
           abi: MARKETPLACE_ABI,
           functionName: 'purchase',
           args: [referrer, Number(listingId), purchaseQuantity] as const,
-          value: isPaymentETH ? totalPrice : BigInt(0),
+          value: purchaseValue,
         });
       } else {
         await purchaseListing({
@@ -460,11 +586,12 @@ export default function AuctionDetailClient({
           abi: MARKETPLACE_ABI,
           functionName: 'purchase',
           args: [Number(listingId), purchaseQuantity] as const,
-          value: isPaymentETH ? totalPrice : BigInt(0),
+          value: purchaseValue,
         });
       }
     } catch (err) {
       console.error("Error purchasing:", err);
+      setPurchaseSimulationError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -1208,27 +1335,64 @@ export default function AuctionDetailClient({
             {/* FIXED_PRICE - Purchase */}
             {auction.listingType === "FIXED_PRICE" && isActive && (
               <div className="mb-4 space-y-3">
-                {auction.tokenSpec === "ERC1155" && (
-                  <div>
-                    <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                      Number of Purchases
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max={Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))}
-                      value={purchaseQuantity}
-                      onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white"
-                    />
-                    <p className="text-xs text-[#999999] mt-1">
-                      You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {auction.totalPerSale} copies per purchase)
-                    </p>
-                    <p className="text-xs text-[#666666] mt-0.5">
-                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} copies remaining ({Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))} purchase{Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1")) !== 1 ? 's' : ''} available)
-                    </p>
-                  </div>
-                )}
+                {auction.tokenSpec === "ERC1155" && (() => {
+                  const totalAvailable = parseInt(auction.totalAvailable || "0");
+                  const totalSold = parseInt(auction.totalSold || "0");
+                  const totalPerSale = parseInt(auction.totalPerSale || "1");
+                  const remaining = Math.max(0, totalAvailable - totalSold);
+                  const maxPurchases = Math.floor(remaining / totalPerSale);
+                  
+                  // Show debug info for listing 11 or if data seems missing
+                  const showDebug = listingId === "11" || totalAvailable === 0 || isNaN(totalAvailable);
+                  
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                        Number of Purchases
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={maxPurchases > 0 ? maxPurchases : 1}
+                        value={purchaseQuantity}
+                        onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white"
+                      />
+                      {showDebug && (
+                        <div className="mt-2 p-2 bg-yellow-900/20 border border-yellow-700/50 rounded text-xs">
+                          <p className="text-yellow-400 font-medium mb-1">Debug Info (Listing {listingId}):</p>
+                          <p className="text-yellow-300">totalAvailable: {auction.totalAvailable || "MISSING"} ({typeof auction.totalAvailable})</p>
+                          <p className="text-yellow-300">totalSold: {auction.totalSold || "MISSING"} ({typeof auction.totalSold})</p>
+                          <p className="text-yellow-300">totalPerSale: {auction.totalPerSale || "MISSING"} ({typeof auction.totalPerSale})</p>
+                          <p className="text-yellow-300">Calculated remaining: {remaining}</p>
+                          <p className="text-yellow-300">Max purchases: {maxPurchases}</p>
+                          <a
+                            href={`/api/debug/listing/${listingId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:underline mt-1 block"
+                          >
+                            View contract vs subgraph comparison →
+                          </a>
+                        </div>
+                      )}
+                      {totalAvailable > 0 ? (
+                        <>
+                          <p className="text-xs text-[#999999] mt-1">
+                            You will receive {purchaseQuantity * totalPerSale} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {totalPerSale} copies per purchase)
+                          </p>
+                          <p className="text-xs text-[#666666] mt-0.5">
+                            {remaining} copies remaining ({maxPurchases} purchase{maxPurchases !== 1 ? 's' : ''} available)
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-yellow-400 mt-1">
+                          ⚠️ Copy count data missing. Check debug info above or visit /api/debug/listing/{listingId}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
                 {!isConnected ? (
                   <p className="text-xs text-[#cccccc]">
                     Please connect your wallet to purchase.
@@ -1316,6 +1480,46 @@ export default function AuctionDetailClient({
                       <p className="text-xs text-red-400">
                         {approveError.message || "Failed to approve token"}
                       </p>
+                    )}
+                    {purchaseSimulationError && (
+                      <div className="mt-2 p-3 bg-red-900/20 border border-red-700/50 rounded text-xs">
+                        <p className="text-red-400 font-medium mb-1">⚠️ Transaction Simulation Failed:</p>
+                        <p className="text-red-300 mb-2">{purchaseSimulationError}</p>
+                        {listingData && (
+                          <div className="mt-2 pt-2 border-t border-red-700/30">
+                            <p className="text-red-300 font-medium mb-1">Contract State:</p>
+                            <div className="text-red-200 space-y-0.5 font-mono text-[10px]">
+                              <p>totalAvailable: {listingData.details?.totalAvailable?.toString() || 'N/A'}</p>
+                              <p>totalSold: {listingData.totalSold?.toString() || 'N/A'}</p>
+                              <p>totalPerSale: {listingData.details?.totalPerSale?.toString() || 'N/A'}</p>
+                              <p>finalized: {listingData.finalized ? 'true' : 'false'}</p>
+                              <p>Remaining: {listingData.details?.totalAvailable && listingData.totalSold 
+                                ? (parseInt(listingData.details.totalAvailable.toString()) - parseInt(listingData.totalSold.toString()))
+                                : 'N/A'}</p>
+                            </div>
+                          </div>
+                        )}
+                        {auction && (
+                          <div className="mt-2 pt-2 border-t border-red-700/30">
+                            <p className="text-red-300 font-medium mb-1">Subgraph State:</p>
+                            <div className="text-red-200 space-y-0.5 font-mono text-[10px]">
+                              <p>totalAvailable: {auction.totalAvailable || 'N/A'}</p>
+                              <p>totalSold: {auction.totalSold || 'N/A'}</p>
+                              <p>totalPerSale: {auction.totalPerSale || 'N/A'}</p>
+                              <p>status: {auction.status || 'N/A'}</p>
+                              <p>Remaining: {parseInt(auction.totalAvailable || "0") - parseInt(auction.totalSold || "0")}</p>
+                            </div>
+                          </div>
+                        )}
+                        <a
+                          href={`/api/debug/listing/${listingId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline mt-2 block"
+                        >
+                          View full diagnostic comparison →
+                        </a>
+                      </div>
                     )}
                     {purchaseError && (
                       <p className="text-xs text-red-400">
@@ -1489,17 +1693,25 @@ export default function AuctionDetailClient({
 
             {auction.listingType === "FIXED_PRICE" && (() => {
               const timeStatus = getFixedPriceTimeStatus(endTime, now);
-              const remaining = Math.max(0, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"));
+              const totalAvailable = parseInt(auction.totalAvailable || "0");
+              const totalSold = parseInt(auction.totalSold || "0");
+              const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0;
               return (
                 <>
                   {/* Compact fixed price info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
                     <span>{formatPrice(auction.initialAmount)} {paymentSymbol}</span>
-                    {auction.tokenSpec === "ERC1155" && (
+                    {auction.tokenSpec === "ERC1155" && totalAvailable > 0 && (
                       <>
                         <span className="text-[#444]">•</span>
-                        <span>{remaining}/{parseInt(auction.totalAvailable)} available</span>
+                        <span>{remaining}/{totalAvailable} available</span>
+                      </>
+                    )}
+                    {auction.tokenSpec === "ERC1155" && totalAvailable === 0 && listingId === "11" && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span className="text-yellow-400">⚠️ Copy count missing</span>
                       </>
                     )}
                     <span className="text-[#444]">•</span>
