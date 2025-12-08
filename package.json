@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "build": "turbo run build --filter=mvp",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=mvp",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
