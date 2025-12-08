@@ -6,6 +6,7 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
+import { FeaturedCarousel } from "~/components/FeaturedCarousel";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -87,28 +88,23 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="border-b border-[#333333]">
-        <div className="px-5 py-5 flex items-center flex-col text-center justify-around">
-          <h1 className="text-[24px] font-light leading-tight mb-3 font-mek-mono inline-block">
-            v1 Auctionhouse & Marketplace
-          </h1>
-          <p></p>
-          {isPro && (
-            <div className="flex flex-col items-center justify-center gap-2">
-              <div className="w-[80vw]">
-                <TransitionLink
-                  href="/create"
-                  prefetch={false}
-                  className="block w-full px-8 py-3.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors text-center"
-                >
-                  List an Artwork on Base
-                </TransitionLink>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
+      {/* Create Listing Button - Minimal */}
+      {isPro && (
+        <section className="border-b border-[#333333]">
+          <div className="px-5 py-3 flex justify-center">
+            <TransitionLink
+              href="/create"
+              prefetch={false}
+              className="text-sm text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+            >
+              + Create Listing
+            </TransitionLink>
+          </div>
+        </section>
+      )}
+
+      {/* Featured Carousel */}
+      <FeaturedCarousel />
 
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
       {isMiniApp && !isMiniAppInstalled && actions && (
