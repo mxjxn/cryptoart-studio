@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
@@ -70,7 +70,7 @@ export default function AuctionDetailClient({
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-  const { auction, loading, updateAuction } = useAuction(listingId);
+  const { auction, loading, updateAuction, refetch: refetchAuction } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const publicClient = usePublicClient();
   const [bidAmount, setBidAmount] = useState("");
@@ -85,6 +85,9 @@ export default function AuctionDetailClient({
   const [showOutbidNotification, setShowOutbidNotification] = useState(false);
   const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
+  
+  // Track last processed bid hash to prevent duplicate processing
+  const lastProcessedBidHash = useRef<string | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -1058,13 +1061,67 @@ export default function AuctionDetailClient({
     }
   }, [isFinalizeConfirmed, router, auction, address]);
 
-  // Create notifications after successful bid
+  // Create notifications after successful bid and update UI immediately
   useEffect(() => {
-    if (isBidConfirmed && address && auction) {
+    // Prevent duplicate processing of the same bid
+    if (isBidConfirmed && bidHash && bidHash === lastProcessedBidHash.current) {
+      return;
+    }
+    
+    if (isBidConfirmed && address && auction && bidAmount && bidHash) {
+      // Mark this bid hash as processed
+      lastProcessedBidHash.current = bidHash;
       const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
       // Format bid amount using the correct token decimals and symbol
       const bidAmountFormatted = bidAmount || '0';
       const previousBidder = auction.highestBid?.bidder;
+      
+      // Get the bid amount in BigInt format for optimistic update
+      const parts = bidAmount.split('.');
+      const wholePart = BigInt(parts[0] || '0');
+      const fractionalPart = parts[1]
+        ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
+        : BigInt(0);
+      const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
+      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
+      
+      // Check if this bid is already reflected in the auction data (to prevent duplicate updates)
+      const isAlreadyReflected = auction.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
+        auction.highestBid?.amount === bidAmountBigInt.toString();
+      
+      // Optimistically update the auction state immediately (only if not already reflected)
+      if (!isAlreadyReflected) {
+        updateAuction((prev) => {
+          if (!prev) return prev;
+          
+          // Create new bid entry
+          const newBid = {
+            id: `temp-${Date.now()}`,
+            bidder: address.toLowerCase(),
+            amount: bidAmountBigInt.toString(),
+            timestamp: currentTimestamp,
+          };
+          
+          // Update bids array - add new bid and sort by amount descending
+          const updatedBids = prev.bids ? [...prev.bids, newBid] : [newBid];
+          updatedBids.sort((a, b) => {
+            const amountA = BigInt(a.amount);
+            const amountB = BigInt(b.amount);
+            return amountA > amountB ? -1 : amountA < amountB ? 1 : 0;
+          });
+          
+          return {
+            ...prev,
+            bidCount: updatedBids.length,
+            highestBid: {
+              amount: bidAmountBigInt.toString(),
+              bidder: address.toLowerCase(),
+              timestamp: currentTimestamp,
+            },
+            bids: updatedBids,
+          };
+        });
+      }
       
       // Show share prompt for bidder
       setShowBidSharePrompt(true);
@@ -1131,11 +1188,16 @@ export default function AuctionDetailClient({
         }).catch(err => console.error('Error creating outbid notification:', err));
       }
       
-      // Refresh auction data
-      router.refresh();
-      setBidAmount(''); // Clear bid input
+      // Refetch auction data from subgraph to get the latest state
+      // Use a small delay to allow subgraph to index the new bid
+      setTimeout(() => {
+        refetchAuction();
+      }, 2000);
+      
+      // Clear bid input - it will be repopulated with next minimum bid after refetch
+      setBidAmount('');
     }
-  }, [isBidConfirmed, address, auction, listingId, bidAmount, router, paymentSymbol]);
+  }, [isBidConfirmed, address, auction, listingId, bidAmount, bidHash, router, paymentSymbol, updateAuction, refetchAuction, paymentDecimals]);
 
   // Refetch offers after successful offer or accept and create notifications
   useEffect(() => {

@@ -86,8 +86,14 @@ export function useAuction(listingId: string | null) {
   }, [listingId, refreshKey]);
 
   // Refetch function that can be called externally
-  const refetch = () => {
-    setRefreshKey(prev => prev + 1);
+  const refetch = (forceRefresh = true) => {
+    if (forceRefresh) {
+      // Force a fresh fetch by calling fetchAuction directly with forceRefresh=true
+      fetchAuction(true);
+    } else {
+      // Just trigger a normal refetch
+      setRefreshKey(prev => prev + 1);
+    }
   };
 
   // Optimistic update function for immediate UI updates
