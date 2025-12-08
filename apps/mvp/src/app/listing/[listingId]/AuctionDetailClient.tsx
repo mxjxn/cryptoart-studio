@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
 import { useRouter } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
@@ -15,15 +15,17 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
+import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
 import { MediaDisplay } from "~/components/media";
 import { getMediaType, getMediaTypeFromFormat } from "~/lib/media-utils";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
+import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
 import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
@@ -69,6 +71,8 @@ export default function AuctionDetailClient({
   const router = useRouter();
   const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  const chainId = useChainId();
+  const { switchToBase } = useNetworkGuard();
   const { hideOverlay } = useLoadingOverlay();
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
@@ -188,6 +192,7 @@ export default function AuctionDetailClient({
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
   
   // Cancel listing transaction
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
@@ -388,6 +393,7 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
+            chainId: CHAIN_ID,
             args: [MARKETPLACE_ADDRESS, bidAmountBigInt],
           });
           // Wait for approval to be confirmed before proceeding
@@ -400,6 +406,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'bid',
+        chainId: CHAIN_ID,
         args: [Number(listingId), false],
         value: isPaymentETH ? bidAmountBigInt : BigInt(0),
       });
@@ -432,6 +439,7 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
+            chainId: CHAIN_ID,
             args: [MARKETPLACE_ADDRESS, totalPrice],
           });
           // Wait for approval to be confirmed before proceeding
@@ -463,6 +471,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: PURCHASE_ABI_NO_REFERRER,
         functionName: 'purchase',
+        chainId: CHAIN_ID,
         args: [Number(listingId), purchaseQuantity],
         value: purchaseValue,
       });
@@ -528,6 +537,7 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
+            chainId: CHAIN_ID,
             args: [MARKETPLACE_ADDRESS, offerAmountBigInt],
           });
           // Wait for approval to be confirmed before proceeding
@@ -540,6 +550,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'offer',
+        chainId: CHAIN_ID,
         args: [Number(listingId), false],
         value: isPaymentETH ? offerAmountBigInt : BigInt(0),
       });
@@ -560,6 +571,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'accept',
+        chainId: CHAIN_ID,
         args: [
           Number(listingId),
           [offererAddress as Address],
@@ -577,15 +589,36 @@ export default function AuctionDetailClient({
       return;
     }
     
+    // Ensure chainId is available before making the call
+    if (!chainId) {
+      console.error("Chain ID not available");
+      setShowChainSwitchPrompt(true);
+      return;
+    }
+    
     try {
       await cancelListing({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'cancel',
+        chainId: CHAIN_ID, // Explicitly pass chainId to avoid getChainId errors
         args: [Number(listingId), 0], // holdbackBPS = 0 as per requirements
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error cancelling listing:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in cancel, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+      }
     }
   };
 
@@ -599,6 +632,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'finalize',
+        chainId: CHAIN_ID,
         args: [Number(listingId)],
       });
     } catch (err) {
@@ -624,6 +658,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'modifyListing',
+        chainId: CHAIN_ID,
         args: [
           Number(listingId),
           initialAmount,
@@ -636,6 +671,28 @@ export default function AuctionDetailClient({
       alert("Failed to update listing. Please try again.");
     }
   };
+
+  // Handle getChainId errors from all transactions
+  useEffect(() => {
+    const errors = [cancelError, finalizeError, modifyError, purchaseError, offerError, acceptError, bidError, approveError];
+    for (const error of errors) {
+      if (error) {
+        const errorMessage = error.message || String(error);
+        if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+          console.error('[AuctionDetail] Chain ID error detected, showing switch prompt:', error);
+          setShowChainSwitchPrompt(true);
+          if (!isMiniApp) {
+            try {
+              switchToBase();
+            } catch (switchErr) {
+              console.error('[AuctionDetail] Error switching chain:', switchErr);
+            }
+          }
+          break;
+        }
+      }
+    }
+  }, [cancelError, finalizeError, modifyError, purchaseError, offerError, acceptError, bidError, approveError, isMiniApp, switchToBase]);
 
   // Redirect after successful cancellation
   useEffect(() => {
@@ -1902,6 +1959,12 @@ export default function AuctionDetailClient({
           </div>
         )}
       </div>
+      
+      {/* Chain Switch Prompt */}
+      <ChainSwitchPrompt 
+        show={showChainSwitchPrompt} 
+        onDismiss={() => setShowChainSwitchPrompt(false)} 
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
@@ -16,8 +16,10 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
+import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
+import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address, isAddress } from "viem";
@@ -63,6 +65,8 @@ export default function AuctionDetailClient({
   const searchParams = useSearchParams();
   const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  const chainId = useChainId();
+  const { switchToBase } = useNetworkGuard();
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
@@ -79,6 +83,7 @@ export default function AuctionDetailClient({
   const [showAuctionWonSharePrompt, setShowAuctionWonSharePrompt] = useState(false);
   const [showOutbidNotification, setShowOutbidNotification] = useState(false);
   const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
+  const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -390,6 +395,7 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
+            chainId: CHAIN_ID,
             args: [MARKETPLACE_ADDRESS, bidAmountBigInt],
           });
           // Wait for approval to be confirmed before proceeding
@@ -404,6 +410,7 @@ export default function AuctionDetailClient({
           address: MARKETPLACE_ADDRESS,
           abi: MARKETPLACE_ABI,
           functionName: 'bid',
+          chainId: CHAIN_ID,
           args: [referrer, Number(listingId), false] as const,
           value: isPaymentETH ? bidAmountBigInt : BigInt(0),
         });
@@ -412,12 +419,27 @@ export default function AuctionDetailClient({
           address: MARKETPLACE_ADDRESS,
           abi: MARKETPLACE_ABI,
           functionName: 'bid',
+          chainId: CHAIN_ID,
           args: [Number(listingId), false] as const,
           value: isPaymentETH ? bidAmountBigInt : BigInt(0),
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error placing bid:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in bid, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+        return;
+      }
       alert("Failed to place bid. Please try again.");
     }
   };
@@ -446,6 +468,7 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
+            chainId: CHAIN_ID,
             args: [MARKETPLACE_ADDRESS, totalPrice],
           });
           // Wait for approval to be confirmed before proceeding
@@ -631,6 +654,7 @@ export default function AuctionDetailClient({
           address: MARKETPLACE_ADDRESS,
           abi: PURCHASE_ABI_WITH_REFERRER,
           functionName: 'purchase',
+          chainId: CHAIN_ID,
           args: [referrer, Number(listingId), purchaseQuantity],
           value: purchaseValue,
         });
@@ -646,12 +670,27 @@ export default function AuctionDetailClient({
           address: MARKETPLACE_ADDRESS,
           abi: PURCHASE_ABI_NO_REFERRER,
           functionName: 'purchase',
+          chainId: CHAIN_ID,
           args: [Number(listingId), purchaseQuantity],
           value: purchaseValue,
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error purchasing:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in purchase, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+        return;
+      }
       setPurchaseSimulationError(err instanceof Error ? err.message : String(err));
     }
   };
@@ -729,6 +768,7 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
+            chainId: CHAIN_ID,
             args: [MARKETPLACE_ADDRESS, offerAmountBigInt],
           });
           // Wait for approval to be confirmed before proceeding
@@ -741,11 +781,25 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'offer',
+        chainId: CHAIN_ID,
         args: [Number(listingId), false],
         value: isPaymentETH ? offerAmountBigInt : BigInt(0),
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error making offer:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in offer, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+      }
     }
   };
 
@@ -761,6 +815,7 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'accept',
+        chainId: CHAIN_ID,
         args: [
           Number(listingId),
           [offererAddress as Address],
@@ -768,8 +823,21 @@ export default function AuctionDetailClient({
           offerAmountBigInt, // maxAmount
         ],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error accepting offer:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in accept offer, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+      }
     }
   };
 
@@ -778,15 +846,36 @@ export default function AuctionDetailClient({
       return;
     }
     
+    // Ensure chainId is available before making the call
+    if (!chainId) {
+      console.error("Chain ID not available");
+      setShowChainSwitchPrompt(true);
+      return;
+    }
+    
     try {
       await cancelListing({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'cancel',
+        chainId: CHAIN_ID, // Explicitly pass chainId to avoid getChainId errors
         args: [Number(listingId), 0], // holdbackBPS = 0 as per requirements
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error cancelling listing:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in cancel, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+      }
     }
   };
 
@@ -800,12 +889,48 @@ export default function AuctionDetailClient({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'finalize',
+        chainId: CHAIN_ID,
         args: [Number(listingId)],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error finalizing auction:", err);
+      const errorMessage = err?.message || String(err);
+      // Handle getChainId errors
+      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        console.error('[AuctionDetail] Chain ID error in finalize, showing switch prompt:', err);
+        setShowChainSwitchPrompt(true);
+        if (!isMiniApp) {
+          try {
+            switchToBase();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
+          }
+        }
+      }
     }
   };
+
+  // Handle getChainId errors from all transactions
+  useEffect(() => {
+    const errors = [cancelError, finalizeError, purchaseError, offerError, acceptError, bidError, approveError];
+    for (const error of errors) {
+      if (error) {
+        const errorMessage = error.message || String(error);
+        if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+          console.error('[AuctionDetail] Chain ID error detected, showing switch prompt:', error);
+          setShowChainSwitchPrompt(true);
+          if (!isMiniApp) {
+            try {
+              switchToBase();
+            } catch (switchErr) {
+              console.error('[AuctionDetail] Error switching chain:', switchErr);
+            }
+          }
+          break;
+        }
+      }
+    }
+  }, [cancelError, finalizeError, purchaseError, offerError, acceptError, bidError, approveError, isMiniApp, switchToBase]);
 
   // Redirect after successful cancellation
   useEffect(() => {
@@ -2007,6 +2132,12 @@ export default function AuctionDetailClient({
           </div>
         )}
       </div>
+      
+      {/* Chain Switch Prompt */}
+      <ChainSwitchPrompt 
+        show={showChainSwitchPrompt} 
+        onDismiss={() => setShowChainSwitchPrompt(false)} 
+      />
     </div>
   );
 }
