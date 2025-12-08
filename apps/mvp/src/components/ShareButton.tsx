@@ -97,8 +97,10 @@ export function ShareButton({
       disabled={isProcessing}
       className={`flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
       title={isProcessing ? "Sharing..." : "Share a Cast"}
+      aria-label={isProcessing ? "Sharing cast" : "Share this listing as a cast"}
+      aria-busy={isProcessing}
     >
-      <Share2 className="h-3 w-3" />
+      <Share2 className="h-3 w-3" aria-hidden="true" />
       {isProcessing ? "..." : "Share"}
     </button>
   );

@@ -166,6 +166,9 @@ export function FollowButton({ followingAddress, className = "" }: FollowButtonP
           ? 'bg-[#333333] text-white hover:bg-[#444444]'
           : 'bg-white text-black hover:bg-[#e0e0e0]'
       } ${className}`}
+      aria-label={isToggling ? "Processing" : isFollowing ? `Unfollow user` : `Follow user`}
+      aria-pressed={isFollowing}
+      aria-busy={isToggling}
     >
       {isToggling ? '...' : isFollowing ? 'Following' : 'Follow'}
     </button>

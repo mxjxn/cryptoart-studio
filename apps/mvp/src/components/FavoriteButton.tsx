@@ -106,8 +106,11 @@ export function FavoriteButton({ listingId, className = "" }: FavoriteButtonProp
         disabled={isToggling}
         className="w-8 h-8 flex items-center justify-center bg-black/50 hover:bg-black/70 rounded-full transition-colors"
         title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+        aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+        aria-pressed={isFavorited}
+        aria-busy={isToggling}
       >
-        <span className={`text-lg ${isFavorited ? 'text-yellow-400' : 'text-white'}`}>
+        <span className={`text-lg ${isFavorited ? 'text-yellow-400' : 'text-white'}`} aria-hidden="true">
           ⭐️
         </span>
       </button>

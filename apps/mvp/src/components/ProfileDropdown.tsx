@@ -67,6 +67,8 @@ function AdminSection() {
           className={`relative inline-flex h-5 w-9 items-center transition-colors ${
             isAdminModeEnabled ? 'bg-blue-500' : 'bg-[#333333]'
           }`}
+          aria-label={isAdminModeEnabled ? "Disable admin mode" : "Enable admin mode"}
+          aria-pressed={isAdminModeEnabled}
         >
           <span
             className={`inline-block h-3 w-3 transform bg-white transition-transform ${
@@ -172,6 +174,9 @@ export function ProfileDropdown() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-8 h-8 rounded-full bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+        aria-label={isOpen ? "Close profile menu" : "Open profile menu"}
+        aria-expanded={isOpen}
+        aria-haspopup="true"
       >
         <ProfileIcon pfpUrl={pfpUrl} imageError={imageError} setImageError={setImageError} />
       </button>

@@ -59,18 +59,20 @@ export function MetadataViewer({
       <button
         onClick={() => setIsExpanded(true)}
         className="text-xs text-[#999999] hover:text-[#cccccc] hover:underline inline-flex items-center gap-1.5"
+        aria-label={`${displayText} - Loading metadata`}
+        aria-busy="true"
       >
         <span>{displayText}</span>
-        <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-hidden="true"></div>
       </button>
     );
   }
 
   if (error || !metadata) {
     return (
-      <div className="text-xs text-[#999999]">
+      <div className="text-xs text-[#999999]" role="status" aria-live="polite">
         {displayText}
-        {error && <span className="text-[#666666] ml-2">({error})</span>}
+        {error && <span className="text-[#666666] ml-2" aria-label={`Error: ${error}`}>({error})</span>}
       </div>
     );
   }
@@ -80,10 +82,17 @@ export function MetadataViewer({
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="text-xs text-[#999999] hover:text-[#cccccc] hover:underline mb-2 inline-block"
+        aria-label={`${isExpanded ? "Collapse" : "Expand"} metadata for ${displayText}`}
+        aria-expanded={isExpanded}
+        aria-controls="metadata-display"
       >
         {displayText}
       </button>
-      {isExpanded && <MetadataDisplay metadata={metadata} />}
+      {isExpanded && (
+        <div id="metadata-display" role="region" aria-label="NFT Metadata">
+          <MetadataDisplay metadata={metadata} />
+        </div>
+      )}
     </div>
   );
 }
@@ -125,6 +134,7 @@ function MetadataDisplay({ metadata }: { metadata: NFTMetadata }) {
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-[#999999] hover:text-[#cccccc] hover:underline font-mono break-all"
+          aria-label={`View image: ${metadata.image}`}
         >
           {metadata.image}
         </a>
@@ -142,6 +152,7 @@ function MetadataDisplay({ metadata }: { metadata: NFTMetadata }) {
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-[#999999] hover:text-[#cccccc] hover:underline font-mono break-all"
+          aria-label={`View animation: ${metadata.animation_url}`}
         >
           {metadata.animation_url}
         </a>
@@ -159,6 +170,7 @@ function MetadataDisplay({ metadata }: { metadata: NFTMetadata }) {
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-[#999999] hover:text-[#cccccc] hover:underline font-mono break-all"
+          aria-label={`Open external link: ${metadata.external_url}`}
         >
           {metadata.external_url}
         </a>
@@ -218,10 +230,10 @@ function MetadataDisplay({ metadata }: { metadata: NFTMetadata }) {
   }
 
   return (
-    <div className="mt-2 space-y-3 border-t border-[#333333] pt-3">
+    <div className="mt-2 space-y-3 border-t border-[#333333] pt-3" role="list">
       {sections.map((section, idx) => (
-        <div key={idx}>
-          <div className="text-[10px] text-[#666666] uppercase tracking-wider mb-1">
+        <div key={idx} role="listitem">
+          <div className="text-[10px] text-[#666666] uppercase tracking-wider mb-1" role="heading" aria-level={3}>
             {section.title}
           </div>
           {section.content}

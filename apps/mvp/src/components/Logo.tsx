@@ -12,6 +12,7 @@ export function Logo({ className }: LogoProps) {
     <TransitionLink 
       href="/" 
       className={`hover:opacity-80 transition-opacity ${className || ""}`}
+      aria-label="cryptoart.social - Go to homepage"
     >
       <Image
         src="/cryptoart-logo-wgmeets.png"

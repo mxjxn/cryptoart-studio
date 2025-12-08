@@ -56,79 +56,96 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
   const displayDeployer = deployerName || deployerAddress || "Unknown";
 
   return (
-    <div className="mb-4 space-y-2 border-t border-[#333333] pt-3">
-      <div className="text-[10px] text-[#666666] uppercase tracking-wider mb-2">
+    <div className="mb-4 space-y-2 border-t border-[#333333] pt-3" role="region" aria-label="Contract Details">
+      <div className="text-[10px] text-[#666666] uppercase tracking-wider mb-2" role="heading" aria-level={3}>
         Contract Details
       </div>
       
-      <div className="space-y-1.5 text-xs">
+      <dl className="space-y-1.5 text-xs">
         {/* Contract Address - Basescan link */}
         <div className="flex items-start gap-2">
-          <span className="text-[#999999] min-w-[100px]">address:</span>
-          <a
-            href={`https://basescan.org/address/${contractAddress}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[#cccccc] hover:text-white hover:underline font-mono break-all"
-          >
-            {contractAddress}
-          </a>
+          <dt className="text-[#999999] min-w-[100px]">address:</dt>
+          <dd>
+            <a
+              href={`https://basescan.org/address/${contractAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#cccccc] hover:text-white hover:underline font-mono break-all"
+              aria-label={`View contract ${contractAddress} on Basescan`}
+            >
+              {contractAddress}
+            </a>
+          </dd>
         </div>
 
         {/* Contract Name */}
         {contractNameLoading ? (
           <div className="flex items-center gap-2">
-            <span className="text-[#999999] min-w-[100px]">name:</span>
-            <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+            <dt className="text-[#999999] min-w-[100px]">name:</dt>
+            <dd>
+              <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-label="Loading contract name" aria-busy="true"></div>
+            </dd>
           </div>
         ) : contractName ? (
           <div className="flex items-start gap-2">
-            <span className="text-[#999999] min-w-[100px]">name:</span>
-            <span className="text-[#cccccc] font-mono">{contractName}</span>
+            <dt className="text-[#999999] min-w-[100px]">name:</dt>
+            <dd>
+              <span className="text-[#cccccc] font-mono">{contractName}</span>
+            </dd>
           </div>
         ) : null}
 
         {/* Deployed By */}
         <div className="flex items-start gap-2">
-          <span className="text-[#999999] min-w-[100px]">deployed by:</span>
-          <span className="text-[#cccccc] font-mono break-all">{displayDeployer}</span>
+          <dt className="text-[#999999] min-w-[100px]">deployed by:</dt>
+          <dd>
+            <span className="text-[#cccccc] font-mono break-all">{displayDeployer}</span>
+          </dd>
         </div>
 
         {/* Deployment Block */}
         {deploymentLoading ? (
           <div className="flex items-center gap-2">
-            <span className="text-[#999999] min-w-[100px]">block:</span>
-            <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+            <dt className="text-[#999999] min-w-[100px]">block:</dt>
+            <dd>
+              <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-label="Loading deployment block" aria-busy="true"></div>
+            </dd>
           </div>
         ) : deploymentBlock ? (
           <div className="flex items-start gap-2">
-            <span className="text-[#999999] min-w-[100px]">block:</span>
-            <a
-              href={`https://basescan.org/block/${deploymentBlock}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#cccccc] hover:text-white hover:underline font-mono"
-            >
-              {deploymentBlock.toLocaleString()}
-            </a>
+            <dt className="text-[#999999] min-w-[100px]">block:</dt>
+            <dd>
+              <a
+                href={`https://basescan.org/block/${deploymentBlock}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#cccccc] hover:text-white hover:underline font-mono"
+                aria-label={`View deployment block ${deploymentBlock.toLocaleString()} on Basescan`}
+              >
+                {deploymentBlock.toLocaleString()}
+              </a>
+            </dd>
           </div>
         ) : null}
 
         {/* Image URL */}
         {imageUrl && (
           <div className="flex items-start gap-2">
-            <span className="text-[#999999] min-w-[100px]">imageUrl:</span>
-            <a
-              href={imageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#cccccc] hover:text-white hover:underline font-mono break-all"
-            >
-              {imageUrl}
-            </a>
+            <dt className="text-[#999999] min-w-[100px]">imageUrl:</dt>
+            <dd>
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#cccccc] hover:text-white hover:underline font-mono break-all"
+                aria-label={`View image: ${imageUrl}`}
+              >
+                {imageUrl}
+              </a>
+            </dd>
           </div>
         )}
-      </div>
+      </dl>
     </div>
   );
 }

@@ -48,8 +48,10 @@ export function LinkShareButton({ url, className = "" }: LinkShareButtonProps) {
       disabled={copied}
       className={`flex items-center justify-center w-6 h-6 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
       title={copied ? "Copied!" : "Copy link"}
+      aria-label={copied ? "Link copied to clipboard" : "Copy link to clipboard"}
+      aria-live="polite"
     >
-      {copied ? "✓" : "🔗"}
+      <span aria-hidden="true">{copied ? "✓" : "🔗"}</span>
     </button>
   );
 }

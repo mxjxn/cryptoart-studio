@@ -1254,6 +1254,7 @@ export default function AuctionDetailClient({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#999999] hover:text-[#cccccc] hover:underline"
+                  aria-label={`View NFT on OpenSea: ${contractName || 'Collection'} #${auction.tokenId}`}
                 >
                   OpenSea
                 </a>
@@ -1295,6 +1296,7 @@ export default function AuctionDetailClient({
               onClick={() => setShowUpdateForm(true)}
               disabled={isModifyLoading}
               className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Update listing details"
             >
               Update Listing
             </button>
@@ -1308,6 +1310,8 @@ export default function AuctionDetailClient({
               onClick={handleCancel}
               disabled={isCancelLoading}
               className="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={isCancelLoading ? "Cancelling listing" : "Cancel this listing"}
+              aria-busy={isCancelLoading}
             >
               {isCancelLoading
                 ? isConfirmingCancel
@@ -1330,6 +1334,8 @@ export default function AuctionDetailClient({
               onClick={handleFinalize}
               disabled={isFinalizeLoading}
               className="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label={isFinalizeLoading ? "Finalizing auction" : "Finalize this auction"}
+              aria-busy={isFinalizeLoading}
             >
               {isFinalizeLoading
                 ? isConfirmingFinalize
@@ -1384,7 +1390,11 @@ export default function AuctionDetailClient({
                 ) : (
                   <div className="space-y-3">
                     <div>
+                      <label htmlFor="bid-amount-input" className="sr-only">
+                        Bid amount in {paymentSymbol}
+                      </label>
                       <input
+                        id="bid-amount-input"
                         type="number"
                         step="0.001"
                         min={formatPrice(calculateMinBid.toString())}
@@ -1392,10 +1402,12 @@ export default function AuctionDetailClient({
                         onChange={(e) => setBidAmount(e.target.value)}
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
                         placeholder={`Min: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
+                        aria-label={`Bid amount in ${paymentSymbol}. Minimum: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
+                        aria-describedby="bid-balance-info"
                       />
                       {/* Show user balance */}
                       {!userBalance.isLoading && (
-                        <p className="text-xs text-[#666666] mt-1">
+                        <p id="bid-balance-info" className="text-xs text-[#666666] mt-1" aria-live="polite">
                           Your balance: {userBalance.formatted} {paymentSymbol}
                         </p>
                       )}
@@ -1403,6 +1415,7 @@ export default function AuctionDetailClient({
                     <button
                       onClick={handleBid}
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                      aria-label={`Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                     >
                       Place Bid
                     </button>
@@ -1426,7 +1439,12 @@ export default function AuctionDetailClient({
                       value={purchaseQuantity}
                       onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white"
+                      aria-label="Number of purchases"
+                      aria-describedby="purchase-quantity-info"
                     />
+                    <div id="purchase-quantity-info" className="sr-only">
+                      You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies
+                    </div>
                     <p className="text-xs text-[#999999] mt-1">
                       You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {auction.totalPerSale} copies per purchase)
                     </p>
@@ -1508,6 +1526,16 @@ export default function AuctionDetailClient({
                       onClick={handlePurchase}
                       disabled={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={
+                        isApproving || isConfirmingApprove
+                          ? "Approving token spending"
+                          : pendingPurchaseAfterApproval
+                          ? "Completing purchase"
+                          : isPurchasing || isConfirmingPurchase
+                          ? "Processing purchase"
+                          : `Buy now for ${formatPrice(auction.initialAmount)} ${paymentSymbol}${auction.tokenSpec === "ERC1155" ? ` (${purchaseQuantity} purchase${purchaseQuantity !== 1 ? 's' : ''})` : ''}`
+                      }
+                      aria-busy={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
                     >
                       {isApproving || isConfirmingApprove
                         ? "Approving..."
@@ -1546,17 +1574,23 @@ export default function AuctionDetailClient({
                 ) : (
                   <div className="space-y-3">
                     <div>
+                      <label htmlFor="offer-amount-input" className="sr-only">
+                        Offer amount in {paymentSymbol}
+                      </label>
                       <input
+                        id="offer-amount-input"
                         type="number"
                         step="0.001"
                         value={offerAmount}
                         onChange={(e) => setOfferAmount(e.target.value)}
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
                         placeholder={`Enter offer in ${paymentSymbol}`}
+                        aria-label={`Offer amount in ${paymentSymbol}`}
+                        aria-describedby="offer-balance-info"
                       />
                       {/* Show user balance */}
                       {!userBalance.isLoading && (
-                        <p className="text-xs text-[#666666] mt-1">
+                        <p id="offer-balance-info" className="text-xs text-[#666666] mt-1" aria-live="polite">
                           Your balance: {userBalance.formatted} {paymentSymbol}
                         </p>
                       )}
@@ -1565,6 +1599,8 @@ export default function AuctionDetailClient({
                       onClick={handleMakeOffer}
                       disabled={isOffering || isConfirmingOffer || !offerAmount}
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={offerAmount ? `Make offer of ${offerAmount} ${paymentSymbol}` : "Enter offer amount to make an offer"}
+                      aria-busy={isOffering || isConfirmingOffer}
                     >
                       {isOffering || isConfirmingOffer
                         ? "Processing..."
@@ -1580,13 +1616,14 @@ export default function AuctionDetailClient({
 
                 {/* Offers List - Show for seller and buyers */}
                 {activeOffers.length > 0 && (
-                  <div className="mt-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
+                  <div className="mt-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg" role="region" aria-label="Active offers">
                     <h3 className="text-sm font-medium text-white mb-3">Active Offers</h3>
-                    <div className="space-y-2">
+                    <ul className="space-y-2" role="list" aria-label={`${activeOffers.length} active offer${activeOffers.length !== 1 ? 's' : ''}`}>
                       {activeOffers.map((offer, index) => (
-                        <div
+                        <li
                           key={index}
                           className="flex justify-between items-center p-2 bg-black rounded border border-[#333333]"
+                          role="listitem"
                         >
                           <div>
                             <p className="text-sm text-white font-medium">
@@ -1605,15 +1642,17 @@ export default function AuctionDetailClient({
                               onClick={() => handleAcceptOffer(offer.offerer, offer.amount)}
                               disabled={isAccepting || isConfirmingAccept}
                               className="px-3 py-1 bg-white text-black text-xs font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label={`Accept offer of ${formatPrice(offer.amount)} ${paymentSymbol} from ${offer.offerer.slice(0, 6)}...${offer.offerer.slice(-4)}`}
+                              aria-busy={isAccepting || isConfirmingAccept}
                             >
                               {isAccepting || isConfirmingAccept
                                 ? "Processing..."
                                 : "Accept"}
                             </button>
                           )}
-                        </div>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                     {acceptError && (
                       <p className="text-xs text-red-400 mt-2">
                         {acceptError.message || "Failed to accept offer"}
@@ -1856,6 +1895,7 @@ export default function AuctionDetailClient({
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
+              aria-label={`Buy ${paymentSymbol} on Uniswap`}
             >
               Buy {paymentSymbol}
             </a>

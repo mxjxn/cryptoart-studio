@@ -33,6 +33,8 @@ export function CopyButton({ text, className = "", size = "sm" }: CopyButtonProp
       onClick={handleCopy}
       className={`inline-flex items-center justify-center rounded hover:bg-[#1a1a1a] transition-colors ${className}`}
       title={copied ? "Copied!" : "Copy to clipboard"}
+      aria-label={copied ? "Copied to clipboard" : "Copy to clipboard"}
+      aria-live="polite"
     >
       {copied ? (
         <svg
@@ -45,6 +47,7 @@ export function CopyButton({ text, className = "", size = "sm" }: CopyButtonProp
           strokeLinecap="round"
           strokeLinejoin="round"
           className="text-green-400"
+          aria-hidden="true"
         >
           <path d="M20 6L9 17l-5-5" />
         </svg>
@@ -59,6 +62,7 @@ export function CopyButton({ text, className = "", size = "sm" }: CopyButtonProp
           strokeLinecap="round"
           strokeLinejoin="round"
           className="text-[#999999]"
+          aria-hidden="true"
         >
           <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
           <path d="M4 16c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2" />
