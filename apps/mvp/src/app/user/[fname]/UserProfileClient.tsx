@@ -7,6 +7,7 @@ import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { FollowButton } from "~/components/FollowButton";
 import { FollowersModal } from "~/components/FollowersModal";
+import { AdminContextMenu } from "~/components/AdminContextMenu";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 
@@ -192,10 +193,15 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
             )}
             <div className="flex-1">
-              <h1 className="text-2xl font-light mb-1">{displayName}</h1>
-              {profileData.user?.username && (
-                <p className="text-sm text-[#999999]">@{profileData.user.username}</p>
-              )}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h1 className="text-2xl font-light mb-1">{displayName}</h1>
+                  {profileData.user?.username && (
+                    <p className="text-sm text-[#999999]">@{profileData.user.username}</p>
+                  )}
+                </div>
+                <AdminContextMenu sellerAddress={profileData.primaryAddress} />
+              </div>
               {profileData.user?.ensName && (
                 <p className="text-sm text-[#999999]">{profileData.user.ensName}</p>
               )}

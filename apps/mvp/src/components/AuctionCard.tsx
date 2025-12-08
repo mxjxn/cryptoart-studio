@@ -11,6 +11,7 @@ import { useUsername } from "~/hooks/useUsername";
 import { CopyButton } from "~/components/CopyButton";
 // import { FavoriteButton } from "~/components/FavoriteButton";
 import { ListingChips } from "~/components/ListingChips";
+import { AdminContextMenu } from "~/components/AdminContextMenu";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
@@ -180,6 +181,13 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
           />
         )}
         <ListingChips auction={auction} />
+        {/* Admin Context Menu */}
+        <div className="absolute top-2 right-2 z-10">
+          <AdminContextMenu 
+            listingId={auction.listingId} 
+            sellerAddress={auction.seller}
+          />
+        </div>
         {/* FavoriteButton hidden - will reconsider placement later */}
         {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />

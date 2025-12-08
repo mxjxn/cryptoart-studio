@@ -29,6 +29,7 @@ import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
 import { UpdateListingForm } from "~/components/UpdateListingForm";
 import { TokenImage } from "~/components/TokenImage";
+import { AdminContextMenu } from "~/components/AdminContextMenu";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -1111,7 +1112,13 @@ export default function AuctionDetailClient({
 
         {/* Title, Collection, Creator - each on own row */}
         <div className="mb-4">
-          <h1 className="text-2xl font-light mb-1">{title}</h1>
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="text-2xl font-light mb-1 flex-1">{title}</h1>
+            <AdminContextMenu 
+              listingId={listingId} 
+              sellerAddress={auction.seller}
+            />
+          </div>
           {contractName && (
             <div className="text-xs text-[#999999] mb-1">{contractName}</div>
           )}
