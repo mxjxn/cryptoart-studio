@@ -13,6 +13,9 @@ import {
   // Admin tables
   featuredListings,
   featuredSettings,
+  featuredSections,
+  featuredSectionItems,
+  curation,
   hiddenUsers,
   analyticsSnapshots,
   errorLogs,
@@ -144,6 +147,9 @@ export {
   // Admin tables
   featuredListings,
   featuredSettings,
+  featuredSections,
+  featuredSectionItems,
+  curation,
   hiddenUsers,
   analyticsSnapshots,
   errorLogs,
@@ -171,6 +177,9 @@ export type {
   // Admin types
   FeaturedListingData,
   FeaturedSettingsData,
+  FeaturedSectionData,
+  FeaturedSectionItemData,
+  CurationData,
   HiddenUserData,
   AnalyticsSnapshotData,
   ErrorLogType,

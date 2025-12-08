@@ -310,6 +310,102 @@ export interface FeaturedSettingsData {
 }
 
 // ============================================
+// FEATURED SECTIONS
+// ============================================
+
+/**
+ * Featured sections table - Dynamic sections for homepage curation
+ */
+export const featuredSections = pgTable('featured_sections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  type: text('type').notNull(), // 'featured_artists', 'recently_sold', 'upcoming', 'collection', 'custom'
+  title: text('title').notNull(),
+  description: text('description'),
+  config: jsonb('config'), // Type-specific configuration (JSONB)
+  displayOrder: integer('display_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  displayOrderIdx: index('featured_sections_display_order_idx').on(table.displayOrder),
+  isActiveIdx: index('featured_sections_is_active_idx').on(table.isActive),
+  typeIdx: index('featured_sections_type_idx').on(table.type),
+}));
+
+export interface FeaturedSectionData {
+  id: string;
+  type: 'featured_artists' | 'recently_sold' | 'upcoming' | 'collection' | 'custom';
+  title: string;
+  description?: string | null;
+  config?: Record<string, any> | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Featured section items table - Items within each section
+ */
+export const featuredSectionItems = pgTable('featured_section_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sectionId: uuid('section_id').notNull().references(() => featuredSections.id, { onDelete: 'cascade' }),
+  itemType: text('item_type').notNull(), // 'listing', 'artist', 'collection'
+  itemId: text('item_id').notNull(), // Listing ID, artist address, or collection address
+  displayOrder: integer('display_order').notNull().default(0),
+  metadata: jsonb('metadata'), // Additional item metadata (JSONB)
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  sectionIdIdx: index('featured_section_items_section_id_idx').on(table.sectionId),
+  itemTypeIdx: index('featured_section_items_item_type_idx').on(table.itemType),
+  itemIdIdx: index('featured_section_items_item_id_idx').on(table.itemId),
+  displayOrderIdx: index('featured_section_items_display_order_idx').on(table.displayOrder),
+}));
+
+export interface FeaturedSectionItemData {
+  id: string;
+  sectionId: string;
+  itemType: 'listing' | 'artist' | 'collection';
+  itemId: string;
+  displayOrder: number;
+  metadata?: Record<string, any> | null;
+  createdAt: Date;
+}
+
+// ============================================
+// CURATION (Future)
+// ============================================
+
+/**
+ * Curation table - For future curation features
+ * This table is prepared for when we enable curated galleries/lists
+ */
+export const curation = pgTable('curation', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  curatorAddress: text('curator_address').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  slug: text('slug'),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  curatorAddressIdx: index('curation_curator_address_idx').on(table.curatorAddress),
+  slugIdx: index('curation_slug_idx').on(table.slug),
+}));
+
+export interface CurationData {
+  id: string;
+  curatorAddress: string;
+  title: string;
+  description?: string | null;
+  slug?: string | null;
+  isPublished: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================
 // ADMIN: Hidden Users
 // ============================================
 

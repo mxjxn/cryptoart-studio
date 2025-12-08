@@ -6,6 +6,7 @@ import { useState } from "react";
 
 const ADMIN_LINKS = [
   { name: "Featured", href: "/admin/featured" },
+  { name: "Featured Sections", href: "/admin/featured-sections" },
   { name: "Users", href: "/admin/users" },
   { name: "Membership", href: "/admin/membership" },
   { name: "Stats", href: "/admin/stats" },

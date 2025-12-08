@@ -4,24 +4,15 @@ import { useState, useEffect } from "react";
 import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
-import { AuctionCard } from "~/components/AuctionCard";
+import { RecentListingsTable } from "~/components/RecentListingsTable";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
-import { FeaturedCarousel } from "~/components/FeaturedCarousel";
+import { FeaturedSections } from "~/components/FeaturedSections";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Image from "next/image";
 
-// Gradient colors for artwork placeholders
-const gradients = [
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-  "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-  "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-  "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
-];
 
 interface HomePageClientProps {
   initialAuctions?: EnrichedAuctionData[];
@@ -45,7 +36,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     try {
       console.log('[HomePageClient] Fetching recent listings...');
       // Fetch all recent listings ordered by creation date (newest first)
-      const response = await fetch('/api/listings/browse?first=24&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true');
+      const response = await fetch('/api/listings/browse?first=20&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true');
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -103,8 +94,8 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         </section>
       )}
 
-      {/* Featured Carousel */}
-      <FeaturedCarousel />
+      {/* Featured Sections */}
+      <FeaturedSections />
 
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
       {isMiniApp && !isMiniAppInstalled && actions && (
@@ -147,9 +138,20 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
       {/* Recent Listings */}
       <section id="listings" className="px-5 py-8">
-        <h2 className="text-[13px] uppercase tracking-[2px] text-[#999999] mb-6 font-mek-mono">
-          Recent Listings
-        </h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-[13px] uppercase tracking-[2px] text-[#999999] font-mek-mono">
+            Recent Listings
+          </h2>
+          {auctions.length > 0 && (
+            <TransitionLink
+              href="/market?tab=recent"
+              prefetch={false}
+              className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+            >
+              View All Recent →
+            </TransitionLink>
+          )}
+        </div>
 
         {loading ? (
           <div className="text-center py-12">
@@ -183,16 +185,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {auctions.map((auction, index) => (
-              <AuctionCard
-                key={auction.listingId}
-                auction={auction}
-                gradient={gradients[index % gradients.length]}
-                index={index}
-              />
-            ))}
-          </div>
+          <RecentListingsTable listings={auctions} />
         )}
       </section>
 

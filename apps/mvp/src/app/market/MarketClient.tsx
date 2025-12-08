@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
+import { RecentListingsTable } from "~/components/RecentListingsTable";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 const gradients = [
@@ -17,6 +19,8 @@ const gradients = [
 ];
 
 export default function MarketClient() {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") || "all";
   const [listings, setListings] = useState<EnrichedAuctionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +34,16 @@ export default function MarketClient() {
       setError(null);
       try {
         const skip = page * pageSize;
-        const url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc`;
+        let url: string;
+        
+        if (tab === "recent") {
+          // Recent listings ordered by creation date
+          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=createdAt&orderDirection=desc`;
+        } else {
+          // All listings ordered by listing ID
+          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc`;
+        }
+        
         console.log('[MarketClient] Fetching listings from:', url);
         const response = await fetch(url);
         console.log('[MarketClient] Response status:', response.status, response.statusText);
@@ -73,13 +86,19 @@ export default function MarketClient() {
     }
 
     fetchListings();
-  }, [page]);
+  }, [page, tab]);
 
   const loadMore = () => {
     if (!loading && hasMore) {
       setPage((prev) => prev + 1);
     }
   };
+
+  // Reset page when tab changes
+  useEffect(() => {
+    setPage(0);
+    setListings([]);
+  }, [tab]);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -91,12 +110,33 @@ export default function MarketClient() {
       </header>
 
       <div className="px-5 py-8">
-        <h1 className="text-2xl font-light mb-8">Market</h1>
+        <h1 className="text-2xl font-light mb-6">Market</h1>
 
-        {/* Future: Add filters here */}
-        {/* <div className="mb-6">
-          <MarketFilters />
-        </div> */}
+        {/* Tabs */}
+        <div className="flex gap-6 mb-8 border-b border-[#333333]">
+          <TransitionLink
+            href="/market"
+            prefetch={false}
+            className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
+              tab === "all"
+                ? "text-white border-b-2 border-white"
+                : "text-[#999999] hover:text-white"
+            }`}
+          >
+            All Listings
+          </TransitionLink>
+          <TransitionLink
+            href="/market?tab=recent"
+            prefetch={false}
+            className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
+              tab === "recent"
+                ? "text-white border-b-2 border-white"
+                : "text-[#999999] hover:text-white"
+            }`}
+          >
+            Recent
+          </TransitionLink>
+        </div>
 
         {loading && listings.length === 0 ? (
           <div className="text-center py-12">
@@ -121,6 +161,22 @@ export default function MarketClient() {
           <div className="text-center py-12">
             <p className="text-[#cccccc]">No listings found</p>
           </div>
+        ) : tab === "recent" ? (
+          <>
+            <RecentListingsTable listings={listings} loading={loading} />
+
+            {hasMore && (
+              <div className="mt-8 text-center">
+                <button
+                  onClick={loadMore}
+                  disabled={loading}
+                  className="px-6 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Loading..." : "Load More"}
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -36,7 +36,7 @@ export default async function Home() {
   
   try {
     initialAuctions = await browseListings({
-      first: 24,
+      first: 20,
       skip: 0,
       orderBy: "createdAt",
       orderDirection: "desc",
