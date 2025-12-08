@@ -309,6 +309,35 @@ export default function AuctionDetailClient({
       console.error("Error opening swap:", error);
     }
   };
+
+  // Prefill amount for swap (only for fixed-price listings)
+  const getSwapPrefillAmount = () => {
+    if (!auction) return undefined;
+    if (auction.listingType !== "FIXED_PRICE") return undefined;
+    try {
+      const price = auction.currentPrice || auction.initialAmount || "0";
+      return (BigInt(price) * BigInt(purchaseQuantity)).toString();
+    } catch {
+      return undefined;
+    }
+  };
+
+  // Swap button handler for miniapp context
+  const handleSwapBuyToken = async () => {
+    if (!isMiniApp || !isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
+    try {
+      const buyToken = getCAIP19TokenId(auction.erc20);
+      if (!buyToken) return;
+
+      const sellAmount = getSwapPrefillAmount();
+      await sdk.actions.swapToken({
+        buyToken,
+        sellAmount,
+      });
+    } catch (error) {
+      console.error("Error opening swap:", error);
+    }
+  };
   
   // Format price for display
   const formatPrice = (amount: string): string => {
@@ -2177,14 +2206,25 @@ export default function AuctionDetailClient({
         {/* Buy Token Button - Always show for ERC-20 paired listings when not own auction */}
         {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
           <div className="mb-4">
-            <a
-              href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
-            >
-              Buy {paymentSymbol}
-            </a>
+            {isMiniApp ? (
+              <button
+                type="button"
+                onClick={handleSwapBuyToken}
+                disabled={!isSDKLoaded}
+                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Swap for {paymentSymbol}
+              </button>
+            ) : (
+              <a
+                href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
+              >
+                Buy {paymentSymbol}
+              </a>
+            )}
           </div>
         )}
       </div>

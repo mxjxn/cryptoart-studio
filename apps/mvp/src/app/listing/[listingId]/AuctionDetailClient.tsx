@@ -294,6 +294,41 @@ export default function AuctionDetailClient({
   // Determine token symbol and decimals for display
   const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
+
+  // Helper function to convert token address to CAIP-19 format
+  const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
+    if (!tokenAddress || isETH(tokenAddress)) return undefined;
+    return `eip155:${CHAIN_ID}/erc20:${tokenAddress}`;
+  };
+
+  // Prefill amount for swap (only for fixed-price listings)
+  const getSwapPrefillAmount = () => {
+    if (!auction) return undefined;
+    if (auction.listingType !== "FIXED_PRICE") return undefined;
+    try {
+      const price = auction.currentPrice || auction.initialAmount || "0";
+      return (BigInt(price) * BigInt(purchaseQuantity)).toString();
+    } catch {
+      return undefined;
+    }
+  };
+
+  // Swap button handler for miniapp context
+  const handleSwapBuyToken = async () => {
+    if (!isMiniApp || !isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
+    try {
+      const buyToken = getCAIP19TokenId(auction.erc20);
+      if (!buyToken) return;
+
+      const sellAmount = getSwapPrefillAmount();
+      await sdk.actions.swapToken({
+        buyToken,
+        sellAmount,
+      });
+    } catch (error) {
+      console.error("Error opening swap:", error);
+    }
+  };
   
   // Format price for display with commas
   const formatPrice = (amount: string): string => {
@@ -1947,15 +1982,27 @@ export default function AuctionDetailClient({
         {/* Buy Token Button - Always show for ERC-20 paired listings when not own auction */}
         {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
           <div className="mb-4">
-            <a
-              href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
-              aria-label={`Buy ${paymentSymbol} on Uniswap`}
-            >
-              Buy {paymentSymbol}
-            </a>
+            {isMiniApp ? (
+              <button
+                type="button"
+                onClick={handleSwapBuyToken}
+                disabled={!isSDKLoaded}
+                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center disabled:opacity-60 disabled:cursor-not-allowed"
+                aria-label={`Swap for ${paymentSymbol}`}
+              >
+                Swap for {paymentSymbol}
+              </button>
+            ) : (
+              <a
+                href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
+                aria-label={`Buy ${paymentSymbol} on Uniswap`}
+              >
+                Buy {paymentSymbol}
+              </a>
+            )}
           </div>
         )}
       </div>
