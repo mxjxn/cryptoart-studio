@@ -5,6 +5,7 @@ import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
+import { extractFirstFrame, needsFrameExtraction } from "~/lib/server/frame-extractor";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
@@ -391,17 +392,32 @@ export async function GET(request: NextRequest) {
     // Fetch and cache images for listings (OG-sized variant)
     const listingImages: (string | null)[] = await Promise.all(
       recentListings.map(async (listing) => {
-        const imageUrl = listing.image || listing.metadata?.image;
+        // Check image field first, then animation_url as fallback
+        let imageUrl = listing.image || listing.metadata?.image;
+        const animationUrl = listing.metadata?.animation_url || listing.metadata?.animationUrl;
+        
+        // If no image but we have animation_url, use it
+        if (!imageUrl && animationUrl) {
+          imageUrl = animationUrl;
+          console.log(`[OG Image] Using animation_url as image source for listing ${listing.listingId}`);
+        }
+        
         if (!imageUrl) {
-          console.warn(`[OG Image] No image URL for listing ${listing.listingId}: image=${listing.image}, metadata.image=${listing.metadata?.image}`);
+          console.warn(`[OG Image] No image URL for listing ${listing.listingId}: image=${listing.image}, metadata.image=${listing.metadata?.image}, animation_url=${animationUrl}`);
           return null;
         }
 
         console.log(`[OG Image] Processing image for listing ${listing.listingId}: ${imageUrl.substring(0, 100)}...`);
         console.log(`[OG Image] Full image URL for listing ${listing.listingId}: ${imageUrl}`);
 
-        // Check cache first using the original imageUrl (normalization happens inside getCachedImage)
-        const cached = await getCachedImage(imageUrl);
+        // Check cache first - try both regular cache and frame cache
+        // Check for extracted frame first (in case it was a GIF/video)
+        const frameCacheKey = `frame-${imageUrl}`;
+        let cached = await getCachedImage(frameCacheKey);
+        if (!cached) {
+          // Fall back to regular image cache
+          cached = await getCachedImage(imageUrl);
+        }
         if (cached) {
           console.log(`[OG Image] Cache hit for listing ${listing.listingId}`);
           return cached;
@@ -471,7 +487,16 @@ export async function GET(request: NextRequest) {
               if (!response.ok) continue;
               
               const contentType = response.headers.get('content-type') || '';
-              if (!contentType.startsWith('image/')) continue;
+              // Accept image/, video/, and application/octet-stream (for IPFS files without proper content-type)
+              const isMediaType = contentType.startsWith('image/') || 
+                                  contentType.startsWith('video/') || 
+                                  contentType === 'application/octet-stream' ||
+                                  !contentType;
+              
+              if (!isMediaType && contentType) {
+                console.warn(`[OG Image] Unsupported content-type for listing ${listing.listingId}: ${contentType}`);
+                continue;
+              }
               
               // Check Content-Length header before downloading
               const contentLength = response.headers.get('content-length');
@@ -492,9 +517,9 @@ export async function GET(request: NextRequest) {
                 continue;
               }
               
-              // Validate image format (check magic bytes)
+              // Validate media format (check magic bytes) - accept images, GIFs, and videos
               const magicBytes = buffer.subarray(0, 12);
-              const isValidImage = 
+              const isImage = 
                 // JPEG: FF D8 FF
                 (magicBytes[0] === 0xFF && magicBytes[1] === 0xD8 && magicBytes[2] === 0xFF) ||
                 // PNG: 89 50 4E 47
@@ -506,22 +531,54 @@ export async function GET(request: NextRequest) {
                  buffer.length >= 12 && 
                  magicBytes[8] === 0x57 && magicBytes[9] === 0x45 && magicBytes[10] === 0x42 && magicBytes[11] === 0x50);
               
-              if (!isValidImage) {
+              // Video formats: MP4, WebM, QuickTime
+              const isVideo = 
+                // MP4: 00 00 00 ?? 66 74 79 70 (ftyp)
+                (magicBytes[0] === 0x00 && magicBytes[1] === 0x00 && magicBytes[2] === 0x00 && 
+                 (magicBytes[3] === 0x18 || magicBytes[3] === 0x20 || magicBytes[3] === 0x1C) &&
+                 magicBytes[4] === 0x66 && magicBytes[5] === 0x74 && magicBytes[6] === 0x79 && magicBytes[7] === 0x70) ||
+                // WebM: 1A 45 DF A3
+                (magicBytes[0] === 0x1A && magicBytes[1] === 0x45 && magicBytes[2] === 0xDF && magicBytes[3] === 0xA3);
+              
+              const isValidMedia = isImage || isVideo;
+              
+              if (!isValidMedia) {
                 const hexBytes = Array.from(magicBytes.slice(0, 12))
                   .map(b => '0x' + b.toString(16).padStart(2, '0'))
                   .join(' ');
-                console.warn(`[OG Image] Invalid image format for listing ${listing.listingId} from ${url}. Magic bytes: ${hexBytes}, Content-Type: ${contentType}, Size: ${buffer.length} bytes`);
+                console.warn(`[OG Image] Invalid media format for listing ${listing.listingId} from ${url}. Magic bytes: ${hexBytes}, Content-Type: ${contentType}, Size: ${buffer.length} bytes`);
                 continue;
               }
               
-              const base64 = buffer.toString('base64');
-              const dataUrl = `data:${contentType};base64,${base64}`;
+              // Check if we need to extract a frame (GIF or video)
+              const needsExtraction = needsFrameExtraction(url, contentType, buffer);
+              let finalBuffer = buffer;
+              let finalContentType = contentType || 'image/png';
               
-              // Cache the image (only if under size limit) using the original imageUrl
-              if (buffer.length <= MAX_IMAGE_SIZE) {
+              if (needsExtraction) {
+                console.log(`[OG Image] Extracting first frame from ${isVideo ? 'video' : 'GIF'} for listing ${listing.listingId}`);
+                const extractionResult = await extractFirstFrame(url, buffer, contentType);
+                
+                if (extractionResult.success) {
+                  finalBuffer = extractionResult.buffer;
+                  finalContentType = extractionResult.contentType;
+                  console.log(`[OG Image] Successfully extracted frame for listing ${listing.listingId}, size: ${finalBuffer.length} bytes`);
+                } else {
+                  console.warn(`[OG Image] Failed to extract frame for listing ${listing.listingId}: ${extractionResult.error}`);
+                  // Continue with original buffer - might work for some cases
+                }
+              }
+              
+              const base64 = finalBuffer.toString('base64');
+              const dataUrl = `data:${finalContentType};base64,${base64}`;
+              
+              // Cache the extracted frame (only if under size limit) using the original imageUrl
+              // Use a special cache key prefix for extracted frames to distinguish from full media
+              const cacheKey = needsExtraction ? `frame-${imageUrl}` : imageUrl;
+              if (finalBuffer.length <= MAX_IMAGE_SIZE) {
                 try {
-                  await cacheImage(imageUrl, dataUrl, contentType);
-                  console.log(`[OG Image] Successfully cached image for listing ${listing.listingId}`);
+                  await cacheImage(cacheKey, dataUrl, finalContentType);
+                  console.log(`[OG Image] Successfully cached ${needsExtraction ? 'extracted frame' : 'image'} for listing ${listing.listingId}`);
                 } catch (cacheError) {
                   // Don't fail the request if caching fails
                   console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
