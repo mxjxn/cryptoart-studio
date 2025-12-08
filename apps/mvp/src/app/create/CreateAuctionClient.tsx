@@ -1121,11 +1121,16 @@ export default function CreateAuctionClient() {
         endTime,
       };
 
+      // For OFFERS_ONLY listings, we must set lazy: true because the contract requires
+      // that non-lazy listings can only be INDIVIDUAL_AUCTION or FIXED_PRICE types
+      // Note: This requires the token contract to implement ILazyDelivery interface
+      const isOffersOnly = effectiveFormData.listingType === "OFFERS_ONLY";
+      
       const tokenDetails = {
         id: BigInt(formData.tokenId),
         address_: formData.nftContract as Address,
         spec: tokenType === 'ERC1155' ? 2 : 1, // 1 = ERC721, 2 = ERC1155
-        lazy: false,
+        lazy: isOffersOnly, // Must be true for OFFERS_ONLY listings
       };
 
       const deliveryFees = {
@@ -1156,6 +1161,10 @@ export default function CreateAuctionClient() {
         }
       }
 
+      // For OFFERS_ONLY listings, acceptOffers must be true (though the flag is also set by the listing type)
+      // For other listings, acceptOffers should be false unless explicitly enabled
+      const acceptOffers = isOffersOnly ? true : false;
+
       try {
         writeContract({
           address: MARKETPLACE_ADDRESS,
@@ -1169,7 +1178,7 @@ export default function CreateAuctionClient() {
             deliveryFees,
             listingReceivers,
             false, // enableReferrer
-            false, // acceptOffers (not using offers on auctions)
+            acceptOffers, // Must be true for OFFERS_ONLY listings
             "0x", // data (empty bytes)
           ],
         });
