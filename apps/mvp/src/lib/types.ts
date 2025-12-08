@@ -80,6 +80,8 @@ export interface EnrichedAuctionData extends AuctionData {
   artist?: string;
   image?: string;
   description?: string;
+  // Thumbnail/preview image URL (optimized for homepage display)
+  thumbnailUrl?: string;
   
   // Bid information
   bidCount: number;

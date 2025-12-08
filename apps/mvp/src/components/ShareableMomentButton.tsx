@@ -8,6 +8,7 @@ import type { ShareMomentType } from "~/lib/share-moments";
 import {
   generateShareCastText,
   generateShareUrl,
+  generateShareOGImageUrl,
   formatPriceForShare,
 } from "~/lib/share-moments";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
@@ -28,6 +29,11 @@ interface ShareableMomentButtonProps {
   customText?: string;
   className?: string;
   buttonText?: string;
+  topBidAmount?: string;
+  topBidderName?: string;
+  topBidderAddress?: string;
+  paymentSymbol?: string;
+  paymentDecimals?: number;
 }
 
 export function ShareableMomentButton({
@@ -43,6 +49,11 @@ export function ShareableMomentButton({
   customText,
   className = "",
   buttonText,
+  topBidAmount,
+  topBidderName,
+  topBidderAddress,
+  paymentSymbol: propPaymentSymbol,
+  paymentDecimals: propPaymentDecimals,
 }: ShareableMomentButtonProps) {
   const { isSDKLoaded } = useMiniApp();
   const primaryWallet = usePrimaryWallet();
@@ -52,8 +63,8 @@ export function ShareableMomentButton({
   // Get payment token info for price formatting
   const isPaymentETH = isETH(auction?.erc20);
   const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined);
-  const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
-  const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
+  const paymentSymbol = propPaymentSymbol || (isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN"));
+  const paymentDecimals = propPaymentDecimals ?? (isPaymentETH ? 18 : (erc20Token.decimals || 18));
 
   // Format price for display
   const getDisplayPrice = () => {
@@ -65,6 +76,9 @@ export function ShareableMomentButton({
     }
     if (currentBid) {
       return formatPriceForShare(currentBid, paymentDecimals);
+    }
+    if (topBidAmount) {
+      return formatPriceForShare(topBidAmount, paymentDecimals);
     }
     if (auction?.initialAmount) {
       return formatPriceForShare(auction.initialAmount, paymentDecimals);
@@ -98,6 +112,11 @@ export function ShareableMomentButton({
         bidAmount,
         salePrice,
         currentBid,
+        topBidAmount,
+        topBidderName,
+        topBidderAddress,
+        paymentSymbol,
+        paymentDecimals,
       });
 
       // Generate share URL (the link that will be embedded)
@@ -107,17 +126,14 @@ export function ShareableMomentButton({
         primaryWallet || undefined
       );
 
-      // Add query params for OG image generation if needed
-      const ogImageUrl = new URL(shareUrl);
-      if (bidAmount) {
-        ogImageUrl.searchParams.set("bidAmount", bidAmount);
-      }
-      if (salePrice) {
-        ogImageUrl.searchParams.set("salePrice", salePrice);
-      }
-      if (currentBid) {
-        ogImageUrl.searchParams.set("currentBid", currentBid);
-      }
+      // Generate OG image URL with all params
+      const ogImageUrl = generateShareOGImageUrl(momentType, listingId, {
+        bidAmount,
+        salePrice,
+        currentBid,
+        topBidAmount,
+        topBidderAddress,
+      });
 
       // Build embeds: thumbnail URL first (if available), then share URL
       const embeds: [string] | [string, string] = thumbnailUrl
@@ -145,6 +161,11 @@ export function ShareableMomentButton({
     currentBid,
     customText,
     primaryWallet,
+    topBidAmount,
+    topBidderName,
+    topBidderAddress,
+    paymentSymbol,
+    paymentDecimals,
   ]);
 
   if (!isSDKLoaded) {
@@ -158,6 +179,13 @@ export function ShareableMomentButton({
     listingId,
     primaryWallet || undefined
   );
+  const ogImageUrl = generateShareOGImageUrl(momentType, listingId, {
+    bidAmount,
+    salePrice,
+    currentBid,
+    topBidAmount,
+    topBidderAddress,
+  });
   const castText = customText || generateShareCastText(momentType, {
     listingId,
     artworkName: artworkName || auction?.title || auction?.metadata?.title,
@@ -166,6 +194,11 @@ export function ShareableMomentButton({
     bidAmount,
     salePrice,
     currentBid,
+    topBidAmount,
+    topBidderName,
+    topBidderAddress,
+    paymentSymbol,
+    paymentDecimals,
   });
   const displayPrice = getDisplayPrice();
 
@@ -187,7 +220,7 @@ export function ShareableMomentButton({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         artworkUrl={artworkUrl}
-        shareUrl={shareUrl}
+        shareUrl={ogImageUrl}
         castText={castText}
         artworkName={artworkName || auction?.title || auction?.metadata?.title}
         artistName={artistName || auction?.artist}

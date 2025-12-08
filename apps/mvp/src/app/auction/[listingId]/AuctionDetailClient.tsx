@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
@@ -27,8 +27,6 @@ import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, PURCHASE_ABI_NO_REFERRE
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
-import { BuyersList } from "~/components/BuyersList";
-import { TransactionModal } from "~/components/TransactionModal";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -72,14 +70,13 @@ export default function AuctionDetailClient({
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-  const { auction, loading, updateAuction, refetch: refetchAuction } = useAuction(listingId);
+  const { auction, loading, updateAuction } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const publicClient = usePublicClient();
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
-  const [pendingBidAfterApproval, setPendingBidAfterApproval] = useState<bigint | null>(null);
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseSimulationError, setPurchaseSimulationError] = useState<string | null>(null);
   const [showBidSharePrompt, setShowBidSharePrompt] = useState(false);
@@ -87,12 +84,6 @@ export default function AuctionDetailClient({
   const [showOutbidNotification, setShowOutbidNotification] = useState(false);
   const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
-  
-      // Track last processed bid hash to prevent duplicate processing
-      const lastProcessedBidHash = useRef<string | null>(null);
-      // Track the bid amount being processed for the modal
-      const pendingBidAmount = useRef<string | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -284,15 +275,6 @@ export default function AuctionDetailClient({
     return false;
   }, [isPaymentETH, auction, isConnected, address, getRequiredAmount, userBalance.balance, purchaseQuantity]);
 
-  // Check if an ERC20 bid requires approval based on current allowance and input
-  const needsBidApproval = useMemo(() => {
-    if (isPaymentETH || !auction?.erc20 || !address || !isConnected) return false;
-    const currentAllowance = erc20Allowance as bigint | undefined;
-    const requiredAmount = getRequiredAmount;
-    if (requiredAmount === BigInt(0)) return false;
-    return !currentAllowance || currentAllowance < requiredAmount;
-  }, [address, auction?.erc20, erc20Allowance, getRequiredAmount, isConnected, isPaymentETH]);
-
   // Handle top-up action
   const handleTopUp = async () => {
     if (!isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
@@ -313,35 +295,6 @@ export default function AuctionDetailClient({
           router.refresh();
         }, 2000);
       }
-    } catch (error) {
-      console.error("Error opening swap:", error);
-    }
-  };
-
-  // Prefill amount for swap (only for fixed-price listings)
-  const getSwapPrefillAmount = () => {
-    if (!auction) return undefined;
-    if (auction.listingType !== "FIXED_PRICE") return undefined;
-    try {
-      const price = auction.currentPrice || auction.initialAmount || "0";
-      return (BigInt(price) * BigInt(purchaseQuantity)).toString();
-    } catch {
-      return undefined;
-    }
-  };
-
-  // Swap button handler for miniapp context
-  const handleSwapBuyToken = async () => {
-    if (!isMiniApp || !isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
-    try {
-      const buyToken = getCAIP19TokenId(auction.erc20);
-      if (!buyToken) return;
-
-      const sellAmount = getSwapPrefillAmount();
-      await sdk.actions.swapToken({
-        buyToken,
-        sellAmount,
-      });
     } catch (error) {
       console.error("Error opening swap:", error);
     }
@@ -406,62 +359,6 @@ export default function AuctionDetailClient({
     }
   }, [auction, calculateMinBid, bidAmount, paymentDecimals]);
 
-  const parseBidAmountToBigInt = () => {
-    const parts = bidAmount.split('.');
-    const wholePart = BigInt(parts[0] || '0');
-    const fractionalPart = parts[1]
-      ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
-      : BigInt(0);
-    return wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
-  };
-
-  const executeBidTransaction = useCallback(async (bidAmountBigInt: bigint) => {
-    // Use increase=false to bid the exact amount sent
-    // For ERC-20 tokens, we need to pass bidAmount as a parameter
-    // For ETH, we use msg.value (passed via the value field)
-    if (isPaymentETH) {
-      // ETH payment: use msg.value overload
-      if (referrer) {
-        await placeBid({
-          address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: CHAIN_ID,
-          args: [referrer, Number(listingId), false] as const,
-          value: bidAmountBigInt,
-        });
-      } else {
-        await placeBid({
-          address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: CHAIN_ID,
-          args: [Number(listingId), false] as const,
-          value: bidAmountBigInt,
-        });
-      }
-    } else {
-      // ERC-20 payment: pass bidAmount as parameter
-      if (referrer) {
-        await placeBid({
-          address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: CHAIN_ID,
-          args: [referrer, Number(listingId), bidAmountBigInt, false] as const,
-        });
-      } else {
-        await placeBid({
-          address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: CHAIN_ID,
-          args: [Number(listingId), bidAmountBigInt, false] as const,
-        });
-      }
-    }
-  }, [referrer, listingId, isPaymentETH, placeBid]);
-
   const handleBid = async () => {
     if (!isConnected || !bidAmount || !auction || !address) {
       return;
@@ -469,7 +366,13 @@ export default function AuctionDetailClient({
 
     try {
       // Parse bid amount using the correct decimals for the payment token
-      const bidAmountBigInt = parseBidAmountToBigInt();
+      // Use a more precise parsing method to avoid floating point issues
+      const bidAmountBigInt = (() => {
+        const parts = bidAmount.split('.');
+        const wholePart = BigInt(parts[0] || '0');
+        const fractionalPart = parts[1] ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals)) : BigInt(0);
+        return wholePart * BigInt(10 ** paymentDecimals) + fractionalPart;
+      })();
       
       // Use the calculated minimum bid
       const minBid = calculateMinBid;
@@ -487,8 +390,6 @@ export default function AuctionDetailClient({
         
         // Check if approval is needed
         if (!currentAllowance || currentAllowance < bidAmountBigInt) {
-          // Track pending bid so we can continue automatically after approval confirms
-          setPendingBidAfterApproval(bidAmountBigInt);
           // Approve the marketplace to spend the tokens
           await approveERC20({
             address: tokenAddress,
@@ -502,12 +403,27 @@ export default function AuctionDetailClient({
         }
       }
       
-      // Store bid amount for modal display
-      pendingBidAmount.current = bidAmount;
-      // Show transaction modal
-      setShowTransactionModal(true);
-      
-      await executeBidTransaction(bidAmountBigInt);
+      // Use increase=false to bid the exact amount sent
+      // Pass referrer if available and listing supports referrers
+      if (referrer) {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [referrer, Number(listingId), false] as const,
+          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
+        });
+      } else {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [Number(listingId), false] as const,
+          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
+        });
+      }
     } catch (err: any) {
       console.error("Error placing bid:", err);
       const errorMessage = err?.message || String(err);
@@ -831,23 +747,6 @@ export default function AuctionDetailClient({
     }
   }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing, referrer]);
 
-  // After approval is confirmed for bids, refetch allowance and place the bid automatically
-  useEffect(() => {
-    if (isApproveConfirmed && pendingBidAfterApproval && !isPaymentETH && auction && address) {
-      refetchAllowance().then((result) => {
-        const updatedAllowance = (result?.data ?? erc20Allowance) as bigint | undefined;
-        if (updatedAllowance && updatedAllowance >= pendingBidAfterApproval) {
-          const bidAmountToUse = pendingBidAfterApproval;
-          setPendingBidAfterApproval(null);
-          executeBidTransaction(bidAmountToUse);
-        }
-      }).catch((err) => {
-        console.error("Error refetching allowance after approval:", err);
-        setPendingBidAfterApproval(null);
-      });
-    }
-  }, [address, auction, erc20Allowance, executeBidTransaction, isApproveConfirmed, isPaymentETH, pendingBidAfterApproval, refetchAllowance]);
-
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {
       return;
@@ -1071,125 +970,13 @@ export default function AuctionDetailClient({
     }
   }, [isFinalizeConfirmed, router, auction, address]);
 
-  // Optimistic update when bidHash is set (immediately when transaction is submitted)
+  // Create notifications after successful bid
   useEffect(() => {
-    if (bidHash && address && auction && bidAmount && bidHash !== lastProcessedBidHash.current) {
-      // Get the bid amount in BigInt format for optimistic update
-      const parts = bidAmount.split('.');
-      const wholePart = BigInt(parts[0] || '0');
-      const fractionalPart = parts[1]
-        ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
-        : BigInt(0);
-      const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-      
-      // Optimistically update immediately when transaction is submitted
-      updateAuction((prev) => {
-        if (!prev) return prev;
-        
-        // Check if this bid is already reflected (avoid duplicates)
-        const isAlreadyReflected = prev.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
-          prev.highestBid?.amount === bidAmountBigInt.toString();
-        
-        // Also check if this exact bid already exists in bids array
-        const bidExists = prev.bids?.some(
-          (bid: any) => bid.bidder?.toLowerCase() === address.toLowerCase() &&
-            bid.amount === bidAmountBigInt.toString()
-        );
-        
-        if (isAlreadyReflected || bidExists) return prev;
-        
-        // Create new bid entry
-        const newBid = {
-          id: `temp-${Date.now()}-${bidHash}`,
-          bidder: address.toLowerCase(),
-          amount: bidAmountBigInt.toString(),
-          timestamp: currentTimestamp,
-        };
-        
-        // Update bids array - add new bid and sort by amount descending
-        const updatedBids = prev.bids ? [...prev.bids, newBid] : [newBid];
-        updatedBids.sort((a, b) => {
-          const amountA = BigInt(a.amount);
-          const amountB = BigInt(b.amount);
-          return amountA > amountB ? -1 : amountA < amountB ? 1 : 0;
-        });
-        
-        return {
-          ...prev,
-          bidCount: updatedBids.length,
-          highestBid: {
-            amount: bidAmountBigInt.toString(),
-            bidder: address.toLowerCase(),
-            timestamp: currentTimestamp,
-          },
-          bids: updatedBids,
-        };
-      });
-    }
-  }, [bidHash, address, auction, bidAmount, paymentDecimals, updateAuction]);
-
-  // Create notifications after successful bid and refresh with fresh data
-  useEffect(() => {
-    // Prevent duplicate processing of the same bid
-    if (isBidConfirmed && bidHash && bidHash === lastProcessedBidHash.current) {
-      return;
-    }
-    
-    if (isBidConfirmed && address && auction && bidAmount && bidHash) {
-      // Mark this bid hash as processed
-      lastProcessedBidHash.current = bidHash;
+    if (isBidConfirmed && address && auction) {
       const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
       // Format bid amount using the correct token decimals and symbol
       const bidAmountFormatted = bidAmount || '0';
       const previousBidder = auction.highestBid?.bidder;
-      
-      // Get the bid amount in BigInt format for optimistic update
-      const parts = bidAmount.split('.');
-      const wholePart = BigInt(parts[0] || '0');
-      const fractionalPart = parts[1]
-        ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
-        : BigInt(0);
-      const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-      
-      // Check if this bid is already reflected in the auction data (to prevent duplicate updates)
-      const isAlreadyReflected = auction.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
-        auction.highestBid?.amount === bidAmountBigInt.toString();
-      
-      // Optimistically update the auction state immediately (only if not already reflected)
-      if (!isAlreadyReflected) {
-        updateAuction((prev) => {
-          if (!prev) return prev;
-          
-          // Create new bid entry
-          const newBid = {
-            id: `temp-${Date.now()}`,
-            bidder: address.toLowerCase(),
-            amount: bidAmountBigInt.toString(),
-            timestamp: currentTimestamp,
-          };
-          
-          // Update bids array - add new bid and sort by amount descending
-          const updatedBids = prev.bids ? [...prev.bids, newBid] : [newBid];
-          updatedBids.sort((a, b) => {
-            const amountA = BigInt(a.amount);
-            const amountB = BigInt(b.amount);
-            return amountA > amountB ? -1 : amountA < amountB ? 1 : 0;
-          });
-          
-          return {
-            ...prev,
-            bidCount: updatedBids.length,
-            highestBid: {
-              amount: bidAmountBigInt.toString(),
-              bidder: address.toLowerCase(),
-              timestamp: currentTimestamp,
-            },
-            bids: updatedBids,
-          };
-        });
-      }
       
       // Show share prompt for bidder
       setShowBidSharePrompt(true);
@@ -1256,78 +1043,11 @@ export default function AuctionDetailClient({
         }).catch(err => console.error('Error creating outbid notification:', err));
       }
       
-      // Invalidate cache and poll subgraph until bid appears
-      const invalidateAndPoll = async () => {
-        // Get the bid amount in BigInt format for checking
-        const parts = bidAmount.split('.');
-        const wholePart = BigInt(parts[0] || '0');
-        const fractionalPart = parts[1]
-          ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
-          : BigInt(0);
-        const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
-        // Invalidate cache to ensure fresh data
-        try {
-          await fetch('/api/auctions/invalidate-cache', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listingId }),
-          });
-        } catch (err) {
-          console.error('Error invalidating cache:', err);
-        }
-        
-        // Poll subgraph until bid appears, then refetch with fresh data
-        const pollForBid = async (maxAttempts = 10, delay = 2000) => {
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
-          try {
-            // Fetch fresh data bypassing cache
-            const response = await fetch(`/api/auctions/${listingId}?refresh=${Date.now()}`, {
-              cache: 'no-store',
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              const fetchedAuction = data.auction;
-              
-              // Check if our bid appears in the fetched data
-              const ourBidExists = fetchedAuction?.bids?.some(
-                (bid: any) => bid.bidder?.toLowerCase() === address.toLowerCase() &&
-                  bid.amount === bidAmountBigInt.toString()
-              ) || fetchedAuction?.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
-                  fetchedAuction?.highestBid?.amount === bidAmountBigInt.toString();
-              
-              if (ourBidExists) {
-                // Bid found in subgraph, update with fresh data
-                updateAuction(() => fetchedAuction);
-                // Clear bid input and repopulate with next minimum bid
-                setBidAmount('');
-                // Close transaction modal
-                setShowTransactionModal(false);
-                return;
-              }
-            }
-          } catch (err) {
-            console.error('Error polling for bid:', err);
-          }
-        }
-        
-        // If we've exhausted retries, just refetch anyway
-        console.warn('Bid not found in subgraph after polling, refetching anyway');
-        refetchAuction(true);
-        setBidAmount('');
-        setShowTransactionModal(false);
-      };
-      
-      // Start polling after a short initial delay
-      await pollForBid();
-      };
-      
-      // Start the async process
-      invalidateAndPoll();
+      // Refresh auction data
+      router.refresh();
+      setBidAmount(''); // Clear bid input
     }
-  }, [isBidConfirmed, address, auction, listingId, bidAmount, bidHash, router, paymentSymbol, updateAuction, refetchAuction, paymentDecimals]);
+  }, [isBidConfirmed, address, auction, listingId, bidAmount, router, paymentSymbol]);
 
   // Refetch offers after successful offer or accept and create notifications
   useEffect(() => {
@@ -1478,25 +1198,6 @@ export default function AuctionDetailClient({
           },
         }),
       }).catch(err => console.error('Error creating seller notification:', err));
-      
-      // Optimistically add buyer to buyers list
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-      const buyerData = {
-        address: address.toLowerCase(),
-        totalCount: purchaseQuantity,
-        firstPurchase: currentTimestamp,
-        lastPurchase: currentTimestamp,
-        username: null,
-        displayName: null,
-        pfpUrl: null,
-        fid: null,
-      };
-      
-      // Trigger optimistic update in BuyersList component
-      const handler = (window as any)[`buyerAdded_${listingId}`];
-      if (handler) {
-        handler(buyerData);
-      }
       
       router.refresh();
       setTimeout(() => {
@@ -1939,32 +1640,12 @@ export default function AuctionDetailClient({
                         </button>
                       )}
                     </div>
-                    {/* Approval helper text for ERC20 bids */}
-                    {needsBidApproval && !isApproving && !isConfirmingApprove && (
-                      <p className="text-xs text-yellow-400">
-                        Approve {paymentSymbol} to place your bid.
-                      </p>
-                    )}
                     <button
                       onClick={handleBid}
-                      disabled={isBidding || isConfirmingBid || isApproving || isConfirmingApprove}
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
                     >
-                      {isApproving || isConfirmingApprove
-                        ? `Approving ${paymentSymbol}...`
-                        : pendingBidAfterApproval
-                        ? "Waiting for approval..."
-                        : isBidding || isConfirmingBid
-                        ? "Placing bid..."
-                        : needsBidApproval
-                        ? `Approve ${paymentSymbol}`
-                        : "Place Bid"}
+                      Place Bid
                     </button>
-                    {bidError && (
-                      <p className="text-xs text-red-400">
-                        {bidError.message || "Failed to place bid"}
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -2371,9 +2052,6 @@ export default function AuctionDetailClient({
                       <span className="font-mono text-white">{auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}</span>
                     ) : null}
                   </div>
-
-                  {/* Buyers List */}
-                  <BuyersList listingId={listingId} />
                 </>
               );
             })()}
@@ -2443,25 +2121,14 @@ export default function AuctionDetailClient({
         {/* Buy Token Button - Always show for ERC-20 paired listings when not own auction */}
         {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
           <div className="mb-4">
-            {isMiniApp ? (
-              <button
-                type="button"
-                onClick={handleSwapBuyToken}
-                disabled={!isSDKLoaded}
-                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                Swap for {paymentSymbol}
-              </button>
-            ) : (
-              <a
-                href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
-              >
-                Buy {paymentSymbol}
-              </a>
-            )}
+            <a
+              href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
+            >
+              Buy {paymentSymbol}
+            </a>
           </div>
         )}
       </div>
@@ -2469,21 +2136,7 @@ export default function AuctionDetailClient({
       {/* Chain Switch Prompt */}
       <ChainSwitchPrompt 
         show={showChainSwitchPrompt} 
-        onDismiss={() => setShowChainSwitchPrompt(false)}
-      />
-      
-      {/* Transaction Modal for bid/purchase */}
-      <TransactionModal
-        isOpen={showTransactionModal}
-        onClose={() => setShowTransactionModal(false)}
-        isPending={isBidding}
-        isConfirming={isConfirmingBid}
-        isSuccess={isBidConfirmed}
-        error={bidError}
-        amount={pendingBidAmount.current || bidAmount || '0'}
-        symbol={paymentSymbol}
-        action="bid"
-        transactionHash={bidHash}
+        onDismiss={() => setShowChainSwitchPrompt(false)} 
       />
     </div>
   );

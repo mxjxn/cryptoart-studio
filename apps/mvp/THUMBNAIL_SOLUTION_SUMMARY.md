@@ -125,3 +125,4 @@ Supports multiple backends:
 
 See `THUMBNAIL_CACHING.md` for detailed documentation.
 
+

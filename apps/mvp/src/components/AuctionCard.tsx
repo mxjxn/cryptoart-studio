@@ -165,14 +165,14 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
         ref={cardRef}
         className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
         style={{
-          background: auction.image
+          background: (auction.thumbnailUrl || auction.image)
             ? undefined
             : gradient,
         }}
       >
-        {auction.image && (
+        {(auction.thumbnailUrl || auction.image) && (
           <img
-            src={auction.image}
+            src={auction.thumbnailUrl || auction.image}
             alt={title}
             className="w-full h-full object-contain"
             style={{

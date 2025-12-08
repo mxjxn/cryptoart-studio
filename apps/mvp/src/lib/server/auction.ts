@@ -305,6 +305,22 @@ export async function getAuctionServer(
       console.warn(`[OG Image] [getAuctionServer] No tokenAddress or tokenId, skipping metadata fetch`);
     }
 
+    // Always generate a small thumbnail for consistency and reliability
+    // This ensures og-image embeds work reliably with optimized images
+    let thumbnailUrl: string | undefined = undefined;
+    const imageUrl = metadata?.image;
+    if (imageUrl) {
+      try {
+        const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
+        thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+        console.log(`[OG Image] [getAuctionServer] Generated thumbnail for listing ${listingId}`);
+      } catch (error) {
+        console.warn(`[OG Image] [getAuctionServer] Failed to generate thumbnail for ${imageUrl}:`, error);
+        // Fall back to original image if thumbnail generation fails
+        thumbnailUrl = imageUrl;
+      }
+    }
+
     // Normalize listing type and token spec for consistent handling
     const normalizedListingType = normalizeListingType(listing.listingType, listing);
     const normalizedTokenSpec = normalizeTokenSpec(listing.tokenSpec);
@@ -332,6 +348,7 @@ export async function getAuctionServer(
       artist: metadata?.artist || metadata?.creator,
       image: metadata?.image,
       description: metadata?.description,
+      thumbnailUrl,
       metadata,
     };
 
@@ -355,7 +372,7 @@ export async function getAuctionServer(
  * Get set of hidden user addresses for filtering.
  * These users' listings should not appear in algorithmic feeds.
  */
-async function getHiddenUserAddresses(): Promise<Set<string>> {
+export async function getHiddenUserAddresses(): Promise<Set<string>> {
   try {
     const db = getDatabase();
     const hidden = await db.select({ address: hiddenUsers.userAddress }).from(hiddenUsers);

@@ -5,7 +5,9 @@ export type ShareMomentType =
   | "bid-placed"
   | "auction-won"
   | "outbid"
-  | "referral";
+  | "referral"
+  | "top-bid"
+  | "being-outbid";
 
 interface ShareMomentData {
   listingId: string;
@@ -20,6 +22,9 @@ interface ShareMomentData {
   endTime?: string;
   paymentSymbol?: string;
   paymentDecimals?: number;
+  topBidderName?: string;
+  topBidderAddress?: string;
+  topBidAmount?: string;
 }
 
 /**
@@ -113,6 +118,28 @@ export function generateShareCastText(
     case "referral":
       return `Check out this piece by ${artistMention}`;
 
+    case "top-bid": {
+      const topBidderMention = data.topBidderName 
+        ? getArtistMention(data.topBidderName)
+        : "someone";
+      const bidAmount = data.topBidAmount 
+        ? formatPriceForShare(data.topBidAmount, data.paymentDecimals || 18)
+        : "a bid";
+      const tokenSymbol = data.paymentSymbol || "ETH";
+      return `${topBidderMention} is winning ${artworkName} by ${artistMention} with a bid of ${bidAmount} ${tokenSymbol}!`;
+    }
+
+    case "being-outbid": {
+      const topBidderMention = data.topBidderName 
+        ? getArtistMention(data.topBidderName)
+        : "someone";
+      const bidAmount = data.topBidAmount 
+        ? formatPriceForShare(data.topBidAmount, data.paymentDecimals || 18)
+        : "a bid";
+      const tokenSymbol = data.paymentSymbol || "ETH";
+      return `I've been outbid! Bid from ${topBidderMention} of ${bidAmount} ${tokenSymbol} on ${artworkName} by ${artistMention}`;
+    }
+
     default:
       return `Check out this auction on cryptoart.social`;
   }
@@ -128,6 +155,8 @@ export function generateShareOGImageUrl(
     bidAmount?: string;
     salePrice?: string;
     currentBid?: string;
+    topBidAmount?: string;
+    topBidderAddress?: string;
   }
 ): string {
   const baseUrl =
@@ -142,6 +171,12 @@ export function generateShareOGImageUrl(
   }
   if (params?.currentBid) {
     url.searchParams.set("currentBid", params.currentBid);
+  }
+  if (params?.topBidAmount) {
+    url.searchParams.set("topBidAmount", params.topBidAmount);
+  }
+  if (params?.topBidderAddress) {
+    url.searchParams.set("topBidderAddress", params.topBidderAddress);
   }
 
   return url.toString();

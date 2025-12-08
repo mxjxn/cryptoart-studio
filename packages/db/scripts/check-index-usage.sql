@@ -72,3 +72,4 @@ SELECT
   COUNT(*) FILTER (WHERE expires_at < NOW()) AS expired_entries
 FROM image_cache;
 
+

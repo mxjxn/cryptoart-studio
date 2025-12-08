@@ -3,6 +3,7 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import { prepareAuctionOGImageData } from "./og-image-generator";
 import { formatPriceForShare } from "./share-moments";
 import { getERC20TokenInfoServer } from "./server/erc20-token";
+import { lookupNeynarByAddress } from "./artist-name-resolution";
 import type { ShareMomentType } from "./share-moments";
 
 interface ShareOGImageOptions {
@@ -11,6 +12,8 @@ interface ShareOGImageOptions {
   bidAmount?: string;
   salePrice?: string;
   currentBid?: string;
+  topBidAmount?: string;
+  topBidderAddress?: string;
 }
 
 /**
@@ -19,11 +22,22 @@ interface ShareOGImageOptions {
 export async function generateShareOGImage(
   options: ShareOGImageOptions
 ): Promise<ImageResponse> {
-  const { momentType, auction, bidAmount, salePrice, currentBid } = options;
+  const { momentType, auction, bidAmount, salePrice, currentBid, topBidAmount, topBidderAddress } = options;
 
   // Prepare base auction data
   const ogData = await prepareAuctionOGImageData(auction);
   const tokenInfo = await getERC20TokenInfoServer(auction.erc20);
+
+  // Look up top bidder name if needed
+  let topBidderName: string | null = null;
+  if ((momentType === "top-bid" || momentType === "being-outbid") && topBidderAddress) {
+    try {
+      const neynarResult = await lookupNeynarByAddress(topBidderAddress);
+      topBidderName = neynarResult?.name || null;
+    } catch (error) {
+      console.error("Error looking up top bidder name:", error);
+    }
+  }
 
   // Determine what to display based on moment type
   let badge: string | null = null;
@@ -78,6 +92,30 @@ export async function generateShareOGImage(
       // No price for referral shares
       priceLabel = null;
       price = null;
+      break;
+
+    case "top-bid":
+      badge = "TOP BID";
+      if (topBidAmount) {
+        price = formatPriceForShare(topBidAmount, tokenInfo.decimals);
+      } else if (auction.highestBid?.amount) {
+        price = formatPriceForShare(auction.highestBid.amount, tokenInfo.decimals);
+      } else {
+        price = ogData.price;
+      }
+      priceLabel = "Winning Bid";
+      break;
+
+    case "being-outbid":
+      badge = "OUTBID";
+      if (topBidAmount) {
+        price = formatPriceForShare(topBidAmount, tokenInfo.decimals);
+      } else if (auction.highestBid?.amount) {
+        price = formatPriceForShare(auction.highestBid.amount, tokenInfo.decimals);
+      } else {
+        price = ogData.price;
+      }
+      priceLabel = "Current Bid";
       break;
   }
 
@@ -201,6 +239,20 @@ export async function generateShareOGImage(
               }}
             >
               {ogData.timeText}
+            </div>
+          )}
+
+          {/* Top bidder info for top-bid and being-outbid */}
+          {(momentType === "top-bid" || momentType === "being-outbid") && topBidderAddress && (
+            <div
+              style={{
+                fontSize: "32px",
+                color: "rgba(255, 255, 255, 0.9)",
+                marginBottom: "20px",
+              }}
+            >
+              {momentType === "top-bid" ? "Winning bidder: " : "Outbid by: "}
+              {topBidderName || `${topBidderAddress.slice(0, 6)}...${topBidderAddress.slice(-4)}`}
             </div>
           )}
 

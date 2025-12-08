@@ -26,3 +26,4 @@ COMMENT ON COLUMN "notification_tokens"."fid" IS 'Farcaster ID of the user';
 COMMENT ON COLUMN "notification_tokens"."url" IS 'Notification URL from webhook (e.g., https://api.farcaster.xyz/v1/frame-notifications)';
 COMMENT ON COLUMN "notification_tokens"."token" IS 'Notification token from webhook, unique per (client, app, user) combination';
 
+

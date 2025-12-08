@@ -116,6 +116,9 @@ export async function POST(req: NextRequest) {
     
     // Revalidate the homepage and auction cache
     revalidatePath('/');
+    revalidatePath('/api/listings/browse');
+    // Also revalidate with query params that might be used
+    revalidatePath('/api/listings/browse?first=24&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true');
     // Note: revalidateTag removed due to TypeScript error in Next.js 16.0.7
     // The revalidatePath('/') call should be sufficient for homepage cache invalidation
     
@@ -128,6 +131,7 @@ export async function POST(req: NextRequest) {
       })),
       revalidated: true,
       timestamp: new Date().toISOString(),
+      message: 'Cache cleared. Please hard refresh (Cmd+Shift+R or Ctrl+Shift+R) to bypass browser cache.',
     });
   } catch (error) {
     console.error('[Admin] Error in revalidate-homepage:', error);

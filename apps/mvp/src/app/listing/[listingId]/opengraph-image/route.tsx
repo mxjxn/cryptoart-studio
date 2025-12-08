@@ -121,13 +121,20 @@ export async function GET(
   try {
     const { listingId } = await params;
     const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    // Force HTTPS for font URL to avoid SSL errors
+    const baseUrl = `https://${url.host}`;
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font from URL (edge runtime compatible)
     let fontData: ArrayBuffer;
     try {
-      const fontResponse = await fetch(fontUrl);
+      const fontResponse = await fetch(fontUrl, {
+        // Add timeout and proper headers
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; OG-Image-Bot/1.0)',
+        },
+      });
       if (!fontResponse.ok) {
         throw new Error(`Failed to fetch font: ${fontResponse.statusText}`);
       }
@@ -293,26 +300,26 @@ export async function GET(
   }
 
   // Get artwork image URL and convert to data URL for ImageResponse
+  // Prefer thumbnailUrl if available (smaller, more reliable for embeds)
   let artworkImageDataUrl: string | null = null;
-  if (auction?.image || auction?.metadata?.image) {
-    const originalImageUrl = auction.image || auction.metadata?.image || null;
-    if (originalImageUrl) {
-      console.log(`[OG Image] [Listing ${listingId}] Original image URL: ${originalImageUrl.substring(0, 100)}...`);
-      
-      // Handle data URIs directly - no need to cache or fetch
-      if (isDataURI(originalImageUrl)) {
-        artworkImageDataUrl = originalImageUrl;
-        console.log(`[OG Image] [Listing ${listingId}] Using data URI directly (no cache/fetch needed)`);
+  const imageUrlToUse = auction?.thumbnailUrl || auction?.image || auction?.metadata?.image;
+  if (imageUrlToUse) {
+    console.log(`[OG Image] [Listing ${listingId}] Using ${auction?.thumbnailUrl ? 'thumbnail' : 'original'} image URL: ${imageUrlToUse.substring(0, 100)}...`);
+    
+    // Handle data URIs directly - no need to cache or fetch
+    if (isDataURI(imageUrlToUse)) {
+      artworkImageDataUrl = imageUrlToUse;
+      console.log(`[OG Image] [Listing ${listingId}] Using data URI directly (no cache/fetch needed)`);
+    } else {
+      // Check cache first (normalization happens inside getCachedImage)
+      const cached = await getCachedImage(imageUrlToUse);
+      if (cached) {
+        artworkImageDataUrl = cached;
+        console.log(`[OG Image] [Listing ${listingId}] Using cached image`);
       } else {
-        // Check cache first (normalization happens inside getCachedImage)
-        const cached = await getCachedImage(originalImageUrl);
-        if (cached) {
-          artworkImageDataUrl = cached;
-          console.log(`[OG Image] [Listing ${listingId}] Using cached image`);
-        } else {
-          console.log(`[OG Image] [Listing ${listingId}] Cache miss, fetching image...`);
-          // Not in cache, fetch and cache it
-          let imageUrl = originalImageUrl;
+        console.log(`[OG Image] [Listing ${listingId}] Cache miss, fetching image...`);
+        // Not in cache, fetch and cache it
+        let imageUrl = imageUrlToUse;
         
         // Convert IPFS URLs to HTTP gateway URLs
         // Note: If the URL is already a gateway URL (from fetchNFTMetadata), use it as-is
@@ -427,7 +434,7 @@ export async function GET(
               // Cache the image for future use (only if under size limit)
               if (fetchedContentType && buffer.length <= MAX_IMAGE_SIZE) {
                 try {
-                  await cacheImage(originalImageUrl, artworkImageDataUrl, fetchedContentType);
+                  await cacheImage(imageUrlToUse, artworkImageDataUrl, fetchedContentType);
                 } catch (cacheError) {
                   // Don't fail the request if caching fails
                   console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
@@ -443,7 +450,7 @@ export async function GET(
           
           if (!artworkImageDataUrl) {
             console.error(`[OG Image] [Listing ${listingId}] All gateways failed for image. Tried: ${urlsToTry.map(u => u.substring(0, 80)).join(', ')}`);
-            console.error(`[OG Image] [Listing ${listingId}] Original URL was: ${originalImageUrl.substring(0, 100)}`);
+            console.error(`[OG Image] [Listing ${listingId}] Original URL was: ${imageUrlToUse.substring(0, 100)}`);
           } else {
             console.log(`[OG Image] [Listing ${listingId}] Successfully fetched and cached image`);
           }
@@ -456,11 +463,8 @@ export async function GET(
         }
       }
     }
-    } else {
-      console.warn(`[OG Image] [Listing ${listingId}] No image URL found in auction data. auction.image=${auction?.image}, auction.metadata?.image=${auction?.metadata?.image}`);
-    }
   } else {
-    console.warn(`[OG Image] [Listing ${listingId}] No auction image or metadata available`);
+    console.warn(`[OG Image] [Listing ${listingId}] No image URL found in auction data. auction.image=${auction?.image}, auction.metadata?.image=${auction?.metadata?.image}, auction.thumbnailUrl=${auction?.thumbnailUrl}`);
   }
 
   // Determine listing type specific information
