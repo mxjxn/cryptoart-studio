@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     const results = await checkNotificationTokens(validFids);
 
     console.log(`[check-tokens] Checked ${validFids.length} FIDs, found ${results.filter(r => r.hasToken).length} with tokens`);
+    console.log(`[check-tokens] Detailed results:`, JSON.stringify(results, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
         total: results.length,
         withTokens: results.filter(r => r.hasToken).length,
         withoutTokens: results.filter(r => !r.hasToken).length,
+      },
+      // Include raw API response for debugging
+      debug: {
+        requestedFids: validFids,
+        timestamp: new Date().toISOString(),
       },
     });
   } catch (error) {

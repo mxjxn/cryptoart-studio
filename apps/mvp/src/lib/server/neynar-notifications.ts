@@ -440,14 +440,31 @@ export async function checkNotificationTokens(fids: number[]): Promise<{
     
     const result = await response.json();
     
+    // Debug: log the full response to understand the structure
+    console.log(`[neynar-notifications] Token check API response:`, JSON.stringify(result, null, 2));
+    
     // Map results to FIDs
     const tokenMap = new Map<number, number>();
+    
+    // Handle different possible response structures
+    let tokens = [];
     if (result.tokens && Array.isArray(result.tokens)) {
-      for (const token of result.tokens) {
-        const fid = token.fid;
+      tokens = result.tokens;
+    } else if (Array.isArray(result)) {
+      tokens = result;
+    } else if (result.result && Array.isArray(result.result)) {
+      tokens = result.result;
+    }
+    
+    for (const token of tokens) {
+      // Handle different token object structures
+      const fid = token.fid || token.user_fid || token.user?.fid;
+      if (fid) {
         tokenMap.set(fid, (tokenMap.get(fid) || 0) + 1);
       }
     }
+    
+    console.log(`[neynar-notifications] Found ${tokenMap.size} FIDs with tokens out of ${fids.length} requested`);
     
     return fids.map(fid => ({
       fid,

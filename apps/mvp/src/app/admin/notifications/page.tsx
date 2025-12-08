@@ -93,6 +93,7 @@ export default function NotificationsAdminPage() {
   // Notification token checker state
   const [checkFids, setCheckFids] = useState<string>('');
   const [tokenCheckResults, setTokenCheckResults] = useState<any>(null);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
   
   const { data: settings, isLoading } = useQuery({
     queryKey: ['admin', 'notification-settings'],
@@ -352,13 +353,40 @@ export default function NotificationsAdminPage() {
               </div>
               
               {tokenCheckResults.summary.withoutTokens > 0 && (
-                <div className="bg-yellow-900/20 border border-yellow-500/30 p-3 rounded">
-                  <p className="text-sm text-yellow-400">
-                    <strong>Note:</strong> Users without tokens need to add the mini app to their Farcaster client and enable notifications.
-                    Check that your manifest webhookUrl is correctly configured and refresh the manifest in Farcaster clients.
+                <div className="bg-yellow-900/20 border border-yellow-500/30 p-3 rounded space-y-2">
+                  <p className="text-sm text-yellow-400 font-semibold">
+                    ⚠️ Users without tokens detected
                   </p>
+                  <div className="text-sm text-yellow-300 space-y-1">
+                    <p><strong>Possible reasons:</strong></p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>App was added before manifest had the correct <code>frame.webhookUrl</code></li>
+                      <li>User added app but didn't enable notifications</li>
+                      <li>Webhook events weren't received by Neynar</li>
+                    </ul>
+                    <p className="mt-2"><strong>Solution:</strong> Users need to remove and re-add the mini app now that the manifest is correctly configured.</p>
+                    <p className="text-xs mt-2 opacity-75">
+                      To refresh in Warpcast: Settings → Developer Tools → Domains → Check domain status
+                    </p>
+                  </div>
                 </div>
               )}
+              
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowDebug(!showDebug)}
+                  className="text-xs text-[var(--color-secondary)] hover:text-[var(--color-text)] underline"
+                >
+                  {showDebug ? 'Hide' : 'Show'} Debug Info
+                </button>
+                {showDebug && tokenCheckResults && (
+                  <div className="mt-2 p-3 bg-[var(--color-background)] border border-[var(--color-border)] rounded text-xs font-mono overflow-auto max-h-64">
+                    <pre className="whitespace-pre-wrap text-[var(--color-text)]">
+                      {JSON.stringify(tokenCheckResults, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
