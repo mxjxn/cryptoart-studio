@@ -297,20 +297,20 @@ export async function GET(
   if (auction?.image || auction?.metadata?.image) {
     const originalImageUrl = auction.image || auction.metadata?.image || null;
     if (originalImageUrl) {
-      console.log(`[OG Image] Original image URL: ${originalImageUrl}`);
+      console.log(`[OG Image] [Listing ${listingId}] Original image URL: ${originalImageUrl.substring(0, 100)}...`);
       
       // Handle data URIs directly - no need to cache or fetch
       if (isDataURI(originalImageUrl)) {
         artworkImageDataUrl = originalImageUrl;
-        console.log(`[OG Image] Using data URI directly (no cache/fetch needed)`);
+        console.log(`[OG Image] [Listing ${listingId}] Using data URI directly (no cache/fetch needed)`);
       } else {
-        // Check cache first
+        // Check cache first (normalization happens inside getCachedImage)
         const cached = await getCachedImage(originalImageUrl);
         if (cached) {
           artworkImageDataUrl = cached;
-          console.log(`[OG Image] Using cached image for ${originalImageUrl}`);
+          console.log(`[OG Image] [Listing ${listingId}] Using cached image`);
         } else {
-          console.log(`[OG Image] Cache miss, fetching image for ${originalImageUrl}`);
+          console.log(`[OG Image] [Listing ${listingId}] Cache miss, fetching image...`);
           // Not in cache, fetch and cache it
           let imageUrl = originalImageUrl;
         
@@ -432,10 +432,10 @@ export async function GET(
           }
           
           if (!artworkImageDataUrl) {
-            console.error(`[OG Image] All gateways failed for image. Tried: ${urlsToTry.join(', ')}`);
-            console.error(`[OG Image] Original URL was: ${originalImageUrl}`);
+            console.error(`[OG Image] [Listing ${listingId}] All gateways failed for image. Tried: ${urlsToTry.map(u => u.substring(0, 80)).join(', ')}`);
+            console.error(`[OG Image] [Listing ${listingId}] Original URL was: ${originalImageUrl.substring(0, 100)}`);
           } else {
-            console.log(`[OG Image] Successfully fetched and cached image for ${originalImageUrl}`);
+            console.log(`[OG Image] [Listing ${listingId}] Successfully fetched and cached image`);
           }
         } catch (error) {
           console.error(`[OG Image] Error processing artwork image:`, error);
@@ -447,10 +447,10 @@ export async function GET(
       }
     }
     } else {
-      console.warn(`[OG Image] No image URL found in auction data. auction.image=${auction?.image}, auction.metadata?.image=${auction?.metadata?.image}`);
+      console.warn(`[OG Image] [Listing ${listingId}] No image URL found in auction data. auction.image=${auction?.image}, auction.metadata?.image=${auction?.metadata?.image}`);
     }
   } else {
-    console.warn(`[OG Image] No auction image or metadata available`);
+    console.warn(`[OG Image] [Listing ${listingId}] No auction image or metadata available`);
   }
 
   // Determine listing type specific information

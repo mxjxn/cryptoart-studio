@@ -303,12 +303,19 @@ export async function GET(request: NextRequest) {
                   listing.tokenId,
                   listing.tokenSpec
                 ),
-                3000,
+                5000, // Increased timeout to 5 seconds
                 null
               );
+              if (!metadata) {
+                console.warn(`[OG Image] Metadata fetch returned null for ${listing.tokenAddress}:${listing.tokenId}`);
+              } else if (!metadata.image) {
+                console.warn(`[OG Image] Metadata fetched but no image URL for ${listing.tokenAddress}:${listing.tokenId}`);
+              }
             } catch (error) {
-              console.error(`Error fetching metadata:`, error);
+              console.error(`[OG Image] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);
             }
+          } else {
+            console.warn(`[OG Image] Missing tokenAddress or tokenId for listing ${listing.listingId}`);
           }
 
           // Fetch artist name and contract name
@@ -385,28 +392,39 @@ export async function GET(request: NextRequest) {
     const listingImages: (string | null)[] = await Promise.all(
       recentListings.map(async (listing) => {
         const imageUrl = listing.image || listing.metadata?.image;
-        if (!imageUrl) return null;
-
-        const cacheKey = `${imageUrl}::og-212x252`;
-
-        // Check cache first
-        const cached = await getCachedImage(cacheKey);
-        if (cached) {
-          return cached;
+        if (!imageUrl) {
+          console.warn(`[OG Image] No image URL for listing ${listing.listingId}: image=${listing.image}, metadata.image=${listing.metadata?.image}`);
+          return null;
         }
 
+        console.log(`[OG Image] Processing image for listing ${listing.listingId}: ${imageUrl.substring(0, 100)}...`);
+
+        // Check cache first using the original imageUrl (normalization happens inside getCachedImage)
+        const cached = await getCachedImage(imageUrl);
+        if (cached) {
+          console.log(`[OG Image] Cache hit for listing ${listing.listingId}`);
+          return cached;
+        }
+        
+        console.log(`[OG Image] Cache miss for listing ${listing.listingId}, fetching...`);
+
         // Convert IPFS URLs to HTTP gateway URLs
+        // Note: fetchNFTMetadata may already return gateway URLs, so we handle both cases
         let httpUrl = imageUrl;
         if (imageUrl.startsWith('ipfs://')) {
           const hash = imageUrl.replace('ipfs://', '');
           const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
           httpUrl = `${gateway}/ipfs/${hash}`;
         } else if (imageUrl.includes('/ipfs/') && !imageUrl.startsWith('http')) {
+          // Handle relative IPFS paths
           const hash = imageUrl.split('/ipfs/')[1]?.split('/')[0];
           if (hash) {
             const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
             httpUrl = `${gateway}/ipfs/${hash}`;
           }
+        } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('data:')) {
+          // If it's not HTTP, IPFS, or data URI, log a warning
+          console.warn(`[OG Image] Unexpected image URL format for listing ${listing.listingId}: ${imageUrl.substring(0, 100)}`);
         }
 
         // Fetch image
@@ -420,13 +438,22 @@ export async function GET(request: NextRequest) {
           // Maximum image size: 2MB for OG-sized thumbnails (smaller than full images)
           const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
           
+          // Build list of URLs to try
           let urlsToTry = [httpUrl];
           if (httpUrl.includes('/ipfs/')) {
+            // Extract IPFS hash and try multiple gateways
             const ipfsHash = httpUrl.split('/ipfs/')[1]?.split('/')[0];
             if (ipfsHash) {
               const otherGateways = gateways.filter(gw => !httpUrl.startsWith(gw));
               urlsToTry = [httpUrl, ...otherGateways.map(gw => `${gw}/ipfs/${ipfsHash}`)];
             }
+          } else if (httpUrl.startsWith('http://') || httpUrl.startsWith('https://')) {
+            // For non-IPFS HTTP URLs, just try the URL as-is
+            urlsToTry = [httpUrl];
+          } else {
+            // For data URIs or other formats, we shouldn't reach here, but handle gracefully
+            console.warn(`[OG Image] Unexpected URL format after conversion: ${httpUrl.substring(0, 100)}`);
+            urlsToTry = [httpUrl];
           }
 
           for (const url of urlsToTry) {
@@ -474,25 +501,31 @@ export async function GET(request: NextRequest) {
               const base64 = buffer.toString('base64');
               const dataUrl = `data:${contentType};base64,${base64}`;
               
-              // Cache the image (only if under size limit)
+              // Cache the image (only if under size limit) using the original imageUrl
               if (buffer.length <= MAX_IMAGE_SIZE) {
                 try {
-                  await cacheImage(cacheKey, dataUrl, contentType);
+                  await cacheImage(imageUrl, dataUrl, contentType);
+                  console.log(`[OG Image] Successfully cached image for listing ${listing.listingId}`);
                 } catch (cacheError) {
                   // Don't fail the request if caching fails
                   console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
                 }
               }
               
+              console.log(`[OG Image] Successfully fetched image for listing ${listing.listingId} from ${url}`);
               return dataUrl;
             } catch (error) {
+              console.warn(`[OG Image] Error fetching from ${url} for listing ${listing.listingId}:`, error instanceof Error ? error.message : String(error));
               continue;
             }
           }
+          
+          console.error(`[OG Image] All gateways failed for listing ${listing.listingId}. Tried: ${urlsToTry.join(', ')}`);
         } catch (error) {
-          console.error(`[OG Image] Error fetching image:`, error);
+          console.error(`[OG Image] Error fetching image for listing ${listing.listingId}:`, error);
         }
 
+        console.warn(`[OG Image] Returning null for listing ${listing.listingId} - image fetch failed`);
         return null;
       })
     );
