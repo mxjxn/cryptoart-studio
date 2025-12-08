@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import type { CurationData } from "@cryptoart/db";
 
 interface AddToGalleryButtonProps {
@@ -15,11 +16,17 @@ interface GalleryWithCount extends CurationData {
 
 export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const { address, isConnected } = useAccount();
+  const { isAdmin } = useIsAdmin();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
+
+  // Only show for admins
+  if (!isAdmin) {
+    return null;
+  }
 
   // Fetch user's galleries
   const { data: galleriesData } = useQuery({

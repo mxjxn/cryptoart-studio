@@ -12,6 +12,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { AuctionCard } from "~/components/AuctionCard";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { Logo } from "~/components/Logo";
 import type { EnrichedAuctionData } from "~/lib/types";
 
@@ -27,6 +28,7 @@ type FarcasterHandle = {
 export default function ProfileClient() {
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
+  const { isAdmin } = useIsAdmin();
   const [activeTab, setActiveTab] = useState<TabType>("created");
   
   // Farcaster handles state

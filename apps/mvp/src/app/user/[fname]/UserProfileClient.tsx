@@ -9,6 +9,7 @@ import { FollowButton } from "~/components/FollowButton";
 import { FollowersModal } from "~/components/FollowersModal";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
 import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 
@@ -66,6 +67,7 @@ const gradients = [
 ];
 
 export default function UserProfileClient({ fname }: UserProfileClientProps) {
+  const { isAdmin } = useIsAdmin();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

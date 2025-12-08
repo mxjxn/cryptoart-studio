@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
@@ -42,6 +43,7 @@ interface GalleryData {
 export default function GalleryEditClient({ galleryId }: GalleryEditClientProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -221,6 +223,41 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
   const galleryUrl = data?.gallery?.slug
     ? `${APP_URL}/gallery/${data.gallery.curatorAddress}/${data.gallery.slug}`
     : null;
+
+  // Redirect non-admins
+  useEffect(() => {
+    if (!isAdminLoading && !isAdmin) {
+      router.replace("/");
+    }
+  }, [isAdmin, isAdminLoading, router]);
+
+  if (isAdminLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
+          <Logo />
+          <ProfileDropdown />
+        </header>
+        <div className="px-5 py-12 text-center">
+          <p className="text-[#cccccc]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
+          <Logo />
+          <ProfileDropdown />
+        </header>
+        <div className="px-5 py-12 text-center">
+          <p className="text-[#cccccc]">Unauthorized</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isConnected || !address) {
     return (

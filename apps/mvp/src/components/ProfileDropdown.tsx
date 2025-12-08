@@ -13,6 +13,7 @@ import { ThemeToggle } from "~/components/ThemeToggle";
 import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
 import { useAdminMode } from "~/hooks/useAdminMode";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
   pfpUrl: string | undefined; 
@@ -94,6 +95,7 @@ export function ProfileDropdown() {
   const { disconnect } = useDisconnect();
   const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading } = useMembershipStatus();
   const { mode } = useColorScheme();
+  const { isAdmin } = useIsAdmin();
   const [isOpen, setIsOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -199,13 +201,15 @@ export function ProfileDropdown() {
               View Profile
             </TransitionLink>
             
-            <TransitionLink
-              href="/curate"
-              onClick={() => setIsOpen(false)}
-              className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
-            >
-              My Galleries
-            </TransitionLink>
+            {isAdmin && (
+              <TransitionLink
+                href="/curate"
+                onClick={() => setIsOpen(false)}
+                className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
+              >
+                My Galleries
+              </TransitionLink>
+            )}
             
             <TransitionLink
               href="/settings"

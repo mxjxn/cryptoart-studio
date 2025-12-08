@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { TransitionLink } from "~/components/TransitionLink";
 import type { CurationData } from "@cryptoart/db";
 
@@ -13,6 +14,13 @@ interface GalleryWithCount extends CurationData {
 }
 
 export function ProfileGalleriesSection({ userAddress }: ProfileGalleriesSectionProps) {
+  const { isAdmin } = useIsAdmin();
+
+  // Only show for admins
+  if (!isAdmin) {
+    return null;
+  }
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["curation", userAddress, "published"],
     queryFn: async () => {

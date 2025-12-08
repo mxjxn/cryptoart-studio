@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
+import { useRouter } from "next/navigation";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
@@ -16,11 +18,48 @@ interface GalleryWithCount extends CurationData {
 
 export default function CurateClient() {
   const { address, isConnected } = useAccount();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
+
+  // Redirect non-admins
+  useEffect(() => {
+    if (!isAdminLoading && !isAdmin) {
+      router.replace("/");
+    }
+  }, [isAdmin, isAdminLoading, router]);
+
+  if (isAdminLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
+          <Logo />
+          <ProfileDropdown />
+        </header>
+        <div className="px-5 py-12 text-center">
+          <p className="text-[#cccccc]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
+          <Logo />
+          <ProfileDropdown />
+        </header>
+        <div className="px-5 py-12 text-center">
+          <p className="text-[#cccccc]">Unauthorized</p>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch user's galleries
   const { data, isLoading, error } = useQuery({
