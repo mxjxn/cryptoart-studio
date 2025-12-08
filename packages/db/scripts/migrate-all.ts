@@ -13,6 +13,7 @@
  *   0004_add_pending_allowlist_signatures.sql - Pending allowlist signatures table
  *   0005_optimize_indexes.sql - Optimize database indexes for reduced disk IO
  *   0006_add_notification_tokens.sql - Notification tokens table for Farcaster Mini App notifications
+ *   0007_add_listing_page_status.sql - Listing page status table for tracking page generation
  */
 
 import { config } from 'dotenv';
@@ -46,6 +47,7 @@ const MIGRATIONS = [
   '0004_add_pending_allowlist_signatures.sql',
   '0005_optimize_indexes.sql',
   '0006_add_notification_tokens.sql',
+  '0007_add_listing_page_status.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)
@@ -109,6 +111,10 @@ async function executeMigration(sql: postgres.Sql, migrationFile: string): Promi
 }
 
 async function runAllMigrations() {
+  if (!connectionString) {
+    console.error('❌ Database connection string is required');
+    process.exit(1);
+  }
   const sql = postgres(connectionString);
   
   try {

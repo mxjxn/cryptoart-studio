@@ -23,11 +23,24 @@ export async function GET(
     const db = getDatabase();
     
     // Check if status exists in database
-    const statusRecord = await db
-      .select()
-      .from(listingPageStatus)
-      .where(eq(listingPageStatus.listingId, listingId))
-      .limit(1);
+    let statusRecord;
+    try {
+      statusRecord = await db
+        .select()
+        .from(listingPageStatus)
+        .where(eq(listingPageStatus.listingId, listingId))
+        .limit(1);
+    } catch (error: any) {
+      // Table doesn't exist yet - return building status
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        return NextResponse.json({
+          status: 'building',
+          listingId,
+          sellerAddress: null,
+        });
+      }
+      throw error;
+    }
 
     if (statusRecord.length === 0) {
       // No status record exists - check if listing is available in subgraph
@@ -36,13 +49,26 @@ export async function GET(
         const auction = await getAuctionServer(listingId);
         if (auction) {
           // Listing exists in subgraph, create ready status
-          await db.insert(listingPageStatus).values({
-            listingId,
-            status: 'ready',
-            sellerAddress: auction.seller || '',
-            readyAt: new Date(),
-            lastCheckedAt: new Date(),
-          });
+          try {
+            await db.insert(listingPageStatus).values({
+              listingId,
+              status: 'ready',
+              sellerAddress: auction.seller || '',
+              readyAt: new Date(),
+              lastCheckedAt: new Date(),
+            });
+          } catch (insertError: any) {
+            // Table might not exist - just return ready status without saving
+            if (insertError?.code === '42P01' || insertError?.message?.includes('does not exist')) {
+              return NextResponse.json({
+                status: 'ready',
+                listingId,
+                sellerAddress: auction.seller || '',
+                readyAt: new Date().toISOString(),
+              });
+            }
+            throw insertError;
+          }
           
           return NextResponse.json({
             status: 'ready',
@@ -85,48 +111,79 @@ export async function GET(
             
             if (ogResponse.ok) {
               // Page is ready!
-              await db
-                .update(listingPageStatus)
-                .set({
+              try {
+                await db
+                  .update(listingPageStatus)
+                  .set({
+                    status: 'ready',
+                    readyAt: new Date(),
+                    lastCheckedAt: new Date(),
+                  })
+                  .where(eq(listingPageStatus.listingId, listingId));
+                
+                const updatedRecord = await db
+                  .select()
+                  .from(listingPageStatus)
+                  .where(eq(listingPageStatus.listingId, listingId))
+                  .limit(1);
+                
+                return NextResponse.json({
                   status: 'ready',
-                  readyAt: new Date(),
-                  lastCheckedAt: new Date(),
-                })
-                .where(eq(listingPageStatus.listingId, listingId));
-              
-              const updatedRecord = await db
-                .select()
-                .from(listingPageStatus)
-                .where(eq(listingPageStatus.listingId, listingId))
-                .limit(1);
-              
-              return NextResponse.json({
-                status: 'ready',
-                listingId,
-                sellerAddress: updatedRecord[0]?.sellerAddress || record.sellerAddress,
-                readyAt: new Date().toISOString(),
-              });
+                  listingId,
+                  sellerAddress: updatedRecord[0]?.sellerAddress || record.sellerAddress,
+                  readyAt: new Date().toISOString(),
+                });
+              } catch (updateError: any) {
+                // Table might not exist - just return ready status
+                if (updateError?.code === '42P01' || updateError?.message?.includes('does not exist')) {
+                  return NextResponse.json({
+                    status: 'ready',
+                    listingId,
+                    sellerAddress: record.sellerAddress,
+                    readyAt: new Date().toISOString(),
+                  });
+                }
+                throw updateError;
+              }
             }
           } catch {
             // OG image not ready yet, continue with building status
           }
           
           // Update last checked time
+          try {
+            await db
+              .update(listingPageStatus)
+              .set({
+                lastCheckedAt: new Date(),
+              })
+              .where(eq(listingPageStatus.listingId, listingId));
+          } catch (updateError: any) {
+            // Table might not exist - ignore
+            if (updateError?.code === '42P01' || updateError?.message?.includes('does not exist')) {
+              // Just continue
+            } else {
+              throw updateError;
+            }
+          }
+        }
+      } catch (error) {
+        // Listing still not available in subgraph
+        try {
           await db
             .update(listingPageStatus)
             .set({
               lastCheckedAt: new Date(),
             })
             .where(eq(listingPageStatus.listingId, listingId));
+        } catch (updateError: any) {
+          // Table might not exist - ignore
+          if (updateError?.code === '42P01' || updateError?.message?.includes('does not exist')) {
+            // Just continue
+          } else {
+            throw updateError;
+          }
         }
-      } catch (error) {
-        // Listing still not available in subgraph
-        await db
-          .update(listingPageStatus)
-          .set({
-            lastCheckedAt: new Date(),
-          })
-          .where(eq(listingPageStatus.listingId, listingId));
       }
     }
 
@@ -184,11 +241,23 @@ export async function POST(
     const db = getDatabase();
     
     // Check if record exists
-    const existing = await db
-      .select()
-      .from(listingPageStatus)
-      .where(eq(listingPageStatus.listingId, listingId))
-      .limit(1);
+    let existing;
+    try {
+      existing = await db
+        .select()
+        .from(listingPageStatus)
+        .where(eq(listingPageStatus.listingId, listingId))
+        .limit(1);
+    } catch (error: any) {
+      // Table doesn't exist yet - return error
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        return NextResponse.json(
+          { error: 'Database table not initialized. Please run migrations.' },
+          { status: 503 }
+        );
+      }
+      throw error;
+    }
 
     const updateData: any = {
       status,
