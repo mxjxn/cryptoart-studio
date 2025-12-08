@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --filter=mvp",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -16,6 +16,7 @@
     "check-types": "turbo run check-types",
     "db:generate": "cd packages/db && pnpm db:generate",
     "db:migrate": "cd packages/db && pnpm db:migrate",
+    "db:migrate-all": "cd packages/db && pnpm db:migrate-all",
     "db:push": "cd packages/db && pnpm db:push",
     "db:studio": "cd packages/db && pnpm db:studio",
     "db:verify": "cd packages/db && pnpm db:verify",
