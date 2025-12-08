@@ -11,6 +11,7 @@ import { useUsername } from "~/hooks/useUsername";
 import { ShareButton } from "~/components/ShareButton";
 import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
+import { AddToGalleryButton } from "~/components/AddToGalleryButton";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
@@ -1351,6 +1352,7 @@ export default function AuctionDetailClient({
               {/* Only show share buttons if auction is not cancelled */}
               {!isCancelled && (
                 <div className="flex gap-2 items-center">
+                  <AddToGalleryButton listingId={listingId} />
                   <LinkShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                   />
@@ -1376,6 +1378,7 @@ export default function AuctionDetailClient({
               {/* Only show share buttons if auction is not cancelled */}
               {!isCancelled && (
                 <div className="flex gap-2 items-center">
+                  <AddToGalleryButton listingId={listingId} />
                   <LinkShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
                   />
@@ -1389,6 +1392,7 @@ export default function AuctionDetailClient({
             </div>
           ) : !isCancelled ? (
             <div className="text-xs mb-1 flex items-center justify-end gap-3">
+              <AddToGalleryButton listingId={listingId} />
               <LinkShareButton
                 url={typeof window !== "undefined" ? window.location.href : ""}
               />

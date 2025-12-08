@@ -405,6 +405,33 @@ export interface CurationData {
   updatedAt: Date;
 }
 
+/**
+ * Curation items table - Listings within each curated gallery
+ */
+export const curationItems = pgTable('curation_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  curationId: uuid('curation_id').notNull().references(() => curation.id, { onDelete: 'cascade' }),
+  listingId: text('listing_id').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  notes: text('notes'), // Optional curator comment about this listing
+  addedAt: timestamp('added_at').defaultNow().notNull(),
+}, (table) => ({
+  curationIdIdx: index('curation_items_curation_id_idx').on(table.curationId),
+  listingIdIdx: index('curation_items_listing_id_idx').on(table.listingId),
+  displayOrderIdx: index('curation_items_display_order_idx').on(table.displayOrder),
+  // Unique constraint: a listing can only appear once per gallery
+  uniqueCurationListing: index('curation_items_curation_listing_unique_idx').on(table.curationId, table.listingId),
+}));
+
+export interface CurationItemData {
+  id: string;
+  curationId: string;
+  listingId: string;
+  displayOrder: number;
+  notes?: string | null;
+  addedAt: Date;
+}
+
 // ============================================
 // ADMIN: Hidden Users
 // ============================================

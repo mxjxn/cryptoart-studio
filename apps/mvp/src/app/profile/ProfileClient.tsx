@@ -11,10 +11,11 @@ import Link from "next/link";
 import { TransitionLink } from "~/components/TransitionLink";
 import { AuctionCard } from "~/components/AuctionCard";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
 import { Logo } from "~/components/Logo";
 import type { EnrichedAuctionData } from "~/lib/types";
 
-type TabType = "created" | "collected" | "bids" | "offers" | "saved" | "contracts";
+type TabType = "created" | "collected" | "bids" | "offers" | "saved" | "contracts" | "galleries";
 
 type FarcasterHandle = {
   fid: number;

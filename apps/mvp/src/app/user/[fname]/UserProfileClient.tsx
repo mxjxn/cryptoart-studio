@@ -8,6 +8,7 @@ import { AuctionCard } from "~/components/AuctionCard";
 import { FollowButton } from "~/components/FollowButton";
 import { FollowersModal } from "~/components/FollowersModal";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
+import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 
@@ -68,7 +69,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections'>('wallets');
+  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections' | 'galleries'>('wallets');
   const [followersCount, setFollowersCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -344,6 +345,13 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'galleries' && profileData && (
+          <div>
+            <h2 className="text-lg font-light mb-4">Galleries</h2>
+            <ProfileGalleriesSection userAddress={profileData.primaryAddress} />
           </div>
         )}
 

@@ -16,6 +16,7 @@
     "db:migrate-optimize-indexes": "tsx scripts/migrate-optimize-indexes.ts",
     "db:migrate-notification-tokens": "tsx scripts/migrate-notification-tokens.ts",
     "db:migrate-featured-sections": "tsx scripts/migrate-featured-sections.ts",
+    "db:migrate-curation-items": "tsx scripts/migrate-curation-items.ts",
     
     "db:status": "tsx scripts/check-tables.ts",
     "db:check": "tsx scripts/check-migrations.ts",
