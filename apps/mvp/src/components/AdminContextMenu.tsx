@@ -3,14 +3,18 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useAdminMode } from "~/hooks/useAdminMode";
-import { useAccount } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
 
 interface AdminContextMenuProps {
   listingId?: string;
   sellerAddress?: string;
   isFeatured?: boolean;
 }
+
+const DEPLOYER_ADDRESS = "0x6da173b1d50f7bc5c686f8880c20378965408344";
 
 export function AdminContextMenu({ 
   listingId, 
@@ -19,6 +23,7 @@ export function AdminContextMenu({
 }: AdminContextMenuProps) {
   const { isAdmin } = useAdminMode();
   const { address } = useAccount();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,6 +31,15 @@ export function AdminContextMenu({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+
+  // Check if current user is deployer
+  const isDeployer = address && address.toLowerCase() === DEPLOYER_ADDRESS.toLowerCase();
+
+  // Cancel listing transaction
+  const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling } = useWriteContract();
+  const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
+    hash: cancelHash,
+  });
 
   // Check if listing is featured
   const { data: featuredData } = useQuery({
@@ -81,7 +95,7 @@ export function AdminContextMenu({
     }
   }, [isOpen]);
 
-  if (!isAdmin) {
+  if (!isAdmin && !isDeployer) {
     return null;
   }
 
@@ -143,6 +157,43 @@ export function AdminContextMenu({
     }
   };
 
+  const handleCancelListing = async () => {
+    if (!listingId || !address || !isDeployer) return;
+    setIsLoading(true);
+    try {
+      await cancelListing({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'cancel',
+        chainId: CHAIN_ID,
+        args: [Number(listingId), 0], // holdbackBPS = 0
+      });
+    } catch (error) {
+      console.error("Error cancelling listing:", error);
+      setIsLoading(false);
+    }
+  };
+
+  // Redirect after successful cancellation
+  useEffect(() => {
+    if (isCancelConfirmed && listingId) {
+      // Invalidate cache
+      fetch('/api/auctions/invalidate-cache', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId }),
+      }).catch(err => console.error('Error invalidating cache:', err));
+      
+      // Refresh router and navigate to home
+      router.refresh();
+      setTimeout(() => {
+        router.push("/");
+      }, 100);
+    }
+  }, [isCancelConfirmed, listingId, router]);
+
+  const isCancelLoading = isCancelling || isConfirmingCancel;
+
   const dropdownContent = isOpen ? (
     <div
       ref={dropdownRef}
@@ -182,6 +233,19 @@ export function AdminContextMenu({
           Hide User
         </button>
       )}
+      {listingId && isDeployer && (
+        <button
+          onClick={handleCancelListing}
+          disabled={isLoading || isCancelLoading}
+          className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-[#333333] transition-colors whitespace-nowrap"
+        >
+          {isCancelLoading
+            ? isConfirmingCancel
+              ? "Confirming..."
+              : "Cancelling..."
+            : "Cancel Listing"}
+        </button>
+      )}
     </div>
   ) : null;
 
@@ -195,7 +259,7 @@ export function AdminContextMenu({
             setIsOpen(!isOpen);
           }}
           className="bg-black border-2 border-red-500 text-white px-2 py-1 rounded text-xs hover:bg-[#1a1a1a] transition-colors"
-          disabled={isLoading}
+          disabled={isLoading || isCancelLoading}
           title="Admin Options"
         >
           ...
