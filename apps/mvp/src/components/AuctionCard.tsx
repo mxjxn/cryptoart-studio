@@ -180,89 +180,105 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
 
   return (
     <div
-      className="relative w-full cursor-pointer transition-opacity hover:opacity-90"
+      className="relative w-full cursor-pointer group"
       onClick={handleClick}
     >
       <div
         ref={cardRef}
-        className="w-full h-[280px] relative overflow-hidden"
+        className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
         style={{
           background: auction.image
-            ? `url(${auction.image}) center/cover`
+            ? undefined
             : gradient,
         }}
       >
+        {auction.image && (
+          <img
+            src={auction.image}
+            alt={title}
+            className="w-full h-full object-contain"
+            style={{
+              objectFit: 'contain',
+            }}
+          />
+        )}
         <ListingChips auction={auction} />
         {/* FavoriteButton hidden - will reconsider placement later */}
         {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />
         </div> */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 to-transparent">
-          <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
-          {contractName && (
-            <div className="text-xs text-[#999999] mb-1 line-clamp-1">
-              {contractName}
-            </div>
-          )}
-          {showArtist ? (
-            <div className="text-xs text-[#cccccc] mb-2">
-              by{" "}
-              {creatorUsername ? (
+        {/* Overlay with gradient and data - only visible on hover */}
+        <div className="absolute bottom-0 left-0 right-0 h-[33.33%] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          {/* Gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none"></div>
+          {/* Content overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-5 relative z-10">
+            <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
+            {contractName && (
+              <div className="text-xs text-[#999999] mb-1 line-clamp-1">
+                {contractName}
+              </div>
+            )}
+            {showArtist ? (
+              <div className="text-xs text-[#cccccc] mb-2">
+                by{" "}
+                {creatorUsername ? (
+                  <TransitionLink
+                    href={`/user/${creatorUsername}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:underline"
+                  >
+                    {displayArtist}
+                  </TransitionLink>
+                ) : addressToShow ? (
+                  <TransitionLink
+                    href={`/user/${addressToShow}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:underline"
+                  >
+                    {displayArtist}
+                  </TransitionLink>
+                ) : (
+                  displayArtist
+                )}
+              </div>
+            ) : addressToShow && !artistNameLoading ? (
+              <div className="text-xs text-[#cccccc] mb-2 flex items-center gap-1.5">
                 <TransitionLink
-                  href={`/user/${creatorUsername}`}
+                  href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="hover:underline"
+                  className="font-mono text-[10px] hover:underline"
                 >
-                  {displayArtist}
+                  {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
                 </TransitionLink>
-              ) : addressToShow ? (
-                <TransitionLink
-                  href={`/user/${addressToShow}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="hover:underline"
-                >
-                  {displayArtist}
-                </TransitionLink>
-              ) : (
-                displayArtist
+                <CopyButton text={addressToShow} size="sm" />
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between mb-2">
+              {auction.listingType === "INDIVIDUAL_AUCTION" && (
+                <div className="text-xs text-[#999999]">
+                  {bidCount} {bidCount === 1 ? "bid" : "bids"}
+                </div>
               )}
-            </div>
-          ) : addressToShow && !artistNameLoading ? (
-            <div className="text-xs text-[#cccccc] mb-2 flex items-center gap-1.5">
-              <TransitionLink
-                href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
-                onClick={(e) => e.stopPropagation()}
-                className="font-mono text-[10px] hover:underline"
-              >
-                {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
-              </TransitionLink>
-              <CopyButton text={addressToShow} size="sm" />
-            </div>
-          ) : null}
-          <div className="flex items-center justify-between mb-2">
-            {auction.listingType === "INDIVIDUAL_AUCTION" && (
-              <div className="text-xs text-[#999999]">
-                {bidCount} {bidCount === 1 ? "bid" : "bids"}
+              {auction.listingType === "FIXED_PRICE" && auction.tokenSpec === "ERC1155" && (
+                <div className="text-xs text-[#999999]">
+                  {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")}/{parseInt(auction.totalAvailable)} available
+                </div>
+              )}
+              {auction.listingType === "OFFERS_ONLY" && (
+                <div className="text-xs text-[#999999]">
+                  Make offer
+                </div>
+              )}
+              <div className="text-base font-medium flex items-baseline gap-1">
+                <span className="text-[10px] uppercase tracking-[1px] text-[#999999]">
+                  {priceLabel}
+                </span>
+                <span>{currentPrice} {currentPrice !== "—" && tokenSymbol}</span>
               </div>
-            )}
-            {auction.listingType === "FIXED_PRICE" && auction.tokenSpec === "ERC1155" && (
-              <div className="text-xs text-[#999999]">
-                {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")}/{parseInt(auction.totalAvailable)} available
-              </div>
-            )}
-            {auction.listingType === "OFFERS_ONLY" && (
-              <div className="text-xs text-[#999999]">
-                Make offer
-              </div>
-            )}
-            <div className="text-base font-medium flex items-baseline gap-1">
-              <span className="text-[10px] uppercase tracking-[1px] text-[#999999]">
-                {priceLabel}
-              </span>
-              <span>{currentPrice} {currentPrice !== "—" && tokenSymbol}</span>
             </div>
+            {timeStatusDisplay}
           </div>
-          {timeStatusDisplay}
         </div>
       </div>
     </div>
