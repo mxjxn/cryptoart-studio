@@ -98,7 +98,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
           Not started
         </div>
       );
-    } else if (timeStatus.endDate && timeStatus.timeRemaining) {
+    } else if (!timeStatus.neverExpires && timeStatus.endDate && timeStatus.timeRemaining) {
       timeStatusDisplay = (
         <div className="text-xs text-[#999999] mt-1">
           <div>ends {timeStatus.endDate}</div>

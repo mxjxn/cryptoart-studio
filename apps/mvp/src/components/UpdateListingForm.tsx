@@ -107,10 +107,49 @@ export function UpdateListingForm({
       }
     }
 
+    // Validate timeframes
+    const now = Math.floor(Date.now() / 1000);
+    const MAX_UINT48 = 281474976710655;
+    const MAX_REASONABLE_YEARS = 10;
+    const MAX_REASONABLE_SECONDS = MAX_REASONABLE_YEARS * 365 * 24 * 60 * 60; // 10 years in seconds
+    
+    // Prevent never-expiring for auctions (INDIVIDUAL_AUCTION)
+    if (listingType === "INDIVIDUAL_AUCTION" && finalEndTime && (finalEndTime >= MAX_UINT48 || finalEndTime === MAX_UINT48)) {
+      alert("Auctions must have an expiration date. They cannot be open-ended.");
+      return;
+    }
+    
     // Validate that end time is after start time
     if (finalStartTime && finalEndTime && finalEndTime <= finalStartTime) {
       alert("End time must be after start time");
       return;
+    }
+    
+    // Validate endTime is in the future (unless it's never-expiring for FIXED_PRICE)
+    if (finalEndTime && finalEndTime !== MAX_UINT48) {
+      if (finalEndTime <= now) {
+        alert("End time must be in the future");
+        return;
+      }
+      
+      // Validate reasonable timeframe (max 10 years from now)
+      if (finalEndTime > now + MAX_REASONABLE_SECONDS) {
+        alert(`End time cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
+        return;
+      }
+    }
+    
+    // Validate duration is reasonable (for duration mode)
+    if (useDuration && finalEndTime) {
+      const durationSeconds = finalEndTime - (finalStartTime || now);
+      if (durationSeconds > MAX_REASONABLE_SECONDS) {
+        alert(`Duration cannot be more than ${MAX_REASONABLE_YEARS} years`);
+        return;
+      }
+      if (durationSeconds <= 0) {
+        alert("Duration must be a positive value");
+        return;
+      }
     }
 
     onSubmit(finalStartTime, finalEndTime);

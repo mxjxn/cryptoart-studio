@@ -1010,19 +1010,41 @@ export default function CreateAuctionClient() {
       }
 
       // Validate endTime based on listing type and startTime
+      const MAX_REASONABLE_YEARS = 10;
+      const MAX_REASONABLE_SECONDS = MAX_REASONABLE_YEARS * 365 * 24 * 60 * 60; // 10 years in seconds
+      
       if (effectiveFormData.listingType === "FIXED_PRICE") {
         // FIXED_PRICE: endTime can be max uint48 (never expires) or a future timestamp
-        if (endTime !== 281474976710655 && endTime <= now) {
+        if (endTime === MAX_UINT48) {
+          // Never-expiring is allowed for FIXED_PRICE
+        } else if (endTime <= now) {
           alert("End time must be in the future");
+          setIsSubmitting(false);
+          return;
+        } else if (endTime > now + MAX_REASONABLE_SECONDS) {
+          alert(`End time cannot be more than ${MAX_REASONABLE_YEARS} years in the future. For open-ended listings, leave the end time empty.`);
           setIsSubmitting(false);
           return;
         }
       } else {
+        // For INDIVIDUAL_AUCTION and OFFERS_ONLY, never-expiring is not allowed
+        if (endTime === MAX_UINT48 || endTime >= MAX_UINT48) {
+          alert("Auctions and offers-only listings must have an expiration date. They cannot be open-ended.");
+          setIsSubmitting(false);
+          return;
+        }
+        
         // For other listing types
         if (startTime === 0) {
           // If startTime is 0, endTime represents duration from first bid/purchase
           if (!endTime || endTime <= 0) {
             alert("Duration must be a positive value");
+            setIsSubmitting(false);
+            return;
+          }
+          // Validate duration is reasonable (max 10 years)
+          if (endTime > MAX_REASONABLE_SECONDS) {
+            alert(`Duration cannot be more than ${MAX_REASONABLE_YEARS} years`);
             setIsSubmitting(false);
             return;
           }
@@ -1035,6 +1057,12 @@ export default function CreateAuctionClient() {
           }
           if (endTime <= startTime) {
             alert("End time must be after start time");
+            setIsSubmitting(false);
+            return;
+          }
+          // Validate endTime is reasonable (max 10 years from now)
+          if (endTime > now + MAX_REASONABLE_SECONDS) {
+            alert(`End time cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
             setIsSubmitting(false);
             return;
           }

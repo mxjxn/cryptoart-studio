@@ -15,6 +15,7 @@
     "db:migrate-allowlist": "tsx scripts/migrate-allowlist-signatures.ts",
     "db:migrate-optimize-indexes": "tsx scripts/migrate-optimize-indexes.ts",
     "db:migrate-notification-tokens": "tsx scripts/migrate-notification-tokens.ts",
+    "db:migrate-featured-sections": "tsx scripts/migrate-featured-sections.ts",
     
     "db:status": "tsx scripts/check-tables.ts",
     "db:check": "tsx scripts/check-migrations.ts",

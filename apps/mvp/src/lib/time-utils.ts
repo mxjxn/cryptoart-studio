@@ -52,20 +52,29 @@ export function getAuctionTimeStatus(
   endTime: number,
   hasBid: boolean,
   now?: number
-): { status: string; endDate?: string; timeRemaining?: string } {
+): { status: string; endDate?: string; timeRemaining?: string; neverExpires: boolean } {
   const currentTime = now || Math.floor(Date.now() / 1000);
+
+  // Check if this is a never-expiring listing (shouldn't happen for auctions, but handle gracefully)
+  if (isNeverExpiring(endTime)) {
+    return {
+      status: "Live",
+      neverExpires: true,
+    };
+  }
 
   // If startTime is 0, auction starts on first bid
   if (startTime === 0) {
     if (!hasBid) {
       // Not started yet - endTime represents duration
-      return { status: "Not started" };
+      return { status: "Not started", neverExpires: false };
     } else {
       // Has started - endTime is now absolute timestamp
       return {
         status: "Live",
         endDate: formatEndTime(endTime),
         timeRemaining: formatTimeRemaining(endTime, currentTime),
+        neverExpires: false,
       };
     }
   } else {
@@ -76,6 +85,7 @@ export function getAuctionTimeStatus(
         status: "Not started",
         endDate: formatEndTime(endTime),
         timeRemaining: formatTimeRemaining(endTime, currentTime),
+        neverExpires: false,
       };
     } else {
       // Is live
@@ -83,6 +93,7 @@ export function getAuctionTimeStatus(
         status: "Live",
         endDate: formatEndTime(endTime),
         timeRemaining: formatTimeRemaining(endTime, currentTime),
+        neverExpires: false,
       };
     }
   }

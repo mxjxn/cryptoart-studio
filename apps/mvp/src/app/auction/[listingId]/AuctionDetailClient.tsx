@@ -1965,7 +1965,7 @@ export default function AuctionDetailClient({
                     <span>{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>
                     <span className="text-[#444]">•</span>
                     <span>{timeStatus.status === "Not started" ? "Not started" : isActive ? "Active" : "Ended"}</span>
-                    {timeStatus.timeRemaining && (
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
                       <>
                         <span className="text-[#444]">•</span>
                         <span>{timeStatus.timeRemaining}</span>

@@ -121,7 +121,7 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
     const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid);
     if (timeStatus.status === "Not started") {
       timeStatusDisplay = "Not started";
-    } else if (timeStatus.timeRemaining) {
+    } else if (!timeStatus.neverExpires && timeStatus.timeRemaining) {
       timeStatusDisplay = timeStatus.timeRemaining;
     }
   } else if (auction.listingType === "FIXED_PRICE") {
