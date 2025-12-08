@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { formatEther } from 'viem';
-import { useAccount } from 'wagmi';
+import { useAccount, useBalance, useReadContract } from 'wagmi';
+import { MARKETPLACE_ADDRESS } from '~/lib/contracts/marketplace';
 
 type Period = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -29,6 +30,33 @@ function StatRow({ label, value }: { label: string; value: number | string }) {
 export default function StatsPage() {
   const { address } = useAccount();
   const [period, setPeriod] = useState<Period>('daily');
+  
+  // Fee recipient address (admin wallet)
+  const FEE_RECIPIENT = '0x6dA173B1d50F7Bc5c686f8880C20378965408344';
+  
+  // Get marketplace contract ETH balance
+  const { data: contractBalance, isLoading: isLoadingBalance } = useBalance({
+    address: MARKETPLACE_ADDRESS,
+  });
+  
+  // Try to get accumulated fees (only works after contract upgrade)
+  const { data: accumulatedFees, isLoading: isLoadingFees } = useReadContract({
+    address: MARKETPLACE_ADDRESS,
+    abi: [
+      {
+        type: 'function',
+        name: 'feesCollected',
+        inputs: [{ name: 'erc20', type: 'address' }],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+      },
+    ] as const,
+    functionName: 'feesCollected',
+    args: ['0x0000000000000000000000000000000000000000' as `0x${string}`], // ETH address
+    query: {
+      retry: false, // Don't retry if function doesn't exist
+    },
+  });
   const [revalidateStatus, setRevalidateStatus] = useState<{
     status: 'idle' | 'loading' | 'success' | 'error';
     message?: string;
@@ -101,6 +129,81 @@ export default function StatsPage() {
   
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* Marketplace Fees Section */}
+      <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">
+        <h3 className="text-lg font-semibold mb-4 text-[var(--color-text)]">Marketplace Fees</h3>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center py-2 border-b border-[var(--color-border)]">
+            <span className="text-[var(--color-secondary)]">Contract Balance</span>
+            <div className="text-right">
+              {isLoadingBalance ? (
+                <span className="text-[var(--color-secondary)]">Loading...</span>
+              ) : (
+                <>
+                  <span className="font-medium text-[var(--color-text)]">
+                    {contractBalance ? formatEth(contractBalance.value.toString()) : '0 ETH'}
+                  </span>
+                  {contractBalance && ethPrice?.usd && (
+                    <p className="text-xs text-[var(--color-tertiary)]">
+                      {formatUsd(contractBalance.value.toString())}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          
+          {accumulatedFees !== undefined && (
+            <div className="flex justify-between items-center py-2 border-b border-[var(--color-border)]">
+              <span className="text-[var(--color-secondary)]">Accumulated Fees</span>
+              <div className="text-right">
+                {isLoadingFees ? (
+                  <span className="text-[var(--color-secondary)]">Loading...</span>
+                ) : (
+                  <>
+                    <span className="font-medium text-[var(--color-text)]">
+                      {formatEth(accumulatedFees.toString())}
+                    </span>
+                    {ethPrice?.usd && (
+                      <p className="text-xs text-[var(--color-tertiary)]">
+                        {formatUsd(accumulatedFees.toString())}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {accumulatedFees !== undefined && contractBalance && 
+           BigInt(accumulatedFees) < contractBalance.value && (
+            <div className="p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-600">
+              ⚠️ Contract has more ETH than accumulated fees. This may indicate other funds in the contract.
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[var(--color-secondary)]">Fee Recipient</span>
+            <span className="font-mono text-sm text-[var(--color-text)]">
+              {FEE_RECIPIENT.slice(0, 6)}...{FEE_RECIPIENT.slice(-4)}
+            </span>
+          </div>
+          
+          <div className="pt-2 border-t border-[var(--color-border)]">
+            <p className="text-xs text-[var(--color-tertiary)]">
+              Fees accumulate in the contract and must be manually withdrawn using the{' '}
+              <code className="bg-[var(--color-border)]/30 px-1 rounded">withdraw()</code> function.
+              {accumulatedFees === undefined && (
+                <span className="block mt-1">
+                  Note: To view exact accumulated fees, the contract must be upgraded to expose the{' '}
+                  <code className="bg-[var(--color-border)]/30 px-1 rounded">feesCollected</code> mapping.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Homepage Revalidation Section */}
       <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">
         <div className="flex items-center justify-between mb-3">

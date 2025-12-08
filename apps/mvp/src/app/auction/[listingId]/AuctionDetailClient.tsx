@@ -28,6 +28,7 @@ import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
 import { BuyersList } from "~/components/BuyersList";
+import { TransactionModal } from "~/components/TransactionModal";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -86,9 +87,12 @@ export default function AuctionDetailClient({
   const [showOutbidNotification, setShowOutbidNotification] = useState(false);
   const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
   
-  // Track last processed bid hash to prevent duplicate processing
-  const lastProcessedBidHash = useRef<string | null>(null);
+      // Track last processed bid hash to prevent duplicate processing
+      const lastProcessedBidHash = useRef<string | null>(null);
+      // Track the bid amount being processed for the modal
+      const pendingBidAmount = useRef<string | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -497,6 +501,11 @@ export default function AuctionDetailClient({
           return;
         }
       }
+      
+      // Store bid amount for modal display
+      pendingBidAmount.current = bidAmount;
+      // Show transaction modal
+      setShowTransactionModal(true);
       
       await executeBidTransaction(bidAmountBigInt);
     } catch (err: any) {
@@ -1062,7 +1071,65 @@ export default function AuctionDetailClient({
     }
   }, [isFinalizeConfirmed, router, auction, address]);
 
-  // Create notifications after successful bid and update UI immediately
+  // Optimistic update when bidHash is set (immediately when transaction is submitted)
+  useEffect(() => {
+    if (bidHash && address && auction && bidAmount && bidHash !== lastProcessedBidHash.current) {
+      // Get the bid amount in BigInt format for optimistic update
+      const parts = bidAmount.split('.');
+      const wholePart = BigInt(parts[0] || '0');
+      const fractionalPart = parts[1]
+        ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
+        : BigInt(0);
+      const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
+      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
+      
+      // Optimistically update immediately when transaction is submitted
+      updateAuction((prev) => {
+        if (!prev) return prev;
+        
+        // Check if this bid is already reflected (avoid duplicates)
+        const isAlreadyReflected = prev.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
+          prev.highestBid?.amount === bidAmountBigInt.toString();
+        
+        // Also check if this exact bid already exists in bids array
+        const bidExists = prev.bids?.some(
+          (bid: any) => bid.bidder?.toLowerCase() === address.toLowerCase() &&
+            bid.amount === bidAmountBigInt.toString()
+        );
+        
+        if (isAlreadyReflected || bidExists) return prev;
+        
+        // Create new bid entry
+        const newBid = {
+          id: `temp-${Date.now()}-${bidHash}`,
+          bidder: address.toLowerCase(),
+          amount: bidAmountBigInt.toString(),
+          timestamp: currentTimestamp,
+        };
+        
+        // Update bids array - add new bid and sort by amount descending
+        const updatedBids = prev.bids ? [...prev.bids, newBid] : [newBid];
+        updatedBids.sort((a, b) => {
+          const amountA = BigInt(a.amount);
+          const amountB = BigInt(b.amount);
+          return amountA > amountB ? -1 : amountA < amountB ? 1 : 0;
+        });
+        
+        return {
+          ...prev,
+          bidCount: updatedBids.length,
+          highestBid: {
+            amount: bidAmountBigInt.toString(),
+            bidder: address.toLowerCase(),
+            timestamp: currentTimestamp,
+          },
+          bids: updatedBids,
+        };
+      });
+    }
+  }, [bidHash, address, auction, bidAmount, paymentDecimals, updateAuction]);
+
+  // Create notifications after successful bid and refresh with fresh data
   useEffect(() => {
     // Prevent duplicate processing of the same bid
     if (isBidConfirmed && bidHash && bidHash === lastProcessedBidHash.current) {
@@ -1189,14 +1256,76 @@ export default function AuctionDetailClient({
         }).catch(err => console.error('Error creating outbid notification:', err));
       }
       
-      // Refetch auction data from subgraph to get the latest state
-      // Use a small delay to allow subgraph to index the new bid
-      setTimeout(() => {
-        refetchAuction();
-      }, 2000);
+      // Invalidate cache and poll subgraph until bid appears
+      const invalidateAndPoll = async () => {
+        // Get the bid amount in BigInt format for checking
+        const parts = bidAmount.split('.');
+        const wholePart = BigInt(parts[0] || '0');
+        const fractionalPart = parts[1]
+          ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
+          : BigInt(0);
+        const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
+        // Invalidate cache to ensure fresh data
+        try {
+          await fetch('/api/auctions/invalidate-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listingId }),
+          });
+        } catch (err) {
+          console.error('Error invalidating cache:', err);
+        }
+        
+        // Poll subgraph until bid appears, then refetch with fresh data
+        const pollForBid = async (maxAttempts = 10, delay = 2000) => {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          try {
+            // Fetch fresh data bypassing cache
+            const response = await fetch(`/api/auctions/${listingId}?refresh=${Date.now()}`, {
+              cache: 'no-store',
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              const fetchedAuction = data.auction;
+              
+              // Check if our bid appears in the fetched data
+              const ourBidExists = fetchedAuction?.bids?.some(
+                (bid: any) => bid.bidder?.toLowerCase() === address.toLowerCase() &&
+                  bid.amount === bidAmountBigInt.toString()
+              ) || fetchedAuction?.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
+                  fetchedAuction?.highestBid?.amount === bidAmountBigInt.toString();
+              
+              if (ourBidExists) {
+                // Bid found in subgraph, update with fresh data
+                updateAuction(() => fetchedAuction);
+                // Clear bid input and repopulate with next minimum bid
+                setBidAmount('');
+                // Close transaction modal
+                setShowTransactionModal(false);
+                return;
+              }
+            }
+          } catch (err) {
+            console.error('Error polling for bid:', err);
+          }
+        }
+        
+        // If we've exhausted retries, just refetch anyway
+        console.warn('Bid not found in subgraph after polling, refetching anyway');
+        refetchAuction(true);
+        setBidAmount('');
+        setShowTransactionModal(false);
+      };
       
-      // Clear bid input - it will be repopulated with next minimum bid after refetch
-      setBidAmount('');
+      // Start polling after a short initial delay
+      await pollForBid();
+      };
+      
+      // Start the async process
+      invalidateAndPoll();
     }
   }, [isBidConfirmed, address, auction, listingId, bidAmount, bidHash, router, paymentSymbol, updateAuction, refetchAuction, paymentDecimals]);
 
@@ -2340,7 +2469,21 @@ export default function AuctionDetailClient({
       {/* Chain Switch Prompt */}
       <ChainSwitchPrompt 
         show={showChainSwitchPrompt} 
-        onDismiss={() => setShowChainSwitchPrompt(false)} 
+        onDismiss={() => setShowChainSwitchPrompt(false)}
+      />
+      
+      {/* Transaction Modal for bid/purchase */}
+      <TransactionModal
+        isOpen={showTransactionModal}
+        onClose={() => setShowTransactionModal(false)}
+        isPending={isBidding}
+        isConfirming={isConfirmingBid}
+        isSuccess={isBidConfirmed}
+        error={bidError}
+        amount={pendingBidAmount.current || bidAmount || '0'}
+        symbol={paymentSymbol}
+        action="bid"
+        transactionHash={bidHash}
       />
     </div>
   );
