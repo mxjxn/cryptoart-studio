@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
@@ -77,6 +77,7 @@ export default function AuctionDetailClient({
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
+  const [pendingBidAfterApproval, setPendingBidAfterApproval] = useState<bigint | null>(null);
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseSimulationError, setPurchaseSimulationError] = useState<string | null>(null);
   const [showBidSharePrompt, setShowBidSharePrompt] = useState(false);
@@ -275,6 +276,15 @@ export default function AuctionDetailClient({
     return false;
   }, [isPaymentETH, auction, isConnected, address, getRequiredAmount, userBalance.balance, purchaseQuantity]);
 
+  // Check if an ERC20 bid requires approval based on current allowance and input
+  const needsBidApproval = useMemo(() => {
+    if (isPaymentETH || !auction?.erc20 || !address || !isConnected) return false;
+    const currentAllowance = erc20Allowance as bigint | undefined;
+    const requiredAmount = getRequiredAmount;
+    if (requiredAmount === BigInt(0)) return false;
+    return !currentAllowance || currentAllowance < requiredAmount;
+  }, [address, auction?.erc20, erc20Allowance, getRequiredAmount, isConnected, isPaymentETH]);
+
   // Handle top-up action
   const handleTopUp = async () => {
     if (!isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
@@ -359,6 +369,39 @@ export default function AuctionDetailClient({
     }
   }, [auction, calculateMinBid, bidAmount, paymentDecimals]);
 
+  const parseBidAmountToBigInt = () => {
+    const parts = bidAmount.split('.');
+    const wholePart = BigInt(parts[0] || '0');
+    const fractionalPart = parts[1]
+      ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
+      : BigInt(0);
+    return wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
+  };
+
+  const executeBidTransaction = useCallback(async (bidAmountBigInt: bigint) => {
+    // Use increase=false to bid the exact amount sent
+    // Pass referrer if available and listing supports referrers
+    if (referrer) {
+      await placeBid({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'bid',
+        chainId: CHAIN_ID,
+        args: [referrer, Number(listingId), false] as const,
+        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
+      });
+    } else {
+      await placeBid({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'bid',
+        chainId: CHAIN_ID,
+        args: [Number(listingId), false] as const,
+        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
+      });
+    }
+  }, [referrer, listingId, isPaymentETH, placeBid]);
+
   const handleBid = async () => {
     if (!isConnected || !bidAmount || !auction || !address) {
       return;
@@ -366,13 +409,7 @@ export default function AuctionDetailClient({
 
     try {
       // Parse bid amount using the correct decimals for the payment token
-      // Use a more precise parsing method to avoid floating point issues
-      const bidAmountBigInt = (() => {
-        const parts = bidAmount.split('.');
-        const wholePart = BigInt(parts[0] || '0');
-        const fractionalPart = parts[1] ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals)) : BigInt(0);
-        return wholePart * BigInt(10 ** paymentDecimals) + fractionalPart;
-      })();
+      const bidAmountBigInt = parseBidAmountToBigInt();
       
       // Use the calculated minimum bid
       const minBid = calculateMinBid;
@@ -390,6 +427,8 @@ export default function AuctionDetailClient({
         
         // Check if approval is needed
         if (!currentAllowance || currentAllowance < bidAmountBigInt) {
+          // Track pending bid so we can continue automatically after approval confirms
+          setPendingBidAfterApproval(bidAmountBigInt);
           // Approve the marketplace to spend the tokens
           await approveERC20({
             address: tokenAddress,
@@ -403,27 +442,7 @@ export default function AuctionDetailClient({
         }
       }
       
-      // Use increase=false to bid the exact amount sent
-      // Pass referrer if available and listing supports referrers
-      if (referrer) {
-        await placeBid({
-          address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: CHAIN_ID,
-          args: [referrer, Number(listingId), false] as const,
-          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-        });
-      } else {
-        await placeBid({
-          address: MARKETPLACE_ADDRESS,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: CHAIN_ID,
-          args: [Number(listingId), false] as const,
-          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-        });
-      }
+      await executeBidTransaction(bidAmountBigInt);
     } catch (err: any) {
       console.error("Error placing bid:", err);
       const errorMessage = err?.message || String(err);
@@ -746,6 +765,23 @@ export default function AuctionDetailClient({
       });
     }
   }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing, referrer]);
+
+  // After approval is confirmed for bids, refetch allowance and place the bid automatically
+  useEffect(() => {
+    if (isApproveConfirmed && pendingBidAfterApproval && !isPaymentETH && auction && address) {
+      refetchAllowance().then((result) => {
+        const updatedAllowance = (result?.data ?? erc20Allowance) as bigint | undefined;
+        if (updatedAllowance && updatedAllowance >= pendingBidAfterApproval) {
+          const bidAmountToUse = pendingBidAfterApproval;
+          setPendingBidAfterApproval(null);
+          executeBidTransaction(bidAmountToUse);
+        }
+      }).catch((err) => {
+        console.error("Error refetching allowance after approval:", err);
+        setPendingBidAfterApproval(null);
+      });
+    }
+  }, [address, auction, erc20Allowance, executeBidTransaction, isApproveConfirmed, isPaymentETH, pendingBidAfterApproval, refetchAllowance]);
 
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {
@@ -1640,12 +1676,32 @@ export default function AuctionDetailClient({
                         </button>
                       )}
                     </div>
+                    {/* Approval helper text for ERC20 bids */}
+                    {needsBidApproval && !isApproving && !isConfirmingApprove && (
+                      <p className="text-xs text-yellow-400">
+                        Approve {paymentSymbol} to place your bid.
+                      </p>
+                    )}
                     <button
                       onClick={handleBid}
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                      disabled={isBidding || isConfirmingBid || isApproving || isConfirmingApprove}
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Place Bid
+                      {isApproving || isConfirmingApprove
+                        ? `Approving ${paymentSymbol}...`
+                        : pendingBidAfterApproval
+                        ? "Waiting for approval..."
+                        : isBidding || isConfirmingBid
+                        ? "Placing bid..."
+                        : needsBidApproval
+                        ? `Approve ${paymentSymbol}`
+                        : "Place Bid"}
                     </button>
+                    {bidError && (
+                      <p className="text-xs text-red-400">
+                        {bidError.message || "Failed to place bid"}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
