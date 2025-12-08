@@ -20,7 +20,9 @@ export {
   globalNotificationSettings,
   userNotificationPreferences,
   // Allowlist tables
-  pendingAllowlistSignatures
+  pendingAllowlistSignatures,
+  // Listing page status
+  listingPageStatus
 } from './client';
 export type { 
   UserCacheData, 

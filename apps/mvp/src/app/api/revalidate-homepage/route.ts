@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { request, gql } from 'graphql-request';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
     
     // Revalidate the homepage and auction cache
     revalidatePath('/');
-    revalidateTag('auctions', 'page');
+    revalidatePath('/api/listings/browse');
     
     return NextResponse.json({
       success: true,

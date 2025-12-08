@@ -20,7 +20,9 @@ import {
   globalNotificationSettings,
   userNotificationPreferences,
   // Allowlist tables
-  pendingAllowlistSignatures
+  pendingAllowlistSignatures,
+  // Listing page status
+  listingPageStatus
 } from './schema';
 
 // Database client singleton
@@ -90,7 +92,9 @@ export {
   globalNotificationSettings,
   userNotificationPreferences,
   // Allowlist tables
-  pendingAllowlistSignatures
+  pendingAllowlistSignatures,
+  // Listing page status
+  listingPageStatus
 } from './schema';
 export type { 
   UserCacheData, 

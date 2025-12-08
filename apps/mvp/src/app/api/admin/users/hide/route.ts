@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 import { getDatabase, hiddenUsers } from '@cryptoart/db';
 import { verifyAdmin } from '~/lib/server/admin';
 
@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
     console.log(`[Admin] User hidden: ${userAddress} by ${adminAddress}`);
     
     // Invalidate auctions cache so hidden user listings are filtered out immediately
-    revalidateTag('auctions', 'page');
+    revalidatePath('/');
+    revalidatePath('/api/listings/browse');
     
     return NextResponse.json({ success: true });
   } catch (error) {

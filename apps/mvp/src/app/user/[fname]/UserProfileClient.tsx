@@ -307,7 +307,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
             {(!profileData.artworkListings || profileData.artworkListings.length === 0) ? (
               <p className="text-[#999999]">No artworks found</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {profileData.artworkListings.map((listing, index) => (
                   <AuctionCard
                     key={listing.listingId}
@@ -327,7 +327,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
             {profileData.listingsCreated.length === 0 ? (
               <p className="text-[#999999]">No listings found</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {profileData.listingsCreated.map((listing, index) => (
                   <AuctionCard
                     key={listing.listingId}
@@ -349,7 +349,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
               {profileData.purchases.length === 0 ? (
                 <p className="text-[#999999]">No artworks collected yet</p>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {profileData.purchases.map((purchase, index) => {
                     const title = purchase.metadata?.title || purchase.metadata?.name || `Listing #${purchase.listing?.listingId}`;
                     const image = purchase.metadata?.image;

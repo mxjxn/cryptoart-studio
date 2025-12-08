@@ -412,7 +412,7 @@ export default function ProfileClient() {
                 {createdAuctions.length === 0 ? (
                   <p className="text-[#999999]">No auctions created yet.</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {createdAuctions.map((auction, index) => (
                       <AuctionCard
                         key={auction.id}
@@ -437,7 +437,7 @@ export default function ProfileClient() {
                       {purchases.length === 0 ? (
                         <p className="text-[#999999]">No artworks collected yet.</p>
                       ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                           {purchases.map((purchase, index) => {
                             const title = purchase.metadata?.title || purchase.metadata?.name || `Listing #${purchase.listing?.listingId}`;
                             const image = purchase.metadata?.image;
@@ -514,7 +514,7 @@ export default function ProfileClient() {
                 {activeBids.length === 0 ? (
                   <p className="text-[#999999]">No active bids.</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {activeBids.map((auction, index) => (
                       <AuctionCard
                         key={auction.id}
@@ -532,7 +532,7 @@ export default function ProfileClient() {
                 {activeOffers.length === 0 ? (
                   <p className="text-[#999999]">No active offers.</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {activeOffers.map((auction, index) => (
                       <AuctionCard
                         key={auction.id}
@@ -742,7 +742,7 @@ export default function ProfileClient() {
                 ) : savedListings.length === 0 ? (
                   <p className="text-[#999999]">No saved listings yet.</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {savedListings.map((auction, index) => (
                       <AuctionCard
                         key={auction.listingId}

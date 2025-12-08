@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag, revalidatePath } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 
 /**
  * Invalidate auctions cache after listing changes
@@ -16,14 +16,16 @@ export async function POST(req: NextRequest) {
       // Body is optional, continue without it
     }
 
-    // Revalidate the auctions cache tag
-    revalidateTag('auctions', 'page');
-    // Also revalidate the homepage path
+    // Revalidate the homepage path and API routes
     revalidatePath('/');
+    // Revalidate the browse listings API route to clear HTTP cache
+    revalidatePath('/api/listings/browse');
     
-    // If listingId is provided, revalidate the specific listing page
+    // If listingId is provided, revalidate the specific listing page and API endpoint
     if (listingId) {
       revalidatePath(`/listing/${listingId}`);
+      // Also revalidate the API endpoint for this specific listing
+      revalidatePath(`/api/auctions/${listingId}`);
     }
     
     return NextResponse.json({
