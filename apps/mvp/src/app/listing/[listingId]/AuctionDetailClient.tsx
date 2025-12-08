@@ -69,11 +69,106 @@ export default function AuctionDetailClient({
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-  const { auction, loading } = useAuction(listingId);
+  const { auction, loading, refetch: refetchAuction } = useAuction(listingId);
+  
+  // Track page building status
+  const [pageStatus, setPageStatus] = useState<'building' | 'ready' | 'error' | null>(null);
+  const [isCheckingPageStatus, setIsCheckingPageStatus] = useState(false);
+
+  // Poll for page status when listing is not found or page is building
+  useEffect(() => {
+    if (!listingId) return;
+    
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isMounted = true;
+    
+    const checkPageStatus = async () => {
+      if (isCheckingPageStatus) return;
+      setIsCheckingPageStatus(true);
+      
+      try {
+        const response = await fetch(`/api/listings/${listingId}/page-status`);
+        if (!response.ok) {
+          throw new Error('Failed to check page status');
+        }
+        const data = await response.json();
+        
+        if (isMounted) {
+          setPageStatus(data.status);
+          
+          // If page is ready, stop polling
+          if (data.status === 'ready') {
+            if (pollInterval) {
+              clearInterval(pollInterval);
+              pollInterval = null;
+            }
+            
+            // Refetch auction data now that page is ready
+            refetchAuction();
+            
+            // Send notification that page is ready (only if we're the seller and page just became ready)
+            // Check if readyAt was just set (within last 5 seconds) to avoid duplicate notifications
+            if (data.readyAt) {
+              const readyAt = new Date(data.readyAt);
+              const now = new Date();
+              const timeSinceReady = now.getTime() - readyAt.getTime();
+              
+              // Only send notification if page became ready in the last 5 seconds
+              if (timeSinceReady < 5000 && timeSinceReady >= 0) {
+                const sellerAddr = data.sellerAddress || auction?.seller;
+                if (sellerAddr && address && sellerAddr.toLowerCase() === address.toLowerCase()) {
+                  fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userAddress: address,
+                      type: 'LISTING_CREATED',
+                      title: 'Listing Page Ready',
+                      message: `Your listing page is now ready to view!`,
+                      listingId: listingId,
+                      metadata: {
+                        pageReady: true,
+                      },
+                    }),
+                  }).catch(err => {
+                    console.error('Error creating page ready notification:', err);
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking page status:', error);
+        if (isMounted) {
+          setPageStatus('error');
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingPageStatus(false);
+        }
+      }
+    };
+    
+    // Initial check
+    checkPageStatus();
+    
+    // Poll every 3 seconds if status is building or if auction is not found
+    if (pageStatus === 'building' || (!auction && !loading)) {
+      pollInterval = setInterval(checkPageStatus, 3000);
+    }
+    
+    return () => {
+      isMounted = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [listingId, pageStatus, auction, loading, isCheckingPageStatus, address]);
 
   // Clear overlay when data is ready
   useEffect(() => {
-    if (!loading && auction) {
+    if (!loading && auction && pageStatus === 'ready') {
       // Wait for view transition to complete before hiding overlay
       // View transitions typically take 300-500ms, so we wait a bit longer to ensure smooth transition
       const timer = setTimeout(() => {
@@ -81,7 +176,7 @@ export default function AuctionDetailClient({
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [loading, auction, hideOverlay]);
+  }, [loading, auction, pageStatus, hideOverlay]);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
@@ -538,24 +633,64 @@ export default function AuctionDetailClient({
   // Redirect after successful cancellation
   useEffect(() => {
     if (isCancelConfirmed) {
-      // Refresh router to get fresh data, then navigate to home
-      router.refresh();
-      setTimeout(() => {
-        router.push("/");
-      }, 100);
+      // Invalidate cache to ensure cancelled listings are removed from feeds
+      const invalidateCache = async () => {
+        try {
+          await fetch('/api/auctions/invalidate-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listingId }),
+          });
+        } catch (error) {
+          console.error('Failed to invalidate cache:', error);
+          // Continue even if cache invalidation fails
+        }
+      };
+      
+      invalidateCache().then(() => {
+        // Refetch auction data to get updated status before navigating
+        refetchAuction();
+        // Small delay to let refetch complete, then navigate
+        setTimeout(() => {
+          router.refresh();
+          setTimeout(() => {
+            router.push("/");
+          }, 100);
+        }, 200);
+      });
     }
-  }, [isCancelConfirmed, router]);
+  }, [isCancelConfirmed, router, listingId, refetchAuction]);
 
   // Redirect after successful finalization
   useEffect(() => {
     if (isFinalizeConfirmed) {
-      // Refresh router to get fresh data, then navigate to home
-      router.refresh();
-      setTimeout(() => {
-        router.push("/");
-      }, 100);
+      // Invalidate cache to ensure sold-out listings are removed from feeds
+      const invalidateCache = async () => {
+        try {
+          await fetch('/api/auctions/invalidate-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listingId }),
+          });
+        } catch (error) {
+          console.error('Failed to invalidate cache:', error);
+          // Continue even if cache invalidation fails
+        }
+      };
+      
+      invalidateCache().then(() => {
+        // Refetch auction data to get updated status before navigating
+        refetchAuction();
+        // Small delay to let refetch complete, then navigate
+        setTimeout(() => {
+          router.refresh();
+          setTimeout(() => {
+            router.push("/");
+          }, 100);
+        }, 200);
+      });
     }
-  }, [isFinalizeConfirmed, router]);
+  }, [isFinalizeConfirmed, router, listingId, refetchAuction]);
 
   // Refresh after successful modification and close form
   useEffect(() => {
@@ -848,10 +983,23 @@ export default function AuctionDetailClient({
     );
   }, [auction, contractName, displayCreatorName, displayCreatorAddress, creatorUsername, paymentSymbol, paymentDecimals, isCancelled]);
 
-  if (loading) {
+  // Show building state if page is building or listing not found yet
+  const isBuilding = pageStatus === 'building' || (!auction && !loading && pageStatus !== 'ready');
+  
+  if (loading || isBuilding) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center animate-in fade-in duration-100">
-        <p className="text-[#cccccc]">Loading auction...</p>
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-[#cccccc] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-[#cccccc]">
+            {isBuilding ? 'Building listing page...' : 'Loading auction...'}
+          </p>
+        </div>
+        {isBuilding && (
+          <p className="text-sm text-[#888888] max-w-md text-center px-4">
+            Your listing is being processed. This usually takes a few seconds. We'll notify you when it's ready!
+          </p>
+        )}
       </div>
     );
   }

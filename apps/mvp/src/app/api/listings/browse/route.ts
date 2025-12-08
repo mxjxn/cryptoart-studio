@@ -94,7 +94,30 @@ export async function GET(req: NextRequest) {
       getSubgraphHeaders()
     );
     
-    const activeListings = data.listings.filter(listing => listing.status !== "CANCELLED");
+    // Filter out cancelled listings and sold-out listings
+    // Sold-out listings are those where totalSold >= totalAvailable
+    const activeListings = data.listings.filter(listing => {
+      // Exclude cancelled listings
+      if (listing.status === "CANCELLED") {
+        return false;
+      }
+      
+      // Exclude finalized listings
+      if (listing.finalized) {
+        return false;
+      }
+      
+      // Exclude sold-out listings (even if subgraph hasn't marked them as finalized yet)
+      const totalAvailable = parseInt(listing.totalAvailable || "0");
+      const totalSold = parseInt(listing.totalSold || "0");
+      const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
+      
+      if (isFullySold) {
+        return false;
+      }
+      
+      return true;
+    });
 
     let enrichedListings: EnrichedAuctionData[] = activeListings;
 
@@ -186,6 +209,7 @@ export async function GET(req: NextRequest) {
         // Add HTTP cache headers for CDN/edge caching
         // Cache for 30 seconds, allow stale for 60 seconds while revalidating
         // This dramatically reduces disk IO by serving cached responses from the edge
+        // Note: This cache can be invalidated via revalidatePath('/api/listings/browse')
         'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
       },
     });

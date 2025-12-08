@@ -194,6 +194,14 @@ export function ProfileDropdown() {
               View Profile
             </TransitionLink>
             
+            <TransitionLink
+              href="/settings"
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
+            >
+              Preferences
+            </TransitionLink>
+            
             {loading ? (
               <div className="px-4 py-2 text-sm text-[#999999]">
                 Loading...

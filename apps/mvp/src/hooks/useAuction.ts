@@ -9,6 +9,72 @@ export function useAuction(listingId: string | null) {
   const [auction, setAuction] = useState<EnrichedAuctionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const fetchAuction = async (forceRefresh = false) => {
+    if (!listingId) return;
+    
+    // If forcing refresh, clear any in-flight request
+    if (forceRefresh) {
+      inFlightRequests.delete(listingId);
+    }
+    
+    // Check if there's already an in-flight request for this listing
+    const existingRequest = inFlightRequests.get(listingId);
+    if (existingRequest && !forceRefresh) {
+      try {
+        const data = await existingRequest;
+        setAuction(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch auction'));
+        setAuction(null);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    
+    // Create new request - use cache busting query param to bypass browser cache
+    // The API endpoint cache will be invalidated server-side via revalidateTag
+    const requestPromise = (async () => {
+      // Add cache busting to force fresh fetch from API
+      const cacheBuster = forceRefresh ? `?refresh=${Date.now()}` : '';
+      try {
+        // Fetch directly from API with cache busting
+        const response = await fetch(`/api/auctions/${listingId}${cacheBuster}`, {
+          cache: forceRefresh ? 'no-store' : 'default',
+        });
+        if (!response.ok) {
+          if (response.status === 404) {
+            return null;
+          }
+          throw new Error(`Failed to fetch auction: ${response.statusText}`);
+        }
+        const data = await response.json();
+        return data.auction || null;
+      } catch (err) {
+        // Fallback to getAuction if direct fetch fails
+        return getAuction(listingId);
+      }
+    })();
+    
+    inFlightRequests.set(listingId, requestPromise);
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await requestPromise;
+      setAuction(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch auction'));
+      setAuction(null);
+    } finally {
+      // Clean up in-flight request
+      inFlightRequests.delete(listingId);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!listingId) {
@@ -16,47 +82,14 @@ export function useAuction(listingId: string | null) {
       return;
     }
 
-    async function fetchAuction() {
-      if (!listingId) return;
-      
-      // Check if there's already an in-flight request for this listing
-      const existingRequest = inFlightRequests.get(listingId);
-      if (existingRequest) {
-        try {
-          const data = await existingRequest;
-          setAuction(data);
-          setError(null);
-        } catch (err) {
-          setError(err instanceof Error ? err : new Error('Failed to fetch auction'));
-          setAuction(null);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
-      
-      // Create new request
-      const requestPromise = getAuction(listingId);
-      inFlightRequests.set(listingId, requestPromise);
-      
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await requestPromise;
-        setAuction(data);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch auction'));
-        setAuction(null);
-      } finally {
-        // Clean up in-flight request
-        inFlightRequests.delete(listingId);
-        setLoading(false);
-      }
-    }
-
     fetchAuction();
-  }, [listingId]);
+  }, [listingId, refreshKey]);
 
-  return { auction, loading, error };
+  // Refetch function that can be called externally
+  const refetch = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
+  return { auction, loading, error, refetch };
 }
 

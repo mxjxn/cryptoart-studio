@@ -1233,6 +1233,18 @@ export default function CreateAuctionClient() {
             const listingId = Number(decoded.args.listingId);
             setCreatedListingId(listingId);
             
+            // Mark listing as building
+            fetch(`/api/listings/${listingId}/page-status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'building',
+                sellerAddress: address,
+              }),
+            }).catch(err => 
+              console.error('Error marking listing as building:', err)
+            );
+            
             // Invalidate cache so homepage shows new listing immediately
             // Also revalidate the listing page so it's immediately available
             fetch('/api/auctions/invalidate-cache', {
@@ -1244,7 +1256,7 @@ export default function CreateAuctionClient() {
             );
             
             // Automatically navigate to the listing page
-            // The page will show a loading state while waiting for subgraph to index
+            // The page will show a building state while waiting for subgraph to index
             setTimeout(() => {
               transitionNavigate(router, `/listing/${listingId}`);
             }, 500); // Small delay to ensure state is updated
