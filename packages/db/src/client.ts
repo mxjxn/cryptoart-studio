@@ -27,24 +27,48 @@ import {
   tokenImageCache
 } from './schema';
 
-// Database client singleton
-let db: ReturnType<typeof drizzle> | null = null;
-let client: ReturnType<typeof postgres> | null = null;
+// Global singleton pattern for Next.js serverless environments
+// This ensures we reuse the same connection pool across all function invocations
+const globalForDb = globalThis as unknown as {
+  db: ReturnType<typeof drizzle> | null;
+  client: ReturnType<typeof postgres> | null;
+  connectionString: string | null;
+};
+
+// Initialize global state if it doesn't exist
+if (!globalForDb.db) {
+  globalForDb.db = null;
+  globalForDb.client = null;
+  globalForDb.connectionString = null;
+}
 
 /**
  * Reset the database connection
  * Useful when connections are closed in serverless environments
  */
 export function resetDatabaseConnection() {
-  if (client) {
+  if (globalForDb.client) {
     try {
-      client.end({ timeout: 5 });
+      globalForDb.client.end({ timeout: 5 });
     } catch (error) {
       // Ignore errors when closing
     }
   }
-  client = null;
-  db = null;
+  globalForDb.client = null;
+  globalForDb.db = null;
+  globalForDb.connectionString = null;
+}
+
+/**
+ * Check if the connection is still alive
+ */
+async function isConnectionAlive(client: ReturnType<typeof postgres>): Promise<boolean> {
+  try {
+    await client`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getDatabase() {
@@ -54,23 +78,56 @@ export function getDatabase() {
     throw new Error('STORAGE_POSTGRES_URL or POSTGRES_URL environment variable is required');
   }
   
-  // Recreate connection if it doesn't exist
-  // In serverless environments, the module may be cached but connections can be closed
-  if (!client || !db) {
-    // Create postgres client with connection pooling for serverless environments
-    // This configuration works well with Supabase's connection pooler (port 6543)
-    client = postgres(connectionString, {
-      max: 10, // Maximum number of connections in the pool
-      idle_timeout: 20, // Close idle connections after 20 seconds
-      connect_timeout: 10, // Connection timeout in seconds
+  // Check if we need to recreate the connection
+  const needsReconnect = 
+    !globalForDb.client || 
+    !globalForDb.db || 
+    globalForDb.connectionString !== connectionString;
+  
+  if (needsReconnect) {
+    // Close existing connection if it exists
+    if (globalForDb.client) {
+      try {
+        globalForDb.client.end({ timeout: 5 });
+      } catch (error) {
+        // Ignore errors when closing
+      }
+    }
+    
+    // Determine if we're using a pooled connection string
+    // Supabase pooler uses port 6543 and includes ?pgbouncer=true
+    const isPooledConnection = 
+      connectionString.includes(':6543') || 
+      connectionString.includes('pgbouncer=true') ||
+      connectionString.includes('pooler.supabase.com');
+    
+    // Create postgres client with optimized connection pooling for serverless
+    // CRITICAL: Use max: 2-3 for serverless to prevent connection exhaustion
+    // Each serverless function instance can spawn multiple concurrent requests
+    // With 10 instances × 2 connections = 20 total (much safer than 10 × 10 = 100)
+    globalForDb.client = postgres(connectionString, {
+      max: isPooledConnection ? 2 : 3, // Lower for pooled connections (pooler handles multiplexing)
+      idle_timeout: 10, // Close idle connections faster (10 seconds)
+      connect_timeout: 5, // Faster connection timeout
       // Enable automatic reconnection on connection errors
       onnotice: () => {}, // Suppress notices
+      // Transform errors to be more informative
+      transform: {
+        undefined: null,
+      },
     });
     
-    db = drizzle(client);
+    globalForDb.db = drizzle(globalForDb.client);
+    globalForDb.connectionString = connectionString;
   }
   
-  return db;
+  // At this point, db is guaranteed to be non-null
+  // because we just created it if it didn't exist
+  if (!globalForDb.db) {
+    throw new Error('Database connection failed to initialize');
+  }
+  
+  return globalForDb.db;
 }
 
 // Export schema for use in other packages

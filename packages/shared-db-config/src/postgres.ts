@@ -1,41 +1,81 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
-// Database client singleton for shared Postgres connection
-let db: ReturnType<typeof drizzle> | null = null;
-let client: ReturnType<typeof postgres> | null = null;
+// Global singleton pattern for Next.js serverless environments
+// This ensures we reuse the same connection pool across all function invocations
+const globalForDb = globalThis as unknown as {
+  db: ReturnType<typeof drizzle> | null;
+  client: ReturnType<typeof postgres> | null;
+  connectionString: string | null;
+};
+
+// Initialize global state if it doesn't exist
+if (!globalForDb.db) {
+  globalForDb.db = null;
+  globalForDb.client = null;
+  globalForDb.connectionString = null;
+}
 
 /**
  * Get shared Postgres database connection
  * Uses connection pooling for efficient resource usage
  */
 export function getSharedDatabase() {
-  if (!db) {
-    const connectionString = process.env.POSTGRES_URL;
-    if (!connectionString) {
-      throw new Error('POSTGRES_URL environment variable is required');
+  const connectionString = process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('POSTGRES_URL environment variable is required');
+  }
+  
+  // Check if we need to recreate the connection
+  const needsReconnect = 
+    !globalForDb.client || 
+    !globalForDb.db || 
+    globalForDb.connectionString !== connectionString;
+  
+  if (needsReconnect) {
+    // Close existing connection if it exists
+    if (globalForDb.client) {
+      try {
+        globalForDb.client.end({ timeout: 5 });
+      } catch (error) {
+        // Ignore errors when closing
+      }
     }
     
-    // Create postgres client with connection pooling
-    client = postgres(connectionString, {
-      max: 10, // Maximum number of connections in the pool
-      idle_timeout: 20, // Close idle connections after 20 seconds
-      connect_timeout: 10, // Connection timeout in seconds
+    // Determine if we're using a pooled connection string
+    const isPooledConnection = 
+      connectionString.includes(':6543') || 
+      connectionString.includes('pgbouncer=true') ||
+      connectionString.includes('pooler.supabase.com');
+    
+    // Create postgres client with optimized connection pooling for serverless
+    // CRITICAL: Use max: 2-3 for serverless to prevent connection exhaustion
+    globalForDb.client = postgres(connectionString, {
+      max: isPooledConnection ? 2 : 3, // Lower for pooled connections
+      idle_timeout: 10, // Close idle connections faster
+      connect_timeout: 5, // Faster connection timeout
+      onnotice: () => {}, // Suppress notices
+      transform: {
+        undefined: null,
+      },
     });
     
-    db = drizzle(client);
+    globalForDb.db = drizzle(globalForDb.client);
+    globalForDb.connectionString = connectionString;
   }
-  return db;
+  
+  return globalForDb.db;
 }
 
 /**
  * Close database connection (useful for cleanup in tests or shutdown)
  */
 export async function closeDatabase() {
-  if (client) {
-    await client.end();
-    client = null;
-    db = null;
+  if (globalForDb.client) {
+    await globalForDb.client.end();
+    globalForDb.client = null;
+    globalForDb.db = null;
+    globalForDb.connectionString = null;
   }
 }
 
@@ -43,9 +83,9 @@ export async function closeDatabase() {
  * Get raw postgres client (for advanced use cases)
  */
 export function getPostgresClient() {
-  if (!client) {
+  if (!globalForDb.client) {
     getSharedDatabase(); // Initialize if not already initialized
   }
-  return client;
+  return globalForDb.client;
 }
 
