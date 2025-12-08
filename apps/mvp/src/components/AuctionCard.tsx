@@ -181,13 +181,6 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
           />
         )}
         <ListingChips auction={auction} />
-        {/* Admin Context Menu */}
-        <div className="absolute top-2 right-2 z-10">
-          <AdminContextMenu 
-            listingId={auction.listingId} 
-            sellerAddress={auction.seller}
-          />
-        </div>
         {/* FavoriteButton hidden - will reconsider placement later */}
         {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />
@@ -265,6 +258,13 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             {timeStatusDisplay}
           </div>
         </div>
+      </div>
+      {/* Admin Context Menu - Below the card */}
+      <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
+        <AdminContextMenu 
+          listingId={auction.listingId} 
+          sellerAddress={auction.seller}
+        />
       </div>
     </div>
   );

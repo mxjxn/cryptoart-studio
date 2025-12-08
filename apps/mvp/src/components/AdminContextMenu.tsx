@@ -115,27 +115,15 @@ export function AdminContextMenu({
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className="text-[#999999] hover:text-white p-1 rounded"
+        className="bg-black border-2 border-red-500 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-[#1a1a1a] transition-colors"
         disabled={isLoading}
         title="Admin Options"
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-          />
-        </svg>
+        Admin
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-8 z-50 bg-[#1a1a1a] border border-[#333333] rounded-lg shadow-lg min-w-[180px] py-1">
+        <div className="absolute right-0 top-10 z-50 bg-black border-2 border-red-500 rounded-lg shadow-lg min-w-[180px] py-1">
           {listingId && (
             <>
               {isFeatured ? (
