@@ -26,6 +26,7 @@ import { ERC721ListingTypePage } from "~/components/create-listing/ERC721Listing
 import { ERC721AuctionConfigPage } from "~/components/create-listing/ERC721AuctionConfigPage";
 import { ERC721FixedPriceConfigPage } from "~/components/create-listing/ERC721FixedPriceConfigPage";
 import { ERC721OffersOnlyPage } from "~/components/create-listing/ERC721OffersOnlyPage";
+import { ShareableMomentButton } from "~/components/ShareableMomentButton";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -1644,31 +1645,44 @@ export default function CreateAuctionClient() {
 
           {/* Success Actions */}
           {isSuccess && (
-            <div className="mt-6 flex gap-3">
-              {createdListingId !== null ? (
+            <div className="mt-6 flex flex-col gap-3">
+              <div className="flex gap-3">
+                {createdListingId !== null ? (
+                  <button
+                    type="button"
+                    onClick={() => transitionNavigate(router, `/listing/${createdListingId}`)}
+                    className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                  >
+                    View Listing
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => transitionNavigate(router, "/")}
+                    className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                  >
+                    View Listings
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => transitionNavigate(router, `/listing/${createdListingId}`)}
-                  className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                  onClick={handleReset}
+                  className="flex-1 px-6 py-3 bg-[#0a0a0a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#1a1a1a] transition-colors"
                 >
-                  View Listing
+                  Create Another
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => transitionNavigate(router, "/")}
-                  className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-                >
-                  View Listings
-                </button>
+              </div>
+              {createdListingId !== null && (
+                <div className="flex justify-center">
+                  <ShareableMomentButton
+                    momentType="auction-created"
+                    listingId={String(createdListingId)}
+                    artworkName={contractPreview.name || `Token #${formData.tokenId}`}
+                    className="w-auto"
+                    buttonText="Share Your Auction"
+                  />
+                </div>
               )}
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex-1 px-6 py-3 bg-[#0a0a0a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#1a1a1a] transition-colors"
-              >
-                Create Another
-              </button>
             </div>
           )}
         </div>

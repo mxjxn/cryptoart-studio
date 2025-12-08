@@ -10,6 +10,8 @@ import { useContractName } from "~/hooks/useContractName";
 import { ShareButton } from "~/components/ShareButton";
 import { LinkShareButton } from "~/components/LinkShareButton";
 import { CopyButton } from "~/components/CopyButton";
+import { ShareableMomentButton } from "~/components/ShareableMomentButton";
+import { OutbidNotification } from "~/components/OutbidNotification";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
@@ -73,6 +75,10 @@ export default function AuctionDetailClient({
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseSimulationError, setPurchaseSimulationError] = useState<string | null>(null);
+  const [showBidSharePrompt, setShowBidSharePrompt] = useState(false);
+  const [showAuctionWonSharePrompt, setShowAuctionWonSharePrompt] = useState(false);
+  const [showOutbidNotification, setShowOutbidNotification] = useState(false);
+  const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -818,7 +824,15 @@ export default function AuctionDetailClient({
 
   // Redirect after successful finalization
   useEffect(() => {
-    if (isFinalizeConfirmed) {
+    if (isFinalizeConfirmed && auction) {
+      // Check if current user is the winner
+      const isWinner = address && auction.highestBid?.bidder?.toLowerCase() === address.toLowerCase();
+      
+      if (isWinner) {
+        // Show share prompt for winner
+        setShowAuctionWonSharePrompt(true);
+      }
+      
       // Invalidate cache so homepage shows updated listings
       fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
         console.error('Error invalidating cache:', err)
@@ -829,7 +843,7 @@ export default function AuctionDetailClient({
         router.push("/");
       }, 100);
     }
-  }, [isFinalizeConfirmed, router]);
+  }, [isFinalizeConfirmed, router, auction, address]);
 
   // Create notifications after successful bid
   useEffect(() => {
@@ -838,6 +852,9 @@ export default function AuctionDetailClient({
       // Format bid amount using the correct token decimals and symbol
       const bidAmountFormatted = bidAmount || '0';
       const previousBidder = auction.highestBid?.bidder;
+      
+      // Show share prompt for bidder
+      setShowBidSharePrompt(true);
       
       // Notify bidder
       fetch('/api/notifications', {
@@ -874,8 +891,16 @@ export default function AuctionDetailClient({
         }),
       }).catch(err => console.error('Error creating seller notification:', err));
       
-      // Notify previous bidder if they were outbid
+      // Show outbid notification for previous bidder if they were outbid
       if (previousBidder && previousBidder.toLowerCase() !== address.toLowerCase()) {
+        // Set outbid notification data
+        setOutbidData({
+          currentBid: bidAmount,
+          artworkName,
+        });
+        setShowOutbidNotification(true);
+        
+        // Also create notification
         fetch('/api/notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1196,6 +1221,81 @@ export default function AuctionDetailClient({
             </div>
           </div>
         )}
+        
+        {/* Outbid Notification */}
+        {showOutbidNotification && outbidData && (
+          <OutbidNotification
+            listingId={listingId}
+            auction={auction}
+            artworkName={outbidData.artworkName}
+            currentBid={outbidData.currentBid}
+            onDismiss={() => {
+              setShowOutbidNotification(false);
+              setOutbidData(null);
+            }}
+          />
+        )}
+        
+        {/* Bid Placed Share Prompt */}
+        {showBidSharePrompt && (
+          <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#333333] rounded-lg">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="text-white font-medium mb-1">Bid placed successfully! 🎉</h3>
+                <p className="text-[#999999] text-sm">Share your bid with the community</p>
+              </div>
+              <div className="flex gap-2">
+                <ShareableMomentButton
+                  momentType="bid-placed"
+                  listingId={listingId}
+                  auction={auction}
+                  bidAmount={bidAmount}
+                  buttonText="Share"
+                />
+                <button
+                  onClick={() => setShowBidSharePrompt(false)}
+                  className="text-[#666666] hover:text-[#999999] transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Auction Won Share Prompt */}
+        {showAuctionWonSharePrompt && (
+          <div className="mb-4 p-4 bg-[#0a0a0a] border border-green-500/50 rounded-lg">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="text-white font-medium mb-1">Congratulations! You won! ✨</h3>
+                <p className="text-[#999999] text-sm">Share your win with the community</p>
+              </div>
+              <div className="flex gap-2">
+                <ShareableMomentButton
+                  momentType="auction-won"
+                  listingId={listingId}
+                  auction={auction}
+                  salePrice={auction.highestBid?.amount}
+                  buttonText="Share"
+                />
+                <button
+                  onClick={() => setShowAuctionWonSharePrompt(false)}
+                  className="text-[#666666] hover:text-[#999999] transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Full width artwork */}
         <div className="mb-4">
           {auction.image ? (
@@ -1245,6 +1345,9 @@ export default function AuctionDetailClient({
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
                     text={shareText}
+                    listingId={listingId}
+                    artworkName={title}
+                    artistName={displayCreatorName || undefined}
                   />
                 </div>
               )}
@@ -1265,6 +1368,9 @@ export default function AuctionDetailClient({
                     url={typeof window !== "undefined" ? window.location.href : ""}
                     artworkUrl={auction.image || auction.metadata?.image || null}
                     text={shareText}
+                    listingId={listingId}
+                    artworkName={title}
+                    artistName={displayCreatorName || undefined}
                   />
                 </div>
               )}
@@ -1278,6 +1384,9 @@ export default function AuctionDetailClient({
                 url={typeof window !== "undefined" ? window.location.href : ""}
                 artworkUrl={auction.image || auction.metadata?.image || null}
                 text={`Check out ${title}!`}
+                listingId={listingId}
+                artworkName={title}
+                artistName={displayCreatorName || undefined}
               />
             </div>
           ) : null}

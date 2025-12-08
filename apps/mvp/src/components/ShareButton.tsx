@@ -5,15 +5,27 @@ import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { Share2 } from "lucide-react";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
+import { generateShareUrl, generateShareCastText } from "~/lib/share-moments";
 
 interface ShareButtonProps {
   url: string;
   artworkUrl?: string | null;
   text?: string;
   className?: string;
+  listingId?: string; // Optional listingId to use referral share endpoint
+  artworkName?: string;
+  artistName?: string;
 }
 
-export function ShareButton({ url, artworkUrl, text, className = "" }: ShareButtonProps) {
+export function ShareButton({ 
+  url, 
+  artworkUrl, 
+  text, 
+  className = "",
+  listingId,
+  artworkName,
+  artistName,
+}: ShareButtonProps) {
   const { isSDKLoaded } = useMiniApp();
   const primaryWallet = usePrimaryWallet();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,30 +39,45 @@ export function ShareButton({ url, artworkUrl, text, className = "" }: ShareButt
     try {
       setIsProcessing(true);
       
-      // Add referralId parameter to URL if user has a primary wallet
-      let shareUrl = url;
-      if (primaryWallet) {
-        try {
-          const urlObj = new URL(url);
-          // Ensure address has 0x prefix
-          const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
-          urlObj.searchParams.set('referralId', referralId);
-          shareUrl = urlObj.toString();
-        } catch (e) {
-          // If URL parsing fails, append query parameter manually
-          const separator = url.includes('?') ? '&' : '?';
-          const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
-          shareUrl = `${url}${separator}referralId=${referralId}`;
+      // If listingId is provided, use the referral share endpoint
+      let shareUrl: string;
+      let castText: string;
+      
+      if (listingId) {
+        // Use referral share endpoint
+        shareUrl = generateShareUrl("referral", listingId, primaryWallet || undefined);
+        castText = text || generateShareCastText("referral", {
+          listingId,
+          artworkName,
+          artistName,
+        });
+      } else {
+        // Use original URL with referralId
+        shareUrl = url;
+        if (primaryWallet) {
+          try {
+            const urlObj = new URL(url);
+            // Ensure address has 0x prefix
+            const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+            urlObj.searchParams.set('referralId', referralId);
+            shareUrl = urlObj.toString();
+          } catch (e) {
+            // If URL parsing fails, append query parameter manually
+            const separator = url.includes('?') ? '&' : '?';
+            const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+            shareUrl = `${url}${separator}referralId=${referralId}`;
+          }
         }
+        castText = text || "Check out this auction!";
       }
       
-      // Build embeds: artwork URL first, then miniapp URL
+      // Build embeds: artwork URL first, then share URL
       const embeds: [string] | [string, string] = artworkUrl
         ? [artworkUrl, shareUrl]
         : [shareUrl];
       
       await sdk.actions.composeCast({
-        text: text || "Check out this auction!",
+        text: castText,
         embeds,
       });
     } catch (error) {
@@ -58,7 +85,7 @@ export function ShareButton({ url, artworkUrl, text, className = "" }: ShareButt
     } finally {
       setIsProcessing(false);
     }
-  }, [isSDKLoaded, url, artworkUrl, text, primaryWallet]);
+  }, [isSDKLoaded, url, artworkUrl, text, primaryWallet, listingId, artworkName, artistName]);
 
   if (!isSDKLoaded) {
     return null;
