@@ -38,11 +38,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate size format
-    const validSizes = ['small', 'medium', 'large'];
+    const validSizes = ['small', 'medium', 'large', 'embed'];
     const customSizePattern = /^\d+x\d+$/;
     if (!validSizes.includes(size) && !customSizePattern.test(size)) {
       return NextResponse.json(
-        { error: 'Invalid size. Use "small", "medium", "large", or "WxH" format' },
+        { error: 'Invalid size. Use "small", "medium", "large", "embed", or "WxH" format' },
         { status: 400 }
       );
     }

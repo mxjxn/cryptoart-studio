@@ -182,13 +182,53 @@ function generateThumbnailKey(imageUrl: string, size: ThumbnailSize): string {
 }
 
 /**
+ * Calculate embed dimensions based on original image aspect ratio
+ * Fits within 1200x630 with 10px margin (max 1180x610)
+ */
+function calculateEmbedDimensions(originalWidth: number, originalHeight: number): { width: number; height: number } {
+  const maxWidth = 1180;  // 1200 - 20 (10px each side)
+  const maxHeight = 610;  // 630 - 20 (10px each side)
+  
+  const aspectRatio = originalWidth / originalHeight;
+  
+  let width: number;
+  let height: number;
+  
+  if (originalWidth > originalHeight) {
+    // Landscape: fit to width first
+    width = maxWidth;
+    height = maxWidth / aspectRatio;
+    if (height > maxHeight) {
+      // If height exceeds, fit to height instead
+      height = maxHeight;
+      width = maxHeight * aspectRatio;
+    }
+  } else {
+    // Portrait or square: fit to height first
+    height = maxHeight;
+    width = maxHeight * aspectRatio;
+    if (width > maxWidth) {
+      // If width exceeds, fit to width instead
+      width = maxWidth;
+      height = maxWidth / aspectRatio;
+    }
+  }
+  
+  return {
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+/**
  * Fetch and resize an image to create a thumbnail
  * Requires sharp library: npm install sharp
  */
 async function resizeImage(
   imageUrl: string,
-  dimensions: { width: number; height: number }
-): Promise<{ buffer: Buffer; contentType: string; fileSize: number }> {
+  dimensions: { width: number; height: number },
+  size?: string
+): Promise<{ buffer: Buffer; contentType: string; fileSize: number; actualDimensions?: { width: number; height: number } }> {
   // Try to import sharp
   let sharp: any;
   try {
@@ -212,19 +252,35 @@ async function resizeImage(
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
+  // For embed size, calculate dimensions based on original image aspect ratio
+  let finalDimensions = dimensions;
+  if (size === 'embed') {
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    if (metadata.width && metadata.height) {
+      finalDimensions = calculateEmbedDimensions(metadata.width, metadata.height);
+    }
+  }
+
   // Resize and optimize the image
   const resized = await sharp(buffer)
-    .resize(dimensions.width, dimensions.height, {
+    .resize(finalDimensions.width, finalDimensions.height, {
       fit: 'inside', // Maintain aspect ratio, fit within dimensions
       withoutEnlargement: true, // Don't enlarge small images
     })
     .webp({ quality: 85 }) // WebP format with 85% quality
     .toBuffer();
 
+  // Get actual output dimensions
+  const outputMetadata = await sharp(resized).metadata();
+
   return {
     buffer: resized,
     contentType: 'image/webp',
     fileSize: resized.length,
+    actualDimensions: outputMetadata.width && outputMetadata.height
+      ? { width: outputMetadata.width, height: outputMetadata.height }
+      : finalDimensions,
   };
 }
 
@@ -232,7 +288,7 @@ async function resizeImage(
  * Generate a thumbnail for an image URL
  * 
  * @param imageUrl - Original image URL
- * @param size - Thumbnail size ('small', 'medium', 'large', or 'WxH')
+ * @param size - Thumbnail size ('small', 'medium', 'large', 'embed', or 'WxH')
  * @returns URL to the cached thumbnail
  */
 export async function generateThumbnail(
@@ -244,11 +300,24 @@ export async function generateThumbnail(
     throw new Error('No storage backend configured. Set BLOB_READ_WRITE_TOKEN, S3_BUCKET, or R2_BUCKET environment variable.');
   }
 
-  const dimensions = getThumbnailDimensions(size);
+  // For embed size, we need to get original dimensions first
+  // For other sizes, use preset dimensions
+  let dimensions: { width: number; height: number };
+  if (size === 'embed') {
+    // We'll calculate dimensions in resizeImage based on original image
+    // Use max dimensions as placeholder
+    dimensions = { width: 1180, height: 610 };
+  } else {
+    dimensions = getThumbnailDimensions(size);
+  }
+
   const key = generateThumbnailKey(imageUrl, size);
 
-  // Resize the image
-  const { buffer, contentType, fileSize } = await resizeImage(imageUrl, dimensions);
+  // Resize the image (pass size for embed calculation)
+  const { buffer, contentType, fileSize, actualDimensions } = await resizeImage(imageUrl, dimensions, size);
+  
+  // Use actual dimensions for caching (important for embed size)
+  const finalDimensions = actualDimensions || dimensions;
 
   // Upload to storage
   const thumbnailUrl = await storage.upload(buffer, key, contentType);
@@ -258,7 +327,7 @@ export async function generateThumbnail(
     imageUrl,
     size,
     thumbnailUrl,
-    dimensions,
+    finalDimensions,
     contentType,
     fileSize
   );

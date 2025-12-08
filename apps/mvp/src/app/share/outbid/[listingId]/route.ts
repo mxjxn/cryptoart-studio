@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /**
  * Share endpoint for outbid moment
  * - Returns OG image when scraped by bots
- * - Redirects to listing page when clicked by users
+ * - Redirects to view page when clicked by users
  */
 export async function GET(
   request: NextRequest,
@@ -16,6 +16,7 @@ export async function GET(
   const { listingId } = await params;
   const userAgent = request.headers.get("user-agent") || "";
   const currentBid = request.nextUrl.searchParams.get("currentBid");
+  const referralId = request.nextUrl.searchParams.get("referralId");
 
   // Check if this is a bot/scraper request (for OG image)
   const isBot =
@@ -50,11 +51,13 @@ export async function GET(
     }
   }
 
-  // Regular user - redirect to listing page
+  // Regular user - redirect to view page
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-  const referralId = request.nextUrl.searchParams.get("referralId");
-  const redirectUrl = new URL(`${baseUrl}/auction/${listingId}`);
+  const redirectUrl = new URL(`${baseUrl}/share/outbid/${listingId}/view`);
   
+  if (currentBid) {
+    redirectUrl.searchParams.set("currentBid", currentBid);
+  }
   if (referralId) {
     redirectUrl.searchParams.set("referralId", referralId);
   }

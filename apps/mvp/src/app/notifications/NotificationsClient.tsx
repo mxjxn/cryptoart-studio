@@ -313,13 +313,24 @@ export default function NotificationsClient() {
                       {formatTimeAgo(new Date(notification.createdAt))}
                     </span>
                     {notification.listingId && (
-                      <Link
-                        href={`/listing/${notification.listingId}`}
-                        className="text-blue-600 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View listing
-                      </Link>
+                      <>
+                        {notification.type === 'OUTBID' ? (
+                          <Link
+                            href={`/share/outbid/${notification.listingId}/view${notification.metadata?.newBidAmount ? `?currentBid=${notification.metadata.newBidAmount}` : ''}`}
+                            className="text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View moment
+                          </Link>
+                        ) : null}
+                        <Link
+                          href={`/listing/${notification.listingId}`}
+                          className="text-blue-600 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View listing
+                        </Link>
+                      </>
                     )}
                   </div>
                 </div>

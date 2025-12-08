@@ -29,6 +29,7 @@ const SIZE_PRESETS: Record<string, ThumbnailDimensions> = {
   small: { width: 200, height: 200 },   // For list views, cards
   medium: { width: 500, height: 500 },  // For detail previews
   large: { width: 1000, height: 1000 }, // For full detail views
+  embed: { width: 1180, height: 610 },   // For embeds: fits within 1200x630 with 10px margin
 };
 
 /**

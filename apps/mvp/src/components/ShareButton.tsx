@@ -6,6 +6,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { Share2 } from "lucide-react";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { generateShareUrl, generateShareCastText } from "~/lib/share-moments";
+import { ShareImageCookingModal } from "~/components/ShareImageCookingModal";
 
 interface ShareButtonProps {
   url: string;
@@ -28,9 +29,18 @@ export function ShareButton({
 }: ShareButtonProps) {
   const { isSDKLoaded } = useMiniApp();
   const primaryWallet = usePrimaryWallet();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleShare = useCallback(async () => {
+  const handleOpenModal = useCallback(() => {
+    if (!isSDKLoaded) {
+      console.warn("SDK not loaded yet");
+      return;
+    }
+    setIsModalOpen(true);
+  }, [isSDKLoaded]);
+
+  const handleShare = useCallback(async (thumbnailUrl: string | null) => {
     if (!isSDKLoaded) {
       console.warn("SDK not loaded yet");
       return;
@@ -71,9 +81,9 @@ export function ShareButton({
         castText = text || "Check out this auction!";
       }
       
-      // Build embeds: artwork URL first, then share URL
-      const embeds: [string] | [string, string] = artworkUrl
-        ? [artworkUrl, shareUrl]
+      // Build embeds: thumbnail URL first (if available), then share URL
+      const embeds: [string] | [string, string] = thumbnailUrl
+        ? [thumbnailUrl, shareUrl]
         : [shareUrl];
       
       await sdk.actions.composeCast({
@@ -85,24 +95,49 @@ export function ShareButton({
     } finally {
       setIsProcessing(false);
     }
-  }, [isSDKLoaded, url, artworkUrl, text, primaryWallet, listingId, artworkName, artistName]);
+  }, [isSDKLoaded, url, text, primaryWallet, listingId, artworkName, artistName]);
 
   if (!isSDKLoaded) {
     return null;
   }
 
+  // Prepare share URL and text for modal
+  const shareUrl = listingId
+    ? generateShareUrl("referral", listingId, primaryWallet || undefined)
+    : url;
+  const castText = listingId
+    ? text || generateShareCastText("referral", {
+        listingId,
+        artworkName,
+        artistName,
+      })
+    : text || "Check out this auction!";
+
   return (
-    <button
-      onClick={handleShare}
-      disabled={isProcessing}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
-      title={isProcessing ? "Sharing..." : "Share a Cast"}
-      aria-label={isProcessing ? "Sharing cast" : "Share this listing as a cast"}
-      aria-busy={isProcessing}
-    >
-      <Share2 className="h-3 w-3" aria-hidden="true" />
-      {isProcessing ? "..." : "Share"}
-    </button>
+    <>
+      <button
+        onClick={handleOpenModal}
+        disabled={isProcessing}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className}`}
+        title="Share a Cast"
+        aria-label="Share this listing as a cast"
+        aria-busy={isProcessing}
+      >
+        <Share2 className="h-3 w-3" aria-hidden="true" />
+        Share
+      </button>
+
+      <ShareImageCookingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        artworkUrl={artworkUrl}
+        shareUrl={shareUrl}
+        castText={castText}
+        artworkName={artworkName}
+        artistName={artistName}
+        onShare={handleShare}
+      />
+    </>
   );
 }
 
