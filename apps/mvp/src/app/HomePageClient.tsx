@@ -7,6 +7,7 @@ import { Logo } from "~/components/Logo";
 import { RecentListingsTable } from "~/components/RecentListingsTable";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { FeaturedSections } from "~/components/FeaturedSections";
+import { FeaturedCarousel } from "~/components/FeaturedCarousel";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -94,7 +95,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         </section>
       )}
 
-      {/* Featured Sections */}
+      {/* Manual Featured Listings (Priority - Always Top) */}
+      <FeaturedCarousel />
+
+      {/* Featured Sections (Dynamic Sections) */}
       <FeaturedSections />
 
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
