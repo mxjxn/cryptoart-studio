@@ -30,6 +30,8 @@ import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils"
 import { UpdateListingForm } from "~/components/UpdateListingForm";
 import { TokenImage } from "~/components/TokenImage";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
+import { MetadataViewer } from "~/components/MetadataViewer";
+import { ContractDetails } from "~/components/ContractDetails";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -1137,8 +1139,16 @@ export default function AuctionDetailClient({
               sellerAddress={auction.seller}
             />
           </div>
-          {contractName && (
-            <div className="text-xs text-[#999999] mb-1">{contractName}</div>
+          {/* Collection name with metadata viewer */}
+          {auction.tokenAddress && auction.tokenId && (
+            <div className="mb-1">
+              <MetadataViewer
+                contractAddress={auction.tokenAddress as Address}
+                tokenId={auction.tokenId}
+                tokenSpec={auction.tokenSpec || "ERC721"}
+                collectionName={contractName || undefined}
+              />
+            </div>
           )}
           {displayCreatorName ? (
             <div className="text-xs text-[#cccccc] mb-1 flex items-center justify-between">
@@ -1221,6 +1231,14 @@ export default function AuctionDetailClient({
               </p>
             </div>
           )}
+          {/* Contract Details */}
+          {auction.tokenAddress && (
+            <ContractDetails
+              contractAddress={auction.tokenAddress as Address}
+              imageUrl={auction.image || auction.metadata?.image || null}
+            />
+          )}
+          
           {/* External Links & Token Info */}
           {(auction.tokenAddress || auction.tokenId) && (
             <div className="mb-4 flex gap-3 text-xs items-center">
@@ -1229,16 +1247,6 @@ export default function AuctionDetailClient({
                 <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-[#1a1a1a] border border-[#333333] text-[#cccccc]">
                   {auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2" ? "ERC-1155" : "ERC-721"}
                 </span>
-              )}
-              {auction.tokenAddress && (
-                <a
-                  href={`https://basescan.org/address/${auction.tokenAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#999999] hover:text-[#cccccc] hover:underline"
-                >
-                  Basescan
-                </a>
               )}
               {auction.tokenAddress && auction.tokenId && (
                 <a
