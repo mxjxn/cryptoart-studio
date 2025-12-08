@@ -16,7 +16,7 @@ export function AdminContextMenu({
   sellerAddress,
   isFeatured: propIsFeatured
 }: AdminContextMenuProps) {
-  const { isAdminModeEnabled } = useAdminMode();
+  const { isAdmin } = useAdminMode();
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
@@ -27,7 +27,7 @@ export function AdminContextMenu({
   const { data: featuredData } = useQuery({
     queryKey: ["admin", "featured"],
     queryFn: () => fetch("/api/admin/featured").then(r => r.json()),
-    enabled: !!listingId && isAdminModeEnabled,
+    enabled: !!listingId && isAdmin,
   });
 
   const isFeatured = propIsFeatured ?? (featuredData?.listings?.some((l: any) => l.listingId === listingId) ?? false);
@@ -46,7 +46,7 @@ export function AdminContextMenu({
     }
   }, [isOpen]);
 
-  if (!isAdminModeEnabled) {
+  if (!isAdmin) {
     return null;
   }
 
