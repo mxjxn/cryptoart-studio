@@ -16,15 +16,15 @@ interface GalleryWithCount extends CurationData {
 
 export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const { address, isConnected } = useAccount();
-  const { isAdmin } = useIsAdmin();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
 
-  // Only show for admins
-  if (!isAdmin) {
+  // Only show for admins - hide while loading to prevent flash
+  if (isAdminLoading || !isAdmin) {
     return null;
   }
 
