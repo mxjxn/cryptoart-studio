@@ -154,13 +154,24 @@ export const MARKETPLACE_ABI = [
     type: 'function',
     name: 'bid',
     inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'bidAmount', type: 'uint256', internalType: 'uint256' },
+      { name: 'increase', type: 'bool', internalType: 'bool' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'bid',
+    inputs: [
       { name: 'referrer', type: 'address', internalType: 'address payable' },
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
       { name: 'bidAmount', type: 'uint256', internalType: 'uint256' },
       { name: 'increase', type: 'bool', internalType: 'bool' },
     ],
     outputs: [],
-    stateMutability: 'payable',
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',

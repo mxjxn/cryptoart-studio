@@ -409,25 +409,48 @@ export default function AuctionDetailClient({
 
   const executeBidTransaction = useCallback(async (bidAmountBigInt: bigint) => {
     // Use increase=false to bid the exact amount sent
-    // Pass referrer if available and listing supports referrers
-    if (referrer) {
-      await placeBid({
-        address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
-        functionName: 'bid',
-        chainId: CHAIN_ID,
-        args: [referrer, Number(listingId), false] as const,
-        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-      });
+    // For ERC-20 tokens, we need to pass bidAmount as a parameter
+    // For ETH, we use msg.value (passed via the value field)
+    if (isPaymentETH) {
+      // ETH payment: use msg.value overload
+      if (referrer) {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [referrer, Number(listingId), false] as const,
+          value: bidAmountBigInt,
+        });
+      } else {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [Number(listingId), false] as const,
+          value: bidAmountBigInt,
+        });
+      }
     } else {
-      await placeBid({
-        address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
-        functionName: 'bid',
-        chainId: CHAIN_ID,
-        args: [Number(listingId), false] as const,
-        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-      });
+      // ERC-20 payment: pass bidAmount as parameter
+      if (referrer) {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [referrer, Number(listingId), bidAmountBigInt, false] as const,
+        });
+      } else {
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [Number(listingId), bidAmountBigInt, false] as const,
+        });
+      }
     }
   }, [referrer, listingId, isPaymentETH, placeBid]);
 

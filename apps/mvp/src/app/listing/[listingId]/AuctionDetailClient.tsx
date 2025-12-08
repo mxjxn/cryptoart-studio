@@ -437,14 +437,28 @@ export default function AuctionDetailClient({
       }
       
       // Use increase=false to bid the exact amount sent
-      await placeBid({
-        address: MARKETPLACE_ADDRESS,
-        abi: MARKETPLACE_ABI,
-        functionName: 'bid',
-        chainId: CHAIN_ID,
-        args: [Number(listingId), false],
-        value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-      });
+      // For ERC-20 tokens, we need to pass bidAmount as a parameter
+      // For ETH, we use msg.value (passed via the value field)
+      if (isPaymentETH) {
+        // ETH payment: use msg.value overload
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [Number(listingId), false],
+          value: bidAmountBigInt,
+        });
+      } else {
+        // ERC-20 payment: pass bidAmount as parameter
+        await placeBid({
+          address: MARKETPLACE_ADDRESS,
+          abi: MARKETPLACE_ABI,
+          functionName: 'bid',
+          chainId: CHAIN_ID,
+          args: [Number(listingId), bidAmountBigInt, false],
+        });
+      }
     } catch (err) {
       console.error("Error placing bid:", err);
       alert("Failed to place bid. Please try again.");
