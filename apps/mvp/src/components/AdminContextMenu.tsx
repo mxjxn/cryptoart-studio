@@ -115,22 +115,22 @@ export function AdminContextMenu({
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className="bg-black border-2 border-red-500 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-[#1a1a1a] transition-colors"
+        className="bg-black border-2 border-red-500 text-white px-2 py-1 rounded text-xs hover:bg-[#1a1a1a] transition-colors"
         disabled={isLoading}
         title="Admin Options"
       >
-        Admin
+        ...
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-10 z-50 bg-black border-2 border-red-500 rounded-lg shadow-lg min-w-[180px] py-1">
+        <div className="absolute right-0 top-8 z-50 bg-black border-2 border-red-500 rounded-lg shadow-lg min-w-[160px] py-1">
           {listingId && (
             <>
               {isFeatured ? (
                 <button
                   onClick={handleRemoveFromFeatured}
                   disabled={isLoading}
-                  className="w-full text-left px-4 py-2 text-sm text-white hover:bg-[#333333] transition-colors"
+                  className="w-full text-left px-3 py-2 text-xs text-white hover:bg-[#333333] transition-colors"
                 >
                   Remove from Featured
                 </button>
@@ -138,7 +138,7 @@ export function AdminContextMenu({
                 <button
                   onClick={handleAddToFeatured}
                   disabled={isLoading}
-                  className="w-full text-left px-4 py-2 text-sm text-white hover:bg-[#333333] transition-colors"
+                  className="w-full text-left px-3 py-2 text-xs text-white hover:bg-[#333333] transition-colors"
                 >
                   Add to Featured
                 </button>
@@ -149,19 +149,10 @@ export function AdminContextMenu({
             <button
               onClick={handleHideUser}
               disabled={isLoading}
-              className="w-full text-left px-4 py-2 text-sm text-white hover:bg-[#333333] transition-colors"
+              className="w-full text-left px-3 py-2 text-xs text-white hover:bg-[#333333] transition-colors"
             >
               Hide User
             </button>
-          )}
-          {listingId && (
-            <a
-              href={`/admin/featured`}
-              className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-[#333333] transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              Admin Dashboard
-            </a>
           )}
         </div>
       )}
