@@ -396,15 +396,25 @@ export async function GET(
                 continue;
               }
               
-              // Validate it's actually image data (check magic bytes)
-              const magicBytes = buffer.subarray(0, 4);
+              // Validate image format (check magic bytes)
+              const magicBytes = buffer.subarray(0, 12);
               const isValidImage = 
-                magicBytes[0] === 0xFF && magicBytes[1] === 0xD8 && magicBytes[2] === 0xFF || // JPEG
-                magicBytes[0] === 0x89 && magicBytes[1] === 0x50 && magicBytes[2] === 0x4E && magicBytes[3] === 0x47 || // PNG
-                magicBytes[0] === 0x47 && magicBytes[1] === 0x49 && magicBytes[2] === 0x46; // GIF
+                // JPEG: FF D8 FF
+                (magicBytes[0] === 0xFF && magicBytes[1] === 0xD8 && magicBytes[2] === 0xFF) ||
+                // PNG: 89 50 4E 47
+                (magicBytes[0] === 0x89 && magicBytes[1] === 0x50 && magicBytes[2] === 0x4E && magicBytes[3] === 0x47) ||
+                // GIF: 47 49 46 38 (GIF8)
+                (magicBytes[0] === 0x47 && magicBytes[1] === 0x49 && magicBytes[2] === 0x46 && magicBytes[3] === 0x38) ||
+                // WebP: RIFF....WEBP (52 49 46 46 ... 57 45 42 50)
+                (magicBytes[0] === 0x52 && magicBytes[1] === 0x49 && magicBytes[2] === 0x46 && magicBytes[3] === 0x46 &&
+                 buffer.length >= 12 && 
+                 magicBytes[8] === 0x57 && magicBytes[9] === 0x45 && magicBytes[10] === 0x42 && magicBytes[11] === 0x50);
               
               if (!isValidImage) {
-                console.warn(`[OG Image] Response doesn't appear to be valid image data for ${url}, trying next gateway...`);
+                const hexBytes = Array.from(magicBytes.slice(0, 12))
+                  .map(b => '0x' + b.toString(16).padStart(2, '0'))
+                  .join(' ');
+                console.warn(`[OG Image] Invalid image format for listing ${listingId} from ${url}. Magic bytes: ${hexBytes}, Content-Type: ${contentType}, Size: ${buffer.length} bytes`);
                 continue;
               }
               
