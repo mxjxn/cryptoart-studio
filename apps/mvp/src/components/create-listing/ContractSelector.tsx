@@ -18,6 +18,7 @@ interface ContractSelectorProps {
 /**
  * ContractSelector component for page 1 of the create listing wizard
  * Displays cached contracts with instant loading
+ * Manual input is always available
  */
 export function ContractSelector({
   selectedContract,
@@ -28,7 +29,6 @@ export function ContractSelector({
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
   const [manualAddress, setManualAddress] = useState("");
-  const [useManualInput, setUseManualInput] = useState(false);
 
   // Fetch cached contracts on mount
   useEffect(() => {
@@ -77,19 +77,26 @@ export function ContractSelector({
 
   const handleContractSelect = (contract: Contract) => {
     onSelectContract(contract.address, contract.tokenType as "ERC721" | "ERC1155");
-    setUseManualInput(false);
+    // Clear manual input when selecting from grid
     setManualAddress("");
   };
 
   const handleManualSubmit = () => {
     if (manualAddress && /^0x[a-fA-F0-9]{40}$/i.test(manualAddress)) {
       onManualInput(manualAddress);
-      setUseManualInput(false);
     }
   };
 
+  const handleManualKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && manualAddress && /^0x[a-fA-F0-9]{40}$/i.test(manualAddress)) {
+      handleManualSubmit();
+    }
+  };
+
+  const isValidAddress = manualAddress && /^0x[a-fA-F0-9]{40}$/i.test(manualAddress);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
         <h2 className="text-xl font-light mb-2">Select Contract</h2>
         <p className="text-sm text-[#999999] mb-4">
@@ -97,25 +104,15 @@ export function ContractSelector({
         </p>
       </div>
 
+      {/* Contract Grid - Only show if contracts exist */}
       {loading && contracts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <div className="h-8 w-8 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-[#999999]">Loading your contracts...</p>
         </div>
-      ) : contracts.length === 0 ? (
-        <div className="bg-[#1a1a1a] border border-[#333333] rounded-lg p-6 text-center">
-          <p className="text-[#999999] mb-4">No contracts found. Enter a contract address manually.</p>
-          <button
-            type="button"
-            onClick={() => setUseManualInput(true)}
-            className="px-4 py-2 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors"
-          >
-            Enter Contract Address
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* Contract Grid */}
+      ) : contracts.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-[#cccccc] mb-3">Your Deployed Contracts</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {contracts.map((contract) => (
               <button
@@ -150,57 +147,46 @@ export function ContractSelector({
               </button>
             ))}
           </div>
-
-          {/* Manual Input Option */}
-          {!useManualInput ? (
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => setUseManualInput(true)}
-                className="text-sm text-[#999999] hover:text-[#cccccc] transition-colors"
-              >
-                Or enter contract address manually
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
-              <label className="block text-sm font-medium text-[#cccccc] mb-2">
-                Contract Address
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={manualAddress}
-                  onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder="0x..."
-                  className="flex-1 px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black font-mono text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleManualSubmit}
-                  disabled={!manualAddress || !/^0x[a-fA-F0-9]{40}$/i.test(manualAddress)}
-                  className="px-4 py-2 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Use
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUseManualInput(false);
-                    setManualAddress("");
-                  }}
-                  className="px-4 py-2 bg-[#333333] text-white text-sm font-medium rounded hover:bg-[#444444] transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-              {manualAddress && !/^0x[a-fA-F0-9]{40}$/i.test(manualAddress) && (
-                <p className="text-xs text-red-400">Invalid address format</p>
-              )}
-            </div>
-          )}
-        </>
+        </div>
       )}
+
+      {/* Manual Input - Always visible */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 border-t border-[#333333]"></div>
+          <span className="text-sm text-[#999999]">Or</span>
+          <div className="flex-1 border-t border-[#333333]"></div>
+        </div>
+        <label className="block text-sm font-medium text-[#cccccc] mb-2">
+          Enter Contract Address Manually
+        </label>
+        <div className="bg-[#1a1a1a] border border-[#333333] rounded-lg p-4 space-y-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualAddress}
+              onChange={(e) => setManualAddress(e.target.value)}
+              onKeyDown={handleManualKeyDown}
+              placeholder="0x..."
+              className="flex-1 px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black font-mono text-sm placeholder:text-[#666666]"
+            />
+            <button
+              type="button"
+              onClick={handleManualSubmit}
+              disabled={!isValidAddress}
+              className="px-6 py-2 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              Use Address
+            </button>
+          </div>
+          {manualAddress && !isValidAddress && (
+            <p className="text-xs text-red-400">Invalid address format. Please enter a valid 0x address.</p>
+          )}
+          {isValidAddress && (
+            <p className="text-xs text-green-400">✓ Valid address format</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
