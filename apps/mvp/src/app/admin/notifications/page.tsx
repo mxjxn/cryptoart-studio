@@ -90,6 +90,10 @@ export default function NotificationsAdminPage() {
   const [testTitle, setTestTitle] = useState<string>('Test Notification');
   const [testBody, setTestBody] = useState<string>('This is a test notification from the admin panel');
   
+  // Notification token checker state
+  const [checkFids, setCheckFids] = useState<string>('');
+  const [tokenCheckResults, setTokenCheckResults] = useState<any>(null);
+  
   const { data: settings, isLoading } = useQuery({
     queryKey: ['admin', 'notification-settings'],
     queryFn: () => fetch(`/api/admin/notifications/settings?adminAddress=${address}`).then(r => r.json()),
@@ -140,6 +144,54 @@ export default function NotificationsAdminPage() {
     },
     onError: (error: Error) => {
       alert(`Error: ${error.message}`);
+    },
+  });
+  
+  const checkTokens = useMutation({
+    mutationFn: async () => {
+      if (!checkFids.trim()) {
+        throw new Error('Please enter at least one FID');
+      }
+      
+      // Parse FIDs from comma-separated string
+      const fids = checkFids
+        .split(',')
+        .map(fid => fid.trim())
+        .filter(fid => fid.length > 0)
+        .map(fid => {
+          const num = parseInt(fid, 10);
+          if (isNaN(num)) {
+            throw new Error(`Invalid FID: ${fid}`);
+          }
+          return num;
+        });
+      
+      if (fids.length === 0) {
+        throw new Error('No valid FIDs provided');
+      }
+      
+      const response = await fetch('/api/admin/notifications/check-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fids,
+          adminAddress: address,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to check notification tokens');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setTokenCheckResults(data);
+    },
+    onError: (error: Error) => {
+      alert(`Error: ${error.message}`);
+      setTokenCheckResults(null);
     },
   });
   
@@ -217,6 +269,98 @@ export default function NotificationsAdminPage() {
           >
             {sendTestNotification.isPending ? 'Sending...' : 'Send Test Notification'}
           </button>
+        </div>
+      </div>
+
+      {/* Check Notification Tokens Section */}
+      <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">
+        <h3 className="font-semibold text-[var(--color-text)] mb-4">Check Notification Tokens</h3>
+        <p className="text-sm text-[var(--color-secondary)] mb-4">
+          Check if users have registered notification tokens with Neynar. This helps debug why notifications show 0 recipients.
+        </p>
+        
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-[var(--color-text)] mb-1">
+              Farcaster IDs (FIDs) - comma separated
+            </label>
+            <input
+              type="text"
+              value={checkFids}
+              onChange={(e) => setCheckFids(e.target.value)}
+              placeholder="Enter FIDs (e.g., 4905, 1234, 5678)"
+              className="w-full px-3 py-2 bg-[var(--color-background)] border border-[var(--color-border)] text-[var(--color-text)] rounded"
+            />
+            <p className="text-xs text-[var(--color-secondary)] mt-1">
+              Enter one or more FIDs separated by commas
+            </p>
+          </div>
+          
+          <button
+            onClick={() => checkTokens.mutate()}
+            disabled={checkTokens.isPending || !checkFids.trim()}
+            className="px-4 py-2 bg-[var(--color-primary)] text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {checkTokens.isPending ? 'Checking...' : 'Check Tokens'}
+          </button>
+          
+          {tokenCheckResults && (
+            <div className="mt-4 space-y-3">
+              <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-3 rounded">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-[var(--color-text)]">Summary</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <span className="text-[var(--color-secondary)]">Total:</span>
+                    <span className="ml-2 text-[var(--color-text)]">{tokenCheckResults.summary.total}</span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--color-secondary)]">With Tokens:</span>
+                    <span className="ml-2 text-green-400">{tokenCheckResults.summary.withTokens}</span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--color-secondary)]">Without Tokens:</span>
+                    <span className="ml-2 text-red-400">{tokenCheckResults.summary.withoutTokens}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-[var(--color-text)]">Results by FID:</div>
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {tokenCheckResults.results.map((result: any) => (
+                    <div
+                      key={result.fid}
+                      className="flex items-center justify-between p-2 bg-[var(--color-background)] border border-[var(--color-border)] rounded text-sm"
+                    >
+                      <span className="text-[var(--color-text)]">FID {result.fid}</span>
+                      {result.hasToken ? (
+                        <span className="text-green-400 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                          Has token{result.tokenCount && result.tokenCount > 1 ? `s (${result.tokenCount})` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-red-400 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                          No token
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {tokenCheckResults.summary.withoutTokens > 0 && (
+                <div className="bg-yellow-900/20 border border-yellow-500/30 p-3 rounded">
+                  <p className="text-sm text-yellow-400">
+                    <strong>Note:</strong> Users without tokens need to add the mini app to their Farcaster client and enable notifications.
+                    Check that your manifest webhookUrl is correctly configured and refresh the manifest in Farcaster clients.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       
