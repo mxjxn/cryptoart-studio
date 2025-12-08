@@ -14,6 +14,9 @@
  *   0005_optimize_indexes.sql - Optimize database indexes for reduced disk IO
  *   0006_add_notification_tokens.sql - Notification tokens table for Farcaster Mini App notifications
  *   0007_add_listing_page_status.sql - Listing page status table for tracking page generation
+ *   0008_add_token_image_cache.sql - Token image cache table
+ *   0009_add_featured_sections.sql - Featured sections and items tables for dynamic homepage curation
+ *   0010_add_curation_items.sql - Curation items table for user galleries
  */
 
 import { config } from 'dotenv';
