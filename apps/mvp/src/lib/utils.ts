@@ -59,6 +59,25 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Format a number with commas for thousands separators
+ * Example: 5000000 -> "5,000,000"
+ */
+export function formatNumberWithCommas(num: number | string | bigint): string {
+  const numStr = typeof num === 'bigint' ? num.toString() : String(num);
+  
+  // Split into whole and fractional parts
+  const parts = numStr.split('.');
+  const wholePart = parts[0];
+  const fractionalPart = parts[1] || '';
+  
+  // Add commas to whole part
+  const formattedWhole = wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  
+  // Return with fractional part if it exists
+  return fractionalPart ? `${formattedWhole}.${fractionalPart}` : formattedWhole;
+}
+
+/**
  * Get BaseScan URL for a transaction hash
  */
 export function getBaseScanUrl(hash: string): string {

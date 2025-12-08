@@ -22,7 +22,9 @@ export {
   // Allowlist tables
   pendingAllowlistSignatures,
   // Listing page status
-  listingPageStatus
+  listingPageStatus,
+  // Token image cache
+  tokenImageCache
 } from './client';
 export type { 
   UserCacheData, 
@@ -45,7 +47,9 @@ export type {
   GlobalNotificationSettingsData,
   UserNotificationPreferencesData,
   // Allowlist types
-  PendingAllowlistSignatureData
+  PendingAllowlistSignatureData,
+  // Token image cache types
+  TokenImageCacheData
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

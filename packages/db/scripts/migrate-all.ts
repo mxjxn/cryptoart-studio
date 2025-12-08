@@ -48,6 +48,7 @@ const MIGRATIONS = [
   '0005_optimize_indexes.sql',
   '0006_add_notification_tokens.sql',
   '0007_add_listing_page_status.sql',
+  '0008_add_token_image_cache.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

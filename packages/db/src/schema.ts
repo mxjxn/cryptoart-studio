@@ -625,3 +625,29 @@ export interface ListingPageStatusData {
   errorMessage?: string | null;
   lastCheckedAt?: Date | null;
 }
+
+// ============================================
+// TOKEN IMAGE CACHE
+// ============================================
+
+/**
+ * Token image cache table - Cache ERC20 token logo images
+ * Used to avoid repeated API calls to CoinGecko and other sources
+ */
+export const tokenImageCache = pgTable('token_image_cache', {
+  tokenAddress: text('token_address').primaryKey().notNull(), // ERC20 token address (lowercase)
+  imageUrl: text('image_url'), // Cached image URL (null if not found)
+  expiresAt: timestamp('expires_at').notNull(), // Cache expiration (30 days)
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  expiresAtIdx: index('token_image_cache_expires_at_idx').on(table.expiresAt),
+}));
+
+export interface TokenImageCacheData {
+  tokenAddress: string;
+  imageUrl: string | null;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}

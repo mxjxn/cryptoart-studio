@@ -38,15 +38,18 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   // Determine decimals for formatting (ETH uses 18, use token's decimals otherwise)
   const tokenDecimals = isETH(auction.erc20) ? 18 : (erc20Token.decimals || 18);
   
-  // Format price based on token decimals
+  // Format price based on token decimals with commas
   const formatPrice = (amount: string): string => {
     const value = BigInt(amount || "0");
     const divisor = BigInt(10 ** tokenDecimals);
     const wholePart = value / divisor;
     const fractionalPart = value % divisor;
     
+    // Format whole part with commas
+    const wholePartFormatted = wholePart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
     if (fractionalPart === BigInt(0)) {
-      return wholePart.toString();
+      return wholePartFormatted;
     }
     
     let fractionalStr = fractionalPart.toString().padStart(tokenDecimals, "0");
@@ -55,7 +58,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
       fractionalStr = fractionalStr.slice(0, 4);
     }
     
-    return `${wholePart}.${fractionalStr}`;
+    return `${wholePartFormatted}.${fractionalStr}`;
   };
 
   // Determine price display based on listing type

@@ -22,7 +22,9 @@ import {
   // Allowlist tables
   pendingAllowlistSignatures,
   // Listing page status
-  listingPageStatus
+  listingPageStatus,
+  // Token image cache
+  tokenImageCache
 } from './schema';
 
 // Database client singleton
@@ -94,7 +96,9 @@ export {
   // Allowlist tables
   pendingAllowlistSignatures,
   // Listing page status
-  listingPageStatus
+  listingPageStatus,
+  // Token image cache
+  tokenImageCache
 } from './schema';
 export type { 
   UserCacheData, 
@@ -117,5 +121,7 @@ export type {
   GlobalNotificationSettingsData,
   UserNotificationPreferencesData,
   // Allowlist types
-  PendingAllowlistSignatureData
+  PendingAllowlistSignatureData,
+  // Token image cache types
+  TokenImageCacheData
 } from './schema';

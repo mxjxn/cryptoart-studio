@@ -28,6 +28,7 @@ import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
 import { UpdateListingForm } from "~/components/UpdateListingForm";
+import { TokenImage } from "~/components/TokenImage";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -286,15 +287,18 @@ export default function AuctionDetailClient({
   const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
   
-  // Format price for display
+  // Format price for display with commas
   const formatPrice = (amount: string): string => {
     const value = BigInt(amount || "0");
     const divisor = BigInt(10 ** paymentDecimals);
     const wholePart = value / divisor;
     const fractionalPart = value % divisor;
     
+    // Format whole part with commas
+    const wholePartFormatted = wholePart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
     if (fractionalPart === BigInt(0)) {
-      return wholePart.toString();
+      return wholePartFormatted;
     }
     
     let fractionalStr = fractionalPart.toString().padStart(paymentDecimals, "0");
@@ -303,7 +307,7 @@ export default function AuctionDetailClient({
       fractionalStr = fractionalStr.slice(0, 6);
     }
     
-    return `${wholePart}.${fractionalStr}`;
+    return `${wholePartFormatted}.${fractionalStr}`;
   };
 
   // Calculate minimum bid amount
@@ -1411,8 +1415,10 @@ export default function AuctionDetailClient({
                     <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-sm text-[#cccccc]">Price Per Copy</span>
-                        <span className="text-lg font-medium text-white">
-                          {formatPrice(auction.initialAmount)} {paymentSymbol}
+                        <span className="text-lg font-medium text-white flex items-center gap-1.5">
+                          {formatPrice(auction.initialAmount)} 
+                          <TokenImage tokenAddress={auction.erc20} size={20} className="ml-0.5" />
+                          <span>{paymentSymbol}</span>
                         </span>
                       </div>
                       {auction.tokenSpec === "ERC1155" && (
@@ -1425,8 +1431,14 @@ export default function AuctionDetailClient({
                           </div>
                           <div className="flex justify-between items-center mt-2">
                             <span className="text-sm text-[#cccccc]">Total Price</span>
-                            <span className="text-sm font-medium text-white">
-                              {auction.initialAmount ? formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString()) : '—'} {auction.initialAmount ? paymentSymbol : ''}
+                            <span className="text-sm font-medium text-white flex items-center gap-1.5">
+                              {auction.initialAmount ? formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString()) : '—'} 
+                              {auction.initialAmount && (
+                                <>
+                                  <TokenImage tokenAddress={auction.erc20} size={16} />
+                                  <span>{paymentSymbol}</span>
+                                </>
+                              )}
                             </span>
                           </div>
                         </>
@@ -1545,7 +1557,11 @@ export default function AuctionDetailClient({
                         >
                           <div>
                             <p className="text-sm text-white font-medium">
-                              {formatPrice(offer.amount)} {paymentSymbol}
+                              <span className="flex items-center gap-1.5">
+                                {formatPrice(offer.amount)} 
+                                <TokenImage tokenAddress={auction.erc20} size={14} />
+                                <span>{paymentSymbol}</span>
+                              </span>
                             </p>
                             <p className="text-xs text-[#999999] font-mono">
                               {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)}
@@ -1586,9 +1602,23 @@ export default function AuctionDetailClient({
                 <>
                   {/* Compact auction info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
-                    <span>{formatPrice(auction.initialAmount)} {paymentSymbol} reserve</span>
+                    <span className="flex items-center gap-1.5">
+                      {formatPrice(auction.initialAmount)} 
+                      <TokenImage tokenAddress={auction.erc20} size={14} />
+                      <span>{paymentSymbol} reserve</span>
+                    </span>
                     <span className="text-[#444]">•</span>
-                    <span>{auction.highestBid ? `${formatPrice(currentPrice)} ${paymentSymbol} high` : "No bids"}</span>
+                    <span className="flex items-center gap-1.5">
+                      {auction.highestBid ? (
+                        <>
+                          {formatPrice(currentPrice)} 
+                          <TokenImage tokenAddress={auction.erc20} size={14} />
+                          <span>{paymentSymbol} high</span>
+                        </>
+                      ) : (
+                        "No bids"
+                      )}
+                    </span>
                     <span className="text-[#444]">•</span>
                     <span>{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>
                     <span className="text-[#444]">•</span>
@@ -1635,6 +1665,7 @@ export default function AuctionDetailClient({
                             isHighest={index === 0}
                             paymentSymbol={paymentSymbol}
                             formatPrice={formatPrice}
+                            tokenAddress={auction.erc20}
                           />
                         ))}
                       </div>
@@ -1652,7 +1683,11 @@ export default function AuctionDetailClient({
                 <>
                   {/* Compact fixed price info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
-                    <span>{formatPrice(auction.initialAmount)} {paymentSymbol}</span>
+                    <span className="flex items-center gap-1.5">
+                      {formatPrice(auction.initialAmount)} 
+                      <TokenImage tokenAddress={auction.erc20} size={16} />
+                      <span>{paymentSymbol}</span>
+                    </span>
                     {auction.tokenSpec === "ERC1155" && (
                       <>
                         <span className="text-[#444]">•</span>
@@ -1806,11 +1841,13 @@ function BidHistoryRow({
   isHighest,
   paymentSymbol,
   formatPrice,
+  tokenAddress,
 }: {
   bid: { id: string; bidder: string; amount: string; timestamp: string };
   isHighest: boolean;
   paymentSymbol: string;
   formatPrice: (amount: string) => string;
+  tokenAddress: string | undefined;
 }) {
   const { artistName } = useArtistName(bid.bidder, undefined, undefined);
   const { username } = useUsername(bid.bidder);
@@ -1824,7 +1861,11 @@ function BidHistoryRow({
           <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white rounded">HIGH</span>
         )}
         <span className="text-white font-medium">
-          {formatPrice(bid.amount)} {paymentSymbol}
+          <span className="flex items-center gap-1.5">
+            {formatPrice(bid.amount)} 
+            <TokenImage tokenAddress={tokenAddress} size={14} />
+            <span>{paymentSymbol}</span>
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-2 text-[#999999]">
