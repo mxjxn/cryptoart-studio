@@ -34,6 +34,7 @@ import { TokenImage } from "~/components/TokenImage";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
 import { MetadataViewer } from "~/components/MetadataViewer";
 import { ContractDetails } from "~/components/ContractDetails";
+import { BuyersList } from "~/components/BuyersList";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -1088,6 +1089,25 @@ export default function AuctionDetailClient({
         }),
       }).catch(err => console.error('Error creating seller notification:', err));
       
+      // Optimistically add buyer to buyers list
+      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
+      const buyerData = {
+        address: address.toLowerCase(),
+        totalCount: purchaseQuantity,
+        firstPurchase: currentTimestamp,
+        lastPurchase: currentTimestamp,
+        username: null,
+        displayName: null,
+        pfpUrl: null,
+        fid: null,
+      };
+      
+      // Trigger optimistic update in BuyersList component
+      const handler = (window as any)[`buyerAdded_${listingId}`];
+      if (handler) {
+        handler(buyerData);
+      }
+      
       router.refresh();
       setTimeout(() => {
         router.push("/");
@@ -1965,6 +1985,9 @@ export default function AuctionDetailClient({
                       </TransitionLink>
                     ) : null}
                   </div>
+
+                  {/* Buyers List */}
+                  <BuyersList listingId={listingId} />
                 </>
               );
             })()}
