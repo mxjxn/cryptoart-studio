@@ -23,8 +23,20 @@ type AccountAssociation = {
 };
 
 // Updated Manifest type definition with all optional fields
+// Note: Neynar requires 'frame' object for webhookUrl to work properly
+// We include both 'frame' and 'miniapp' for maximum compatibility
 type Manifest = {
   accountAssociation: AccountAssociation | null;
+  // Neynar requires 'frame' object for webhook events
+  frame: {
+    version: string;
+    name: string;
+    homeUrl: string;
+    iconUrl: string;
+    splashImageUrl: string;
+    splashBackgroundColor: string;
+    webhookUrl: string;
+  };
   miniapp: {
     version: string;
     name: string;
@@ -163,8 +175,21 @@ export async function getFarcasterDomainManifest(): Promise<Manifest> {
     ? APP_DESCRIPTION.slice(0, 97) + '...'
     : APP_DESCRIPTION;
 
+  // Neynar requires 'frame' object for webhook events to work properly
+  // We include both 'frame' and 'miniapp' for maximum compatibility
+  const frameConfig = {
+    version: '4.2.0', // Neynar docs specify version 4.2.0
+    name: APP_NAME,
+    homeUrl: APP_URL,
+    iconUrl: APP_ICON_URL,
+    splashImageUrl: APP_SPLASH_URL,
+    splashBackgroundColor: APP_SPLASH_BACKGROUND_COLOR,
+    webhookUrl: APP_WEBHOOK_URL, // Critical: Neynar webhook URL must be in 'frame' object
+  };
+
   return {
     accountAssociation: APP_ACCOUNT_ASSOCIATION ?? null,
+    frame: frameConfig,
     miniapp: {
       version: '1',
       name: APP_NAME,

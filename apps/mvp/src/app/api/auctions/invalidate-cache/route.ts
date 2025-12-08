@@ -16,15 +16,16 @@ export async function POST(req: NextRequest) {
       // Body is optional, continue without it
     }
 
-    // Revalidate the homepage path and API routes
+    // Revalidate the homepage path
     revalidatePath('/');
     // Revalidate the browse listings API route to clear HTTP cache
     revalidatePath('/api/listings/browse');
     
     // If listingId is provided, revalidate the specific listing page and API endpoint
+    // revalidatePath also invalidates unstable_cache for that route
     if (listingId) {
       revalidatePath(`/listing/${listingId}`);
-      // Also revalidate the API endpoint for this specific listing
+      // Revalidate the API endpoint - this clears both HTTP cache and unstable_cache
       revalidatePath(`/api/auctions/${listingId}`);
     }
     

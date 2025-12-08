@@ -278,9 +278,18 @@ async function sendBatchedPushNotification(
     // Check if notifications were actually delivered
     const deliveredCount = result.notification_deliveries?.length || 0;
     if (deliveredCount === 0) {
-      console.warn(`[neynar-notifications] No notifications delivered. Users may not have added the app or enabled notifications.`);
+      console.warn(`[neynar-notifications] ⚠️  No notifications delivered to any of ${fids.length} FIDs.`);
+      console.warn(`[neynar-notifications] Possible reasons:`);
+      console.warn(`  - Users haven't added the mini app to their Farcaster client`);
+      console.warn(`  - Users haven't enabled notifications for the mini app`);
+      console.warn(`  - Webhook URL in manifest may not be configured correctly`);
+      console.warn(`  - Manifest may need to be refreshed in Farcaster client (check domain status)`);
+      console.warn(`[neynar-notifications] Check Neynar dashboard to see registered notification tokens.`);
     } else {
-      console.log(`[neynar-notifications] Successfully delivered ${deliveredCount} notification(s)`);
+      console.log(`[neynar-notifications] ✅ Successfully delivered ${deliveredCount} notification(s) out of ${fids.length} FIDs`);
+      if (deliveredCount < fids.length) {
+        console.warn(`[neynar-notifications] ⚠️  ${fids.length - deliveredCount} FIDs did not receive notification (app not added or notifications disabled)`);
+      }
     }
     
     // Record push sent for rate limiting (only on success)
@@ -390,6 +399,64 @@ export async function sendPushNotification(
       console.error(`[neynar-notifications] Error sending notification to FID ${fid}:`, error);
       throw error;
     }
+  }
+}
+
+/**
+ * Check notification tokens registered with Neynar for specific FIDs
+ * Useful for debugging why notifications aren't being delivered
+ * 
+ * @param fids - Array of FIDs to check
+ * @returns Array of notification tokens for the FIDs
+ */
+export async function checkNotificationTokens(fids: number[]): Promise<{
+  fid: number;
+  hasToken: boolean;
+  tokenCount?: number;
+}[]> {
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) {
+    console.warn('[neynar-notifications] NEYNAR_API_KEY not configured');
+    return fids.map(fid => ({ fid, hasToken: false }));
+  }
+
+  try {
+    // Neynar API to list frame notification tokens
+    // See: https://docs.neynar.com/reference/list-frame-notification-tokens
+    const url = `https://api.neynar.com/v2/farcaster/frame/notifications/tokens?fids=${fids.join(',')}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Neynar API error: ${response.status} ${errorText}`);
+    }
+    
+    const result = await response.json();
+    
+    // Map results to FIDs
+    const tokenMap = new Map<number, number>();
+    if (result.tokens && Array.isArray(result.tokens)) {
+      for (const token of result.tokens) {
+        const fid = token.fid;
+        tokenMap.set(fid, (tokenMap.get(fid) || 0) + 1);
+      }
+    }
+    
+    return fids.map(fid => ({
+      fid,
+      hasToken: tokenMap.has(fid),
+      tokenCount: tokenMap.get(fid),
+    }));
+  } catch (error) {
+    console.error(`[neynar-notifications] Error checking notification tokens:`, error);
+    return fids.map(fid => ({ fid, hasToken: false }));
   }
 }
 
