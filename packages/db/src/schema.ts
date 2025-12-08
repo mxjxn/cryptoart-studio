@@ -591,3 +591,37 @@ export interface PendingAllowlistSignatureData {
   submittedAt?: Date | null;
   transactionHash?: string | null;
 }
+
+// ============================================
+// LISTING PAGE STATUS
+// ============================================
+
+/**
+ * Listing page status table - Track when listing pages are ready to view
+ * Used to show "building" state while page is being generated
+ */
+export const listingPageStatus = pgTable('listing_page_status', {
+  listingId: text('listing_id').primaryKey().notNull(), // On-chain listing ID
+  status: text('status').notNull().default('building'), // 'building' | 'ready' | 'error'
+  sellerAddress: text('seller_address').notNull(), // Seller address for notifications
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  readyAt: timestamp('ready_at'), // When page became ready
+  errorMessage: text('error_message'), // Error message if status is 'error'
+  lastCheckedAt: timestamp('last_checked_at'), // Last time we checked if page is ready
+}, (table) => ({
+  statusIdx: index('listing_page_status_status_idx').on(table.status),
+  sellerAddressIdx: index('listing_page_status_seller_address_idx').on(table.sellerAddress),
+  createdAtIdx: index('listing_page_status_created_at_idx').on(table.createdAt),
+}));
+
+export type ListingPageStatus = 'building' | 'ready' | 'error';
+
+export interface ListingPageStatusData {
+  listingId: string;
+  status: ListingPageStatus;
+  sellerAddress: string;
+  createdAt: Date;
+  readyAt?: Date | null;
+  errorMessage?: string | null;
+  lastCheckedAt?: Date | null;
+}
