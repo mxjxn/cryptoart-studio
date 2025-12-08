@@ -90,6 +90,11 @@ export function useAuction(listingId: string | null) {
     setRefreshKey(prev => prev + 1);
   };
 
-  return { auction, loading, error, refetch };
+  // Optimistic update function for immediate UI updates
+  const updateAuction = (updater: (prev: EnrichedAuctionData | null) => EnrichedAuctionData | null) => {
+    setAuction(prev => updater(prev));
+  };
+
+  return { auction, loading, error, refetch, updateAuction };
 }
 

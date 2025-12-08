@@ -64,7 +64,7 @@ export default function AuctionDetailClient({
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-  const { auction, loading } = useAuction(listingId);
+  const { auction, loading, updateAuction } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const publicClient = usePublicClient();
   const [bidAmount, setBidAmount] = useState("");
@@ -982,6 +982,24 @@ export default function AuctionDetailClient({
   // Redirect after successful purchase and create notifications
   useEffect(() => {
     if (isPurchaseConfirmed && address && auction) {
+      // Optimistically update the auction state immediately for instant UI feedback
+      updateAuction((prev) => {
+        if (!prev) return prev;
+        
+        const currentTotalSold = parseInt(prev.totalSold || "0");
+        const newTotalSold = currentTotalSold + purchaseQuantity;
+        const totalAvailable = parseInt(prev.totalAvailable || "0");
+        const remaining = totalAvailable - newTotalSold;
+        
+        // Update totalSold and status if sold out
+        return {
+          ...prev,
+          totalSold: newTotalSold.toString(),
+          // Mark as finalized if fully sold
+          status: remaining <= 0 ? "FINALIZED" : prev.status,
+        };
+      });
+      
       // Invalidate cache so homepage shows updated listings (purchase may have sold out listing)
       fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
         console.error('Error invalidating cache:', err)
@@ -1036,7 +1054,7 @@ export default function AuctionDetailClient({
         router.push("/");
       }, 100);
     }
-  }, [isPurchaseConfirmed, router, address, auction, listingId, purchaseQuantity]);
+  }, [isPurchaseConfirmed, router, address, auction, listingId, purchaseQuantity, updateAuction]);
 
   // Set up back navigation for Farcaster mini-app
   useEffect(() => {
