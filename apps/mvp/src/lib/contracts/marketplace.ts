@@ -8,36 +8,6 @@ export const MARKETPLACE_ADDRESS = (process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS 
 // Base Mainnet chain ID
 export const CHAIN_ID = base.id; // 8453
 
-// Split ABI for purchase function to avoid overload resolution issues
-// ABI for purchase(listingId, count) - 2 params, no referrer
-export const PURCHASE_ABI_NO_REFERRER = [
-  {
-    type: 'function',
-    name: 'purchase',
-    inputs: [
-      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
-      { name: 'count', type: 'uint24', internalType: 'uint24' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-] as const;
-
-// ABI for purchase(referrer, listingId, count) - 3 params, with referrer
-export const PURCHASE_ABI_WITH_REFERRER = [
-  {
-    type: 'function',
-    name: 'purchase',
-    inputs: [
-      { name: 'referrer', type: 'address', internalType: 'address' },
-      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
-      { name: 'count', type: 'uint24', internalType: 'uint24' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-] as const;
-
 // ABI for the functions we need from IMarketplaceCore
 export const MARKETPLACE_ABI = [
   {
@@ -154,24 +124,13 @@ export const MARKETPLACE_ABI = [
     type: 'function',
     name: 'bid',
     inputs: [
-      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
-      { name: 'bidAmount', type: 'uint256', internalType: 'uint256' },
-      { name: 'increase', type: 'bool', internalType: 'bool' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'bid',
-    inputs: [
       { name: 'referrer', type: 'address', internalType: 'address payable' },
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
       { name: 'bidAmount', type: 'uint256', internalType: 'uint256' },
       { name: 'increase', type: 'bool', internalType: 'bool' },
     ],
     outputs: [],
-    stateMutability: 'nonpayable',
+    stateMutability: 'payable',
   },
   {
     type: 'function',
@@ -242,16 +201,19 @@ export const MARKETPLACE_ABI = [
   },
   {
     type: 'function',
-    name: 'finalize',
+    name: 'modifyListing',
     inputs: [
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'initialAmount', type: 'uint256', internalType: 'uint256' },
+      { name: 'startTime', type: 'uint48', internalType: 'uint48' },
+      { name: 'endTime', type: 'uint48', internalType: 'uint48' },
     ],
     outputs: [],
-    stateMutability: 'payable',
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
-    name: 'purchase',
+    name: 'finalize',
     inputs: [
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
     ],
@@ -313,18 +275,6 @@ export const MARKETPLACE_ABI = [
   },
   {
     type: 'function',
-    name: 'modifyListing',
-    inputs: [
-      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
-      { name: 'initialAmount', type: 'uint256', internalType: 'uint256' },
-      { name: 'startTime', type: 'uint48', internalType: 'uint48' },
-      { name: 'endTime', type: 'uint48', internalType: 'uint48' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
     name: 'getOffers',
     inputs: [
       { name: 'listingId', type: 'uint40', internalType: 'uint40' },
@@ -373,6 +323,36 @@ export const MARKETPLACE_ABI = [
       { name: 'identityVerifier', type: 'address', indexed: false, internalType: 'address' },
     ],
     anonymous: false,
+  },
+] as const;
+
+// Split ABI for purchase function to avoid overload resolution issues
+// ABI for purchase(listingId, count) - 2 params, no referrer
+export const PURCHASE_ABI_NO_REFERRER = [
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+] as const;
+
+// ABI for purchase(referrer, listingId, count) - 3 params, with referrer
+export const PURCHASE_ABI_WITH_REFERRER = [
+  {
+    type: 'function',
+    name: 'purchase',
+    inputs: [
+      { name: 'referrer', type: 'address', internalType: 'address' },
+      { name: 'listingId', type: 'uint40', internalType: 'uint40' },
+      { name: 'count', type: 'uint24', internalType: 'uint24' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
   },
 ] as const;
 

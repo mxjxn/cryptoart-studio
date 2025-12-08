@@ -3,6 +3,7 @@ import { APP_NAME, APP_DESCRIPTION, APP_URL } from "~/lib/constants";
 import { getMiniAppEmbedMetadata } from "~/lib/utils";
 import type { EnrichedAuctionData } from "~/lib/types";
 import HomePageClient from "./HomePageClient";
+import { browseListings } from "~/lib/server/browse-listings";
 
 // Revalidate is handled by cron job that checks for new listings
 // The cron job runs every 15 minutes and revalidates if listing ID changes
@@ -29,9 +30,22 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  // Client will fetch recent listings chronologically from the browse API
-  // This allows showing all listings (active, concluded, finalized) in one chronological feed
-  const initialAuctions: EnrichedAuctionData[] = [];
+  // Fetch recent listings server-side with thumbnails for fast initial render
+  // This allows the homepage to be server-rendered with optimized images
+  let initialAuctions: EnrichedAuctionData[] = [];
+  
+  try {
+    initialAuctions = await browseListings({
+      first: 24,
+      skip: 0,
+      orderBy: "createdAt",
+      orderDirection: "desc",
+      enrich: true,
+    });
+  } catch (error) {
+    console.error("[Homepage] Error fetching listings:", error);
+    // Continue with empty array - client will handle fetching
+  }
 
   return <HomePageClient initialAuctions={initialAuctions} />;
 }
