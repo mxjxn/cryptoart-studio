@@ -4,6 +4,7 @@ import { getAuctionServer } from "~/lib/server/auction";
 import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
+import { isDataURI } from "~/lib/media-utils";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
@@ -296,14 +297,22 @@ export async function GET(
   if (auction?.image || auction?.metadata?.image) {
     const originalImageUrl = auction.image || auction.metadata?.image || null;
     if (originalImageUrl) {
-      // Check cache first
-      const cached = await getCachedImage(originalImageUrl);
-      if (cached) {
-        artworkImageDataUrl = cached;
-        console.log(`[OG Image] Using cached image for ${originalImageUrl}`);
+      console.log(`[OG Image] Original image URL: ${originalImageUrl}`);
+      
+      // Handle data URIs directly - no need to cache or fetch
+      if (isDataURI(originalImageUrl)) {
+        artworkImageDataUrl = originalImageUrl;
+        console.log(`[OG Image] Using data URI directly (no cache/fetch needed)`);
       } else {
-        // Not in cache, fetch and cache it
-        let imageUrl = originalImageUrl;
+        // Check cache first
+        const cached = await getCachedImage(originalImageUrl);
+        if (cached) {
+          artworkImageDataUrl = cached;
+          console.log(`[OG Image] Using cached image for ${originalImageUrl}`);
+        } else {
+          console.log(`[OG Image] Cache miss, fetching image for ${originalImageUrl}`);
+          // Not in cache, fetch and cache it
+          let imageUrl = originalImageUrl;
         
         // Convert IPFS URLs to HTTP gateway URLs
         // Note: If the URL is already a gateway URL (from fetchNFTMetadata), use it as-is
@@ -424,12 +433,24 @@ export async function GET(
           
           if (!artworkImageDataUrl) {
             console.error(`[OG Image] All gateways failed for image. Tried: ${urlsToTry.join(', ')}`);
+            console.error(`[OG Image] Original URL was: ${originalImageUrl}`);
+          } else {
+            console.log(`[OG Image] Successfully fetched and cached image for ${originalImageUrl}`);
           }
         } catch (error) {
           console.error(`[OG Image] Error processing artwork image:`, error);
+          if (error instanceof Error) {
+            console.error(`[OG Image] Error details: ${error.message}`);
+            console.error(`[OG Image] Error stack: ${error.stack}`);
+          }
         }
       }
     }
+    } else {
+      console.warn(`[OG Image] No image URL found in auction data. auction.image=${auction?.image}, auction.metadata?.image=${auction?.metadata?.image}`);
+    }
+  } else {
+    console.warn(`[OG Image] No auction image or metadata available`);
   }
 
   // Determine listing type specific information

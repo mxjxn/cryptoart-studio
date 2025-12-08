@@ -6,17 +6,26 @@ import { eq, and, gt } from 'drizzle-orm';
  * This ensures the same image is cached regardless of gateway used
  */
 function normalizeImageUrl(url: string): string {
-  // Extract IPFS hash if present
+  if (!url) return url;
+  
+  // Handle IPFS protocol URLs
+  if (url.startsWith('ipfs://')) {
+    // Remove any query params or fragments
+    const cleanUrl = url.split('?')[0].split('#')[0];
+    return cleanUrl;
+  }
+  
+  // Extract IPFS hash from gateway URLs (e.g., https://ipfs.io/ipfs/QmHash, https://cloudflare-ipfs.com/ipfs/QmHash)
   if (url.includes('/ipfs/')) {
-    const hash = url.split('/ipfs/')[1]?.split('/')[0];
-    if (hash) {
-      return `ipfs://${hash}`;
+    // Extract hash from URL like https://gateway.com/ipfs/QmHash?params or https://gateway.com/ipfs/QmHash#fragment
+    const match = url.match(/\/ipfs\/([^\/?#]+)/);
+    if (match && match[1]) {
+      return `ipfs://${match[1]}`;
     }
   }
-  if (url.startsWith('ipfs://')) {
-    return url;
-  }
-  // For non-IPFS URLs, use as-is
+  
+  // For non-IPFS URLs (HTTP/HTTPS that aren't IPFS gateways), use as-is
+  // This includes data URIs, Arweave URLs, and regular HTTP URLs
   return url;
 }
 
@@ -27,10 +36,12 @@ export async function getCachedImage(imageUrl: string): Promise<string | null> {
   try {
     const db = getDatabase();
     if (!db) {
+      console.log(`[Image Cache] No database connection, skipping cache lookup for ${imageUrl}`);
       return null;
     }
 
     const normalizedUrl = normalizeImageUrl(imageUrl);
+    console.log(`[Image Cache] Looking up cache: original="${imageUrl}" normalized="${normalizedUrl}"`);
     const now = new Date();
 
     const cached = await db
@@ -45,7 +56,7 @@ export async function getCachedImage(imageUrl: string): Promise<string | null> {
       .limit(1);
 
     if (cached.length > 0) {
-      console.log(`[Image Cache] Cache hit for ${normalizedUrl}`);
+      console.log(`[Image Cache] Cache hit for ${normalizedUrl} (expires: ${cached[0].expiresAt.toISOString()})`);
       return cached[0].dataUrl;
     }
 
@@ -100,4 +111,5 @@ export async function cacheImage(
     // Don't throw - caching is optional
   }
 }
+
 
