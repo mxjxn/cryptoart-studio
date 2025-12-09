@@ -1,4 +1,4 @@
-import { createConfig, http, WagmiProvider, useConnect, useAccount } from "wagmi";
+import { createConfig, http, WagmiProvider, useConnect, useAccount, createStorage } from "wagmi";
 import { base, mainnet } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/miniapp-wagmi-connector";
