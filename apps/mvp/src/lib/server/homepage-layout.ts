@@ -63,7 +63,10 @@ export async function resolveHomepageSections(includeInactive = false): Promise<
     })
   );
 
-  return resolved.filter((section) => section.listings.length > 0 || section.sectionType === 'featured_carousel');
+  // Return all sections, even if they have no listings
+  // This allows admins to see their configured sections on the homepage
+  // The frontend will handle displaying empty state messages
+  return resolved;
 }
 
 async function resolveSectionListings(sectionType: SectionType, config?: Record<string, any> | null) {

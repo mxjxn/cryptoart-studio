@@ -45,7 +45,19 @@ export function HomepageLayout() {
     load();
   }, []);
 
-  if (loading || sections.length === 0) return null;
+  // Show loading state instead of returning null
+  if (loading) {
+    return (
+      <div className="px-5 py-8">
+        <div className="text-center text-[#999999] text-sm">Loading sections...</div>
+      </div>
+    );
+  }
+
+  // Show message if no sections configured, but don't hide the component
+  if (sections.length === 0) {
+    return null; // Return null only if truly no sections (admin hasn't configured any)
+  }
 
   return (
     <>
@@ -61,8 +73,21 @@ export function HomepageLayout() {
           );
         }
 
+        // Show sections even if they have no listings (with empty state message)
         if (section.listings.length === 0) {
-          return null;
+          return (
+            <div key={section.id} className="px-5 py-8">
+              <h2 className="text-xl font-light mb-2">
+                {section.title || getDefaultTitle(section.sectionType)}
+              </h2>
+              {section.description && (
+                <p className="text-sm text-[#999999] mb-4">{section.description}</p>
+              )}
+              <div className="text-center py-8 text-[#666666] text-sm">
+                No listings available in this section yet.
+              </div>
+            </div>
+          );
         }
 
         const displayFormat = section.config?.displayFormat || "carousel";
