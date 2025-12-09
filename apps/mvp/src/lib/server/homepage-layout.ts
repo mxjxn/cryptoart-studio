@@ -192,7 +192,7 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
   try {
     const active = await fetchActiveAuctionsUncached(limit * 2, 0, true);
     return active
-      .filter((auction) => (auction.bidCount || 0) > 0)
+      .filter((auction) => (auction.bidCount || 0) > 0 || !!auction.highestBid)
       .slice(0, limit);
   } catch (error) {
     console.error('[Homepage] Failed to get live bids', error);

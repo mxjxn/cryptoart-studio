@@ -97,9 +97,19 @@ export default function AuctionDetailClient({
       setIsCheckingPageStatus(true);
       
       try {
-        const response = await fetch(`/api/listings/${listingId}/page-status`);
+        const response = await fetch(`/api/listings/${listingId}/page-status`, {
+          signal: AbortSignal.timeout(5000), // 5 second timeout
+        });
         if (!response.ok) {
-          throw new Error('Failed to check page status');
+          // Don't throw error - just log it and continue
+          console.warn('Page status check failed:', response.status, response.statusText);
+          if (isMounted) {
+            // If we don't have a status yet, assume building
+            if (pageStatus === null) {
+              setPageStatus('building');
+            }
+          }
+          return;
         }
         const data = await response.json();
         
@@ -149,9 +159,13 @@ export default function AuctionDetailClient({
           }
         }
       } catch (error) {
+        // Don't let page status errors cause redirects - just log and continue
         console.error('Error checking page status:', error);
         if (isMounted) {
-          setPageStatus('error');
+          // If we don't have a status yet, assume building
+          if (pageStatus === null) {
+            setPageStatus('building');
+          }
         }
       } finally {
         if (isMounted) {
@@ -1206,12 +1220,23 @@ export default function AuctionDetailClient({
     );
   }
 
-  if (!auction) {
+  if (!auction && !loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4">
         <p className="text-[#cccccc]">Auction not found</p>
+        <TransitionLink
+          href="/"
+          className="text-sm text-[#999999] hover:text-white transition-colors underline"
+        >
+          Return to homepage
+        </TransitionLink>
       </div>
     );
+  }
+
+  // At this point, auction must exist (we've checked above and returned early if not)
+  if (!auction) {
+    return null; // TypeScript guard
   }
 
   const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";

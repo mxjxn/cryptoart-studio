@@ -20,7 +20,8 @@ interface HomePageClientProps {
 
 export default function HomePageClient({ initialAuctions = [] }: HomePageClientProps) {
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
-  const [loading, setLoading] = useState(false);
+  // Start with loading true only if we don't have initial data
+  const [loading, setLoading] = useState(initialAuctions.length === 0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
@@ -28,9 +29,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const loadingRef = useRef(false);
+  const loadingRef = useRef(initialAuctions.length === 0);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
+  const hasInitializedRef = useRef(false);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
@@ -52,12 +54,21 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     try {
       const skip = pageNum * pageSize;
       console.log('[HomePageClient] Fetching recent listings...', { pageNum, skip });
+      const startTime = Date.now();
       // Fetch recent listings ordered by creation date (newest first)
       const response = await fetch(`/api/listings/browse?first=${pageSize}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true`);
+      const fetchTime = Date.now() - startTime;
+      console.log('[HomePageClient] Fetch completed in', fetchTime, 'ms, status:', response.status);
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const parseStartTime = Date.now();
       const data = await response.json();
+      const parseTime = Date.now() - parseStartTime;
+      console.log('[HomePageClient] JSON parsed in', parseTime, 'ms');
+      
       const recentListings = data.listings || [];
       console.log('[HomePageClient] Received listings:', recentListings.length, 'hasMore:', data.pagination?.hasMore);
       
@@ -126,6 +137,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   // Use server-side cached data initially
   // Only refetch if we don't have initial data (e.g., after navigation)
   useEffect(() => {
+    // Prevent double-fetching in React Strict Mode
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+    
     // If we have initial auctions from server, use them (they're cached server-side)
     // Only fetch if we don't have any initial data
     if (initialAuctions.length === 0) {
@@ -133,12 +148,15 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     } else {
       // We have initial data from server, use it
       setAuctions(initialAuctions);
+      // Ensure loading is false since we have data
+      setLoading(false);
+      loadingRef.current = false;
       // Check if there might be more listings
       const moreAvailable = initialAuctions.length >= pageSize;
       setHasMore(moreAvailable);
       hasMoreRef.current = moreAvailable;
     }
-  }, []); // Empty deps - only run on mount
+  }, []); // Empty deps - only run once on mount
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -257,7 +275,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         ) : (
           <>
-            <RecentListingsTable listings={auctions} />
+            <RecentListingsTable listings={auctions} loading={false} />
             {/* Intersection observer target for infinite scroll */}
             <div ref={loadMoreRef} className="h-1" />
             {/* Loading indicator when loading more */}

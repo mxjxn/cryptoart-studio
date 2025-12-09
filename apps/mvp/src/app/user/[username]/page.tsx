@@ -3,14 +3,14 @@ import { APP_NAME } from "~/lib/constants";
 import UserProfileClient from "./UserProfileClient";
 
 interface UserProfilePageProps {
-  params: Promise<{ fname: string }>;
+  params: Promise<{ username: string }>;
 }
 
 export async function generateMetadata({ params }: UserProfilePageProps): Promise<Metadata> {
-  const { fname } = await params;
+  const { username } = await params;
   
-  const title = `${fname} | ${APP_NAME}`;
-  const description = `View profile for ${fname}`;
+  const title = `${username} | ${APP_NAME}`;
+  const description = `View profile for ${username}`;
 
   return {
     title,
@@ -19,12 +19,7 @@ export async function generateMetadata({ params }: UserProfilePageProps): Promis
 }
 
 export default async function UserProfilePage({ params }: UserProfilePageProps) {
-  const { fname } = await params;
-  return <UserProfileClient fname={fname} />;
+  const { username } = await params;
+  return <UserProfileClient username={username} />;
 }
-
-
-
-
-
 

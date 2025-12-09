@@ -304,24 +304,44 @@ async function resizeImage(
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
+  // Check if the image format is supported by sharp
+  let image: any;
+  let metadata: any;
+  try {
+    image = sharp(buffer);
+    metadata = await image.metadata();
+    
+    // Check if format is supported
+    if (!metadata.format) {
+      throw new Error(`Unsupported image format: unable to detect format for ${imageUrl}`);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Unsupported image format for ${imageUrl}: ${errorMessage}. Format: ${metadata?.format || 'unknown'}`);
+  }
+
   // For embed size, calculate dimensions based on original image aspect ratio
   let finalDimensions = dimensions;
   if (size === 'embed') {
-    const image = sharp(buffer);
-    const metadata = await image.metadata();
     if (metadata.width && metadata.height) {
       finalDimensions = calculateEmbedDimensions(metadata.width, metadata.height);
     }
   }
 
   // Resize and optimize the image
-  const resized = await sharp(buffer)
-    .resize(finalDimensions.width, finalDimensions.height, {
-      fit: 'inside', // Maintain aspect ratio, fit within dimensions
-      withoutEnlargement: true, // Don't enlarge small images
-    })
-    .webp({ quality: 85 }) // WebP format with 85% quality
-    .toBuffer();
+  let resized: Buffer;
+  try {
+    resized = await image
+      .resize(finalDimensions.width, finalDimensions.height, {
+        fit: 'inside', // Maintain aspect ratio, fit within dimensions
+        withoutEnlargement: true, // Don't enlarge small images
+      })
+      .webp({ quality: 85 }) // WebP format with 85% quality
+      .toBuffer();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to process image ${imageUrl} (format: ${metadata.format}): ${errorMessage}`);
+  }
 
   // Get actual output dimensions
   const outputMetadata = await sharp(resized).metadata();

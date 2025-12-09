@@ -1,31 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, curation, curationItems, eq, asc } from '@cryptoart/db';
+import { getDatabase, curation, curationItems, eq, and, asc } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
 import { getUserFromCache } from '~/lib/server/user-cache';
 import { lookupNeynarByUsername } from '~/lib/artist-name-resolution';
 
 /**
- * GET /api/curation/user/[username]/gallery/id/[id]
- * Get a gallery by username and UUID (public endpoint for published galleries)
+ * GET /api/curation/user/[identifier]/gallery/[slug]
+ * Get a gallery by identifier (address or username) and slug (public endpoint for published galleries)
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ username: string; id: string }> }
+  { params }: { params: Promise<{ identifier: string; slug: string }> }
 ) {
   try {
-    const { username, id } = await params;
+    const { identifier, slug } = await params;
     const { searchParams } = new URL(req.url);
     const userAddress = searchParams.get('userAddress'); // For checking ownership
     
-    // Resolve username to address (or use address directly if it's an address)
+    // Resolve identifier to address (or use address directly if it's an address)
     let curatorAddress: string | null = null;
     
     // Check if it's already an address
-    if (/^0x[a-fA-F0-9]{40}$/i.test(username)) {
-      curatorAddress = username.toLowerCase();
+    if (/^0x[a-fA-F0-9]{40}$/i.test(identifier)) {
+      curatorAddress = identifier.toLowerCase();
     } else {
       // It's a username, resolve it
-      const normalizedUsername = username.toLowerCase();
+      const normalizedUsername = identifier.toLowerCase();
       const user = await getUserFromCache(normalizedUsername);
       if (user && user.ethAddress) {
         curatorAddress = user.ethAddress.toLowerCase();
@@ -47,22 +47,19 @@ export async function GET(
     
     const db = getDatabase();
     
-    // Get gallery by UUID
+    // Get gallery by slug and curator
     const [gallery] = await db
       .select()
       .from(curation)
-      .where(eq(curation.id, id))
+      .where(
+        and(
+          eq(curation.curatorAddress, curatorAddress),
+          eq(curation.slug, slug)
+        )
+      )
       .limit(1);
     
     if (!gallery) {
-      return NextResponse.json(
-        { error: 'Gallery not found' },
-        { status: 404 }
-      );
-    }
-    
-    // Verify the gallery belongs to the curator
-    if (gallery.curatorAddress.toLowerCase() !== curatorAddress) {
       return NextResponse.json(
         { error: 'Gallery not found' },
         { status: 404 }
@@ -110,7 +107,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Curation API] Error fetching gallery by username and id:', error);
+    console.error('[Curation API] Error fetching gallery by username and slug:', error);
     return NextResponse.json(
       { error: 'Failed to fetch gallery' },
       { status: 500 }
