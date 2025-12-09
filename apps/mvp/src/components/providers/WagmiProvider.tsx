@@ -39,7 +39,37 @@ const connectors = connectorsForWallets(
   }
 );
 
+// Create sessionStorage-based storage to prevent cross-tab/session persistence
+// This ensures wallet connections don't persist across browser sessions
+// and are cleared when the tab is closed (especially important for incognito)
+const sessionStorage = createStorage({
+  storage: typeof window !== 'undefined' ? {
+    getItem: (key: string) => {
+      try {
+        return window.sessionStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    setItem: (key: string, value: string) => {
+      try {
+        window.sessionStorage.setItem(key, value);
+      } catch {
+        // Ignore quota errors
+      }
+    },
+    removeItem: (key: string) => {
+      try {
+        window.sessionStorage.removeItem(key);
+      } catch {
+        // Ignore errors
+      }
+    },
+  } : undefined,
+});
+
 // Create wagmi config with RainbowKit wallets + farcasterFrame connector
+// Using sessionStorage instead of localStorage prevents cross-tab persistence
 export const config = createConfig({
   chains: [base, mainnet],
   connectors: [
@@ -54,6 +84,8 @@ export const config = createConfig({
     ),
     [mainnet.id]: http(process.env.NEXT_PUBLIC_MAINNET_RPC_URL || 'https://eth.llamarpc.com'),
   },
+  ssr: true,
+  storage: sessionStorage,
 });
 
 // Configure Fabric SDK with wagmi config
