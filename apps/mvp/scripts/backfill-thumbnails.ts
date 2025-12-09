@@ -12,6 +12,25 @@
  *   pnpm tsx scripts/backfill-thumbnails.ts --skip-cached
  */
 
+// Load environment variables from .env.local
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env.local from the apps/mvp directory
+config({ path: resolve(__dirname, '../.env.local') });
+
+// Also try .env in the same directory
+config({ path: resolve(__dirname, '../.env') });
+
+// Also try .env.local from project root
+const projectRoot = resolve(__dirname, '../../..');
+config({ path: resolve(projectRoot, '.env.local') });
+config({ path: resolve(projectRoot, '.env') });
+
 import { request, gql } from "graphql-request";
 import type { Address } from "viem";
 
