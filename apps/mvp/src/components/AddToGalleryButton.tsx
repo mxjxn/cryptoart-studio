@@ -108,12 +108,17 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   // Only show for connected admins - hide while loading or if not connected/admin
   // This check must come AFTER all hooks are called
   // Only render if ALL conditions are explicitly true
-  const shouldShow = isConnected === true && 
-                     address !== null && 
-                     address !== undefined && 
-                     isAdminLoading === false && 
-                     isAdmin === true;
+  // Be extra defensive - treat undefined/null as false
+  const shouldShow = Boolean(
+    isConnected === true && 
+    address && 
+    address !== null && 
+    address !== undefined && 
+    isAdminLoading === false && 
+    isAdmin === true
+  );
   
+  // Early return - don't render anything if not admin
   if (!shouldShow) {
     return null;
   }
