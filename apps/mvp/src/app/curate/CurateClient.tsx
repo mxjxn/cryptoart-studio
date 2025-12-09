@@ -289,8 +289,8 @@ function GalleryCard({ gallery }: GalleryCardProps) {
     year: "numeric",
   });
 
-  // Use new URL structure for published galleries, edit URL for drafts
-  const galleryUrl = gallery.isPublished && gallery.slug
+  // Use new URL structure for published galleries (with or without slug), edit URL for drafts
+  const galleryUrl = gallery.isPublished
     ? getGalleryUrl(gallery, username)
     : `/curate/${gallery.id}`;
 
