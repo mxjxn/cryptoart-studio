@@ -42,7 +42,8 @@ export function ERC1155ConfigPage({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // Auto-fill start time with current date/time
+  // Auto-fill start time with current date/time when switching to timeframe mode
+  // Clear times when switching to no timeframe mode
   useEffect(() => {
     if (useTimeframe && !startTime) {
       const now = new Date();
@@ -52,8 +53,12 @@ export function ERC1155ConfigPage({
       const hours = String(now.getHours()).padStart(2, "0");
       const minutes = String(now.getMinutes()).padStart(2, "0");
       setStartTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+    } else if (!useTimeframe) {
+      // Clear times when switching to no timeframe
+      setStartTime("");
+      setEndTime("");
     }
-  }, [useTimeframe, startTime]);
+  }, [useTimeframe]);
 
   const erc20Token = useERC20Token(paymentType === "ERC20" ? erc20Address : undefined);
   const isValidERC20 = paymentType === "ETH" || (paymentType === "ERC20" && erc20Token.isValid);
@@ -217,7 +222,17 @@ export function ERC1155ConfigPage({
             <DateSelector
               value={startTime}
               onChange={setStartTime}
-              min={getMinDateTime()}
+              min={(() => {
+                // Allow editing even if slightly in the past - set min to 1 hour ago
+                const oneHourAgo = new Date();
+                oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+                const year = oneHourAgo.getFullYear();
+                const month = String(oneHourAgo.getMonth() + 1).padStart(2, "0");
+                const day = String(oneHourAgo.getDate()).padStart(2, "0");
+                const hours = String(oneHourAgo.getHours()).padStart(2, "0");
+                const minutes = String(oneHourAgo.getMinutes()).padStart(2, "0");
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+              })()}
               max={getMaxDateTime(10)}
               label="Start Time"
             />
@@ -227,7 +242,17 @@ export function ERC1155ConfigPage({
               <DateSelector
                 value={endTime}
                 onChange={setEndTime}
-                min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
+                min={startTime ? getDateTimeAfterHours(startTime, 1) : (() => {
+                  // Allow editing even if slightly in the past - set min to 1 hour ago
+                  const oneHourAgo = new Date();
+                  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+                  const year = oneHourAgo.getFullYear();
+                  const month = String(oneHourAgo.getMonth() + 1).padStart(2, "0");
+                  const day = String(oneHourAgo.getDate()).padStart(2, "0");
+                  const hours = String(oneHourAgo.getHours()).padStart(2, "0");
+                  const minutes = String(oneHourAgo.getMinutes()).padStart(2, "0");
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                })()}
                 max={getMaxDateTime(10)}
                 label="End Time"
               />

@@ -35,7 +35,8 @@ export function ERC721FixedPriceConfigPage({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
-  // Auto-fill start time with current date/time
+  // Auto-fill start time with current date/time when switching to timeframe mode
+  // Clear times when switching to no timeframe mode
   useEffect(() => {
     if (useTimeframe && !startTime) {
       const now = new Date();
@@ -45,8 +46,12 @@ export function ERC721FixedPriceConfigPage({
       const hours = String(now.getHours()).padStart(2, "0");
       const minutes = String(now.getMinutes()).padStart(2, "0");
       setStartTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+    } else if (!useTimeframe) {
+      // Clear times when switching to no timeframe
+      setStartTime("");
+      setEndTime("");
     }
-  }, [useTimeframe, startTime]);
+  }, [useTimeframe]);
 
   const erc20Token = useERC20Token(paymentType === "ERC20" ? erc20Address : undefined);
   const isValidERC20 = paymentType === "ETH" || (paymentType === "ERC20" && erc20Token.isValid);
@@ -201,6 +206,28 @@ export function ERC721FixedPriceConfigPage({
                 type="datetime-local"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
+                min={(() => {
+                  // Allow editing even if slightly in the past - set min to 1 hour ago
+                  const oneHourAgo = new Date();
+                  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+                  const year = oneHourAgo.getFullYear();
+                  const month = String(oneHourAgo.getMonth() + 1).padStart(2, "0");
+                  const day = String(oneHourAgo.getDate()).padStart(2, "0");
+                  const hours = String(oneHourAgo.getHours()).padStart(2, "0");
+                  const minutes = String(oneHourAgo.getMinutes()).padStart(2, "0");
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                })()}
+                max={(() => {
+                  // Allow up to 10 years in the future
+                  const future = new Date();
+                  future.setFullYear(future.getFullYear() + 10);
+                  const year = future.getFullYear();
+                  const month = String(future.getMonth() + 1).padStart(2, "0");
+                  const day = String(future.getDate()).padStart(2, "0");
+                  const hours = String(future.getHours()).padStart(2, "0");
+                  const minutes = String(future.getMinutes()).padStart(2, "0");
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                })()}
                 className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white"
               />
             </div>
@@ -212,6 +239,28 @@ export function ERC721FixedPriceConfigPage({
                 type="datetime-local"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
+                min={startTime ? (() => {
+                  // End time must be at least 1 hour after start time
+                  const start = new Date(startTime);
+                  start.setHours(start.getHours() + 1);
+                  const year = start.getFullYear();
+                  const month = String(start.getMonth() + 1).padStart(2, "0");
+                  const day = String(start.getDate()).padStart(2, "0");
+                  const hours = String(start.getHours()).padStart(2, "0");
+                  const minutes = String(start.getMinutes()).padStart(2, "0");
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                })() : undefined}
+                max={(() => {
+                  // Allow up to 10 years in the future
+                  const future = new Date();
+                  future.setFullYear(future.getFullYear() + 10);
+                  const year = future.getFullYear();
+                  const month = String(future.getMonth() + 1).padStart(2, "0");
+                  const day = String(future.getDate()).padStart(2, "0");
+                  const hours = String(future.getHours()).padStart(2, "0");
+                  const minutes = String(future.getMinutes()).padStart(2, "0");
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                })()}
                 className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white mb-2"
               />
               <div className="flex gap-2 flex-wrap">

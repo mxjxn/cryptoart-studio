@@ -976,8 +976,13 @@ export default function CreateAuctionClient() {
       const MAX_UINT48 = 281474976710655;
       const SAFE_DURATION_100_YEARS = 3153600000; // 100 years in seconds
       
-      if (effectiveFormData.listingType === "FIXED_PRICE" && !effectiveFormData.endTime) {
-        // For FIXED_PRICE with no end time specified:
+      // Check if "no timeframe" option was selected (for FIXED_PRICE listings)
+      // This is indicated by empty endTime AND empty startTime (or explicit noTimeframe flag)
+      const isNoTimeframe = effectiveFormData.listingType === "FIXED_PRICE" && 
+        (!effectiveFormData.endTime || effectiveFormData.endTime === "");
+      
+      if (effectiveFormData.listingType === "FIXED_PRICE" && isNoTimeframe) {
+        // For FIXED_PRICE with "no timeframe" option:
         // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
         // that gets added to block.timestamp on first purchase.
         // Using max uint48 would cause overflow, so use 100 years instead.
@@ -988,6 +993,7 @@ export default function CreateAuctionClient() {
         } else {
           // Absolute timestamp - max uint48 means "never expires"
           endTime = MAX_UINT48;
+          console.log('[CreateListing] Using MAX_UINT48 for open-ended FIXED_PRICE with startTime set');
         }
       } else if (effectiveFormData.endTime) {
         endTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
