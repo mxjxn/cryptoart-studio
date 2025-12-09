@@ -148,28 +148,36 @@ export async function cacheERC1155TotalSupply(
 /**
  * Get ERC1155 total supply with caching
  * Checks cache first, then fetches if needed
+ * Never throws - returns null on any error
  */
 export async function getERC1155TotalSupply(
   contractAddress: string,
   tokenId: string
 ): Promise<bigint | null> {
-  // Check cache first
-  const cached = await getCachedERC1155TotalSupply(contractAddress, tokenId);
-  if (cached) {
-    return cached.totalSupply;
+  try {
+    // Check cache first
+    const cached = await getCachedERC1155TotalSupply(contractAddress, tokenId);
+    if (cached) {
+      return cached.totalSupply;
+    }
+    
+    // Fetch from API/contract
+    const totalSupply = await fetchERC1155TotalSupply(contractAddress, tokenId);
+    
+    if (totalSupply !== null) {
+      // Cache the result (best effort, don't wait)
+      cacheERC1155TotalSupply(contractAddress, tokenId, totalSupply, false).catch(err => {
+        console.error('[getERC1155TotalSupply] Failed to cache supply:', err);
+      });
+    }
+    
+    return totalSupply;
+  } catch (error: any) {
+    // Never throw - this is optional enrichment data
+    const errorMsg = error?.message || String(error);
+    console.error(`[getERC1155TotalSupply] Error for ${contractAddress}:${tokenId}:`, errorMsg);
+    return null;
   }
-  
-  // Fetch from API/contract
-  const totalSupply = await fetchERC1155TotalSupply(contractAddress, tokenId);
-  
-  if (totalSupply !== null) {
-    // Cache the result (best effort, don't wait)
-    cacheERC1155TotalSupply(contractAddress, tokenId, totalSupply, false).catch(err => {
-      console.error('[getERC1155TotalSupply] Failed to cache supply:', err);
-    });
-  }
-  
-  return totalSupply;
 }
 
 /**

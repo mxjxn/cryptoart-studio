@@ -486,6 +486,7 @@ async function fetchActiveAuctions(
         }
 
         // Fetch ERC1155 total supply if applicable
+        // Wrap in try-catch to ensure it never breaks Promise.all
         let erc1155TotalSupply: string | undefined = undefined;
         if ((listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) && listing.tokenAddress && listing.tokenId) {
           try {
@@ -497,8 +498,11 @@ async function fetchActiveAuctions(
             if (totalSupply !== null) {
               erc1155TotalSupply = totalSupply.toString();
             }
-          } catch (error) {
-            console.error(`Error fetching ERC1155 total supply for ${listing.tokenAddress}:${listing.tokenId}:`, error);
+          } catch (error: any) {
+            // Log but don't throw - this is optional enrichment data
+            const errorMsg = error?.message || String(error);
+            console.error(`[fetchActiveAuctions] Error fetching ERC1155 total supply for ${listing.tokenAddress}:${listing.tokenId}:`, errorMsg);
+            // Continue without total supply - listing will still work
           }
         }
 
