@@ -8,66 +8,93 @@ interface ListingPageProps {
 }
 
 export async function generateMetadata({ params }: ListingPageProps): Promise<Metadata> {
-  const { listingId } = await params;
-  
-  // Construct absolute URLs for embed metadata (normalize to prevent double slashes)
-  // Farcaster requires absolute URLs for imageUrl and action.url
-  const listingImageUrl = normalizeUrl(APP_URL, `/listing/${listingId}/opengraph-image`);
-  const listingPageUrl = normalizeUrl(APP_URL, `/listing/${listingId}`);
+  let listingId: string = 'unknown';
+  try {
+    const resolvedParams = await params;
+    listingId = resolvedParams.listingId;
+    
+    // Construct absolute URLs for embed metadata (normalize to prevent double slashes)
+    // Farcaster requires absolute URLs for imageUrl and action.url
+    const listingImageUrl = normalizeUrl(APP_URL, `/listing/${listingId}/opengraph-image`);
+    const listingPageUrl = normalizeUrl(APP_URL, `/listing/${listingId}`);
 
-  console.log(`[OG Image] [generateMetadata] Generating metadata for listing ${listingId}`);
-  console.log(`[OG Image] [generateMetadata] Image URL: ${listingImageUrl}`);
-  console.log(`[OG Image] [generateMetadata] Page URL: ${listingPageUrl}`);
+    console.log(`[OG Image] [generateMetadata] Generating metadata for listing ${listingId}`);
+    console.log(`[OG Image] [generateMetadata] Image URL: ${listingImageUrl}`);
+    console.log(`[OG Image] [generateMetadata] Page URL: ${listingPageUrl}`);
 
-  const title = `Listing #${listingId} | ${APP_NAME}`;
-  const description = "View listing details and place bids";
+    const title = `Listing #${listingId} | ${APP_NAME}`;
+    const description = "View listing details and place bids";
 
-  // Use the listing-specific OpenGraph image as the splash screen
-  // This shows the listing details when the mini app launches
-  const miniappMetadata = getMiniAppEmbedMetadata(
-    listingImageUrl, // imageUrl for the embed card
-    listingPageUrl,  // action.url where button navigates
-    false,           // use launch_miniapp type
-    listingImageUrl, // splashImageUrl - use listing-specific image
-    "View Listing"   // buttonText - custom text for listing pages
-  );
-  const frameMetadata = getMiniAppEmbedMetadata(
-    listingImageUrl,
-    listingPageUrl,
-    true,            // use launch_frame type for backward compatibility
-    listingImageUrl, // splashImageUrl - use listing-specific image
-    "View Listing"   // buttonText - custom text for listing pages
-  );
-  
-  console.log(`[OG Image] [generateMetadata] MiniApp embed metadata:`, JSON.stringify(miniappMetadata, null, 2));
-  console.log(`[OG Image] [generateMetadata] Frame embed metadata:`, JSON.stringify(frameMetadata, null, 2));
+    // Use the listing-specific OpenGraph image as the splash screen
+    // This shows the listing details when the mini app launches
+    const miniappMetadata = getMiniAppEmbedMetadata(
+      listingImageUrl, // imageUrl for the embed card
+      listingPageUrl,  // action.url where button navigates
+      false,           // use launch_miniapp type
+      listingImageUrl, // splashImageUrl - use listing-specific image
+      "View Listing"   // buttonText - custom text for listing pages
+    );
+    const frameMetadata = getMiniAppEmbedMetadata(
+      listingImageUrl,
+      listingPageUrl,
+      true,            // use launch_frame type for backward compatibility
+      listingImageUrl, // splashImageUrl - use listing-specific image
+      "View Listing"   // buttonText - custom text for listing pages
+    );
+    
+    console.log(`[OG Image] [generateMetadata] MiniApp embed metadata:`, JSON.stringify(miniappMetadata, null, 2));
+    console.log(`[OG Image] [generateMetadata] Frame embed metadata:`, JSON.stringify(frameMetadata, null, 2));
 
-  return {
-    title,
-    description,
-    openGraph: {
+    return {
       title,
       description,
-      images: [
-        {
-          url: listingImageUrl,
-          width: 1200,
-          height: 800, // 3:2 aspect ratio required by Farcaster
-        },
-      ],
-    },
-    other: {
-      // Farcaster Mini App embed metadata
-      // Follows spec: https://miniapps.farcaster.xyz/docs/guides/sharing
-      "fc:miniapp": JSON.stringify(miniappMetadata),
-      // For backward compatibility - use launch_frame type
-      "fc:frame": JSON.stringify(frameMetadata),
-    },
-  };
+      openGraph: {
+        title,
+        description,
+        images: [
+          {
+            url: listingImageUrl,
+            width: 1200,
+            height: 800, // 3:2 aspect ratio required by Farcaster
+          },
+        ],
+      },
+      other: {
+        // Farcaster Mini App embed metadata
+        // Follows spec: https://miniapps.farcaster.xyz/docs/guides/sharing
+        "fc:miniapp": JSON.stringify(miniappMetadata),
+        // For backward compatibility - use launch_frame type
+        "fc:frame": JSON.stringify(frameMetadata),
+      },
+    };
+  } catch (error) {
+    console.error(`[generateMetadata] Error generating metadata:`, error);
+    // Return basic metadata on error to prevent redirect
+    // Use listingId if we got it, otherwise use a placeholder
+    const listingIdFallback = listingId || 'unknown';
+    return {
+      title: `Listing #${listingIdFallback} | ${APP_NAME}`,
+      description: "View listing details and place bids",
+    };
+  }
 }
 
 export default async function ListingPage({ params }: ListingPageProps) {
-  const { listingId } = await params;
+  let listingId: string;
+  try {
+    const resolvedParams = await params;
+    listingId = resolvedParams.listingId;
+  } catch (error) {
+    console.error(`[ListingPage] Error getting listing ID:`, error);
+    // If we can't get the listing ID, we can't render the page
+    // Return a basic error component instead of redirecting
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-[#cccccc]">Invalid listing ID</p>
+      </div>
+    );
+  }
+  
   return <AuctionDetailClient listingId={listingId} />;
 }
 
