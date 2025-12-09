@@ -18,6 +18,7 @@ function isDatabaseAvailable(): boolean {
 /**
  * Get cached ERC1155 total supply from database
  * Returns null if not cached or expired
+ * Gracefully handles missing table (returns null)
  */
 export async function getCachedERC1155TotalSupply(
   contractAddress: string,
@@ -53,8 +54,15 @@ export async function getCachedERC1155TotalSupply(
     }
     
     return null;
-  } catch (error) {
-    console.error(`[getCachedERC1155TotalSupply] Database error:`, error instanceof Error ? error.message : String(error));
+  } catch (error: any) {
+    // Handle table not found or other database errors gracefully
+    const errorMessage = error?.message || String(error);
+    if (errorMessage.includes('does not exist') || errorMessage.includes('relation') || errorMessage.includes('table')) {
+      // Table doesn't exist yet - this is okay, just return null
+      console.log(`[getCachedERC1155TotalSupply] Table not found (migration pending), skipping cache`);
+      return null;
+    }
+    console.error(`[getCachedERC1155TotalSupply] Database error:`, errorMessage);
     return null;
   }
 }
@@ -62,6 +70,7 @@ export async function getCachedERC1155TotalSupply(
 /**
  * Cache ERC1155 total supply in database
  * Uses upsert pattern to handle existing records
+ * Gracefully handles missing table (silently fails)
  */
 export async function cacheERC1155TotalSupply(
   contractAddress: string,
@@ -123,8 +132,15 @@ export async function cacheERC1155TotalSupply(
         updatedAt: now,
       });
     }
-  } catch (error) {
-    console.error(`[cacheERC1155TotalSupply] Database error:`, error instanceof Error ? error.message : String(error));
+  } catch (error: any) {
+    // Handle table not found or other database errors gracefully
+    const errorMessage = error?.message || String(error);
+    if (errorMessage.includes('does not exist') || errorMessage.includes('relation') || errorMessage.includes('table')) {
+      // Table doesn't exist yet - this is okay, just skip caching
+      console.log(`[cacheERC1155TotalSupply] Table not found (migration pending), skipping cache`);
+      return;
+    }
+    console.error(`[cacheERC1155TotalSupply] Database error:`, errorMessage);
     // Don't throw - caching is best effort
   }
 }
@@ -158,6 +174,7 @@ export async function getERC1155TotalSupply(
 
 /**
  * Invalidate cache for a specific token (useful for lazy mint scenarios)
+ * Gracefully handles missing table
  */
 export async function invalidateERC1155SupplyCache(
   contractAddress: string,
@@ -180,8 +197,14 @@ export async function invalidateERC1155SupplyCache(
           eq(erc1155TokenSupplyCache.tokenId, tokenId)
         )
       );
-  } catch (error) {
-    console.error(`[invalidateERC1155SupplyCache] Database error:`, error instanceof Error ? error.message : String(error));
+  } catch (error: any) {
+    // Handle table not found or other database errors gracefully
+    const errorMessage = error?.message || String(error);
+    if (errorMessage.includes('does not exist') || errorMessage.includes('relation') || errorMessage.includes('table')) {
+      // Table doesn't exist yet - this is okay
+      return;
+    }
+    console.error(`[invalidateERC1155SupplyCache] Database error:`, errorMessage);
   }
 }
 
