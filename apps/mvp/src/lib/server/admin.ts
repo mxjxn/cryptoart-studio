@@ -1,13 +1,14 @@
-import { ADMIN_CONFIG } from '~/lib/constants';
+import { ADMIN_CONFIG, ALL_ADMIN_ADDRESSES } from '~/lib/constants';
 
 /**
- * Check if an address is the admin address.
+ * Check if an address is an admin address (primary or additional).
  * @param address - Wallet address to check
  * @returns boolean indicating if the address is an admin
  */
 export function isAdminAddress(address: string | undefined | null): boolean {
   if (!address) return false;
-  return address.toLowerCase() === ADMIN_CONFIG.walletAddress.toLowerCase();
+  const normalizedAddress = address.toLowerCase();
+  return ALL_ADMIN_ADDRESSES.some(adminAddr => adminAddr.toLowerCase() === normalizedAddress);
 }
 
 /**

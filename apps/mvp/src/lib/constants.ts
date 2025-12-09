@@ -60,6 +60,7 @@ export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d
 // --- Admin Configuration ---
 // Admin identity loaded from environment variables for security
 // Set ADMIN_WALLET_ADDRESS, ADMIN_FARCASTER_USERNAME, and ADMIN_FID in your environment
+// Additional admin addresses can be set via ADDITIONAL_ADMIN_ADDRESSES (comma-separated)
 export const ADMIN_CONFIG = {
   // Primary admin wallet address (lowercase) - from ADMIN_WALLET_ADDRESS env var
   walletAddress: (process.env.ADMIN_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000').toLowerCase() as `0x${string}`,
@@ -70,6 +71,25 @@ export const ADMIN_CONFIG = {
   // Primary admin FID - from ADMIN_FID env var
   fid: parseInt(process.env.ADMIN_FID || '0', 10),
 } as const;
+
+// Parse additional admin addresses from comma-separated env var
+// Format: ADDITIONAL_ADMIN_ADDRESSES=0xAddress1,0xAddress2,0xAddress3
+const parseAdditionalAdminAddresses = (): `0x${string}`[] => {
+  const envValue = process.env.ADDITIONAL_ADMIN_ADDRESSES;
+  if (!envValue) return [];
+  
+  return envValue
+    .split(',')
+    .map(addr => addr.trim().toLowerCase())
+    .filter(addr => addr.startsWith('0x') && addr.length === 42) // Basic validation
+    .map(addr => addr as `0x${string}`);
+};
+
+// All admin addresses (primary + additional)
+export const ALL_ADMIN_ADDRESSES: readonly `0x${string}`[] = [
+  ADMIN_CONFIG.walletAddress,
+  ...parseAdditionalAdminAddresses(),
+].filter(addr => addr !== '0x0000000000000000000000000000000000000000') as readonly `0x${string}`[];
 
 // PLEASE DO NOT UPDATE THIS
 export const SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN = {
