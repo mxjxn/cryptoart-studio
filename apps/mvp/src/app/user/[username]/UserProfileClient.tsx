@@ -14,7 +14,7 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 
 interface UserProfileClientProps {
-  fname: string;
+  username: string;
 }
 
 interface UserProfileData {
@@ -66,7 +66,7 @@ const gradients = [
   "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
 ];
 
-export default function UserProfileClient({ fname }: UserProfileClientProps) {
+export default function UserProfileClient({ username }: UserProfileClientProps) {
   const { isAdmin } = useIsAdmin();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,8 +82,8 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
       setLoading(true);
       setError(null);
       try {
-        console.log(`[UserProfileClient] Fetching profile for: "${fname}"`);
-        const response = await fetch(`/api/user/${encodeURIComponent(fname)}`);
+        console.log(`[UserProfileClient] Fetching profile for: "${username}"`);
+        const response = await fetch(`/api/user/${encodeURIComponent(username)}`);
         console.log(`[UserProfileClient] Response status: ${response.status}`);
         
         if (!response.ok) {
@@ -125,7 +125,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
     }
 
     fetchProfile();
-  }, [fname]);
+  }, [username]);
 
   if (loading) {
     return (
@@ -157,7 +157,7 @@ export default function UserProfileClient({ fname }: UserProfileClientProps) {
           {error && (
             <p className="text-xs text-[#666666]">Error: {error}</p>
           )}
-          <p className="text-xs text-[#666666]">Looking for: @{fname}</p>
+          <p className="text-xs text-[#666666]">Looking for: @{username}</p>
         </div>
       </div>
     );
