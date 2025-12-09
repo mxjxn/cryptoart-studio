@@ -102,15 +102,21 @@ async function extractVideoFrameWithFFmpeg(
       };
     }
 
-    return new Promise((resolve) => {
-      const { writeFileSync, unlinkSync, readFileSync } = require('fs');
-      const { join } = require('path');
-      const { tmpdir } = require('os');
-      
-      // Create temporary files
-      const tempInput = join(tmpdir(), `video-${Date.now()}-${Math.random().toString(36).substring(7)}.tmp`);
-      const tempOutput = join(tmpdir(), `frame-${Date.now()}-${Math.random().toString(36).substring(7)}.png`);
-      
+    // Import Node.js modules dynamically
+    const fs = await import('fs');
+    const path = await import('path');
+    const os = await import('os');
+    
+    const { writeFileSync, unlinkSync, readFileSync, existsSync } = fs;
+    const { join } = path;
+    const { tmpdir } = os;
+    
+    // Create temporary files
+    const tempInput = join(tmpdir(), `video-${Date.now()}-${Math.random().toString(36).substring(7)}.tmp`);
+    const tempOutput = join(tmpdir(), `frame-${Date.now()}-${Math.random().toString(36).substring(7)}.png`);
+    
+    // Return a properly constructed Promise (not using async in Promise constructor)
+    return new Promise<FrameExtractionResult>((resolve) => {
       try {
         // Write buffer to temp file
         writeFileSync(tempInput, buffer);
@@ -153,7 +159,7 @@ async function extractVideoFrameWithFFmpeg(
               // Clean up on error
               try {
                 unlinkSync(tempInput);
-                if (require('fs').existsSync(tempOutput)) {
+                if (existsSync(tempOutput)) {
                   unlinkSync(tempOutput);
                 }
               } catch {}
@@ -170,7 +176,7 @@ async function extractVideoFrameWithFFmpeg(
             // Clean up on error
             try {
               unlinkSync(tempInput);
-              if (require('fs').existsSync(tempOutput)) {
+              if (existsSync(tempOutput)) {
                 unlinkSync(tempOutput);
               }
             } catch {}
@@ -185,10 +191,10 @@ async function extractVideoFrameWithFFmpeg(
       } catch (error) {
         // Clean up on error
         try {
-          if (require('fs').existsSync(tempInput)) {
+          if (existsSync(tempInput)) {
             unlinkSync(tempInput);
           }
-          if (require('fs').existsSync(tempOutput)) {
+          if (existsSync(tempOutput)) {
             unlinkSync(tempOutput);
           }
         } catch {}
