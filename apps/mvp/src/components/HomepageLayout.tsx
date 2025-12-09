@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { FeaturedSectionCarousel } from "~/components/FeaturedSectionCarousel";
 import { FeaturedSectionGrid } from "~/components/FeaturedSectionGrid";
-import { FeaturedCarousel } from "~/components/FeaturedCarousel";
 import { SingleListingSection } from "~/components/sections/SingleListingSection";
 import type { EnrichedAuctionData } from "~/lib/types";
 
@@ -15,7 +14,6 @@ type SectionType =
   | "gallery"
   | "collector"
   | "listing"
-  | "featured_carousel"
   | "custom_section";
 
 interface HomepageSection {
@@ -52,10 +50,6 @@ export function HomepageLayout() {
   return (
     <>
       {sections.map((section) => {
-        if (section.sectionType === "featured_carousel") {
-          return <FeaturedCarousel key={section.id} />;
-        }
-
         if (section.sectionType === "listing" && section.listings.length > 0) {
           return (
             <SingleListingSection

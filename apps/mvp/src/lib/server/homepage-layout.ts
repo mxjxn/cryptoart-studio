@@ -2,7 +2,6 @@ import { gql, request } from 'graphql-request';
 import {
   asc,
   eq,
-  featuredListings,
   featuredSectionItems,
   featuredSections,
   getDatabase,
@@ -265,25 +264,9 @@ async function getSingleListing(listingId?: string) {
 }
 
 async function getFeaturedCarouselListings() {
-  try {
-    const db = getDatabase();
-    const featured = await db
-      .select()
-      .from(featuredListings)
-      .orderBy(asc(featuredListings.displayOrder));
-
-    const listings = await Promise.all(
-      featured.map(async (item) => {
-        const listing = await getAuctionServer(item.listingId);
-        return listing ? { ...listing, displayOrder: item.displayOrder } : null;
-      })
-    );
-
-    return listings.filter(Boolean) as EnrichedAuctionData[];
-  } catch (error) {
-    console.error('[Homepage] Failed to get featured carousel listings', error);
-    return [];
-  }
+  // Featured carousel is deprecated - use galleries via homepage arranger instead
+  // Return empty array for graceful degradation
+  return [];
 }
 
 async function getCustomSectionListings(sectionId?: string, limit?: number) {

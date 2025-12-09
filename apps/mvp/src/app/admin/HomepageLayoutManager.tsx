@@ -15,7 +15,6 @@ type SectionType =
   | 'gallery'
   | 'collector'
   | 'listing'
-  | 'featured_carousel'
   | 'custom_section';
 
 type SectionConfig = Record<string, any> | null;
@@ -38,7 +37,6 @@ const SECTION_LABELS: Record<SectionType, string> = {
   gallery: 'Gallery',
   collector: 'Collector',
   listing: 'Single Listing',
-  featured_carousel: 'Featured Carousel',
   custom_section: 'Custom Section',
 };
 
