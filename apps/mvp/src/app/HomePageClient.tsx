@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
@@ -22,7 +22,15 @@ interface HomePageClientProps {
 export default function HomePageClient({ initialAuctions = [] }: HomePageClientProps) {
   const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const pageSize = 20;
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const hasMoreRef = useRef(true);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
@@ -31,32 +39,83 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
 
-  // Fetch all recent listings chronologically
-  const fetchRecentListings = async () => {
-    setLoading(true);
+  // Fetch recent listings with pagination
+  const fetchRecentListings = useCallback(async (pageNum: number, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+      loadingMoreRef.current = true;
+    } else {
+      setLoading(true);
+      loadingRef.current = true;
+    }
     setError(null);
     try {
-      console.log('[HomePageClient] Fetching recent listings...');
-      // Fetch all recent listings ordered by creation date (newest first)
-      const response = await fetch('/api/listings/browse?first=20&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true');
+      const skip = pageNum * pageSize;
+      console.log('[HomePageClient] Fetching recent listings...', { pageNum, skip });
+      // Fetch recent listings ordered by creation date (newest first)
+      const response = await fetch(`/api/listings/browse?first=${pageSize}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       const data = await response.json();
       const recentListings = data.listings || [];
-      console.log('[HomePageClient] Received listings:', recentListings.length);
-      setAuctions(recentListings);
+      console.log('[HomePageClient] Received listings:', recentListings.length, 'hasMore:', data.pagination?.hasMore);
+      
+      if (append) {
+        setAuctions((prev) => [...prev, ...recentListings]);
+      } else {
+        setAuctions(recentListings);
+      }
+      const moreAvailable = data.pagination?.hasMore || false;
+      setHasMore(moreAvailable);
+      hasMoreRef.current = moreAvailable;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
       console.error('[HomePageClient] Error fetching listings:', errorMessage, error);
       setError(errorMessage);
-      // Keep using initialAuctions on error
-      setAuctions(initialAuctions);
+      if (!append) {
+        // Keep using initialAuctions on error for initial load
+        setAuctions(initialAuctions);
+      }
     } finally {
-      console.log('[HomePageClient] Setting loading to false');
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+      } else {
+        setLoading(false);
+        loadingRef.current = false;
+      }
     }
-  };
+  }, [initialAuctions, pageSize]);
+
+  // Set up intersection observer for infinite scroll
+  useEffect(() => {
+    const observer = loadMoreRef.current;
+    if (!observer) return;
+
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting && hasMoreRef.current && !loadingRef.current && !loadingMoreRef.current) {
+          setPage((currentPage) => {
+            const nextPage = currentPage + 1;
+            fetchRecentListings(nextPage, true);
+            return nextPage;
+          });
+        }
+      },
+      {
+        rootMargin: '200px', // Start loading 200px before reaching the bottom
+        threshold: 0.1,
+      }
+    );
+
+    intersectionObserver.observe(observer);
+
+    return () => {
+      intersectionObserver.disconnect();
+    };
+  }, [fetchRecentListings]);
 
   // Use server-side cached data initially
   // Only refetch if we don't have initial data (e.g., after navigation)
@@ -64,10 +123,14 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     // If we have initial auctions from server, use them (they're cached server-side)
     // Only fetch if we don't have any initial data
     if (initialAuctions.length === 0) {
-      fetchRecentListings();
+      fetchRecentListings(0, false);
     } else {
       // We have initial data from server, use it
       setAuctions(initialAuctions);
+      // Check if there might be more listings
+      const moreAvailable = initialAuctions.length >= pageSize;
+      setHasMore(moreAvailable);
+      hasMoreRef.current = moreAvailable;
     }
   }, []); // Empty deps - only run on mount
 
@@ -168,7 +231,8 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             <button
               onClick={() => {
                 setAuctions([]);
-                fetchRecentListings();
+                setPage(0);
+                fetchRecentListings(0, false);
               }}
               className="text-white hover:underline"
             >
@@ -189,7 +253,23 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             )}
           </div>
         ) : (
-          <RecentListingsTable listings={auctions} />
+          <>
+            <RecentListingsTable listings={auctions} />
+            {/* Intersection observer target for infinite scroll */}
+            <div ref={loadMoreRef} className="h-1" />
+            {/* Loading indicator when loading more */}
+            {loadingMore && (
+              <div className="text-center py-8">
+                <p className="text-[#999999] text-sm">Loading more listings...</p>
+              </div>
+            )}
+            {/* End of list indicator */}
+            {!hasMore && auctions.length > 0 && (
+              <div className="text-center py-8">
+                <p className="text-[#666666] text-xs">No more listings to load</p>
+              </div>
+            )}
+          </>
         )}
       </section>
 
