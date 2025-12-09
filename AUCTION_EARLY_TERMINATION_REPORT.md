@@ -172,3 +172,4 @@ This is the cleanest solution and requires no contract changes.
 - `collect()`: `MarketplaceCore.sol:383-396`
 - Documentation: `CAPABILITIES.md` sections 6.8, 6.9, 6.10, 5.2
 
+

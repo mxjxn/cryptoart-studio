@@ -15,3 +15,4 @@ CREATE INDEX "thumbnail_cache_image_url_size_idx" ON "thumbnail_cache" USING btr
 CREATE INDEX "thumbnail_cache_expires_at_idx" ON "thumbnail_cache" USING btree ("expires_at");
 
 
+

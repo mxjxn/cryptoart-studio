@@ -17,6 +17,7 @@
  *   0008_add_token_image_cache.sql - Token image cache table
  *   0009_add_featured_sections.sql - Featured sections and items tables for dynamic homepage curation
  *   0010_add_curation_items.sql - Curation items table for user galleries
+ *   0011_add_homepage_layout_sections.sql - Homepage layout sections for admin-arranged homepage
  */
 
 import { config } from 'dotenv';
@@ -54,6 +55,7 @@ const MIGRATIONS = [
   '0008_add_token_image_cache.sql',
   '0009_add_featured_sections.sql',
   '0010_add_curation_items.sql',
+  '0011_add_homepage_layout_sections.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

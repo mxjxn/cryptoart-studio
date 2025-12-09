@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useERC20Token } from "~/hooks/useERC20Token";
 import { DurationSelector } from "./DurationSelector";
+import { NumberSelector } from "./NumberSelector";
+import { DateSelector, getMinDateTime, getMaxDateTime, getDateTimeAfterHours } from "./DateSelector";
 
 interface ERC721AuctionConfigPageProps {
   contractAddress: string;
@@ -70,9 +72,9 @@ export function ERC721AuctionConfigPage({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validation is handled by constrained selectors, but ensure we have a value
     if (!reservePrice || parseFloat(reservePrice) <= 0) {
-      alert("Please enter a valid reserve price");
-      return;
+      return; // NumberSelector prevents invalid values, but guard against edge cases
     }
 
     onSubmit({
@@ -96,20 +98,15 @@ export function ERC721AuctionConfigPage({
       </div>
 
       {/* Reserve Price */}
-      <div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-          Reserve Price ({priceSymbol})
-        </label>
-        <input
-          type="number"
-          step="0.001"
-          value={reservePrice}
-          onChange={(e) => setReservePrice(e.target.value)}
-          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
-          placeholder="0.1"
-          required
-        />
-      </div>
+      <NumberSelector
+        value={reservePrice}
+        onChange={setReservePrice}
+        min={0.001}
+        step={0.001}
+        label={`Reserve Price (${priceSymbol})`}
+        placeholder="0.1"
+        required
+      />
 
       {/* Payment Currency */}
       <div>
@@ -202,27 +199,25 @@ export function ERC721AuctionConfigPage({
         ) : (
           <div className="space-y-4">
             {/* Start Time */}
-            <div>
-              <label className="block text-xs text-[#cccccc] mb-2">Start Time</label>
-              <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white"
-              />
-            </div>
+            <DateSelector
+              value={startTime}
+              onChange={setStartTime}
+              min={getMinDateTime()}
+              max={getMaxDateTime(10)}
+              label="Start Time"
+            />
 
             {/* End Time with Quick Options */}
             <div>
-              <label className="block text-xs text-[#cccccc] mb-2">End Time</label>
-              <input
-                type="datetime-local"
+              <DateSelector
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white mb-2"
+                onChange={setEndTime}
+                min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
+                max={getMaxDateTime(10)}
+                label="End Time"
                 required
               />
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap mt-2">
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(24)}

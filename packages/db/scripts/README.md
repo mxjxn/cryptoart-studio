@@ -20,7 +20,7 @@ pnpm db:migrate-admin
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `migrate-all.ts` | `pnpm db:migrate-all` | Runs all migrations in order (0000 → 0006). Idempotent - skips existing. |
+| `migrate-all.ts` | `pnpm db:migrate-all` | Runs all migrations in order (0000 → 0011). Idempotent - skips existing. |
 | `migrate-admin-tables.ts` | `pnpm db:migrate-admin` | Runs only the admin tables migration (0003). |
 | `migrate-allowlist-signatures.ts` | `pnpm db:migrate-allowlist` | Runs only the allowlist signatures migration (0004). |
 | `migrate-optimize-indexes.ts` | `pnpm db:migrate-optimize-indexes` | Runs only the optimize indexes migration (0005). |
@@ -49,6 +49,11 @@ Migrations should be applied in this order:
 5. **0004_add_pending_allowlist_signatures.sql** - Pending allowlist signatures table
 6. **0005_optimize_indexes.sql** - Optimize database indexes for reduced disk IO
 7. **0006_add_notification_tokens.sql** - Notification tokens table for Farcaster Mini App notifications
+8. **0007_add_listing_page_status.sql** - Listing page status table
+9. **0008_add_token_image_cache.sql** - Token image cache table
+10. **0009_add_featured_sections.sql** - Featured sections and items tables
+11. **0010_add_curation_items.sql** - Curation items table for galleries
+12. **0011_add_homepage_layout_sections.sql** - Homepage layout sections for admin-arranged homepage
 
 ## Environment Variables
 

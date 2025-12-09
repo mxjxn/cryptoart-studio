@@ -1018,18 +1018,21 @@ export default function CreateAuctionClient() {
         if (endTime === MAX_UINT48) {
           // Never-expiring is allowed for FIXED_PRICE
         } else if (endTime <= now) {
-          alert("End time must be in the future");
+          // Validation handled by DateSelector constraints
+          console.error("End time validation failed: must be in the future");
           setIsSubmitting(false);
           return;
         } else if (endTime > now + MAX_REASONABLE_SECONDS) {
-          alert(`End time cannot be more than ${MAX_REASONABLE_YEARS} years in the future. For open-ended listings, leave the end time empty.`);
+          // Validation handled by DateSelector constraints
+          console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
           setIsSubmitting(false);
           return;
         }
       } else {
         // For INDIVIDUAL_AUCTION and OFFERS_ONLY, never-expiring is not allowed
         if (endTime === MAX_UINT48 || endTime >= MAX_UINT48) {
-          alert("Auctions and offers-only listings must have an expiration date. They cannot be open-ended.");
+          // Validation handled by DateSelector constraints
+          console.error("End time validation failed: auctions and offers-only listings must have an expiration date");
           setIsSubmitting(false);
           return;
         }
@@ -1038,31 +1041,36 @@ export default function CreateAuctionClient() {
         if (startTime === 0) {
           // If startTime is 0, endTime represents duration from first bid/purchase
           if (!endTime || endTime <= 0) {
-            alert("Duration must be a positive value");
+            // Validation handled by DurationSelector constraints
+            console.error("Duration validation failed: must be a positive value");
             setIsSubmitting(false);
             return;
           }
           // Validate duration is reasonable (max 10 years)
           if (endTime > MAX_REASONABLE_SECONDS) {
-            alert(`Duration cannot be more than ${MAX_REASONABLE_YEARS} years`);
+            // Validation handled by DurationSelector constraints
+            console.error(`Duration validation failed: cannot be more than ${MAX_REASONABLE_YEARS} years`);
             setIsSubmitting(false);
             return;
           }
         } else {
           // If startTime is set, endTime must be an absolute timestamp in the future
           if (!endTime || endTime <= now) {
-            alert("End time must be in the future");
+            // Validation handled by DateSelector constraints
+            console.error("End time validation failed: must be in the future");
             setIsSubmitting(false);
             return;
           }
           if (endTime <= startTime) {
-            alert("End time must be after start time");
+            // Validation handled by DateSelector constraints
+            console.error("End time validation failed: must be after start time");
             setIsSubmitting(false);
             return;
           }
           // Validate endTime is reasonable (max 10 years from now)
           if (endTime > now + MAX_REASONABLE_SECONDS) {
-            alert(`End time cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
+            // Validation handled by DateSelector constraints
+            console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
             setIsSubmitting(false);
             return;
           }
@@ -1071,7 +1079,8 @@ export default function CreateAuctionClient() {
 
       // Validate listing type specific requirements
       if (effectiveFormData.listingType === "OFFERS_ONLY" && startTime <= now) {
-        alert("Start time must be in the future for offers-only listings");
+        // Validation handled by DateSelector constraints
+        console.error("Start time validation failed: must be in the future for offers-only listings");
         setIsSubmitting(false);
         return;
       }
@@ -1106,18 +1115,21 @@ export default function CreateAuctionClient() {
         minIncrementBPS = 0; // Must be 0 for FIXED_PRICE
         
         if (totalAvailable < 1 || totalPerSale < 1) {
-          alert("Total available and total per sale must be at least 1");
+          // Validation handled by NumberSelector constraints
+          console.error("Quantity validation failed: total available and total per sale must be at least 1");
           setIsSubmitting(false);
           return;
         }
         if (totalPerSale > totalAvailable) {
-          alert("Total per sale cannot exceed total available");
+          // Validation handled by NumberSelector constraints
+          console.error("Quantity validation failed: total per sale cannot exceed total available");
           setIsSubmitting(false);
           return;
         }
         // For ERC721, totalAvailable and totalPerSale must be 1
         if (tokenType === 'ERC721' && (totalAvailable !== 1 || totalPerSale !== 1)) {
-          alert("ERC721 tokens can only be sold one at a time");
+          // Validation handled by NumberSelector constraints
+          console.error("Quantity validation failed: ERC721 tokens can only be sold one at a time");
           setIsSubmitting(false);
           return;
         }

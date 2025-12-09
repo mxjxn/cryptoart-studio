@@ -19,3 +19,4 @@ CREATE INDEX "listing_page_status_seller_address_idx" ON "listing_page_status" U
 CREATE INDEX "listing_page_status_created_at_idx" ON "listing_page_status" USING btree ("created_at");
 
 
+

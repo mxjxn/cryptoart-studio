@@ -375,6 +375,50 @@ export interface FeaturedSectionItemData {
 }
 
 // ============================================
+// HOMEPAGE LAYOUT
+// ============================================
+
+/**
+ * Homepage layout sections - explicit homepage ordering and configs
+ */
+export const homepageLayoutSections = pgTable('homepage_layout_sections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sectionType: text('section_type').notNull(), // 'upcoming_auctions', 'recently_concluded', 'live_bids', 'artist', 'gallery', 'collector', 'listing', 'featured_carousel', 'custom_section'
+  title: text('title'),
+  description: text('description'),
+  config: jsonb('config'), // Section-specific configuration
+  displayOrder: integer('display_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  displayOrderIdx: index('homepage_layout_sections_display_order_idx').on(table.displayOrder),
+  isActiveIdx: index('homepage_layout_sections_is_active_idx').on(table.isActive),
+  sectionTypeIdx: index('homepage_layout_sections_type_idx').on(table.sectionType),
+}));
+
+export interface HomepageLayoutSectionData {
+  id: string;
+  sectionType:
+    | 'upcoming_auctions'
+    | 'recently_concluded'
+    | 'live_bids'
+    | 'artist'
+    | 'gallery'
+    | 'collector'
+    | 'listing'
+    | 'featured_carousel'
+    | 'custom_section';
+  title?: string | null;
+  description?: string | null;
+  config?: Record<string, any> | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================
 // CURATION (Future)
 // ============================================
 

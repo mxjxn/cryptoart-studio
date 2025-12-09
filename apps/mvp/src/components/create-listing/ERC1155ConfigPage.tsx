@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useERC20Token } from "~/hooks/useERC20Token";
 import { zeroAddress } from "viem";
+import { NumberSelector } from "./NumberSelector";
+import { DateSelector, getMinDateTime, getMaxDateTime, getDateTimeAfterHours } from "./DateSelector";
 
 interface ERC1155ConfigPageProps {
   contractAddress: string;
@@ -72,15 +74,14 @@ export function ERC1155ConfigPage({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validation is handled by constrained selectors, but ensure we have valid values
     if (!price || parseFloat(price) <= 0) {
-      alert("Please enter a valid price");
-      return;
+      return; // NumberSelector prevents invalid values, but guard against edge cases
     }
 
     const quantityNum = parseInt(quantity);
     if (quantityNum < 1 || quantityNum > balance) {
-      alert(`Quantity must be between 1 and ${balance}`);
-      return;
+      return; // NumberSelector prevents invalid values, but guard against edge cases
     }
 
     onSubmit({
@@ -104,20 +105,15 @@ export function ERC1155ConfigPage({
       </div>
 
       {/* Quantity Selector */}
-      <div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-          Quantity (you have {balance} available)
-        </label>
-        <input
-          type="number"
-          min="1"
-          max={balance}
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
-          required
-        />
-      </div>
+      <NumberSelector
+        value={quantity}
+        onChange={setQuantity}
+        min={1}
+        max={balance}
+        step={1}
+        label={`Quantity (you have ${balance} available)`}
+        required
+      />
 
       {/* Payment Currency Selection */}
       <div>
@@ -174,20 +170,15 @@ export function ERC1155ConfigPage({
       </div>
 
       {/* Price Input */}
-      <div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-          Price Per Copy ({priceSymbol})
-        </label>
-        <input
-          type="number"
-          step="0.001"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
-          placeholder="0.1"
-          required
-        />
-      </div>
+      <NumberSelector
+        value={price}
+        onChange={setPrice}
+        min={0.001}
+        step={0.001}
+        label={`Price Per Copy (${priceSymbol})`}
+        placeholder="0.1"
+        required
+      />
 
       {/* Timeframe Options */}
       <div>
@@ -223,26 +214,24 @@ export function ERC1155ConfigPage({
         {useTimeframe && (
           <div className="mt-4 space-y-4">
             {/* Start Time */}
-            <div>
-              <label className="block text-xs text-[#cccccc] mb-2">Start Time</label>
-              <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white"
-              />
-            </div>
+            <DateSelector
+              value={startTime}
+              onChange={setStartTime}
+              min={getMinDateTime()}
+              max={getMaxDateTime(10)}
+              label="Start Time"
+            />
 
             {/* End Time with Quick Options */}
             <div>
-              <label className="block text-xs text-[#cccccc] mb-2">End Time</label>
-              <input
-                type="datetime-local"
+              <DateSelector
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white mb-2"
+                onChange={setEndTime}
+                min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
+                max={getMaxDateTime(10)}
+                label="End Time"
               />
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap mt-2">
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(24)}

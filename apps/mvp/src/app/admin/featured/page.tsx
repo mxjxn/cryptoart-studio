@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { TransitionLink } from '~/components/TransitionLink';
+import { HomepageLayoutManager } from '../HomepageLayoutManager';
 
 export default function FeaturedListingsPage() {
   const queryClient = useQueryClient();
@@ -124,6 +125,8 @@ export default function FeaturedListingsPage() {
   
   return (
     <div className="space-y-6 max-w-4xl">
+      <HomepageLayoutManager />
+
       {/* Featured Settings */}
       <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">
         <h2 className="text-lg font-semibold mb-4 text-[var(--color-text)]">Featured Settings</h2>
