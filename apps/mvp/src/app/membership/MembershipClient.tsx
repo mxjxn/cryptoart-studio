@@ -253,6 +253,21 @@ export default function MembershipClient() {
             Back
           </Link>
           <h1 className="text-3xl font-light mb-4">Membership</h1>
+          
+          {/* Membership Benefits */}
+          <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-medium mb-3">Member Benefits</h2>
+            <ul className="space-y-2 text-sm text-[#cccccc]">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-0.5">•</span>
+                <span>Use new features early</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-0.5">•</span>
+                <span>Access to cast in the channel (soon, pending new admin bot)</span>
+              </li>
+            </ul>
+          </div>
         </div>
 
         {statusLoading ? (
@@ -331,7 +346,7 @@ export default function MembershipClient() {
               <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 text-center">
                 <p className="text-lg text-[#cccccc] mb-2">No Membership</p>
                 <p className="text-sm text-[#999999] mb-4">
-                  Get access to create auctions and premium features
+                  Members get early access to new features and channel casting
                 </p>
                 <button
                   onClick={() => setShowMintForm(!showMintForm)}

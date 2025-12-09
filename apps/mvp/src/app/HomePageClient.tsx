@@ -24,6 +24,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
+  const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   
@@ -81,7 +82,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       </header>
 
       {/* Create Listing Button - Minimal */}
-      {isPro && (
+      {isMember && (
         <section className="border-b border-[#333333]">
           <div className="px-5 py-3 flex justify-center">
             <TransitionLink
@@ -116,24 +117,23 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       )}
 
       {/* Membership Banner - Only show if not a member */}
-      {!membershipLoading && !isPro && (
+      {!membershipLoading && !isMember && (
         <section className="border-b border-[#333333] bg-[#0a0a0a]">
           <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
             <div className="flex flex-col gap-1">
-              <div className="text-[13px] uppercase tracking-[1.5px] text-[#666666] font-mek-mono">
-                Creator Access
+              <div className="text-sm font-bold text-[#ff6b35] tracking-[0.5px]">
+                Mint Member for early access
               </div>
-              <div className="text-sm font-normal text-[#cccccc]">
-                Mint to create your own auctions
+              <div className="text-xs font-normal text-[#999999]">
+                only 0.0001 ETH/month
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-base font-normal text-white">only 0.0001 ETH/month</div>
+            <div className="flex items-center">
               <TransitionLink
                 href="/membership"
-                className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors whitespace-nowrap"
+                className="px-6 py-2.5 bg-[#ff6b35] text-black text-sm font-bold tracking-[0.5px] hover:bg-[#ff8555] transition-colors whitespace-nowrap"
               >
-                Mint Pass
+                Mint Member
               </TransitionLink>
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         ) : auctions.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-[#cccccc] mb-4">No listings found</p>
-            {isPro && (
+            {isMember && (
               <TransitionLink
                 href="/create"
                 prefetch={false}

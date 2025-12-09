@@ -15,41 +15,46 @@ import { useColorScheme } from "~/contexts/ColorSchemeContext";
 import { useAdminMode } from "~/hooks/useAdminMode";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
 
-function ProfileIcon({ pfpUrl, imageError, setImageError }: { 
+function ProfileIcon({ pfpUrl, imageError, setImageError, isMember }: { 
   pfpUrl: string | undefined; 
   imageError: boolean; 
   setImageError: (error: boolean) => void;
+  isMember: boolean;
 }) {
   return (
-    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
-      {pfpUrl && !imageError ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={pfpUrl}
-          alt="Profile"
-          className="w-full h-full object-cover"
-          onError={() => setImageError(true)}
-        />
-      ) : (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2">
-          <circle cx="12" cy="8" r="4" />
-          <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
-        </svg>
-      )}
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden ${
+      isMember ? 'ring-2 ring-blue-500' : 'ring-2 ring-[#666666]'
+    }`}>
+      <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+        {pfpUrl && !imageError ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={pfpUrl}
+            alt="Profile"
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+          </svg>
+        )}
+      </div>
     </div>
   );
 }
 
-function MembershipBadge({ isPro }: { isPro: boolean }) {
+function MembershipBadge({ isMember }: { isMember: boolean }) {
   return (
     <div
       className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-        isPro
+        isMember
           ? "bg-blue-500 text-white"
           : "bg-[#666666] text-white"
       }`}
     >
-      {isPro ? "pro" : "free"}
+      {isMember ? "member" : "free"}
     </div>
   );
 }
@@ -94,6 +99,7 @@ export function ProfileDropdown() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { isPro, expirationDate, membershipAddress, isFarcasterWallet, loading } = useMembershipStatus();
+  const isMember = isPro; // Alias for clarity
   const { mode } = useColorScheme();
   const { isAdmin } = useIsAdmin();
   const [isOpen, setIsOpen] = useState(false);
@@ -172,15 +178,15 @@ export function ProfileDropdown() {
   // Authenticated state (mini-app or web)
   return (
     <div className="relative flex items-center gap-2" ref={dropdownRef}>
-      <MembershipBadge isPro={isPro} />
+      <MembershipBadge isMember={isMember} />
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-8 h-8 rounded-full bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+        className="cursor-pointer hover:opacity-80 transition-opacity"
         aria-label={isOpen ? "Close profile menu" : "Open profile menu"}
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <ProfileIcon pfpUrl={pfpUrl} imageError={imageError} setImageError={setImageError} />
+        <ProfileIcon pfpUrl={pfpUrl} imageError={imageError} setImageError={setImageError} isMember={isMember} />
       </button>
 
       {isOpen && (
@@ -223,7 +229,7 @@ export function ProfileDropdown() {
               <div className="px-4 py-2 text-sm text-[#999999]">
                 Loading...
               </div>
-            ) : isPro && expirationDate ? (
+            ) : isMember && expirationDate ? (
               <>
                 <div className="px-4 py-2 text-xs text-[#999999] border-t border-[#333333] mt-1 pt-2 space-y-1">
                   <div>Expires: {formatDate(expirationDate)}</div>
