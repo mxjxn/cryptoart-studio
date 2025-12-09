@@ -23,12 +23,7 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
 
-  // Only show for connected admins - hide while loading or if not connected/admin
-  if (!isConnected || !address || isAdminLoading || !isAdmin) {
-    return null;
-  }
-
-  // Fetch user's galleries
+  // Fetch user's galleries (hooks must be called unconditionally)
   const { data: galleriesData } = useQuery({
     queryKey: ["curation", address],
     queryFn: async () => {
@@ -37,16 +32,10 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
       if (!response.ok) return { galleries: [] };
       return response.json();
     },
-    enabled: !!address && isConnected,
+    enabled: !!address && isConnected && isAdmin && !isAdminLoading,
   });
 
   const galleries: GalleryWithCount[] = galleriesData?.galleries || [];
-
-  // Check which galleries already contain this listing
-  const galleriesWithListing = new Set<string>();
-  galleries.forEach((gallery) => {
-    // We'll check this when we fetch the gallery details
-  });
 
   // Add listing to gallery mutation
   const addToListing = useMutation({
@@ -115,6 +104,12 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
       description: newGalleryDescription || undefined,
     });
   };
+
+  // Only show for connected admins - hide while loading or if not connected/admin
+  // This check must come AFTER all hooks are called
+  if (!isConnected || !address || isAdminLoading || !isAdmin) {
+    return null;
+  }
 
   return (
     <>
