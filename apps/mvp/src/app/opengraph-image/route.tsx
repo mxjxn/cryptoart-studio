@@ -560,7 +560,7 @@ export async function GET(request: NextRequest) {
                 const extractionResult = await extractFirstFrame(url, buffer, contentType);
                 
                 if (extractionResult.success) {
-                  finalBuffer = extractionResult.buffer;
+                  finalBuffer = Buffer.from(extractionResult.buffer);
                   finalContentType = extractionResult.contentType;
                   console.log(`[OG Image] Successfully extracted frame for listing ${listing.listingId}, size: ${finalBuffer.length} bytes`);
                 } else {
