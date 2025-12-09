@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
@@ -26,6 +26,16 @@ interface AuctionCardProps {
 export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  
+  // Reset image state when image URL changes
+  useEffect(() => {
+    if (auction.thumbnailUrl || auction.image) {
+      setImageError(false);
+      setImageLoading(true);
+    }
+  }, [auction.thumbnailUrl, auction.image]);
   // Fetch ERC20 token info if not ETH
   const erc20Token = useERC20Token(!isETH(auction.erc20) ? auction.erc20 : undefined);
   
@@ -266,6 +276,11 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
 
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only handle clicks on the card itself, not on interactive children
+    if ((e.target as HTMLElement).closest('a, button')) {
+      return;
+    }
+    
     e.preventDefault();
     
     // Preload the listing data in the background (non-blocking)
@@ -273,14 +288,9 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
       console.error("Error preloading listing:", error);
     });
 
-    // Navigate immediately using view transition if supported
-    if (typeof document !== "undefined" && "startViewTransition" in document) {
-      (document as any).startViewTransition(() => {
-        router.push(`/listing/${auction.listingId}`);
-      });
-    } else {
-      router.push(`/listing/${auction.listingId}`);
-    }
+    // Use router.push without view transition to avoid flash
+    // View transitions can cause black flashes on navigation
+    router.push(`/listing/${auction.listingId}`);
   };
 
   return (
@@ -297,16 +307,30 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
             : gradient,
         }}
       >
-        {(auction.thumbnailUrl || auction.image) && (
-          <img
-            src={auction.thumbnailUrl || auction.image}
-            alt={title}
-            className="w-full h-full object-contain"
-            style={{
-              objectFit: 'contain',
-            }}
-          />
-        )}
+        {(auction.thumbnailUrl || auction.image) && !imageError ? (
+          <>
+            {imageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
+              </div>
+            )}
+            <img
+              src={auction.thumbnailUrl || auction.image || undefined}
+              alt={title}
+              className={`w-full h-full object-contain transition-opacity duration-200 ${
+                imageLoading ? 'opacity-0' : 'opacity-100'
+              }`}
+              style={{
+                objectFit: 'contain',
+              }}
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageError(true);
+                setImageLoading(false);
+              }}
+            />
+          </>
+        ) : null}
         <ListingChips auction={auction} />
         {/* FavoriteButton hidden - will reconsider placement later */}
         {/* <div className="absolute top-2 left-2">
