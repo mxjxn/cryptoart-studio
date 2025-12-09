@@ -39,3 +39,4 @@ export default async function GalleryPage({ params }: GalleryPageProps) {
   return <PublicGalleryClient username={username} slug={slug} />;
 }
 
+

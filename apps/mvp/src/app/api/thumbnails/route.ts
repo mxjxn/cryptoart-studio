@@ -37,6 +37,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check if this is already a thumbnail URL - return it directly
+    if (imageUrl.includes('/api/thumbnails/thumbnails/') || imageUrl.startsWith('/api/thumbnails/thumbnails/')) {
+      // Convert relative URL to absolute if needed
+      let absoluteUrl = imageUrl;
+      if (imageUrl.startsWith('/')) {
+        const { APP_URL } = await import('~/lib/constants');
+        absoluteUrl = `${APP_URL}${imageUrl}`;
+      }
+      return NextResponse.json({
+        thumbnailUrl: absoluteUrl,
+        cached: true,
+      }, {
+        headers: {
+          'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        },
+      });
+    }
+
     // Validate size format
     const validSizes = ['small', 'medium', 'large', 'embed'];
     const customSizePattern = /^\d+x\d+$/;

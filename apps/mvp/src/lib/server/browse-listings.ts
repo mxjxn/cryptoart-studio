@@ -219,19 +219,42 @@ export async function browseListings(
           }
         }
 
-        // Always generate a small thumbnail for consistency and reliability
-        // This ensures all images are optimized and cached, preventing "no image" issues in embeds
+        // Check for thumbnail - use cached if available, otherwise use original image
+        // Background generation should have created thumbnails by the time users view listings
+        // If not ready yet, we use the original image to avoid blocking page load
         let thumbnailUrl: string | undefined = undefined;
         const imageUrl = metadata?.image;
         
         if (imageUrl) {
           try {
-            // Always generate a small thumbnail (200x200) for consistency
-            // This guarantees all images are optimized and cached, which helps with og-image embeds
-            thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+            const { getCachedThumbnail } = await import('./thumbnail-cache');
+            const { getThumbnailStatus } = await import('./background-thumbnails');
+            
+            // Check if thumbnail is already cached (ready)
+            const cached = await getCachedThumbnail(imageUrl, 'small');
+            if (cached) {
+              thumbnailUrl = cached;
+            } else {
+              // Check if thumbnail is being generated
+              const status = await getThumbnailStatus(imageUrl, 'small');
+              if (status === 'generating') {
+                // Thumbnail is being generated in background, use original image for now
+                thumbnailUrl = imageUrl;
+              } else {
+                // Not cached and not generating - try to generate on-demand (fallback)
+                // This handles cases where background generation failed or hasn't run yet
+                try {
+                  thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+                } catch (error) {
+                  // If generation fails, fall back to original image
+                  console.warn(`[Browse Listings] Failed to generate thumbnail for ${imageUrl}:`, error);
+                  thumbnailUrl = imageUrl;
+                }
+              }
+            }
           } catch (error) {
-            // If thumbnail generation fails, fall back to original image
-            console.warn(`[Browse Listings] Failed to generate thumbnail for ${imageUrl}:`, error);
+            // If anything fails, use original image
+            console.warn(`[Browse Listings] Error checking thumbnail for ${imageUrl}:`, error);
             thumbnailUrl = imageUrl;
           }
         }

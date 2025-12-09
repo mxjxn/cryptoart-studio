@@ -117,3 +117,4 @@ function validateType(value: string): value is SectionType {
   ].includes(value as SectionType);
 }
 
+

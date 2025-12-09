@@ -259,6 +259,32 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
       // Discover seller in background
       discoverAndCacheUserBackground(listing.seller);
       
+      // Generate thumbnails in background (fire and forget)
+      // This ensures thumbnails are ready before users view listings
+      if (listing.tokenAddress && listing.tokenId) {
+        const { generateThumbnailsBackground } = await import('./background-thumbnails');
+        const { fetchNFTMetadata } = await import('~/lib/nft-metadata');
+        
+        // Fetch metadata and generate thumbnails in background (non-blocking)
+        Promise.resolve().then(async () => {
+          try {
+            const metadata = await fetchNFTMetadata(
+              listing.tokenAddress,
+              listing.tokenId,
+              listing.tokenSpec
+            );
+            if (metadata?.image) {
+              await generateThumbnailsBackground(metadata.image, listing.listingId, ['small', 'medium']);
+            }
+          } catch (error) {
+            // Don't log errors - this is background work
+            // Thumbnails will be generated on-demand if this fails
+          }
+        }).catch(() => {
+          // Silently fail - thumbnails will be generated on-demand
+        });
+      }
+      
       const artworkName = await getArtworkName(
         listing.tokenAddress,
         listing.tokenId,

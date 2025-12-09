@@ -82,3 +82,4 @@ But **you still need the pooled connection string** even with the old code.
 
 
 
+

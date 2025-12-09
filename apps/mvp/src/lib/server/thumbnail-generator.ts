@@ -259,8 +259,18 @@ async function resizeImage(
     throw new Error('sharp library is required for image resizing. Install it with: npm install sharp');
   }
 
-  // Check if imageUrl is IPFS and get cached version if available
+  // Check if this is already a thumbnail URL - we shouldn't generate thumbnails of thumbnails
+  if (imageUrl.includes('/api/thumbnails/thumbnails/') || imageUrl.startsWith('/api/thumbnails/')) {
+    throw new Error(`Cannot generate thumbnail from thumbnail URL: ${imageUrl}`);
+  }
+
+  // Convert relative URLs to absolute URLs
   let finalImageUrl = imageUrl;
+  if (imageUrl.startsWith('/')) {
+    // Relative URL - convert to absolute using APP_URL
+    const { APP_URL } = await import('~/lib/constants');
+    finalImageUrl = `${APP_URL}${imageUrl}`;
+  }
   if (imageUrl.startsWith('ipfs://') || imageUrl.includes('/ipfs/')) {
     try {
       const { getCachedIPFSImageUrl, cacheIPFSImage } = await import('./ipfs-cache');
