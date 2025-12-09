@@ -25,16 +25,14 @@ The LSSVM ABIs, addresses, and types are packaged in `@lssvm/abis` (located in t
 - Address helpers: `getRouterAddress()`, `getFactoryAddress()`, `getBondingCurveAddress()`
 - Types: `PoolType`, `CurveError`, `PoolData`, `BuyNFTQuote`, `SellNFTQuote`
 
-### Unified Indexer (`@cryptoart/unified-indexer`)
+### Querying Sales Data
 
-The unified indexer package provides a single interface to query both LSSVM pools and auctionhouse listings.
+LSSVM pools and auctionhouse listings are queried directly via their respective subgraphs:
 
-**Location:** `packages/unified-indexer/`
+- **LSSVM Pools**: Query the LSSVM subgraph (see Subgraph Endpoints below)
+- **Auctionhouse Listings**: Query the Auctionhouse subgraph (see Subgraph Endpoints below)
 
-**Main Functions:**
-- `getSalesForCollection(nftContract, chainId)` - Returns all pools + auctions for a collection (for display/browsing)
-- `getPoolData(poolAddress, chainId)` - Get LSSVM pool data
-- `getAuctionData(listingId, chainId)` - Get auctionhouse listing data
+The MVP app queries both subgraphs directly to display sales data for collections.
 
 ## Usage
 
@@ -90,21 +88,47 @@ const [salesMethod, setSalesMethod] = useState<SalesMethod | null>(null)
 
 ### Querying Sales Data for a Collection
 
-Use the unified indexer to fetch both pools and auctions:
+Query LSSVM pools and auctionhouse listings directly via their subgraphs:
 
+**LSSVM Pools:**
 ```typescript
-import { getSalesForCollection } from '@cryptoart/unified-indexer'
+import { request } from 'graphql-request'
 
-const sales = await getSalesForCollection(nftContractAddress, chainId)
-console.log('Pools:', sales.pools)
-console.log('Auctions:', sales.auctions)
+const LSSVM_SUBGRAPH_URL = 'https://api.studio.thegraph.com/query/5440/such-lssvm/0.0.1'
+
+const query = `
+  query GetPools($nft: String!) {
+    pairs(where: { nft: $nft }) {
+      id
+      nft
+      bondingCurve
+      spotPrice
+      delta
+      # ... other fields
+    }
+  }
+`
+
+const pools = await request(LSSVM_SUBGRAPH_URL, query, { nft: nftContractAddress })
 ```
 
-Or use the API route:
-
+**Auctionhouse Listings:**
 ```typescript
-const response = await fetch(`/api/collections/${nftContract}/sales?chainId=${chainId}`)
-const sales = await response.json()
+const AUCTIONHOUSE_SUBGRAPH_URL = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL
+
+const query = `
+  query GetListings($nftContract: String!) {
+    listings(where: { nftContract: $nftContract }) {
+      id
+      nftContract
+      tokenId
+      price
+      # ... other fields
+    }
+  }
+`
+
+const listings = await request(AUCTIONHOUSE_SUBGRAPH_URL, query, { nftContract: nftContractAddress })
 ```
 
 ### Displaying Sales Data
@@ -149,7 +173,8 @@ import { CollectionSalesView } from '@/components/studio/CollectionSalesView'
 
 ### Auctionhouse Subgraph
 
-- **Base Mainnet**: (To be configured - see `packages/unified-indexer/src/auctionhouse-queries.ts`)
+- **Base Mainnet**: Configured via `NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL` environment variable
+- See `packages/auctionhouse-subgraph/README.md` for deployment details
 
 ## Components
 
@@ -202,15 +227,15 @@ Query sales data for a collection.
 ## Dependencies
 
 - `@lssvm/abis` - Shared LSSVM ABIs and types (workspace dependency from such-lssvm repo)
-- `@cryptoart/unified-indexer` - Unified indexer for pools and auctions
 - `viem` - Ethereum library
 - `wagmi` - React hooks for Ethereum
-- `graphql-request` - GraphQL client
+- `graphql-request` - GraphQL client for querying subgraphs
 
 ## Notes
 
 - Environment variables (`.env.local`) must be updated manually
 - Contract addresses should be verified against deployment summaries
 - Sales methods are separate flows - creators can create pools and auctions independently
-- Unified indexer is for displaying existing sales, not for creation options
+- LSSVM pools and auctionhouse listings are queried separately via their respective subgraphs
+- The MVP app combines results from both subgraphs for display
 

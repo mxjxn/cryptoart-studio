@@ -38,7 +38,6 @@ All projects share the same PostgreSQL database and Redis instance.
 **Redis (Optional):**
 - Option 1 (Upstash): Set `KV_REST_API_URL` and `KV_REST_API_TOKEN`
 - Option 2 (Standard): Set `REDIS_URL`
-- See `packages/shared-db-config/README.md` for details
 
 ### Database Migrations
 
@@ -51,52 +50,36 @@ pnpm run db:push
 
 ## Apps
 
-### Cryptoart Studio App
+### MVP App
 
-**Location**: `apps/cryptoart-studio-app/`
+**Location**: `apps/mvp/`
 
 **Deployment**: Vercel (recommended) or any Next.js-compatible platform
 
 **Quick Deploy:**
 ```bash
-cd apps/cryptoart-studio-app
-npm run deploy:vercel
+cd apps/mvp
+npm run build
+vercel deploy
 ```
 
 **Environment Variables:**
-- `NEYNAR_API_KEY` - Neynar API key
-- `NEYNAR_CLIENT_ID` - Neynar client ID
-- `POSTGRES_URL` - Shared database connection
-- `NEXT_PUBLIC_URL` - Public URL of the app
+- `POSTGRES_URL` - Shared database connection (required)
+- `NEYNAR_API_KEY` - Neynar API key (optional but recommended)
+- `NEYNAR_CLIENT_ID` - Neynar client ID (optional but recommended)
+- `NEXT_PUBLIC_URL` - Public URL of the app (required)
+- `NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL` - Subgraph endpoint (required)
+- `ADMIN_WALLET_ADDRESS` - Admin wallet address (required)
+- `ADMIN_FARCASTER_USERNAME` - Admin Farcaster username (required)
+- `ADMIN_FID` - Admin Farcaster FID (required)
 - `ALCHEMY_API_KEY` - For NFT metadata (optional)
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` - Redis (optional)
 
 **Documentation:**
-- See `apps/cryptoart-studio-app/README.md`
-- See `apps/cryptoart-studio-app/ENV_VARS.md` for complete environment variable list
-- See `apps/cryptoart-studio-app/DEVELOPER_GUIDE.md` for development details
+- See `apps/mvp/README.md`
+- See `OPEN_SOURCE_GUIDE.md` for complete deployment guide
 
-### Auctionhouse App
-
-**Location**: `apps/auctionhouse/`
-
-**Deployment**: Vercel (recommended) or any Next.js-compatible platform
-
-**Quick Deploy:**
-```bash
-cd apps/auctionhouse
-npm run deploy:vercel
-```
-
-**Environment Variables:**
-- `NEYNAR_API_KEY` - Neynar API key
-- `NEYNAR_CLIENT_ID` - Neynar client ID
-- `POSTGRES_URL` - Shared database connection
-- `NEXT_PUBLIC_URL` - Public URL of the app
-- `KV_REST_API_URL` / `KV_REST_API_TOKEN` - Redis (optional)
-
-**Documentation:**
-- See `apps/auctionhouse/README.md`
+**Note:** This app will be renamed to `cryptoart` in a future update.
 
 ## Packages
 
@@ -171,15 +154,15 @@ forge script script/DeployContracts.s.sol --rpc-url $RPC_URL --broadcast
 
 ### Subgraphs
 
-#### Creator Core & Auctionhouse Subgraph
+#### Auctionhouse Subgraph
 
-**Location**: `packages/subgraph/`
+**Location**: `packages/auctionhouse-subgraph/`
 
 **Deployment**: The Graph Studio or Alchemy Subgraph
 
 **Deploy to The Graph Studio:**
 ```bash
-cd packages/subgraph
+cd packages/auctionhouse-subgraph
 graph auth --studio <DEPLOY_KEY>
 npm run deploy
 ```
@@ -188,15 +171,6 @@ npm run deploy
 ```bash
 npm run deploy:alchemy
 ```
-
-**Documentation:**
-- See `packages/subgraph/README.md` - Setup and deployment instructions
-
-#### Auctionhouse Subgraph
-
-**Location**: `packages/auctionhouse-subgraph/`
-
-**Deployment**: The Graph Studio or Alchemy Subgraph
 
 **Documentation:**
 - See `packages/auctionhouse-subgraph/README.md` - Setup and deployment instructions
@@ -254,31 +228,28 @@ For a complete deployment, follow this order:
 
 ### 4. Subgraph Deployment
 
-1. **Deploy Creator Core & Auctionhouse Subgraph:**
-   ```bash
-   cd packages/subgraph
-   # Deploy to The Graph Studio or Alchemy
-   ```
-
-2. **Deploy Auctionhouse Subgraph (if separate):**
+1. **Deploy Auctionhouse Subgraph:**
    ```bash
    cd packages/auctionhouse-subgraph
-   # Deploy to The Graph Studio or Alchemy
+   graph auth --studio <DEPLOY_KEY>
+   npm run deploy
+   # Or use: npm run deploy:alchemy
    ```
 
 ### 5. App Deployment
 
-1. **Deploy Cryptoart Studio App:**
+1. **Deploy MVP App:**
    ```bash
-   cd apps/cryptoart-studio-app
-   npm run deploy:vercel
+   cd apps/mvp
+   npm run build
+   vercel deploy
    ```
-
-2. **Deploy Auctionhouse App:**
-   ```bash
-   cd apps/auctionhouse
-   npm run deploy:vercel
-   ```
+   
+   **Vercel Configuration:**
+   - Root Directory: `apps/mvp`
+   - Build Command: `cd ../.. && turbo build --filter=mvp`
+   - Output Directory: `.next`
+   - Install Command: `pnpm install`
 
 ## Environment Variable Checklist
 

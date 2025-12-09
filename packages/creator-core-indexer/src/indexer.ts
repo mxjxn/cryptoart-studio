@@ -8,11 +8,7 @@
  */
 
 import { PublicClient, Address, Log } from 'viem';
-import { getSharedDatabase } from '@cryptoart/shared-db-config';
-import {
-  creatorCoreContracts,
-  creatorCoreTokens,
-} from '@cryptoart/db';
+import { getDatabase } from '@cryptoart/db';
 import { eq } from 'drizzle-orm';
 import { getConfig } from './config.js';
 import { createClient, detectCreatorCoreContract } from './contracts.js';
@@ -51,7 +47,7 @@ export class CreatorCoreIndexer {
    * Initialize indexer - get last processed block from database
    */
   async initialize(): Promise<void> {
-    const db = getSharedDatabase();
+    const db = getDatabase();
     
     // Get the highest block number from transfers table
     const result = await db
@@ -201,7 +197,7 @@ export class CreatorCoreIndexer {
    * Ensure contract is indexed in database
    */
   private async ensureContractIndexed(address: string): Promise<boolean> {
-    const db = getSharedDatabase();
+    const db = getDatabase();
     const normalizedAddress = address.toLowerCase();
 
     // Check if already indexed

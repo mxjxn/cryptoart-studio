@@ -3,8 +3,7 @@
  */
 
 import { PublicClient, Address } from 'viem';
-import { getSharedDatabase } from '@cryptoart/shared-db-config';
-import { creatorCoreTokens, nftMetadataCache } from '@cryptoart/db';
+import { getDatabase } from '@cryptoart/db';
 import { eq, and } from 'drizzle-orm';
 
 export interface NFTMetadata {
@@ -80,7 +79,7 @@ export async function fetchAndCacheMetadata(
   contractAddress: string,
   tokenId: string
 ): Promise<NFTMetadata | null> {
-  const db = getSharedDatabase();
+  const db = getDatabase();
   const normalizedAddress = contractAddress.toLowerCase();
 
   // Check cache first

@@ -3,12 +3,7 @@
  */
 
 import { PublicClient, Address, Log } from 'viem';
-import { getSharedDatabase } from '@cryptoart/shared-db-config';
-import {
-  creatorCoreContracts,
-  creatorCoreTokens,
-  creatorCoreTransfers,
-} from '@cryptoart/db';
+import { getDatabase } from '@cryptoart/db';
 import { eq, and } from 'drizzle-orm';
 
 // Transfer event signature (ERC721)
@@ -106,7 +101,7 @@ export function processTransferBatchEvent(log: Log, timestamp: Date | null): Pro
  * Store transfer event in database
  */
 export async function storeTransfer(transfer: ProcessedTransfer): Promise<void> {
-  const db = getSharedDatabase();
+  const db = getDatabase();
 
   // Check if already indexed
   const existing = await db
@@ -149,7 +144,7 @@ export async function storeTransfer(transfer: ProcessedTransfer): Promise<void> 
  * Handle mint event - create or update token record
  */
 async function handleMint(transfer: ProcessedTransfer): Promise<void> {
-  const db = getSharedDatabase();
+  const db = getDatabase();
 
   // Check if token already exists
   const existing = await db
@@ -199,7 +194,7 @@ async function handleMint(transfer: ProcessedTransfer): Promise<void> {
  * Update token owner after transfer
  */
 async function updateTokenOwner(transfer: ProcessedTransfer): Promise<void> {
-  const db = getSharedDatabase();
+  const db = getDatabase();
 
   // If to is zero address, this is a burn
   const newOwner = transfer.to === ZERO_ADDRESS ? null : transfer.to;

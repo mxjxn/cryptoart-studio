@@ -8,10 +8,10 @@ A monorepo containing all projects related to the Cryptoart channel on farcaster
 
 This monorepo contains several projects that work together:
 
-1. **Cryptoart Studio App** - Next.js Farcaster Mini App for creator tools
-2. **Auctionhouse App** - Next.js Farcaster Mini App for auctionhouse functionality
-3. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
-4. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
+1. **MVP App** - Main marketplace app with auctions, curation, and social features
+2. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
+3. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
+4. **Auctionhouse Subgraph** - The Graph subgraph for indexing marketplace events
 
 ## Related Projects
 
@@ -26,7 +26,7 @@ The [LSSVM Development Suite](https://github.com/mxjxn/such-lssvm) is a separate
 
 **Integration:**
 - The `cryptoart-monorepo` uses `@lssvm/abis` as a git dependency for LSSVM contract interactions
-- The `unified-indexer` package bridges LSSVM pools and Auctionhouse listings
+- LSSVM pools and Auctionhouse listings are queried directly via their respective subgraphs
 - See [LSSVM_INTEGRATION.md](./LSSVM_INTEGRATION.md) for detailed integration guide
 
 **Why Separate?**
@@ -42,21 +42,19 @@ The [LSSVM Development Suite](https://github.com/mxjxn/such-lssvm) is a separate
 ```
 cryptoart-monorepo/
 ├── apps/
-│   ├── cryptoart-studio-app/  # Next.js Farcaster Mini App for creator tools
-│   ├── auctionhouse/          # Next.js Farcaster Mini App for auctionhouse
-│   └── mvp/                   # Main marketplace app with curation features
+│   ├── mvp/                   # Main marketplace app with curation features
+│   ├── docs/                  # Documentation site
+│   └── archive/               # Archived projects (studio-app)
 ├── packages/
 │   ├── creator-core-contracts/ # ERC721/ERC1155 NFT framework
 │   ├── auctionhouse-contracts/ # Solidity auction house contracts
 │   ├── auctionhouse-subgraph/  # The Graph subgraph for auctionhouse events
-│   ├── unified-indexer/         # Unified indexer for LSSVM pools and auctions
-│   ├── cache/                  # Hypersub caching layer
+│   ├── creator-core-indexer/   # Background indexer for Creator Core contracts
 │   ├── db/                     # Database layer with Drizzle ORM
 │   ├── eslint-config/          # Shared ESLint configuration
 │   ├── typescript-config/      # Shared TypeScript configuration
 │   └── ui/                     # Shared UI component library
-├── llms-full.md               # Complete technical documentation
-├── PACKAGES.md                 # Additional packages documentation
+├── docs/                       # Documentation
 ├── README.md                   # This file
 ├── turbo.json                  # Turborepo configuration
 └── package.json                # Root workspace configuration
@@ -93,52 +91,43 @@ For complete deployment instructions for all projects, see **[DEPLOYMENT.md](./d
 1. Set up shared PostgreSQL database
 2. Deploy contracts (Creator Core, Auctionhouse)
 3. Deploy indexers (Creator Core Indexer)
-4. Deploy subgraphs
-5. Deploy apps (Cryptoart Studio, Auctionhouse, MVP)
+4. Deploy subgraphs (Auctionhouse Subgraph)
+5. Deploy apps (MVP)
 
 ## Projects
 
 ### Apps
 
-#### Cryptoart Studio App (`apps/cryptoart-studio-app/`)
+#### MVP App (`apps/mvp/`)
 
-Next.js Farcaster Mini App for creator tools, subscription management, and community analytics.
-
-**Tech Stack:**
-- Next.js 15
-- TypeScript
-- React 18
-- Tailwind CSS
-- Wagmi + Viem
-- Farcaster Mini App SDK
-
-**Getting Started:**
-```bash
-cd apps/cryptoart-studio-app
-pnpm run dev
-```
-
-**Documentation:** See `apps/cryptoart-studio-app/README.md` and `apps/cryptoart-studio-app/DEVELOPER_GUIDE.md`
-
-#### Auctionhouse App (`apps/auctionhouse/`)
-
-Next.js Farcaster Mini App for auctionhouse functionality on the Cryptoart channel.
+Main marketplace application with auctions, curation, social features, and admin tools.
 
 **Tech Stack:**
-- Next.js 15
+- Next.js 16
 - TypeScript
 - React 19
 - Tailwind CSS
 - Wagmi + Viem
 - Farcaster Mini App SDK
+- PostgreSQL + Drizzle ORM
+
+**Features:**
+- NFT auction creation and bidding
+- Curated galleries
+- User profiles and social features
+- Featured listings and sections
+- Admin tools for moderation
+- Real-time notifications
 
 **Getting Started:**
 ```bash
-cd apps/auctionhouse
+cd apps/mvp
 pnpm run dev
 ```
 
-**Documentation:** See `apps/auctionhouse/README.md`
+**Documentation:** See `apps/mvp/README.md`
+
+**Note:** This app will be renamed to `cryptoart` in a future update.
 
 ### Packages
 
@@ -179,32 +168,31 @@ forge test
 
 #### Auctionhouse Subgraph (`packages/auctionhouse-subgraph/`)
 
-The Graph subgraph for indexing Creator Core and Auctionhouse events on Base Mainnet. Indexes marketplace listings, purchases, bids, offers, and collection data.
+The Graph subgraph for indexing Auctionhouse marketplace events on Base Mainnet. Indexes marketplace listings, purchases, bids, offers, and related data.
 
 **Features:**
 - Marketplace event indexing (listings, purchases, bids, offers)
-- Creator Core collection and token indexing
 - Library event support (MarketplaceLib, SettlementLib)
 - Real-time event linking and entity relationships
 
 **Documentation:** See `packages/auctionhouse-subgraph/README.md`
 
-#### Unified Indexer (`packages/unified-indexer/`)
+#### Creator Core Indexer (`packages/creator-core-indexer/`)
 
-Unified indexer package for querying both LSSVM pools and auctionhouse listings. Provides a single interface to fetch sales data for NFT collections.
+Background service for indexing Creator Core contract deployments and NFT transfers. Monitors the blockchain for new contracts and indexes their events.
 
 **Features:**
-- Query LSSVM pools by NFT contract
-- Query auctionhouse listings by NFT contract
-- Unified data structures for displaying sales
+- Automatic contract detection
+- Transfer event indexing
+- Metadata fetching and caching
+- Extension registration tracking
 
-**Documentation:** See `LSSVM_INTEGRATION.md` for integration details
+**Documentation:** See `packages/creator-core-indexer/README.md`
 
 #### Additional Packages
 
 The monorepo also includes several shared packages:
 
-- **`packages/cache/`** - Hypersub caching layer
 - **`packages/db/`** - Database layer with Drizzle ORM
 - **`packages/eslint-config/`** - Shared ESLint configuration
 - **`packages/typescript-config/`** - Shared TypeScript configuration
@@ -241,16 +229,12 @@ pnpm run clean
 You can work on individual projects directly:
 
 ```bash
-# Frontend development
-cd apps/cryptoart-studio-app
-pnpm run dev
-
-# Auctionhouse app development
-cd apps/auctionhouse
-pnpm run dev
-
 # MVP app development
 cd apps/mvp
+pnpm run dev
+
+# Documentation site
+cd apps/docs
 pnpm run dev
 
 # Contract development
