@@ -1,5 +1,4 @@
-import { getDatabase } from '@cryptoart/db';
-import { eq, and, gt } from 'drizzle-orm';
+import { getDatabase, eq, and, gt } from '@cryptoart/db';
 
 // Thumbnail cache table - optional, may not exist in schema
 // We'll try to import it lazily when needed
