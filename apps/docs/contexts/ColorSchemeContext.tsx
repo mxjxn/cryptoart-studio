@@ -33,10 +33,8 @@ export function ColorSchemeProvider({ children }: { children: ReactNode }) {
         setHueState(parsed)
       }
     }
-    const storedTheme = localStorage.getItem(STORAGE_KEY_THEME)
-    if (storedTheme === 'light' || storedTheme === 'dark') {
-      setThemeState(storedTheme)
-    }
+    // Always default to dark mode, ignore localStorage for theme
+    setThemeState('dark')
   }, [])
 
   // Update localStorage when hue changes
