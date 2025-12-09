@@ -31,7 +31,9 @@ export {
   // Token image cache
   tokenImageCache,
   // ERC1155 token supply cache
-  erc1155TokenSupplyCache
+  erc1155TokenSupplyCache,
+  // IPFS image cache
+  ipfsImageCache
 } from './client';
 export type { 
   UserCacheData, 
@@ -63,7 +65,9 @@ export type {
   // Token image cache types
   TokenImageCacheData,
   // ERC1155 token supply cache types
-  ERC1155TokenSupplyCacheData
+  ERC1155TokenSupplyCacheData,
+  // IPFS image cache types
+  IPFSImageCacheData
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

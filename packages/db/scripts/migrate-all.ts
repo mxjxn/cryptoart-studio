@@ -19,6 +19,7 @@
  *   0010_add_curation_items.sql - Curation items table for user galleries
  *   0011_add_homepage_layout_sections.sql - Homepage layout sections for admin-arranged homepage
  *   0012_add_erc1155_token_supply_cache.sql - ERC1155 token supply cache table
+ *   0013_add_ipfs_image_cache.sql - IPFS image cache table for caching IPFS images to Vercel Blob
  */
 
 import { config } from 'dotenv';
@@ -58,6 +59,7 @@ const MIGRATIONS = [
   '0010_add_curation_items.sql',
   '0011_add_homepage_layout_sections.sql',
   '0012_add_erc1155_token_supply_cache.sql',
+  '0013_add_ipfs_image_cache.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

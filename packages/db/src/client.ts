@@ -31,7 +31,9 @@ import {
   // Token image cache
   tokenImageCache,
   // ERC1155 token supply cache
-  erc1155TokenSupplyCache
+  erc1155TokenSupplyCache,
+  // IPFS image cache
+  ipfsImageCache
 } from './schema';
 
 // Global singleton pattern for Next.js serverless environments
@@ -175,7 +177,9 @@ export {
   // Token image cache
   tokenImageCache,
   // ERC1155 token supply cache
-  erc1155TokenSupplyCache
+  erc1155TokenSupplyCache,
+  // IPFS image cache
+  ipfsImageCache
 } from './schema';
 export type { 
   UserCacheData, 
@@ -207,5 +211,7 @@ export type {
   // Token image cache types
   TokenImageCacheData,
   // ERC1155 token supply cache types
-  ERC1155TokenSupplyCacheData
+  ERC1155TokenSupplyCacheData,
+  // IPFS image cache types
+  IPFSImageCacheData
 } from './schema';

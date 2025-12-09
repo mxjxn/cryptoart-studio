@@ -854,3 +854,29 @@ export interface ERC1155TokenSupplyCacheData {
   expiresAt: Date;
   updatedAt: Date;
 }
+
+// ============================================
+// IPFS IMAGE CACHE
+// ============================================
+
+/**
+ * IPFS image cache table - Cache IPFS images to Vercel Blob
+ * Primary key: ipfs_url (normalized)
+ * Used to avoid repeated IPFS gateway calls and serve images from CDN
+ */
+export const ipfsImageCache = pgTable('ipfs_image_cache', {
+  ipfsUrl: text('ipfs_url').primaryKey().notNull(), // Normalized IPFS URL
+  blobUrl: text('blob_url').notNull(), // Vercel Blob URL (CDN-optimized)
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at'), // Optional TTL (null = never expires)
+}, (table) => ({
+  ipfsUrlIdx: index('ipfs_image_cache_ipfs_url_idx').on(table.ipfsUrl),
+  expiresAtIdx: index('ipfs_image_cache_expires_at_idx').on(table.expiresAt),
+}));
+
+export interface IPFSImageCacheData {
+  ipfsUrl: string;
+  blobUrl: string;
+  cachedAt: Date;
+  expiresAt: Date | null;
+}

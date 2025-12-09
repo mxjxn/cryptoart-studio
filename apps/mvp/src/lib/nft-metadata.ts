@@ -155,7 +155,46 @@ export async function fetchNFTMetadata(
 
     // Convert image URL if it's IPFS (skip if already a data URI)
     if (metadata.image) {
-      metadata.image = ipfsToGateway(metadata.image);
+      const imageUrl = metadata.image; // Store in const to ensure it's defined
+      // Check if it's an IPFS URL and try to get cached version (server-side only)
+      if (imageUrl.startsWith('ipfs://') || imageUrl.includes('/ipfs/')) {
+        // Only try IPFS caching on server-side (check for Node.js environment)
+        if (typeof window === 'undefined' && typeof process !== 'undefined' && process.env) {
+          try {
+            const { getCachedIPFSImageUrl, cacheIPFSImage } = await import('./server/ipfs-cache');
+            // First check if already cached (fast path)
+            const cached = await getCachedIPFSImageUrl(imageUrl);
+            if (cached) {
+              metadata.image = cached;
+            } else {
+              // Not cached, try to cache it with timeout
+              // Use Promise.race to avoid blocking too long
+              const cachePromise = cacheIPFSImage(imageUrl);
+              const timeoutPromise = new Promise<string>((resolve) => {
+                setTimeout(() => resolve(ipfsToGateway(imageUrl)), 5000); // 5 second timeout
+              });
+              
+              try {
+                metadata.image = await Promise.race([cachePromise, timeoutPromise]);
+              } catch (error) {
+                // If caching fails, fall back to gateway URL
+                console.warn(`[NFT Metadata] Failed to cache IPFS image ${imageUrl}:`, error);
+                metadata.image = ipfsToGateway(imageUrl);
+              }
+            }
+          } catch (error) {
+            // If IPFS cache fails, fall back to gateway
+            console.warn(`[NFT Metadata] IPFS cache error, using gateway:`, error);
+            metadata.image = ipfsToGateway(imageUrl);
+          }
+        } else {
+          // Client-side: just convert to gateway URL
+          metadata.image = ipfsToGateway(imageUrl);
+        }
+      } else {
+        // Not IPFS, just convert if needed
+        metadata.image = ipfsToGateway(imageUrl);
+      }
     }
 
     // Handle animation_url - normalize camelCase variant and convert IPFS

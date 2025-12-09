@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -310,24 +311,27 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
         {(auction.thumbnailUrl || auction.image) && !imageError ? (
           <>
             {imageLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
                 <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
               </div>
             )}
-            <img
-              src={auction.thumbnailUrl || auction.image || undefined}
+            <Image
+              src={(auction.thumbnailUrl || auction.image) ?? ''}
               alt={title}
-              className={`w-full h-full object-contain transition-opacity duration-200 ${
+              fill
+              className={`object-contain transition-opacity duration-200 ${
                 imageLoading ? 'opacity-0' : 'opacity-100'
               }`}
               style={{
                 objectFit: 'contain',
               }}
+              priority={index < 6} // Prioritize first 6 images (above the fold)
               onLoad={() => setImageLoading(false)}
               onError={() => {
                 setImageError(true);
                 setImageLoading(false);
               }}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           </>
         ) : null}

@@ -259,8 +259,38 @@ async function resizeImage(
     throw new Error('sharp library is required for image resizing. Install it with: npm install sharp');
   }
 
-  // Fetch the original image
-  const response = await fetch(imageUrl, {
+  // Check if imageUrl is IPFS and get cached version if available
+  let finalImageUrl = imageUrl;
+  if (imageUrl.startsWith('ipfs://') || imageUrl.includes('/ipfs/')) {
+    try {
+      const { getCachedIPFSImageUrl, cacheIPFSImage } = await import('./ipfs-cache');
+      // First check if already cached (fast path)
+      const cached = await getCachedIPFSImageUrl(imageUrl);
+      if (cached) {
+        finalImageUrl = cached;
+      } else {
+        // Not cached, try to cache it (with timeout to avoid blocking)
+        try {
+          const cachePromise = cacheIPFSImage(imageUrl);
+          const timeoutPromise = new Promise<string>((resolve) => {
+            setTimeout(() => resolve(imageUrl), 5000); // 5 second timeout
+          });
+          finalImageUrl = await Promise.race([cachePromise, timeoutPromise]);
+        } catch (error) {
+          // If caching fails, use original URL
+          console.warn(`[Thumbnail] Failed to cache IPFS image ${imageUrl}, using original:`, error);
+          finalImageUrl = imageUrl;
+        }
+      }
+    } catch (error) {
+      // If IPFS cache fails, use original URL
+      console.warn(`[Thumbnail] IPFS cache error, using original URL:`, error);
+      finalImageUrl = imageUrl;
+    }
+  }
+
+  // Fetch the original image (now from cached URL if IPFS)
+  const response = await fetch(finalImageUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; Thumbnail-Bot/1.0)',
     },

@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // Next.js 16 uses Turbopack by default - empty config silences the webpack warning
   turbopack: {},
   images: {
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 86400, // 1 day cache for optimized images
     remotePatterns: [
       {
         protocol: 'https',
@@ -16,6 +18,9 @@ const nextConfig: NextConfig = {
         hostname: '**',
       },
     ],
+    // Responsive image sizes
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   webpack: (config, { isServer }) => {
     // Ensure @pigment-css/react is resolved correctly for @neynar/react
