@@ -76,13 +76,18 @@ export interface BrowseListingsOptions {
   enrich?: boolean;
 }
 
+export interface BrowseListingsResult {
+  listings: EnrichedAuctionData[];
+  subgraphReturnedFullCount: boolean; // Whether the subgraph returned the full amount we requested
+}
+
 /**
  * Fetch and enrich listings from the subgraph
  * This is the core logic used by both the API route and server components
  */
 export async function browseListings(
   options: BrowseListingsOptions = {}
-): Promise<EnrichedAuctionData[]> {
+): Promise<BrowseListingsResult> {
   const {
     first = 20,
     skip = 0,
@@ -93,11 +98,16 @@ export async function browseListings(
 
   const endpoint = getSubgraphEndpoint();
   
+  // Fetch more listings than requested to account for filtering
+  // We'll filter out cancelled, finalized, sold-out, and hidden listings
+  // So we need to fetch extra to ensure we have enough after filtering
+  const fetchCount = Math.min(Math.ceil(first * 1.5), 100); // Fetch 50% more, capped at 100
+  
   const data = await request<{ listings: any[] }>(
     endpoint,
     BROWSE_LISTINGS_QUERY,
     {
-      first: Math.min(first, 100),
+      first: fetchCount,
       skip,
       orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
       orderDirection: orderDirection === "asc" ? "asc" : "desc",
@@ -232,6 +242,15 @@ export async function browseListings(
     );
   }
 
-  return enrichedListings;
+  // Check if subgraph returned the full amount we requested
+  // This helps determine if there might be more listings available
+  const subgraphReturnedFullCount = data.listings.length === fetchCount;
+  
+  // Return only the requested number of listings
+  // This ensures we don't return more than requested, and helps with hasMore calculation
+  return {
+    listings: enrichedListings.slice(0, first),
+    subgraphReturnedFullCount,
+  };
 }
 

@@ -54,7 +54,8 @@ export default async function Home() {
         enrich: true,
       });
       
-      initialAuctions = await Promise.race([listingsPromise, timeoutPromise]);
+      const result = await Promise.race([listingsPromise, timeoutPromise]);
+      initialAuctions = result.listings;
     } catch (error) {
       // Silently fail in development - client will fetch
       if (!isDevelopment) {

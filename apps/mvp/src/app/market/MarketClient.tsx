@@ -23,15 +23,24 @@ export default function MarketClient() {
   const tab = searchParams.get("tab") || "all";
   const [listings, setListings] = useState<EnrichedAuctionData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
 
   useEffect(() => {
     async function fetchListings() {
-      setLoading(true);
-      setError(null);
+      const isInitialLoad = page === 0;
+      if (isInitialLoad) {
+        setLoading(true);
+        setError(null);
+      } else {
+        setLoadingMore(true);
+        setLoadMoreError(null);
+      }
+      
       try {
         const skip = page * pageSize;
         let url: string;
@@ -57,13 +66,23 @@ export default function MarketClient() {
           success: data.success,
           listingsCount: data.listings?.length || 0,
           error: data.error,
+          hasMore: data.pagination?.hasMore,
         });
         if (data.error) {
           console.error('[MarketClient] API returned error:', data.error);
-          setError(data.error);
+          if (isInitialLoad) {
+            setError(data.error);
+          } else {
+            setLoadMoreError(data.error);
+          }
         }
         if (!data.success) {
-          setError(data.error || 'Failed to fetch listings');
+          const errorMsg = data.error || 'Failed to fetch listings';
+          if (isInitialLoad) {
+            setError(errorMsg);
+          } else {
+            setLoadMoreError(errorMsg);
+          }
         }
         if (page === 0) {
           setListings(data.listings || []);
@@ -74,14 +93,19 @@ export default function MarketClient() {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
         console.error("[MarketClient] Error fetching listings:", errorMessage, error);
-        setError(errorMessage);
-        // Set empty array on error to show error message instead of infinite loading
-        if (page === 0) {
+        if (isInitialLoad) {
+          setError(errorMessage);
+          // Set empty array on error to show error message instead of infinite loading
           setListings([]);
+        } else {
+          setLoadMoreError(errorMessage);
         }
       } finally {
-        console.log('[MarketClient] Setting loading to false');
-        setLoading(false);
+        if (isInitialLoad) {
+          setLoading(false);
+        } else {
+          setLoadingMore(false);
+        }
       }
     }
 
@@ -89,15 +113,22 @@ export default function MarketClient() {
   }, [page, tab]);
 
   const loadMore = () => {
-    if (!loading && hasMore) {
+    if (!loading && !loadingMore && hasMore) {
       setPage((prev) => prev + 1);
     }
+  };
+
+  const retryLoadMore = () => {
+    setLoadMoreError(null);
+    loadMore();
   };
 
   // Reset page when tab changes
   useEffect(() => {
     setPage(0);
     setListings([]);
+    setLoadMoreError(null);
+    setHasMore(true);
   }, [tab]);
 
   return (
@@ -165,15 +196,46 @@ export default function MarketClient() {
           <>
             <RecentListingsTable listings={listings} loading={loading} />
 
-            {hasMore && (
+            {/* Loading more indicator */}
+            {loadingMore && (
+              <div className="mt-8 text-center py-6">
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[#cccccc] text-sm">Loading more listings...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Load more error */}
+            {loadMoreError && !loadingMore && (
+              <div className="mt-8 text-center py-6">
+                <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
+                <button
+                  onClick={retryLoadMore}
+                  className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Load more button */}
+            {hasMore && !loadingMore && !loadMoreError && (
               <div className="mt-8 text-center">
                 <button
                   onClick={loadMore}
                   disabled={loading}
                   className="px-6 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? "Loading..." : "Load More"}
+                  Load More
                 </button>
+              </div>
+            )}
+
+            {/* End of list indicator */}
+            {!hasMore && listings.length > 0 && !loadingMore && (
+              <div className="mt-8 text-center py-6">
+                <p className="text-[#666666] text-xs">No more listings to load</p>
               </div>
             )}
           </>
@@ -190,15 +252,46 @@ export default function MarketClient() {
               ))}
             </div>
 
-            {hasMore && (
+            {/* Loading more indicator */}
+            {loadingMore && (
+              <div className="mt-8 text-center py-6">
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[#cccccc] text-sm">Loading more listings...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Load more error */}
+            {loadMoreError && !loadingMore && (
+              <div className="mt-8 text-center py-6">
+                <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
+                <button
+                  onClick={retryLoadMore}
+                  className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Load more button */}
+            {hasMore && !loadingMore && !loadMoreError && (
               <div className="mt-8 text-center">
                 <button
                   onClick={loadMore}
                   disabled={loading}
                   className="px-6 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? "Loading..." : "Load More"}
+                  Load More
                 </button>
+              </div>
+            )}
+
+            {/* End of list indicator */}
+            {!hasMore && listings.length > 0 && !loadingMore && (
+              <div className="mt-8 text-center py-6">
+                <p className="text-[#666666] text-xs">No more listings to load</p>
               </div>
             )}
           </>

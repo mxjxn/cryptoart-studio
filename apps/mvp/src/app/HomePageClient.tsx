@@ -24,6 +24,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
@@ -69,11 +70,17 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       const moreAvailable = data.pagination?.hasMore || false;
       setHasMore(moreAvailable);
       hasMoreRef.current = moreAvailable;
+      // Clear any previous load more errors on success
+      if (append) {
+        setLoadMoreError(null);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
       console.error('[HomePageClient] Error fetching listings:', errorMessage, error);
-      setError(errorMessage);
-      if (!append) {
+      if (append) {
+        setLoadMoreError(errorMessage);
+      } else {
+        setError(errorMessage);
         // Keep using initialAuctions on error for initial load
         setAuctions(initialAuctions);
       }
@@ -260,11 +267,35 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
             {/* Loading indicator when loading more */}
             {loadingMore && (
               <div className="text-center py-8">
-                <p className="text-[#999999] text-sm">Loading more listings...</p>
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[#cccccc] text-sm">Loading more listings...</p>
+                </div>
               </div>
             )}
+
+            {/* Load more error */}
+            {loadMoreError && !loadingMore && (
+              <div className="text-center py-8">
+                <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
+                <button
+                  onClick={() => {
+                    setLoadMoreError(null);
+                    setPage((currentPage) => {
+                      const nextPage = currentPage + 1;
+                      fetchRecentListings(nextPage, true);
+                      return nextPage;
+                    });
+                  }}
+                  className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {/* End of list indicator */}
-            {!hasMore && auctions.length > 0 && (
+            {!hasMore && auctions.length > 0 && !loadingMore && !loadMoreError && (
               <div className="text-center py-8">
                 <p className="text-[#666666] text-xs">No more listings to load</p>
               </div>

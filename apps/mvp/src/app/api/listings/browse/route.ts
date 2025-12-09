@@ -13,13 +13,15 @@ export async function GET(req: NextRequest) {
     const orderBy = searchParams.get("orderBy") || "listingId";
     const orderDirection = (searchParams.get("orderDirection") || "desc") as "asc" | "desc";
     
-    const enrichedListings = await browseListings({
+    const result = await browseListings({
       first,
       skip,
       orderBy,
       orderDirection,
       enrich,
     });
+
+    const enrichedListings = result.listings;
 
     // Use no-cache headers if noCache param is set (for admin revalidation)
     const cacheHeaders = noCache
@@ -32,6 +34,12 @@ export async function GET(req: NextRequest) {
           'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
         };
 
+    // Determine if there are more listings available
+    // If we got exactly the requested amount AND the subgraph returned the full amount we requested,
+    // then there might be more listings available.
+    // If we got fewer than requested OR the subgraph didn't return the full amount, we've exhausted the listings.
+    const hasMore = enrichedListings.length === first && result.subgraphReturnedFullCount;
+    
     return NextResponse.json({
       success: true,
       listings: enrichedListings,
@@ -39,7 +47,7 @@ export async function GET(req: NextRequest) {
       pagination: {
         first,
         skip,
-        hasMore: enrichedListings.length === first,
+        hasMore,
       },
     }, {
       headers: cacheHeaders,
