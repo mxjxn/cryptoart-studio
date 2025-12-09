@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { TransitionLink } from '~/components/TransitionLink';
@@ -8,6 +9,7 @@ import { HomepageLayoutManager } from '../HomepageLayoutManager';
 export default function FeaturedListingsPage() {
   const queryClient = useQueryClient();
   const { address } = useAccount();
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // Fetch all published galleries
   const { data: galleriesData, isLoading: loadingGalleries } = useQuery({
@@ -22,6 +24,19 @@ export default function FeaturedListingsPage() {
   });
 
   const allGalleries = galleriesData?.galleries || [];
+
+  // Fetch current homepage layout sections
+  const { data: layoutData } = useQuery({
+    queryKey: ['admin', 'homepage-layout'],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/homepage-layout?adminAddress=${address}`);
+      if (!res.ok) return { sections: [] };
+      return res.json() as Promise<{ sections: any[] }>;
+    },
+    enabled: !!address,
+  });
+
+  const activeSections = (layoutData?.sections || []).filter((s: any) => s.isActive);
 
   // Create featured section from gallery mutation
   const createSectionFromGallery = useMutation({
@@ -65,16 +80,98 @@ export default function FeaturedListingsPage() {
         }
       }
 
-      return { section, gallery };
+      return { section, gallery, title: title || gallery.title };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'featured-sections'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'curation', 'all'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] });
+      setSuccessMessage(`"${data.title}" has been added to the homepage!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
     },
   });
   
+  const SECTION_LABELS: Record<string, string> = {
+    upcoming_auctions: 'Upcoming Auctions',
+    recently_concluded: 'Recently Concluded',
+    live_bids: 'Live Bids',
+    artist: 'Artist',
+    gallery: 'Gallery',
+    collector: 'Collector',
+    listing: 'Single Listing',
+    custom_section: 'Custom Section',
+  };
+
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-500/20 border border-green-500/50 text-green-400 px-4 py-3 rounded">
+          <p className="text-sm font-medium">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Current Homepage Sections */}
+      <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--color-text)]">Current Homepage Sections</h2>
+            <p className="text-sm text-[var(--color-secondary)] mt-1">
+              What's currently displayed on the homepage
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {/* Recent Listings - Always present */}
+          <div className="flex items-center justify-between p-3 bg-[var(--color-background)] border border-[var(--color-border)]">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-[var(--color-text)]">Recent Listings</span>
+              <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
+                Always Active
+              </span>
+              <span className="text-xs text-[var(--color-secondary)]">
+                Shows all recent listings with infinite scroll
+              </span>
+            </div>
+            <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">
+              Active
+            </span>
+          </div>
+
+          {/* Active sections from layout manager */}
+          {activeSections.length > 0 ? (
+            activeSections.map((section: any) => (
+              <div
+                key={section.id}
+                className="flex items-center justify-between p-3 bg-[var(--color-background)] border border-[var(--color-border)]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-[var(--color-text)]">
+                    {section.title || SECTION_LABELS[section.sectionType] || section.sectionType}
+                  </span>
+                  <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
+                    {SECTION_LABELS[section.sectionType] || section.sectionType}
+                  </span>
+                  {section.description && (
+                    <span className="text-xs text-[var(--color-secondary)] line-clamp-1">
+                      {section.description}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">
+                  Active
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 text-[var(--color-secondary)] text-sm">
+              No additional sections configured. Use the Homepage Layout Manager below to add sections.
+            </div>
+          )}
+        </div>
+      </div>
+
       <HomepageLayoutManager />
 
       {/* Featured Galleries Section */}
@@ -140,18 +237,16 @@ export default function FeaturedListingsPage() {
                   </TransitionLink>
                   <button
                     onClick={() => {
-                      if (confirm(`Create a featured section from "${gallery.title}"?`)) {
-                        createSectionFromGallery.mutate({
-                          galleryId: gallery.id,
-                          title: gallery.title,
-                          description: gallery.description || undefined,
-                        });
-                      }
+                      createSectionFromGallery.mutate({
+                        galleryId: gallery.id,
+                        title: gallery.title,
+                        description: gallery.description || undefined,
+                      });
                     }}
                     disabled={createSectionFromGallery.isPending || !gallery.isPublished || (gallery.itemCount || 0) === 0}
                     className="px-3 py-1.5 text-xs bg-[var(--color-primary)] text-[var(--color-background)] font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {createSectionFromGallery.isPending ? 'Creating...' : 'Feature on Homepage'}
+                    {createSectionFromGallery.isPending ? 'Adding...' : 'Feature on Homepage'}
                   </button>
                 </div>
               </div>
