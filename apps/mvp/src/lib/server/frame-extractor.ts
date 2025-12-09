@@ -102,34 +102,21 @@ async function extractVideoFrameWithFFmpeg(
       };
     }
 
-    return new Promise(async (resolve) => {
-      // Import fs modules dynamically
-      let fs: any;
-      let path: any;
-      let os: any;
-      
-      try {
-        fs = await import('fs');
-        path = await import('path');
-        os = await import('os');
-      } catch (error) {
-        resolve({
-          buffer: Buffer.alloc(0),
-          contentType: 'image/png',
-          success: false,
-          error: 'Failed to import required Node.js modules',
-        });
-        return;
-      }
-      
-      const { writeFileSync, unlinkSync, readFileSync, existsSync } = fs;
-      const { join } = path;
-      const { tmpdir } = os;
-      
-      // Create temporary files
-      const tempInput = join(tmpdir(), `video-${Date.now()}-${Math.random().toString(36).substring(7)}.tmp`);
-      const tempOutput = join(tmpdir(), `frame-${Date.now()}-${Math.random().toString(36).substring(7)}.png`);
-      
+    // Import Node.js modules dynamically
+    const fs = await import('fs');
+    const path = await import('path');
+    const os = await import('os');
+    
+    const { writeFileSync, unlinkSync, readFileSync, existsSync } = fs;
+    const { join } = path;
+    const { tmpdir } = os;
+    
+    // Create temporary files
+    const tempInput = join(tmpdir(), `video-${Date.now()}-${Math.random().toString(36).substring(7)}.tmp`);
+    const tempOutput = join(tmpdir(), `frame-${Date.now()}-${Math.random().toString(36).substring(7)}.png`);
+    
+    // Return a properly constructed Promise (not using async in Promise constructor)
+    return new Promise<FrameExtractionResult>((resolve) => {
       try {
         // Write buffer to temp file
         writeFileSync(tempInput, buffer);
