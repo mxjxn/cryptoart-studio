@@ -107,9 +107,11 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
 
   // Only show for connected admins - hide while loading or if not connected/admin
   // This check must come AFTER all hooks are called
-  if (!isConnected || !address || isAdminLoading || !isAdmin) {
-    return null;
-  }
+  // Explicitly check all conditions to prevent showing to non-admins
+  if (!isConnected) return null;
+  if (!address) return null;
+  if (isAdminLoading) return null;
+  if (!isAdmin) return null;
 
   return (
     <>
