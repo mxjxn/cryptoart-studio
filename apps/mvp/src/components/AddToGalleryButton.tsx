@@ -23,8 +23,8 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
 
-  // Only show for admins - hide while loading to prevent flash
-  if (isAdminLoading || !isAdmin) {
+  // Only show for connected admins - hide while loading or if not connected/admin
+  if (!isConnected || !address || isAdminLoading || !isAdmin) {
     return null;
   }
 
@@ -106,10 +106,6 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
       alert("Gallery created and listing added!");
     },
   });
-
-  if (!isConnected || !address) {
-    return null;
-  }
 
   const handleCreateAndAdd = (e: React.FormEvent) => {
     e.preventDefault();
