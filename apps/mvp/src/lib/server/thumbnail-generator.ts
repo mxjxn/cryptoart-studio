@@ -20,6 +20,7 @@
  */
 
 import { getThumbnailDimensions, ThumbnailSize, cacheThumbnail } from './thumbnail-cache';
+import { createHash } from 'crypto';
 
 /**
  * Storage backend interface
@@ -193,8 +194,7 @@ function getStorageBackend(): StorageBackend | null {
  */
 function generateThumbnailKey(imageUrl: string, size: ThumbnailSize): string {
   // Create a hash of the image URL + size
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256')
+  const hash = createHash('sha256')
     .update(imageUrl + size)
     .digest('hex')
     .substring(0, 16);
