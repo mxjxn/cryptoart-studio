@@ -506,6 +506,20 @@ async function fetchActiveAuctions(
           }
         }
 
+        // Generate thumbnail for homepage display (optimized, cached)
+        let thumbnailUrl: string | undefined = undefined;
+        const imageUrl = metadata?.image;
+        if (imageUrl) {
+          try {
+            const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
+            thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+          } catch (error) {
+            // If thumbnail generation fails, fall back to original image
+            console.warn(`[fetchActiveAuctions] Failed to generate thumbnail for ${imageUrl}:`, error);
+            thumbnailUrl = imageUrl;
+          }
+        }
+
         const enriched: EnrichedAuctionData = {
           ...listing,
           listingType: normalizeListingType(listing.listingType, listing),
@@ -520,6 +534,7 @@ async function fetchActiveAuctions(
           artist: metadata?.artist || metadata?.creator,
           image: metadata?.image,
           description: metadata?.description,
+          thumbnailUrl,
           metadata,
           erc1155TotalSupply,
         };
