@@ -14,7 +14,7 @@ import { ListingChips } from "~/components/ListingChips";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
-import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
+import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
 import { getAuction } from "~/lib/subgraph";
 
 interface AuctionCardProps {
@@ -83,43 +83,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   const title = auction.title || `Listing #${auction.listingId}`;
   const bidCount = auction.bidCount || 0;
   
-  // Get time status for display
-  const startTime = parseInt(auction.startTime || "0");
-  const endTime = parseInt(auction.endTime || "0");
-  const hasBid = bidCount > 0 || !!auction.highestBid;
-  
-  let timeStatusDisplay: React.ReactElement | null = null;
-  
-  if (auction.listingType === "INDIVIDUAL_AUCTION") {
-    const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid);
-    if (timeStatus.status === "Not started") {
-      timeStatusDisplay = (
-        <div className="text-xs text-[#999999] mt-1">
-          Not started
-        </div>
-      );
-    } else if (!timeStatus.neverExpires && timeStatus.endDate && timeStatus.timeRemaining) {
-      timeStatusDisplay = (
-        <div className="text-xs text-[#999999] mt-1">
-          <div>ends {timeStatus.endDate}</div>
-          <div>{timeStatus.timeRemaining}</div>
-        </div>
-      );
-    }
-  } else if (auction.listingType === "FIXED_PRICE") {
-    const timeStatus = getFixedPriceTimeStatus(endTime);
-    if (!timeStatus.neverExpires && timeStatus.endDate && timeStatus.timeRemaining) {
-      timeStatusDisplay = (
-        <div className="text-xs text-[#999999] mt-1">
-          <div>ends {timeStatus.endDate}</div>
-          <div>{timeStatus.timeRemaining}</div>
-        </div>
-      );
-    }
-  }
-
-
-  // Resolve artist name
+  // Resolve artist name (moved up to be available for hooks)
   const { artistName, isLoading: artistNameLoading, creatorAddress } = useArtistName(
     auction.seller && !auction.artist ? auction.seller : null,
     auction.tokenAddress || undefined,
@@ -137,6 +101,169 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
   
   // Get username for linking to profile
   const { username: creatorUsername } = useUsername(addressToShow || null);
+  
+  // Get buyer username for finalized auctions (must be declared before use in stateDisplay)
+  const buyerAddress = auction.highestBid?.bidder;
+  const { username: buyerUsername } = useUsername(buyerAddress || null);
+  
+  // Get time status for display
+  const startTime = parseInt(auction.startTime || "0");
+  const endTime = parseInt(auction.endTime || "0");
+  const hasBid = bidCount > 0 || !!auction.highestBid;
+  const now = Math.floor(Date.now() / 1000);
+  const isEnded = endTime <= now && !isNeverExpiring(endTime);
+  const isFinalized = auction.status === "FINALIZED";
+  const isCancelled = auction.status === "CANCELLED";
+  const isERC1155 = auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2";
+  
+  // Calculate ERC1155 supply info
+  let supplyDisplay: React.ReactElement | null = null;
+  if (isERC1155) {
+    const totalAvailable = parseInt(auction.totalAvailable || "0");
+    const totalSold = parseInt(auction.totalSold || "0");
+    const remaining = Math.max(0, totalAvailable - totalSold);
+    const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+    
+    if (isFinalized) {
+      // Show sold out or how many sold
+      if (remaining === 0) {
+        supplyDisplay = (
+          <div className="text-sm font-medium text-white mb-1">
+            Sold out
+          </div>
+        );
+      } else if (totalSold > 0) {
+        supplyDisplay = (
+          <div className="text-sm font-medium text-white mb-1">
+            {totalSold} sold
+          </div>
+        );
+      }
+    } else {
+      // Show supply prominently: "X of Y" format
+      if (totalSupply !== null && totalSupply > 0) {
+        const forSale = remaining;
+        supplyDisplay = (
+          <div className="text-sm font-medium text-white mb-1">
+            {forSale} of {totalSupply} for sale
+          </div>
+        );
+      } else if (totalAvailable > 0) {
+        // Fallback to totalAvailable if totalSupply not available
+        supplyDisplay = (
+          <div className="text-sm font-medium text-white mb-1">
+            {remaining} of {totalAvailable} available
+          </div>
+        );
+      }
+    }
+  }
+  
+  let timeStatusDisplay: React.ReactElement | null = null;
+  let stateDisplay: React.ReactElement | null = null;
+  
+  // Handle state display based on listing type and status
+  if (isCancelled) {
+    stateDisplay = (
+      <div className="text-xs text-[#999999] mt-1">
+        Cancelled
+      </div>
+    );
+  } else if (isFinalized) {
+    if (isERC1155) {
+      // ERC1155 finalized - supply display already handled above
+      stateDisplay = null;
+    } else {
+      // 1/1 FINALIZED: Show "Sold to [buyer] for [amount]"
+      const buyer = auction.highestBid?.bidder;
+      const finalPrice = auction.highestBid?.amount || auction.initialAmount || "0";
+      if (buyer) {
+        const buyerDisplay = buyerUsername || `${buyer.slice(0, 6)}...${buyer.slice(-4)}`;
+        stateDisplay = (
+          <div className="text-xs text-[#999999] mt-1">
+            Sold to {buyerDisplay} for {formatPrice(finalPrice)} {tokenSymbol}
+          </div>
+        );
+      } else {
+        stateDisplay = (
+          <div className="text-xs text-[#999999] mt-1">
+            Sold
+          </div>
+        );
+      }
+    }
+  } else if (auction.listingType === "INDIVIDUAL_AUCTION") {
+    const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid, now);
+    if (isEnded) {
+      // Auction ended but not finalized
+      stateDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          Ended
+        </div>
+      );
+    } else if (timeStatus.status === "Not started") {
+      stateDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          Not started
+        </div>
+      );
+    } else if (hasBid) {
+      // Active with bids: "Current bid: [amount], [N] bids, [time remaining]"
+      const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+      stateDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          <div>Current bid: {formatPrice(auction.highestBid?.amount || "0")} {tokenSymbol}</div>
+          <div>{bidCount} {bidCount === 1 ? "bid" : "bids"}</div>
+          {showTime && timeStatus.timeRemaining && (
+            <div>{timeStatus.timeRemaining}</div>
+          )}
+        </div>
+      );
+    } else {
+      // Active no bids: "Reserve: [amount], [time remaining]"
+      const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+      stateDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          <div>Reserve: {formatPrice(auction.initialAmount || "0")} {tokenSymbol}</div>
+          {showTime && timeStatus.timeRemaining && (
+            <div>{timeStatus.timeRemaining}</div>
+          )}
+        </div>
+      );
+    }
+  } else if (auction.listingType === "FIXED_PRICE") {
+    const timeStatus = getFixedPriceTimeStatus(endTime, now);
+    if (isERC1155) {
+      // ERC1155 fixed price: Show "[X] left, [time remaining]"
+      const totalAvailable = parseInt(auction.totalAvailable || "0");
+      const totalSold = parseInt(auction.totalSold || "0");
+      const remaining = Math.max(0, totalAvailable - totalSold);
+      const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+      
+      if (remaining > 0) {
+        stateDisplay = (
+          <div className="text-xs text-[#999999] mt-1">
+            <div>{remaining} left</div>
+            {showTime && timeStatus.timeRemaining && (
+              <div>{timeStatus.timeRemaining}</div>
+            )}
+          </div>
+        );
+      }
+    } else {
+      // 1/1 fixed price
+      const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+      if (showTime && timeStatus.timeRemaining) {
+        stateDisplay = (
+          <div className="text-xs text-[#999999] mt-1">
+            <div>{timeStatus.timeRemaining}</div>
+          </div>
+        );
+      }
+    }
+  }
+
+
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -232,17 +359,8 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
                 <CopyButton text={addressToShow} size="sm" />
               </div>
             ) : null}
+            {supplyDisplay}
             <div className="flex items-center justify-between mb-2">
-              {auction.listingType === "INDIVIDUAL_AUCTION" && (
-                <div className="text-xs text-[#999999]">
-                  {bidCount} {bidCount === 1 ? "bid" : "bids"}
-                </div>
-              )}
-              {auction.listingType === "FIXED_PRICE" && auction.tokenSpec === "ERC1155" && (
-                <div className="text-xs text-[#999999]">
-                  {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")}/{parseInt(auction.totalAvailable)} available
-                </div>
-              )}
               {auction.listingType === "OFFERS_ONLY" && (
                 <div className="text-xs text-[#999999]">
                   Make offer
@@ -255,7 +373,7 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
                 <span>{currentPrice} {currentPrice !== "—" && tokenSymbol}</span>
               </div>
             </div>
-            {timeStatusDisplay}
+            {stateDisplay}
           </div>
         </div>
       </div>

@@ -99,6 +99,9 @@ export interface EnrichedAuctionData extends AuctionData {
   
   // ERC20 token info (populated if erc20 is set and not zero address)
   erc20TokenInfo?: ERC20TokenInfo;
+  
+  // ERC1155 total supply (for ERC1155 tokens)
+  erc1155TotalSupply?: string;
 }
 
 /**

@@ -1691,6 +1691,11 @@ export default function AuctionDetailClient({
                     </p>
                     <p className="text-xs text-[#666666] mt-0.5">
                       {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} copies remaining ({Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))} purchase{Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1")) !== 1 ? 's' : ''} available)
+                      {auction.erc1155TotalSupply && (
+                        <span className="ml-1 text-[#999999]">
+                          (of {auction.erc1155TotalSupply} total)
+                        </span>
+                      )}
                     </p>
                   </div>
                 )}
@@ -2004,7 +2009,12 @@ export default function AuctionDetailClient({
                     {auction.tokenSpec === "ERC1155" && (
                       <>
                         <span className="text-[#444]">•</span>
-                        <span>{remaining}/{parseInt(auction.totalAvailable)} available</span>
+                        <span>
+                          {remaining}/{parseInt(auction.totalAvailable)} available
+                          {auction.erc1155TotalSupply && (
+                            <span className="text-[#999999]"> (of {auction.erc1155TotalSupply} total)</span>
+                          )}
+                        </span>
                       </>
                     )}
                     <span className="text-[#444]">•</span>

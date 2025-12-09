@@ -1,0 +1,187 @@
+import { eq, and, gte } from 'drizzle-orm';
+import { getDatabase } from '@cryptoart/db';
+import { erc1155TokenSupplyCache } from '@cryptoart/db';
+import { fetchERC1155TotalSupply } from '~/lib/erc1155-supply';
+
+/**
+ * Check if database is available
+ */
+function isDatabaseAvailable(): boolean {
+  try {
+    getDatabase();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get cached ERC1155 total supply from database
+ * Returns null if not cached or expired
+ */
+export async function getCachedERC1155TotalSupply(
+  contractAddress: string,
+  tokenId: string
+): Promise<{ totalSupply: bigint; isLazyMint: boolean } | null> {
+  const normalizedAddress = contractAddress.toLowerCase();
+  
+  if (!isDatabaseAvailable()) {
+    return null;
+  }
+
+  try {
+    const db = getDatabase();
+    const now = new Date();
+    
+    const [cached] = await db
+      .select()
+      .from(erc1155TokenSupplyCache)
+      .where(
+        and(
+          eq(erc1155TokenSupplyCache.contractAddress, normalizedAddress),
+          eq(erc1155TokenSupplyCache.tokenId, tokenId),
+          gte(erc1155TokenSupplyCache.expiresAt, now) // Only non-expired entries
+        )
+      )
+      .limit(1);
+    
+    if (cached) {
+      return {
+        totalSupply: cached.totalSupply,
+        isLazyMint: cached.isLazyMint,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`[getCachedERC1155TotalSupply] Database error:`, error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+/**
+ * Cache ERC1155 total supply in database
+ * Uses upsert pattern to handle existing records
+ */
+export async function cacheERC1155TotalSupply(
+  contractAddress: string,
+  tokenId: string,
+  totalSupply: bigint,
+  isLazyMint: boolean = false
+): Promise<void> {
+  const normalizedAddress = contractAddress.toLowerCase();
+  
+  if (!isDatabaseAvailable()) {
+    return;
+  }
+
+  try {
+    const db = getDatabase();
+    const now = new Date();
+    
+    // TTL: 30 days for non-lazy-mint tokens, 1 day for lazy mint tokens
+    const ttlDays = isLazyMint ? 1 : 30;
+    const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000);
+    
+    // Check if record exists
+    const [existing] = await db
+      .select()
+      .from(erc1155TokenSupplyCache)
+      .where(
+        and(
+          eq(erc1155TokenSupplyCache.contractAddress, normalizedAddress),
+          eq(erc1155TokenSupplyCache.tokenId, tokenId)
+        )
+      )
+      .limit(1);
+    
+    if (existing) {
+      // Update existing record
+      await db
+        .update(erc1155TokenSupplyCache)
+        .set({
+          totalSupply,
+          isLazyMint,
+          expiresAt,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(erc1155TokenSupplyCache.contractAddress, normalizedAddress),
+            eq(erc1155TokenSupplyCache.tokenId, tokenId)
+          )
+        );
+    } else {
+      // Insert new record
+      await db.insert(erc1155TokenSupplyCache).values({
+        contractAddress: normalizedAddress,
+        tokenId,
+        totalSupply,
+        isLazyMint,
+        cachedAt: now,
+        expiresAt,
+        updatedAt: now,
+      });
+    }
+  } catch (error) {
+    console.error(`[cacheERC1155TotalSupply] Database error:`, error instanceof Error ? error.message : String(error));
+    // Don't throw - caching is best effort
+  }
+}
+
+/**
+ * Get ERC1155 total supply with caching
+ * Checks cache first, then fetches if needed
+ */
+export async function getERC1155TotalSupply(
+  contractAddress: string,
+  tokenId: string
+): Promise<bigint | null> {
+  // Check cache first
+  const cached = await getCachedERC1155TotalSupply(contractAddress, tokenId);
+  if (cached) {
+    return cached.totalSupply;
+  }
+  
+  // Fetch from API/contract
+  const totalSupply = await fetchERC1155TotalSupply(contractAddress, tokenId);
+  
+  if (totalSupply !== null) {
+    // Cache the result (best effort, don't wait)
+    cacheERC1155TotalSupply(contractAddress, tokenId, totalSupply, false).catch(err => {
+      console.error('[getERC1155TotalSupply] Failed to cache supply:', err);
+    });
+  }
+  
+  return totalSupply;
+}
+
+/**
+ * Invalidate cache for a specific token (useful for lazy mint scenarios)
+ */
+export async function invalidateERC1155SupplyCache(
+  contractAddress: string,
+  tokenId: string
+): Promise<void> {
+  const normalizedAddress = contractAddress.toLowerCase();
+  
+  if (!isDatabaseAvailable()) {
+    return;
+  }
+
+  try {
+    const db = getDatabase();
+    
+    await db
+      .delete(erc1155TokenSupplyCache)
+      .where(
+        and(
+          eq(erc1155TokenSupplyCache.contractAddress, normalizedAddress),
+          eq(erc1155TokenSupplyCache.tokenId, tokenId)
+        )
+      );
+  } catch (error) {
+    console.error(`[invalidateERC1155SupplyCache] Database error:`, error instanceof Error ? error.message : String(error));
+  }
+}
+

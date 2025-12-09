@@ -123,6 +123,16 @@ export function getFixedPriceTimeStatus(
 }
 
 /**
+ * Check if a sale is a long-term sale (more than 1 year)
+ * For very long sales, we should hide time details
+ */
+export function isLongTermSale(endTime: number): boolean {
+  const currentTime = Math.floor(Date.now() / 1000);
+  const oneYearInSeconds = 365 * 24 * 60 * 60;
+  return endTime > currentTime + oneYearInSeconds;
+}
+
+/**
  * Get display status for a listing
  * Returns: "cancelled" | "not started" | "active" | "concluded" | "finalized"
  */

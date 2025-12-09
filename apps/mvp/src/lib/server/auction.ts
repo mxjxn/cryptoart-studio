@@ -485,6 +485,23 @@ async function fetchActiveAuctions(
           }
         }
 
+        // Fetch ERC1155 total supply if applicable
+        let erc1155TotalSupply: string | undefined = undefined;
+        if ((listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) && listing.tokenAddress && listing.tokenId) {
+          try {
+            const { getERC1155TotalSupply } = await import('~/lib/server/erc1155-supply');
+            const totalSupply = await getERC1155TotalSupply(
+              listing.tokenAddress,
+              listing.tokenId
+            );
+            if (totalSupply !== null) {
+              erc1155TotalSupply = totalSupply.toString();
+            }
+          } catch (error) {
+            console.error(`Error fetching ERC1155 total supply for ${listing.tokenAddress}:${listing.tokenId}:`, error);
+          }
+        }
+
         const enriched: EnrichedAuctionData = {
           ...listing,
           listingType: normalizeListingType(listing.listingType, listing),
@@ -500,6 +517,7 @@ async function fetchActiveAuctions(
           image: metadata?.image,
           description: metadata?.description,
           metadata,
+          erc1155TotalSupply,
         };
 
         return enriched;

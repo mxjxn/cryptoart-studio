@@ -29,7 +29,9 @@ import {
   // Listing page status
   listingPageStatus,
   // Token image cache
-  tokenImageCache
+  tokenImageCache,
+  // ERC1155 token supply cache
+  erc1155TokenSupplyCache
 } from './schema';
 
 // Global singleton pattern for Next.js serverless environments
@@ -171,7 +173,9 @@ export {
   // Listing page status
   listingPageStatus,
   // Token image cache
-  tokenImageCache
+  tokenImageCache,
+  // ERC1155 token supply cache
+  erc1155TokenSupplyCache
 } from './schema';
 export type { 
   UserCacheData, 
@@ -201,5 +205,7 @@ export type {
   // Allowlist types
   PendingAllowlistSignatureData,
   // Token image cache types
-  TokenImageCacheData
+  TokenImageCacheData,
+  // ERC1155 token supply cache types
+  ERC1155TokenSupplyCacheData
 } from './schema';

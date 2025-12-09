@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
 
 /**
  * User cache table - Cache user information from Neynar, ENS, etc.
@@ -818,5 +818,39 @@ export interface TokenImageCacheData {
   imageUrl: string | null;
   expiresAt: Date;
   createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================
+// ERC1155 TOKEN SUPPLY CACHE
+// ============================================
+
+/**
+ * ERC1155 token supply cache table - Cache total supply per tokenId
+ * Primary key: composite of contractAddress (lowercase) + tokenId
+ * Used to avoid repeated API calls and on-chain reads
+ */
+export const erc1155TokenSupplyCache = pgTable('erc1155_token_supply_cache', {
+  contractAddress: text('contract_address').notNull(), // ERC1155 contract address (lowercase)
+  tokenId: text('token_id').notNull(), // Token ID as string
+  totalSupply: bigint('total_supply', { mode: 'bigint' }).notNull(), // Total supply for this tokenId
+  isLazyMint: boolean('is_lazy_mint').notNull().default(false), // Flag for active lazy minting (allows refresh)
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // Cache expiration (30 days for non-lazy, 1 day for lazy)
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  // Composite primary key
+  pk: primaryKey({ columns: [table.contractAddress, table.tokenId] }),
+  contractAddressIdx: index('erc1155_token_supply_cache_contract_address_idx').on(table.contractAddress),
+  expiresAtIdx: index('erc1155_token_supply_cache_expires_at_idx').on(table.expiresAt),
+}));
+
+export interface ERC1155TokenSupplyCacheData {
+  contractAddress: string;
+  tokenId: string;
+  totalSupply: bigint;
+  isLazyMint: boolean;
+  cachedAt: Date;
+  expiresAt: Date;
   updatedAt: Date;
 }
