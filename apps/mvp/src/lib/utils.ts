@@ -107,6 +107,21 @@ export function normalizeUrl(base: string, path: string): string {
 }
 
 /**
+ * Wrap a promise with a timeout
+ * Returns the fallback value if the promise doesn't resolve within the timeout
+ */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  fallback: T
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+  ]);
+}
+
+/**
  * Get Mini App embed metadata for Farcaster feeds
  * Follows Farcaster Mini App Embed specification
  * See: https://miniapps.farcaster.xyz/docs/guides/sharing

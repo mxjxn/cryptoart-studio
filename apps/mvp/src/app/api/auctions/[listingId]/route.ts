@@ -7,6 +7,10 @@ import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
 import { normalizeListingType, normalizeTokenSpec } from '~/lib/server/auction';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
+import { withTimeout } from '~/lib/utils';
+
+// Set route timeout to 15 seconds (auction data may need more time)
+export const maxDuration = 15;
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -251,8 +255,12 @@ export async function GET(
       );
     }
 
-    // Fetch cached auction data
-    const enriched = await getCachedAuctionData(listingId);
+    // Fetch cached auction data with timeout to prevent hanging
+    const enriched = await withTimeout(
+      getCachedAuctionData(listingId),
+      10000, // 10 second timeout
+      null // Fallback to null on timeout
+    );
 
     if (!enriched) {
       return NextResponse.json(

@@ -6,6 +6,10 @@ import {
   lookupNeynarByAddress,
   resolveEnsName,
 } from "~/lib/artist-name-resolution";
+import { withTimeout } from "~/lib/utils";
+
+// Set route timeout to 10 seconds
+export const maxDuration = 10;
 
 /**
  * Artist name resolution API endpoint.
@@ -154,27 +158,49 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
 ): Promise<NextResponse<ArtistNameResponse>> {
-  const { address } = await params;
-  const { searchParams } = new URL(request.url);
-  const contractAddress = searchParams.get("contractAddress");
-  const tokenIdParam = searchParams.get("tokenId");
+  let normalizedAddress = '0x0000000000000000000000000000000000000000';
+  
+  try {
+    const { address } = await params;
+    const { searchParams } = new URL(request.url);
+    const contractAddress = searchParams.get("contractAddress");
+    const tokenIdParam = searchParams.get("tokenId");
 
-  // Normalize address for cache key
-  const normalizedAddress = address ? address.toLowerCase() : '0x0000000000000000000000000000000000000000';
-  const cacheKey = `artist-${normalizedAddress}-${contractAddress || ''}-${tokenIdParam || ''}`;
+    // Normalize address for cache key
+    normalizedAddress = address ? address.toLowerCase() : '0x0000000000000000000000000000000000000000';
+    const cacheKey = `artist-${normalizedAddress}-${contractAddress || ''}-${tokenIdParam || ''}`;
 
-  // Use unstable_cache to prevent database pool exhaustion
-  const result = await unstable_cache(
-    async () => {
-      return resolveArtistName(address, contractAddress, tokenIdParam);
-    },
-    ['artist-name', cacheKey],
-    {
-      revalidate: 300, // Cache for 5 minutes
-      tags: ['artists', `artist-${normalizedAddress}`], // Can be invalidated with revalidateTag
+    // Use unstable_cache to prevent database pool exhaustion
+    // Wrap in timeout to prevent hanging if database is slow
+    const result = await withTimeout(
+      unstable_cache(
+        async () => {
+          return resolveArtistName(address, contractAddress, tokenIdParam);
+        },
+        ['artist-name', cacheKey],
+        {
+          revalidate: 300, // Cache for 5 minutes
+          tags: ['artists', `artist-${normalizedAddress}`], // Can be invalidated with revalidateTag
+        }
+      )(),
+      5000, // 5 second timeout
+      { name: null, source: null, address: normalizedAddress } // Fallback on timeout
+    );
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('[artist API] Error:', error);
+    // Return null result on error instead of crashing
+    // If we didn't get the address in try block, try to get it now
+    if (normalizedAddress === '0x0000000000000000000000000000000000000000') {
+      try {
+        const { address } = await params;
+        normalizedAddress = address ? address.toLowerCase() : '0x0000000000000000000000000000000000000000';
+      } catch {
+        // Ignore errors getting params
+      }
     }
-  )();
-
-  return NextResponse.json(result);
+    return NextResponse.json({ name: null, source: null, address: normalizedAddress });
+  }
 }
 
