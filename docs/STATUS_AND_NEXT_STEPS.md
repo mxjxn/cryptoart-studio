@@ -91,23 +91,7 @@ KV_REST_API_URL=...
 KV_REST_API_TOKEN=...
 ```
 
-### D. Such Gallery App
-
-Create `/Users/maxjackson/cryptoart/cryptoart-monorepo/apps/such-gallery/.env.local`:
-
-```bash
-# Required
-POSTGRES_URL=postgres://user:password@host:port/database
-NEXT_PUBLIC_URL=http://localhost:3002  # or your production URL
-
-# Neynar
-NEYNAR_API_KEY=your_neynar_api_key
-
-# Alchemy (for NFT metadata)
-ALCHEMY_API_KEY=your_alchemy_api_key
-```
-
-### E. Creator Core Indexer
+### D. Creator Core Indexer
 
 Create `/Users/maxjackson/cryptoart/cryptoart-monorepo/packages/creator-core-indexer/.env.local`:
 
@@ -210,8 +194,8 @@ If you have different addresses, update:
    pnpm run dev
    # Visit http://localhost:3001
    
-   # Test Such Gallery (in separate terminal)
-   cd apps/such-gallery
+   # Test MVP App (in separate terminal)
+   cd apps/mvp
    pnpm run dev
    # Visit http://localhost:3002
    ```
@@ -264,8 +248,8 @@ Once local testing passes:
    cd apps/auctionhouse
    npm run deploy:vercel
    
-   # Such Gallery
-   cd apps/such-gallery
+   # MVP App
+   cd apps/mvp
    npm run build
    # Deploy to your platform
    ```
@@ -281,7 +265,7 @@ Once local testing passes:
    - Create a collection in Studio App
    - Verify it appears in indexer
    - Create NFTs
-   - Verify they appear in Such Gallery
+   - Verify they appear in MVP app
    - Test auctionhouse listings
    - Test LSSVM pool creation (in lssvm2 miniapp)
 

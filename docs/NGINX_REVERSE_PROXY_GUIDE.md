@@ -286,16 +286,16 @@ server {
 
 ### Example: Multiple Apps on Different Domains
 
-If you have multiple apps (e.g., `such-gallery`, `auctionhouse`):
+If you have multiple apps (e.g., `mvp`, `auctionhouse`):
 
 ```nginx
-# such-gallery.example.com
+# mvp.example.com
 server {
     listen 443 ssl http2;
-    server_name such-gallery.example.com;
+    server_name mvp.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/such-gallery.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/such-gallery.example.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/mvp.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mvp.example.com/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:3001;  # Different port for different app

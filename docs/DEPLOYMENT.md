@@ -98,35 +98,6 @@ npm run deploy:vercel
 **Documentation:**
 - See `apps/auctionhouse/README.md`
 
-### Such Gallery
-
-**Location**: `apps/such-gallery/`
-
-**Deployment**: Vercel (recommended) or any Next.js-compatible platform
-
-**Quick Deploy:**
-```bash
-cd apps/such-gallery
-npm run build
-# Deploy to your platform
-```
-
-**Environment Variables:**
-- `POSTGRES_URL` - Shared database connection
-- `NEYNAR_API_KEY` - Neynar API key
-- `ALCHEMY_API_KEY` - For NFT metadata
-- `NEXT_PUBLIC_URL` - Public URL of the app
-
-**Database Setup:**
-```bash
-cd packages/db
-pnpm run db:push
-```
-
-**Documentation:**
-- See `apps/such-gallery/README.md`
-- See `apps/such-gallery/TESTING_GUIDE.md` for testing instructions
-
 ## Packages
 
 ### Creator Core Indexer
@@ -307,13 +278,6 @@ For a complete deployment, follow this order:
    ```bash
    cd apps/auctionhouse
    npm run deploy:vercel
-   ```
-
-3. **Deploy Such Gallery:**
-   ```bash
-   cd apps/such-gallery
-   npm run build
-   # Deploy to your platform
    ```
 
 ## Environment Variable Checklist

@@ -11,10 +11,6 @@ Successfully implemented a comprehensive indexing system for Creator Core contra
 **File**: `packages/db/src/schema.ts`
 
 **Changes**:
-- Renamed SuchGallery tables to use "gallery" terminology:
-  - `curatedCollections` → `curatedGalleries`
-  - `curatedCollectionNfts` → `curatedGalleryNfts`
-  - `quoteCasts.targetCollectionId` → `targetGalleryId`
 - Added new Creator Core tables:
   - `creator_core_contracts`: Tracks all deployed Creator Core contracts
   - `creator_core_tokens`: Tracks individual NFTs with full metadata
@@ -23,8 +19,6 @@ Successfully implemented a comprehensive indexing system for Creator Core contra
 **Updated Files**:
 - `packages/db/src/client.ts`: Exports new tables
 - `packages/db/src/index.ts`: Exports new tables
-- `apps/such-gallery/src/lib/db.ts`: Updated to use new table names
-- All such-gallery API routes: Updated to use gallery terminology
 
 ### 2. Shared Database Configuration ✅
 

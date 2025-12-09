@@ -298,7 +298,7 @@ Early believers: cryptoart.social/artist/@artist"
 
 **Multi-Tier Referral System:**
 
-**1. Curator Commissions** (already exists in such-gallery, enhance it)
+**1. Curator Commissions** (integrated into MVP app, enhance it)
 - 5% of first sale to whoever quote-casts the listing
 - Public leaderboard for curators
 - Monthly prizes for top 10 curators
