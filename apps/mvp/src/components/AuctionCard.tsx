@@ -313,11 +313,11 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
           <FavoriteButton listingId={auction.listingId} />
         </div> */}
         {/* Overlay with gradient and data - only visible on hover */}
-        <div className="absolute bottom-0 left-0 right-0 h-[33.33%] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="absolute bottom-0 left-0 right-0 h-[33.33%] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto">
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none"></div>
           {/* Content overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-5 relative z-10">
+          <div className="absolute bottom-0 left-0 right-0 p-5 relative z-10 pointer-events-auto">
             <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
             {contractName && (
               <div className="text-xs text-[#999999] mb-1 line-clamp-1">
