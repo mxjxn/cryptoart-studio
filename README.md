@@ -2,6 +2,8 @@
 
 A monorepo containing all projects related to the Cryptoart channel on farcaster.
 
+> **Open Source**: This repository is open source. See [SECURITY.md](./SECURITY.md) for security policy and [OPEN_SOURCE_GUIDE.md](./OPEN_SOURCE_GUIDE.md) for deployment instructions.
+
 ## Overview
 
 This monorepo contains several projects that work together:
@@ -311,6 +313,20 @@ This includes:
 - LSSVM contracts (Router, Factory, Bonding Curves)
 - Creator Core contract deployments
 - Manifold extension contracts
+
+## Security
+
+This repository is open source. All sensitive configuration is managed through environment variables:
+
+- **Admin Configuration**: Set via `ADMIN_WALLET_ADDRESS`, `ADMIN_FARCASTER_USERNAME`, and `ADMIN_FID`
+- **Database Credentials**: Never committed, use environment variables
+- **API Keys**: All keys stored in environment variables
+
+**Important**: 
+- Never commit `.env*` files or secrets to Git
+- See [SECURITY.md](./SECURITY.md) for security policy
+- See [OPEN_SOURCE_GUIDE.md](./OPEN_SOURCE_GUIDE.md) for deployment instructions
+- See [docs/ENV_VARS_MANAGEMENT.md](./docs/ENV_VARS_MANAGEMENT.md) for environment variable documentation
 
 ## Contributing
 

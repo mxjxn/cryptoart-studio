@@ -137,6 +137,43 @@ const FINALIZED_LISTINGS_QUERY = gql`
 `;
 
 /**
+ * Query for ended auctions (endTime <= now, not finalized)
+ */
+const ENDED_AUCTIONS_QUERY = gql`
+  query EndedAuctions($now: BigInt!) {
+    listings(
+      where: {
+        status: "ACTIVE"
+        finalized: false
+        listingType: 1
+        endTime_lte: $now
+      }
+      first: 1000
+      orderBy: endTime
+      orderDirection: desc
+    ) {
+      id
+      listingId
+      seller
+      listingType
+      tokenAddress
+      tokenId
+      tokenSpec
+      endTime
+      hasBid
+      highestBid {
+        bidder
+        amount
+      }
+      bids(orderBy: amount, orderDirection: desc, first: 1) {
+        bidder
+        amount
+      }
+    }
+  }
+`;
+
+/**
  * Query for listing bids to find previous highest bidder
  */
 const LISTING_BIDS_QUERY = gql`
@@ -693,6 +730,105 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
 }
 
 /**
+ * Process ended auctions (endTime <= now, not yet finalized) and create notifications
+ * This detects auctions that have naturally ended but haven't been finalized yet
+ */
+export async function processEndedAuctions(): Promise<void> {
+  const endpoint = getSubgraphEndpoint();
+  const now = Math.floor(Date.now() / 1000);
+  
+  try {
+    const data = await request<{ listings: any[] }>(
+      endpoint,
+      ENDED_AUCTIONS_QUERY,
+      { now: now.toString() },
+      getSubgraphHeaders()
+    );
+    
+    for (const listing of data.listings || []) {
+      // Skip if already finalized (shouldn't happen with the query, but double-check)
+      if (listing.finalized) {
+        continue;
+      }
+      
+      const artworkName = await getArtworkName(
+        listing.tokenAddress,
+        listing.tokenId,
+        listing.tokenSpec
+      );
+      
+      // Get winning bid if exists (use highestBid or first bid from bids array)
+      const winningBid = listing.highestBid || (listing.bids && listing.bids.length > 0 ? listing.bids[0] : null);
+      
+      if (winningBid && listing.hasBid) {
+        // Auction ended with bids - notify winner and seller
+        const winnerAddress = winningBid.bidder;
+        
+        // Discover winner and seller in background
+        discoverAndCacheUserBackground(winnerAddress);
+        discoverAndCacheUserBackground(listing.seller);
+        
+        const winnerName = await getUserName(winnerAddress);
+        const amount = BigInt(winningBid.amount).toString();
+        
+        // Notify winner - auction ended, they won
+        const winnerNeynar = await lookupNeynarByAddress(winnerAddress);
+        await createNotification(
+          winnerAddress,
+          'AUCTION_ENDED_WON',
+          'Auction Ended - You Won!',
+          `Auction for ${artworkName} has ended. You won with a bid of ${amount}! Finalize to claim your NFT.`,
+          {
+            fid: winnerNeynar?.fid,
+            listingId: listing.listingId,
+            metadata: {
+              amount: winningBid.amount,
+              artworkName,
+            },
+          }
+        );
+        
+        // Notify seller - auction ended, ready to finalize
+        const sellerNeynar = await lookupNeynarByAddress(listing.seller);
+        await createNotification(
+          listing.seller,
+          'AUCTION_ENDED_READY_TO_FINALIZE',
+          'Auction Ended - Ready to Finalize',
+          `Auction for ${artworkName} has ended. ${winnerName} won with a bid of ${amount}. Finalize to complete the sale.`,
+          {
+            fid: sellerNeynar?.fid,
+            listingId: listing.listingId,
+            metadata: {
+              winner: winnerAddress,
+              amount: winningBid.amount,
+              artworkName,
+            },
+          }
+        );
+      } else {
+        // Auction ended without bids
+        const sellerNeynar = await lookupNeynarByAddress(listing.seller);
+        await createNotification(
+          listing.seller,
+          'AUCTION_ENDED_NO_BIDS',
+          'Auction Ended',
+          `Auction for ${artworkName} has ended without any bids.`,
+          {
+            fid: sellerNeynar?.fid,
+            listingId: listing.listingId,
+            metadata: {
+              artworkName,
+            },
+          }
+        );
+      }
+    }
+  } catch (error) {
+    console.error('[notification-events] Error processing ended auctions:', error);
+  }
+}
+
+/**
  * Check for listings ending soon and notify favorited users
  * This should be called periodically (e.g., every 15 minutes)
  */
@@ -844,6 +980,7 @@ export async function processEventsSince(
     processNewBids(sinceTimestamp),
     processPurchases(sinceTimestamp),
     processFinalizedListings(sinceBlock),
+    processEndedAuctions(), // Check for auctions that have ended but not been finalized
   ]);
 }
 

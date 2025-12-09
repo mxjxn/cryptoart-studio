@@ -11,6 +11,10 @@
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
+// Use admin address from env var or placeholder for testing
+const ADMIN_ADDRESS = process.env.ADMIN_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
+const ADMIN_USERNAME = process.env.ADMIN_FARCASTER_USERNAME || 'testuser';
+
 interface RouteTest {
   name: string;
   path: string;
@@ -23,19 +27,19 @@ const routes: RouteTest[] = [
   // User routes
   {
     name: 'User Profile by Address',
-    path: '/api/user/0x6da0a1784de1abdde1734ba37eca3d560bf044c0',
+    path: `/api/user/${ADMIN_ADDRESS}`,
     expectedStatus: 200,
     description: 'Get user profile by Ethereum address',
   },
   {
     name: 'User Profile by Username',
-    path: '/api/user/mxjxn',
+    path: `/api/user/${ADMIN_USERNAME}`,
     expectedStatus: 200,
     description: 'Get user profile by Farcaster username',
   },
   {
     name: 'Username by Address',
-    path: '/api/user/username/0x6da0a1784de1abdde1734ba37eca3d560bf044c0',
+    path: `/api/user/username/${ADMIN_ADDRESS}`,
     expectedStatus: 200,
     description: 'Get username for an address',
   },
@@ -43,7 +47,7 @@ const routes: RouteTest[] = [
   // Artist routes
   {
     name: 'Artist Name Resolution',
-    path: '/api/artist/0x6da0a1784de1abdde1734ba37eca3d560bf044c0',
+    path: `/api/artist/${ADMIN_ADDRESS}`,
     expectedStatus: 200,
     description: 'Resolve artist name for an address',
   },
@@ -107,13 +111,13 @@ const routes: RouteTest[] = [
   // Notifications (require userAddress parameter)
   {
     name: 'Notifications',
-    path: '/api/notifications?userAddress=0x6da0a1784de1abdde1734ba37eca3d560bf044c0',
+    path: `/api/notifications?userAddress=${ADMIN_ADDRESS}`,
     expectedStatus: 200,
     description: 'Get notifications for a user address',
   },
   {
     name: 'Unread Count',
-    path: '/api/notifications/unread-count?userAddress=0x6da0a1784de1abdde1734ba37eca3d560bf044c0',
+    path: `/api/notifications/unread-count?userAddress=${ADMIN_ADDRESS}`,
     expectedStatus: 200,
     description: 'Get unread notification count for a user address',
   },

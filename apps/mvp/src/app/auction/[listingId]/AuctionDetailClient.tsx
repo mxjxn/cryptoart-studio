@@ -1324,6 +1324,20 @@ export default function AuctionDetailClient({
           </div>
         </header>
       )}
+      {/* Back Button - Narrow section above artwork */}
+      <div className="border-b border-[#333333]">
+        <div className="container mx-auto px-5 py-2 max-w-4xl">
+          <TransitionLink
+            href="/"
+            className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2 text-sm"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back
+          </TransitionLink>
+        </div>
+      </div>
       <div className="container mx-auto px-5 py-4 max-w-4xl">
         {/* Add Mini App Banner - Only show in miniapp context if not already added */}
         {isMiniApp && !isMiniAppInstalled && actions && (

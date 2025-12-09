@@ -58,16 +58,17 @@ export const RETURN_URL: string | undefined = undefined;
 export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d90' as const;
 
 // --- Admin Configuration ---
-// Hardcoded admin identity for platform moderation
+// Admin identity loaded from environment variables for security
+// Set ADMIN_WALLET_ADDRESS, ADMIN_FARCASTER_USERNAME, and ADMIN_FID in your environment
 export const ADMIN_CONFIG = {
-  // Primary admin wallet address (lowercase) - TODO: Update with full address
-  walletAddress: '0x6dA0a1784De1aBDDe1734bA37eCa3d560bf044c0'.toLowerCase() as `0x${string}`,
+  // Primary admin wallet address (lowercase) - from ADMIN_WALLET_ADDRESS env var
+  walletAddress: (process.env.ADMIN_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000').toLowerCase() as `0x${string}`,
    
-  // Primary admin Farcaster username
-  farcasterUsername: 'mxjxn',
+  // Primary admin Farcaster username - from ADMIN_FARCASTER_USERNAME env var
+  farcasterUsername: process.env.ADMIN_FARCASTER_USERNAME || '',
   
-  // Primary admin FID - TODO: Verify actual FID
-  fid: 4905,
+  // Primary admin FID - from ADMIN_FID env var
+  fid: parseInt(process.env.ADMIN_FID || '0', 10),
 } as const;
 
 // PLEASE DO NOT UPDATE THIS

@@ -96,6 +96,13 @@ ALCHEMY_API_KEY=your_alchemy_api_key_here
 # KV_REST_API_TOKEN=your-upstash-token
 
 # ============================================
+# Admin Configuration (REQUIRED)
+# ============================================
+ADMIN_WALLET_ADDRESS=0x0000000000000000000000000000000000000000
+ADMIN_FARCASTER_USERNAME=
+ADMIN_FID=0
+
+# ============================================
 # Optional: Feature Flags
 # ============================================
 CRYPTOART_HYPERSUB_CONTRACT=0x...
@@ -133,6 +140,9 @@ chmod 600 .env.production
 | `POSTGRES_USER` | PostgreSQL username | `postgres` |
 | `POSTGRES_DB` | PostgreSQL database name | `cryptoart` |
 | `RPC_URL` | Base network RPC endpoint | `https://base-mainnet.g.alchemy.com/v2/...` |
+| `ADMIN_WALLET_ADDRESS` | Admin wallet address for platform moderation | `0x...` |
+| `ADMIN_FARCASTER_USERNAME` | Admin Farcaster username | `username` |
+| `ADMIN_FID` | Admin Farcaster FID | `4905` |
 
 ### Sensitive Variables (Stored in Secrets)
 
@@ -148,6 +158,8 @@ chmod 600 .env.production
 | `NEYNAR_API_KEY` | Neynar API key for Farcaster | - |
 | `NEYNAR_CLIENT_ID` | Neynar client ID | - |
 | `ALCHEMY_API_KEY` | Alchemy API key for NFT data | - |
+| `CRON_SECRET` | Secret for authenticating cron job requests | - |
+| `ADMIN_SECRET` | Secret for admin operations (optional) | - |
 | `CHAIN_ID` | Blockchain chain ID | `8453` (Base) |
 | `START_BLOCK` | Indexer starting block | Auto-detect |
 | `BATCH_SIZE` | Indexer batch size | `100` |

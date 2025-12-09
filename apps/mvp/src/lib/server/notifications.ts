@@ -79,6 +79,8 @@ function mapNotificationTypeToPreferenceKey(type: NotificationType): string | nu
     'NEW_BID': 'newBidOnYourAuction',
     'AUCTION_WON': 'auctionWon',
     'AUCTION_ENDED_NO_BIDS': null,
+    'AUCTION_ENDED_WON': 'auctionWon',
+    'AUCTION_ENDED_READY_TO_FINALIZE': 'newBidOnYourAuction',
     'BUY_NOW_SALE': null,
     'NEW_OFFER': 'offerReceived',
     'BID_PLACED': null,

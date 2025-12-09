@@ -23,7 +23,10 @@
         "STORAGE_SUPABASE_ANON_KEY",
         "GRAPH_STUDIO_API_KEY",
         "CRON_SECRET",
-        "ADMIN_SECRET"
+        "ADMIN_SECRET",
+        "ADMIN_WALLET_ADDRESS",
+        "ADMIN_FARCASTER_USERNAME",
+        "ADMIN_FID"
       ]
     },
     "lint": {

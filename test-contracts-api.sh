@@ -2,8 +2,9 @@
 
 # Test script for deployed contracts API
 # Usage: ./test-contracts-api.sh [address]
+# If no address provided, uses ADMIN_WALLET_ADDRESS env var or placeholder
 
-ADDRESS=${1:-"0x6da0a1784de1abdde1734ba37eca3d560bf044c0"}
+ADDRESS=${1:-${ADMIN_WALLET_ADDRESS:-"0x0000000000000000000000000000000000000000"}}
 URL="http://localhost:3000/api/contracts/deployed/${ADDRESS}"
 
 echo "Testing deployed contracts API..."

@@ -209,18 +209,21 @@ export const userNotificationPreferences = pgTable('user_notification_preference
 ```typescript
 // src/lib/constants.ts
 
-// Admin configuration (hardcoded)
+// Admin configuration (loaded from environment variables)
+// Set ADMIN_WALLET_ADDRESS, ADMIN_FARCASTER_USERNAME, and ADMIN_FID in your environment
 export const ADMIN_CONFIG = {
-  // Primary admin wallet address (lowercase)
-  walletAddress: '0x6da0...'.toLowerCase(), // TODO: Add full address
+  // Primary admin wallet address (lowercase) - from ADMIN_WALLET_ADDRESS env var
+  walletAddress: (process.env.ADMIN_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000').toLowerCase() as `0x${string}`,
   
-  // Primary admin Farcaster username
-  farcasterUsername: 'mxjxn',
+  // Primary admin Farcaster username - from ADMIN_FARCASTER_USERNAME env var
+  farcasterUsername: process.env.ADMIN_FARCASTER_USERNAME || '',
   
-  // Primary admin FID (lookup and hardcode)
-  fid: 0, // TODO: Add actual FID
+  // Primary admin FID - from ADMIN_FID env var
+  fid: parseInt(process.env.ADMIN_FID || '0', 10),
 } as const;
 ```
+
+**Note**: Admin configuration is now loaded from environment variables for security. See [docs/ENV_VARS_MANAGEMENT.md](../../docs/ENV_VARS_MANAGEMENT.md) for setup instructions.
 
 ### Admin Check Hook
 

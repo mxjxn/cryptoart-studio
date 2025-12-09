@@ -1218,6 +1218,7 @@ export default function AuctionDetailClient({
   const endTime = auction.endTime ? parseInt(auction.endTime) : 0;
   const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
   const isActive = endTime > now && auction.status === "ACTIVE";
+  const isEnded = endTime <= now && auction.status === "ACTIVE" && !isCancelled;
   const title = auction.title || `Auction #${listingId}`;
   const bidCount = auction.bidCount || 0;
   const hasBid = bidCount > 0 || !!auction.highestBid;
@@ -1226,12 +1227,17 @@ export default function AuctionDetailClient({
   const isOwnAuction = isConnected && address && auction.seller && 
     address.toLowerCase() === auction.seller.toLowerCase();
   
+  // Check if current user is the winner (highest bidder)
+  const isWinner = isConnected && address && auction.highestBid?.bidder &&
+    address.toLowerCase() === auction.highestBid.bidder.toLowerCase();
+  
   // Check if cancellation is allowed (seller can only cancel if no bids and active)
   const canCancel = isOwnAuction && bidCount === 0 && isActive && !isCancelled;
   const isCancelLoading = isCancelling || isConfirmingCancel;
   
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
-  const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
+  // Both seller and winner can finalize when auction has ended
+  const canFinalize = isConnected && isEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner);
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
@@ -1252,6 +1258,20 @@ export default function AuctionDetailClient({
           </div>
         </header>
       )}
+      {/* Back Button - Narrow section above artwork */}
+      <div className="border-b border-[#333333]">
+        <div className="container mx-auto px-5 py-2 max-w-4xl">
+          <TransitionLink
+            href="/"
+            className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2 text-sm"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back
+          </TransitionLink>
+        </div>
+      </div>
       <div className="container mx-auto px-5 py-4 max-w-4xl">
         {/* Add Mini App Banner - Only show in miniapp context if not already added */}
         {isMiniApp && !isMiniAppInstalled && actions && (
@@ -1507,6 +1527,45 @@ export default function AuctionDetailClient({
           </div>
         )}
 
+        {/* Auction Ended Message */}
+        {isEnded && !isCancelled && (
+          <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
+            <p className="text-sm text-white font-medium mb-2">Auction Ended</p>
+            {auction.highestBid && hasBid ? (
+              <div className="space-y-2">
+                <p className="text-xs text-[#cccccc]">
+                  Winner: {bidderName ? (
+                    bidderUsername ? (
+                      <TransitionLink href={`/user/${bidderUsername}`} className="text-white hover:underline">
+                        {bidderName}
+                      </TransitionLink>
+                    ) : (
+                      <TransitionLink href={`/user/${auction.highestBid.bidder}`} className="text-white hover:underline">
+                        {bidderName}
+                      </TransitionLink>
+                    )
+                  ) : (
+                    <TransitionLink href={bidderUsername ? `/user/${bidderUsername}` : `/user/${auction.highestBid.bidder}`} className="font-mono text-white hover:underline">
+                      {auction.highestBid.bidder.slice(0, 6)}...{auction.highestBid.bidder.slice(-4)}
+                    </TransitionLink>
+                  )}
+                </p>
+                <p className="text-xs text-[#cccccc]">
+                  Winning Bid: <span className="text-white font-medium">
+                    <span className="flex items-center gap-1.5">
+                      {formatPrice(auction.highestBid.amount)} 
+                      <TokenImage tokenAddress={auction.erc20} size={14} />
+                      <span>{paymentSymbol}</span>
+                    </span>
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-[#cccccc]">No bids were placed on this auction.</p>
+            )}
+          </div>
+        )}
+
         {/* Finalize Auction Button (for ended auctions) - Hidden if cancelled */}
         {canFinalize && !isCancelled && (
           <div className="mb-4">
@@ -1521,6 +1580,8 @@ export default function AuctionDetailClient({
                 ? isConfirmingFinalize
                   ? "Confirming..."
                   : "Finalizing..."
+                : isWinner
+                ? "Finalize & Claim NFT"
                 : "Finalize Auction"}
             </button>
             {finalizeError && (
@@ -1534,8 +1595,8 @@ export default function AuctionDetailClient({
         {/* Action Buttons - Conditional based on listing type */}
         {!isCancelled && (
           <>
-            {/* INDIVIDUAL_AUCTION - Place Bid */}
-            {auction.listingType === "INDIVIDUAL_AUCTION" && isActive && (
+            {/* INDIVIDUAL_AUCTION - Place Bid (only show if active) */}
+            {auction.listingType === "INDIVIDUAL_AUCTION" && isActive && !isEnded && (
               <div className="mb-4">
                 {!isConnected ? (
                   <p className="text-xs text-[#cccccc]">
@@ -1874,8 +1935,8 @@ export default function AuctionDetailClient({
                     <span className="text-[#444]">•</span>
                     <span>{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>
                     <span className="text-[#444]">•</span>
-                    <span>{timeStatus.status === "Not started" ? "Not started" : isActive ? "Active" : "Ended"}</span>
-                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                    <span>{timeStatus.status === "Not started" ? "Not started" : isEnded ? "Ended" : isActive ? "Active" : "Ended"}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && !isEnded && (
                       <>
                         <span className="text-[#444]">•</span>
                         <span>{timeStatus.timeRemaining}</span>

@@ -135,6 +135,8 @@ export type NotificationType =
   | 'NEW_BID'
   | 'AUCTION_WON'
   | 'AUCTION_ENDED_NO_BIDS'
+  | 'AUCTION_ENDED_WON'
+  | 'AUCTION_ENDED_READY_TO_FINALIZE'
   | 'BUY_NOW_SALE'
   | 'NEW_OFFER'
   | 'BID_PLACED'
