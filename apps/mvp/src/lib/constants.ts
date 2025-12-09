@@ -33,7 +33,7 @@ export const APP_OG_IMAGE_URL: string = `${APP_URL}/opengraph-image`;
 
 export const APP_SPLASH_URL: string = `${APP_URL}/splash.png`;
 
-export const APP_SPLASH_BACKGROUND_COLOR: string = '#f7f7f7';
+export const APP_SPLASH_BACKGROUND_COLOR: string = '#000000';
 
 export const APP_ACCOUNT_ASSOCIATION: AccountAssociation | undefined = {
   header: "eyJmaWQiOjQ5MDUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRTQzYTJBQ2IyRkIzZDlCYWE1MjIyYjE4M2UwNDMyYkVlMmM2NUFCIn0",
