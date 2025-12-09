@@ -26,12 +26,13 @@ export function useIsAdmin(): UseIsAdminResult {
   const isLoading = isConnecting || isReconnecting;
   
   // Get Farcaster user info
-  const user = context?.user as { username?: string; fid?: number; custody_address?: string } | undefined;
-  const userFid = user?.fid;
+  const user = context?.user as { username?: string; fid?: number | string; custody_address?: string } | undefined;
+  // Ensure FID is a number for comparison
+  const userFid = user?.fid ? Number(user.fid) : undefined;
   
   // Check Farcaster identity match (FID or username)
   const isAdminFarcaster = user?.username === ADMIN_CONFIG.farcasterUsername || 
-                           userFid === ADMIN_CONFIG.fid;
+                           (userFid !== undefined && userFid === ADMIN_CONFIG.fid);
   
   // Get wallet address from either wagmi (connected wallet) or Farcaster context
   const address = wagmiAddress || farcasterWallet;
@@ -43,28 +44,31 @@ export function useIsAdmin(): UseIsAdminResult {
     isAdminWallet = ALL_ADMIN_ADDRESSES.some(adminAddr => adminAddr.toLowerCase() === normalizedAddress);
   }
   
-  // Admin access rules:
-  // 1. If wallet matches admin address -> admin (for all admins)
-  // 2. If FID matches primary admin FID -> admin (for Farcaster web login without wallet)
-  // 3. For primary admin in mini-app: require both wallet AND Farcaster match for extra security
+  // Admin access rules (in priority order):
+  // 1. FID matches primary admin FID -> admin (works for Farcaster web login, regardless of wallet)
+  // 2. Wallet matches admin address -> admin (for all admins)
+  // 3. For primary admin in mini-app: if both wallet and FID match, extra security verified
   
+  // Priority 1: FID-based access (for Farcaster web login)
+  // This works even if wallet doesn't match - either FID OR wallet should work
+  if (userFid !== undefined && ADMIN_CONFIG.fid > 0 && userFid === ADMIN_CONFIG.fid) {
+    return { isAdmin: true, isLoading };
+  }
+  
+  // Priority 2: Wallet-based access
   if (isAdminWallet) {
     // Wallet address matches an admin address
     if (context?.user) {
-      // In mini-app context: for primary admin, also verify Farcaster identity
+      // In mini-app context: for primary admin, also verify Farcaster identity for extra security
       const isPrimaryAdmin = address?.toLowerCase() === ADMIN_CONFIG.walletAddress.toLowerCase();
       if (isPrimaryAdmin) {
+        // Primary admin: require both wallet AND Farcaster match for extra security
         return { isAdmin: isAdminWallet && isAdminFarcaster, isLoading };
       }
       // Additional admins only need wallet match
       return { isAdmin: true, isLoading };
     }
     // Outside mini-app: wallet match is sufficient
-    return { isAdmin: true, isLoading };
-  }
-  
-  // If no wallet match but FID matches primary admin, allow access (for Farcaster web login)
-  if (isAdminFarcaster && userFid === ADMIN_CONFIG.fid) {
     return { isAdmin: true, isLoading };
   }
   
