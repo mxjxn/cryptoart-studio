@@ -32,19 +32,37 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home() {
   // Fetch recent listings server-side with thumbnails for fast initial render
   // This allows the homepage to be server-rendered with optimized images
+  // In development, skip server-side fetch if database is slow to avoid blocking page load
   let initialAuctions: EnrichedAuctionData[] = [];
   
-  try {
-    initialAuctions = await browseListings({
-      first: 20,
-      skip: 0,
-      orderBy: "createdAt",
-      orderDirection: "desc",
-      enrich: true,
-    });
-  } catch (error) {
-    console.error("[Homepage] Error fetching listings:", error);
-    // Continue with empty array - client will handle fetching
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  // In development, skip server-side fetch if database is slow (set ENABLE_SERVER_FETCH=true to enable)
+  const enableServerFetch = !isDevelopment || process.env.ENABLE_SERVER_FETCH === 'true';
+  
+  if (enableServerFetch) {
+    try {
+      // Add short timeout to prevent hanging - if database is slow, client will fetch
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Server-side fetch timeout')), 2000); // 2 second timeout
+      });
+      
+      const listingsPromise = browseListings({
+        first: 20,
+        skip: 0,
+        orderBy: "createdAt",
+        orderDirection: "desc",
+        enrich: true,
+      });
+      
+      initialAuctions = await Promise.race([listingsPromise, timeoutPromise]);
+    } catch (error) {
+      // Silently fail in development - client will fetch
+      if (!isDevelopment) {
+        console.error("[Homepage] Error fetching listings:", error);
+      }
+      // Continue with empty array - client will handle fetching
+      // This prevents the page from hanging if database is unavailable
+    }
   }
 
   return <HomePageClient initialAuctions={initialAuctions} />;

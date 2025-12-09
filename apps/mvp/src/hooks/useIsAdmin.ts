@@ -44,6 +44,19 @@ export function useIsAdmin(): UseIsAdminResult {
     isAdminWallet = ALL_ADMIN_ADDRESSES.some(adminAddr => adminAddr.toLowerCase() === normalizedAddress);
   }
   
+  // Debug logging (only log once per session to avoid spam)
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    const debugKey = 'useIsAdmin-debug-logged';
+    if (!sessionStorage.getItem(debugKey)) {
+      sessionStorage.setItem(debugKey, 'true');
+      console.log('[useIsAdmin] Config loaded:', {
+        walletAddress: ADMIN_CONFIG.walletAddress,
+        fid: ADMIN_CONFIG.fid,
+        hasEnvVars: !!process.env.NEXT_PUBLIC_ADMIN_WALLET_ADDRESS,
+      });
+    }
+  }
+  
   // Admin access rules (in priority order):
   // 1. FID matches primary admin FID -> admin (works for Farcaster web login, regardless of wallet)
   // 2. Wallet matches admin address -> admin (for all admins)
@@ -52,24 +65,32 @@ export function useIsAdmin(): UseIsAdminResult {
   // Priority 1: FID-based access (for Farcaster web login)
   // This works even if wallet doesn't match - either FID OR wallet should work
   if (userFid !== undefined && ADMIN_CONFIG.fid > 0 && userFid === ADMIN_CONFIG.fid) {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      console.log('[useIsAdmin] Admin access granted via FID match');
+    }
     return { isAdmin: true, isLoading };
   }
   
   // Priority 2: Wallet-based access
   if (isAdminWallet) {
-    // Wallet address matches an admin address
-    if (context?.user) {
-      // In mini-app context: for primary admin, also verify Farcaster identity for extra security
-      const isPrimaryAdmin = address?.toLowerCase() === ADMIN_CONFIG.walletAddress.toLowerCase();
-      if (isPrimaryAdmin) {
-        // Primary admin: require both wallet AND Farcaster match for extra security
-        return { isAdmin: isAdminWallet && isAdminFarcaster, isLoading };
-      }
-      // Additional admins only need wallet match
-      return { isAdmin: true, isLoading };
+    // Wallet address matches an admin address - grant access
+    // Note: FID check already happened above, so if we get here, either:
+    // - FID didn't match (but wallet does), OR
+    // - We're in a non-Farcaster context (web3 app)
+    // In both cases, wallet match is sufficient for admin access
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      console.log('[useIsAdmin] Admin access granted via wallet match', { 
+        isAdminWallet, 
+        isAdminFarcaster, 
+        hasContext: !!context?.user,
+        isPrimaryAdmin: address?.toLowerCase() === ADMIN_CONFIG.walletAddress.toLowerCase()
+      });
     }
-    // Outside mini-app: wallet match is sufficient
     return { isAdmin: true, isLoading };
+  }
+  
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log('[useIsAdmin] Admin access denied');
   }
   
   return { isAdmin: false, isLoading };

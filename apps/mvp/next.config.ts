@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Transpile monorepo packages that use TypeScript
-  transpilePackages: ['@cryptoart/db'],
+  transpilePackages: ['@cryptoart/db', '@pigment-css/react'],
   // Next.js 16 uses Turbopack by default - empty config silences the webpack warning
   turbopack: {},
   images: {
@@ -18,6 +18,20 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
+    // Ensure @pigment-css/react is resolved correctly for @neynar/react
+    // This is needed because @neynar/react has @pigment-css/react as a dependency
+    // but the bundler might not resolve it correctly from node_modules
+    try {
+      const pigmentPath = require.resolve('@pigment-css/react', { paths: [process.cwd()] });
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@pigment-css/react': pigmentPath,
+      };
+    } catch (e) {
+      // Package not found, skip alias
+      console.warn('@pigment-css/react not found, skipping alias');
+    }
+    
     // Fix for Solana dependencies (bs58, basex) that are pulled in by Farcaster SDK
     // The "basex is not a function" error occurs because bs58 imports basex but
     // webpack doesn't handle the ESM/CommonJS interop correctly

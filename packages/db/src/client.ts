@@ -106,12 +106,18 @@ export function getDatabase() {
       connectionString.includes('pooler.supabase.com');
     
     // Create postgres client with optimized connection pooling for serverless
-    // CRITICAL: Use max: 2-3 for serverless to prevent connection exhaustion
+    // CRITICAL: Use max: 1-2 for serverless to prevent connection exhaustion
     // Each serverless function instance can spawn multiple concurrent requests
-    // With 10 instances × 2 connections = 20 total (much safer than 10 × 10 = 100)
+    // With 10 instances × 1 connection = 10 total (much safer than 10 × 10 = 100)
+    // In development, use even fewer connections to avoid hitting database limits
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const maxConnections = isDevelopment 
+      ? 1  // Single connection in dev to avoid hitting limits
+      : (isPooledConnection ? 2 : 3); // 2 for pooled, 3 for direct in production
+    
     globalForDb.client = postgres(connectionString, {
-      max: isPooledConnection ? 2 : 3, // Lower for pooled connections (pooler handles multiplexing)
-      idle_timeout: 10, // Close idle connections faster (10 seconds)
+      max: maxConnections,
+      idle_timeout: isDevelopment ? 5 : 10, // Close idle connections faster in dev (5 seconds)
       connect_timeout: 5, // Faster connection timeout
       // Enable automatic reconnection on connection errors
       onnotice: () => {}, // Suppress notices

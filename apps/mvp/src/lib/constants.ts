@@ -59,23 +59,39 @@ export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d
 
 // --- Admin Configuration ---
 // Admin identity loaded from environment variables for security
-// Set ADMIN_WALLET_ADDRESS, ADMIN_FARCASTER_USERNAME, and ADMIN_FID in your environment
+// Set ADMIN_WALLET_ADDRESS (or NEXT_PUBLIC_ADMIN_WALLET_ADDRESS for client-side),
+// ADMIN_FARCASTER_USERNAME (or NEXT_PUBLIC_ADMIN_FARCASTER_USERNAME), and 
+// ADMIN_FID (or NEXT_PUBLIC_ADMIN_FID) in your environment
 // Additional admin addresses can be set via ADDITIONAL_ADMIN_ADDRESSES (comma-separated)
+// 
+// Note: NEXT_PUBLIC_ prefixed vars are available on client-side (required for useIsAdmin hook)
+// Non-prefixed vars work on server-side only
 export const ADMIN_CONFIG = {
-  // Primary admin wallet address (lowercase) - from ADMIN_WALLET_ADDRESS env var
-  walletAddress: (process.env.ADMIN_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000').toLowerCase() as `0x${string}`,
+  // Primary admin wallet address (lowercase) - checks NEXT_PUBLIC_ prefix first (client), then server-only var
+  walletAddress: (
+    process.env.NEXT_PUBLIC_ADMIN_WALLET_ADDRESS || 
+    process.env.ADMIN_WALLET_ADDRESS || 
+    '0x0000000000000000000000000000000000000000'
+  ).toLowerCase() as `0x${string}`,
    
-  // Primary admin Farcaster username - from ADMIN_FARCASTER_USERNAME env var
-  farcasterUsername: process.env.ADMIN_FARCASTER_USERNAME || '',
+  // Primary admin Farcaster username - checks NEXT_PUBLIC_ prefix first (client), then server-only var
+  farcasterUsername: process.env.NEXT_PUBLIC_ADMIN_FARCASTER_USERNAME || process.env.ADMIN_FARCASTER_USERNAME || '',
   
-  // Primary admin FID - from ADMIN_FID env var
-  fid: parseInt(process.env.ADMIN_FID || '0', 10),
+  // Primary admin FID - checks NEXT_PUBLIC_ prefix first (client), then server-only var
+  fid: parseInt(
+    process.env.NEXT_PUBLIC_ADMIN_FID || 
+    process.env.ADMIN_FID || 
+    '0', 
+    10
+  ),
 } as const;
 
 // Parse additional admin addresses from comma-separated env var
 // Format: ADDITIONAL_ADMIN_ADDRESSES=0xAddress1,0xAddress2,0xAddress3
+// Note: For client-side access, use NEXT_PUBLIC_ADDITIONAL_ADMIN_ADDRESSES
 const parseAdditionalAdminAddresses = (): `0x${string}`[] => {
-  const envValue = process.env.ADDITIONAL_ADMIN_ADDRESSES;
+  // Check NEXT_PUBLIC_ prefix first (for client-side), then fall back to server-only var
+  const envValue = process.env.NEXT_PUBLIC_ADDITIONAL_ADMIN_ADDRESSES || process.env.ADDITIONAL_ADMIN_ADDRESSES;
   if (!envValue) return [];
   
   return envValue
@@ -90,6 +106,25 @@ export const ALL_ADMIN_ADDRESSES: readonly `0x${string}`[] = [
   ADMIN_CONFIG.walletAddress,
   ...parseAdditionalAdminAddresses(),
 ].filter(addr => addr !== '0x0000000000000000000000000000000000000000') as readonly `0x${string}`[];
+
+// Runtime verification helper (for debugging) - only log once per session
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  const debugKey = 'admin-config-debug-logged';
+  if (!sessionStorage.getItem(debugKey)) {
+    sessionStorage.setItem(debugKey, 'true');
+    console.log('[Admin Config] Loaded values:', {
+      walletAddress: ADMIN_CONFIG.walletAddress,
+      farcasterUsername: ADMIN_CONFIG.farcasterUsername,
+      fid: ADMIN_CONFIG.fid,
+      allAdminAddresses: ALL_ADMIN_ADDRESSES,
+      envVars: {
+        NEXT_PUBLIC_ADMIN_WALLET_ADDRESS: process.env.NEXT_PUBLIC_ADMIN_WALLET_ADDRESS,
+        NEXT_PUBLIC_ADMIN_FID: process.env.NEXT_PUBLIC_ADMIN_FID,
+        NEXT_PUBLIC_ADMIN_FARCASTER_USERNAME: process.env.NEXT_PUBLIC_ADMIN_FARCASTER_USERNAME,
+      },
+    });
+  }
+}
 
 // PLEASE DO NOT UPDATE THIS
 export const SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN = {

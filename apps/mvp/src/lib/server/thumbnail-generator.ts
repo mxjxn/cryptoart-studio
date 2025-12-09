@@ -70,12 +70,18 @@ class VercelBlobBackend implements StorageBackend {
   }
 
   async upload(buffer: Buffer, key: string, contentType: string): Promise<string> {
+    // Check if token is set before trying to use Vercel Blob
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error('BLOB_READ_WRITE_TOKEN environment variable is required for Vercel Blob Storage');
+    }
+    
     // Dynamic import to avoid bundling issues
     // Use try-catch to handle case where @vercel/blob is not installed
     try {
       // @ts-ignore - @vercel/blob is optional and may not be installed
       const { put } = await import('@vercel/blob');
       
+      // Vercel Blob reads token from BLOB_READ_WRITE_TOKEN env var automatically
       const blob = await put(key, buffer, {
         access: 'public',
         contentType,
@@ -83,7 +89,14 @@ class VercelBlobBackend implements StorageBackend {
       
       return blob.url;
     } catch (error) {
-      throw new Error('@vercel/blob is required for Vercel Blob Storage. Install it with: npm install @vercel/blob');
+      // Provide more helpful error message
+      if (error instanceof Error) {
+        if (error.message.includes('Cannot find module') || error.message.includes("Can't resolve")) {
+          throw new Error('@vercel/blob package is not installed. Run: npm install @vercel/blob');
+        }
+        throw new Error(`Vercel Blob upload failed: ${error.message}`);
+      }
+      throw new Error('Vercel Blob upload failed: Unknown error');
     }
   }
 
@@ -148,19 +161,28 @@ class S3Backend implements StorageBackend {
  * Get the appropriate storage backend based on environment
  */
 function getStorageBackend(): StorageBackend | null {
-  // Check for Vercel Blob Storage
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    return new VercelBlobBackend();
-  }
+  // In development, prioritize local storage unless explicitly configured
+  const isDevelopment = process.env.NODE_ENV === 'development';
   
-  // Check for S3/R2
+  // Check for S3/R2 (highest priority if configured)
   if (process.env.S3_BUCKET || process.env.R2_BUCKET) {
     return new S3Backend();
   }
   
-  // Fallback to local storage (development)
-  if (process.env.NODE_ENV === 'development') {
+  // Check for Vercel Blob Storage (only if token is set)
+  // In development, skip this unless explicitly needed
+  if (process.env.BLOB_READ_WRITE_TOKEN && (!isDevelopment || process.env.FORCE_VERCEL_BLOB === 'true')) {
+    return new VercelBlobBackend();
+  }
+  
+  // Fallback to local storage (development default)
+  if (isDevelopment) {
     return new LocalStorageBackend();
+  }
+  
+  // Production: require some storage backend
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.S3_BUCKET && !process.env.R2_BUCKET) {
+    console.warn('[Thumbnail] No storage backend configured. Thumbnails will not be cached.');
   }
   
   return null;
@@ -297,8 +319,27 @@ export async function generateThumbnail(
 ): Promise<string> {
   const storage = getStorageBackend();
   if (!storage) {
+    // In development, this shouldn't happen as we fall back to local storage
+    // In production, provide helpful error message
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (isDevelopment) {
+      // Force local storage as last resort
+      return await generateThumbnailWithStorage(new LocalStorageBackend(), imageUrl, size);
+    }
     throw new Error('No storage backend configured. Set BLOB_READ_WRITE_TOKEN, S3_BUCKET, or R2_BUCKET environment variable.');
   }
+  
+  return await generateThumbnailWithStorage(storage, imageUrl, size);
+}
+
+/**
+ * Internal function to generate thumbnail with a specific storage backend
+ */
+async function generateThumbnailWithStorage(
+  storage: StorageBackend,
+  imageUrl: string,
+  size: ThumbnailSize
+): Promise<string> {
 
   // For embed size, we need to get original dimensions first
   // For other sizes, use preset dimensions
