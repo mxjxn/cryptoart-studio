@@ -17,19 +17,49 @@ const mvpFeatures: FeatureCard[] = [
     docsUrl: '/mvp/auctions',
   },
   {
+    title: 'Featured Sections',
+    description: 'Homepage features curated carousel and dynamic featured sections showcasing selected artworks and collections.',
+    docsUrl: '/mvp/featured-sections',
+  },
+  {
+    title: 'Curation & Galleries',
+    description: 'Create and publish curated galleries of listings. Admins can organize collections and feature them on the homepage.',
+    docsUrl: '/mvp/curation',
+  },
+  {
+    title: 'Social Features',
+    description: 'Follow artists and collectors, favorite listings, and discover new artworks through social connections.',
+    docsUrl: '/mvp/social',
+  },
+  {
     title: 'Membership',
-    description: 'Membership-based seller registry ensures quality curation. Get your STP v2 NFT to start creating auctions.',
+    description: 'Membership-based seller registry ensures quality curation. Subscribe to STP v2 NFT to start creating auctions.',
     docsUrl: '/mvp/membership',
   },
   {
     title: 'Profiles',
-    description: 'View your created auctions, collected NFTs, and active bids. Public profiles let you discover artists and collectors.',
+    description: 'View your created auctions, collected NFTs, active bids, favorites, and galleries. Discover artists and collectors.',
     docsUrl: '/mvp/profiles',
+  },
+  {
+    title: 'Market',
+    description: 'Browse the marketplace with advanced filtering, search, and discovery tools to find the perfect artwork.',
+    docsUrl: '/mvp/market',
   },
   {
     title: 'Notifications',
     description: 'Stay informed with real-time notifications for new bids, outbid alerts, and auction ending reminders.',
     docsUrl: '/mvp/notifications',
+  },
+  {
+    title: 'Settings',
+    description: 'Customize your notification preferences and manage your account settings.',
+    docsUrl: '/mvp/settings',
+  },
+  {
+    title: 'Share',
+    description: 'Share your auction moments with beautiful OG images. Share when you create auctions, place bids, or win auctions.',
+    docsUrl: '/mvp/share',
   },
 ]
 
@@ -85,11 +115,12 @@ export default function Home() {
             to discover and engage with artworks directly within the Farcaster ecosystem.
           </p>
           <p className="font-mono" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-            Built natively for Farcaster with membership-based curation, real-time bidding, and seamless social integration.
+            Built natively for Farcaster with membership-based curation, real-time bidding, featured sections, curation galleries, 
+            social features (follows and favorites), and seamless social integration.
           </p>
         </TerminalCard>
 
-        <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {mvpFeatures.map((feature) => (
             <TerminalCard key={feature.title} className="flex flex-col">
               <h3 className="text-xl font-bold mb-3 uppercase" style={{ color: 'var(--color-primary)' }}>

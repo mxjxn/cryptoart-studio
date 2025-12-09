@@ -134,6 +134,35 @@ export default function ArchitecturePage() {
             </li>
           </ul>
         </TerminalCard>
+
+        <TerminalCard>
+          <h3 className="text-2xl font-bold mb-3 uppercase" style={{ color: 'var(--color-primary)' }}>
+            Database Layer
+          </h3>
+          <p className="font-mono mb-4" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            PostgreSQL database provides caching and additional features beyond the subgraph:
+          </p>
+          <ul className="space-y-2">
+            <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              • <strong>User Cache</strong> - Cached Farcaster user data and verified addresses
+            </li>
+            <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              • <strong>Favorites & Follows</strong> - User favorites and follow relationships
+            </li>
+            <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              • <strong>Featured Sections</strong> - Admin-curated featured sections and carousel
+            </li>
+            <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              • <strong>Curation/Galleries</strong> - Admin-created galleries of listings
+            </li>
+            <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              • <strong>Notifications</strong> - Notification preferences and push tokens
+            </li>
+            <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              • <strong>Image Cache</strong> - Cached token images and thumbnails
+            </li>
+          </ul>
+        </TerminalCard>
       </div>
 
       {/* Data Flow */}
@@ -167,6 +196,24 @@ export default function ArchitecturePage() {
             <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
               Frontend queries subgraph → Subgraph returns indexed data → Frontend renders UI → 
               User sees marketplace data in real-time
+            </p>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              4. Featured Content
+            </h3>
+            <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              Admins create featured sections → Database stores curation → Frontend queries featured sections → 
+              Homepage displays curated content
+            </p>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              5. Social Features
+            </h3>
+            <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              User favorites/follows → Database stores relationship → Frontend queries social data → 
+              Profile displays favorites and follows
             </p>
           </div>
         </div>

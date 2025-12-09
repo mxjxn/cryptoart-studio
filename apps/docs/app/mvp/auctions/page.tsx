@@ -173,7 +173,7 @@ export default function AuctionsPage() {
       </TerminalCard>
 
       {/* Payment Options */}
-      <TerminalCard>
+      <TerminalCard className="mb-12">
         <h2 className="text-2xl font-bold mb-4 uppercase" style={{ color: 'var(--color-primary)' }}>
           Payment Options
         </h2>
@@ -190,6 +190,54 @@ export default function AuctionsPage() {
         </ul>
         <p className="font-mono mt-4 text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
           All payments are processed on-chain with automatic royalty distribution to creators.
+        </p>
+      </TerminalCard>
+
+      {/* Featured Listings */}
+      <TerminalCard className="mb-12">
+        <h2 className="text-2xl font-bold mb-4 uppercase" style={{ color: 'var(--color-primary)' }}>
+          Featured Listings
+        </h2>
+        <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
+          Admins can feature specific listings to appear prominently on the homepage. Featured listings appear in:
+        </p>
+        <ul className="space-y-2">
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • <strong>Featured Carousel</strong> - Top of homepage with manual curation
+          </li>
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • <strong>Featured Sections</strong> - Dynamic sections with curated collections
+          </li>
+        </ul>
+        <p className="font-mono mt-4 text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+          Featured listings get increased visibility and help showcase the best artworks on the platform.
+        </p>
+      </TerminalCard>
+
+      {/* Share Functionality */}
+      <TerminalCard>
+        <h2 className="text-2xl font-bold mb-4 uppercase" style={{ color: 'var(--color-primary)' }}>
+          Share Your Auctions
+        </h2>
+        <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
+          Share your auction moments with beautiful, automatically generated OG images:
+        </p>
+        <ul className="space-y-2">
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • <strong>Auction Created</strong> - Share when you create a new listing
+          </li>
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • <strong>Bid Placed</strong> - Share when you place a bid
+          </li>
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • <strong>Top Bid</strong> - Share when you're the highest bidder
+          </li>
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • <strong>Auction Won</strong> - Share when you win an auction
+          </li>
+        </ul>
+        <p className="font-mono mt-4 text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+          Each share generates a beautiful OG image with artwork preview, auction details, and branding.
         </p>
       </TerminalCard>
 

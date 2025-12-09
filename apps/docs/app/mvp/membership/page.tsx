@@ -27,8 +27,7 @@ export default function MembershipPage() {
           The membership system ensures quality curation by requiring all sellers to hold an active membership NFT.
         </p>
         <p className="font-mono" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
-          Think of it as your creator pass—once you have membership, you can create as many auctions as you want 
-          while your membership is active.
+          Think of it as your creator pass—as long as your membership subscription is active, you can create as many auctions as you want.
         </p>
       </TerminalCard>
 
@@ -66,7 +65,7 @@ export default function MembershipPage() {
           How to Get Membership
         </h2>
         <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
-          To get membership, you need to purchase an STP v2 NFT. Here's how:
+          To get membership, you need to subscribe to an STP v2 NFT (hypersub). Here's how:
         </p>
         <ol className="space-y-3 list-decimal list-inside mb-4">
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
@@ -76,10 +75,10 @@ export default function MembershipPage() {
             Connect your wallet or sign in with Farcaster
           </li>
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
-            Purchase membership for 0.5 ETH
+            Subscribe to membership for 0.0001 ETH/month
           </li>
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
-            Your membership NFT will be minted to your wallet
+            Your membership NFT will be minted to your wallet and renews monthly
           </li>
         </ol>
         <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
@@ -94,7 +93,7 @@ export default function MembershipPage() {
           Membership Cost
         </h2>
         <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
-          Membership costs <strong>0.5 ETH</strong> (one-time purchase). This gives you:
+          Membership costs <strong>0.0001 ETH/month</strong> (monthly subscription). This gives you:
         </p>
         <ul className="space-y-2">
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>

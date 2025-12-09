@@ -11,19 +11,49 @@ const features = [
     href: '/mvp/auctions',
   },
   {
+    title: 'Featured Sections',
+    description: 'Homepage features curated carousel and dynamic featured sections showcasing selected artworks.',
+    href: '/mvp/featured-sections',
+  },
+  {
+    title: 'Curation & Galleries',
+    description: 'Create and publish curated galleries of listings. Organize collections and feature them on the homepage.',
+    href: '/mvp/curation',
+  },
+  {
+    title: 'Social Features',
+    description: 'Follow artists and collectors, favorite listings, and discover new artworks through social connections.',
+    href: '/mvp/social',
+  },
+  {
     title: 'Membership',
-    description: 'Get membership to start creating auctions. Quality curation through membership-based seller registry.',
+    description: 'Subscribe to membership to start creating auctions. Quality curation through membership-based seller registry.',
     href: '/mvp/membership',
   },
   {
     title: 'Profiles',
-    description: 'View your created auctions, collected NFTs, and active bids. Discover artists and collectors.',
+    description: 'View your created auctions, collected NFTs, active bids, favorites, and galleries. Discover artists and collectors.',
     href: '/mvp/profiles',
+  },
+  {
+    title: 'Market',
+    description: 'Browse the marketplace with advanced filtering, search, and discovery tools to find the perfect artwork.',
+    href: '/mvp/market',
   },
   {
     title: 'Notifications',
     description: 'Stay informed with real-time notifications for bids, outbids, and auction endings.',
     href: '/mvp/notifications',
+  },
+  {
+    title: 'Settings',
+    description: 'Customize your notification preferences and manage your account settings.',
+    href: '/mvp/settings',
+  },
+  {
+    title: 'Share',
+    description: 'Share your auction moments with beautiful OG images. Share when you create auctions, place bids, or win.',
+    href: '/mvp/share',
   },
 ]
 
@@ -58,7 +88,7 @@ export default function MVPOverview() {
       </TerminalCard>
 
       {/* Key Features */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
         {features.map((feature) => (
           <TerminalCard key={feature.title} className="flex flex-col">
             <h3 className="text-xl font-bold mb-3 uppercase" style={{ color: 'var(--color-primary)' }}>
@@ -152,12 +182,36 @@ export default function MVPOverview() {
           <h2 className="text-2xl font-bold mb-6 text-center uppercase" style={{ color: 'var(--color-primary)' }}>
             Documentation
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
             <TerminalCard className="text-center">
               <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
                 Auctions
               </div>
               <TerminalLink href="/mvp/auctions" className="text-xs mt-2 block">
+                View →
+              </TerminalLink>
+            </TerminalCard>
+            <TerminalCard className="text-center">
+              <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+                Featured
+              </div>
+              <TerminalLink href="/mvp/featured-sections" className="text-xs mt-2 block">
+                View →
+              </TerminalLink>
+            </TerminalCard>
+            <TerminalCard className="text-center">
+              <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+                Curation
+              </div>
+              <TerminalLink href="/mvp/curation" className="text-xs mt-2 block">
+                View →
+              </TerminalLink>
+            </TerminalCard>
+            <TerminalCard className="text-center">
+              <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+                Social
+              </div>
+              <TerminalLink href="/mvp/social" className="text-xs mt-2 block">
                 View →
               </TerminalLink>
             </TerminalCard>
@@ -179,9 +233,33 @@ export default function MVPOverview() {
             </TerminalCard>
             <TerminalCard className="text-center">
               <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+                Market
+              </div>
+              <TerminalLink href="/mvp/market" className="text-xs mt-2 block">
+                View →
+              </TerminalLink>
+            </TerminalCard>
+            <TerminalCard className="text-center">
+              <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
                 Notifications
               </div>
               <TerminalLink href="/mvp/notifications" className="text-xs mt-2 block">
+                View →
+              </TerminalLink>
+            </TerminalCard>
+            <TerminalCard className="text-center">
+              <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+                Settings
+              </div>
+              <TerminalLink href="/mvp/settings" className="text-xs mt-2 block">
+                View →
+              </TerminalLink>
+            </TerminalCard>
+            <TerminalCard className="text-center">
+              <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+                Share
+              </div>
+              <TerminalLink href="/mvp/share" className="text-xs mt-2 block">
                 View →
               </TerminalLink>
             </TerminalCard>

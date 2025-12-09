@@ -164,21 +164,25 @@ export default function NotificationsPage() {
           Notification Preferences
         </h2>
         <p className="font-mono mb-4" style={{ color: 'var(--color-text)' }}>
-          You can customize which notifications you receive:
+          You can customize which notifications you receive through the Settings page:
         </p>
         <ul className="space-y-2">
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
             • Enable or disable specific notification types
           </li>
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
-            • Choose delivery methods (in-app, Farcaster)
+            • Choose delivery methods (in-app, push notifications)
           </li>
           <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
             • Set notification frequency preferences
           </li>
+          <li className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+            • Manage push notification tokens
+          </li>
         </ul>
         <p className="font-mono mt-4 text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
-          Access your notification preferences from your profile settings.
+          Access your notification preferences from the <TerminalLink href="/mvp/settings" className="underline">Settings page</TerminalLink>. 
+          You can fine-tune which notifications you receive and how they're delivered.
         </p>
       </TerminalCard>
 

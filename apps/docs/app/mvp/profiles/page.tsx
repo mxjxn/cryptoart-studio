@@ -83,11 +83,31 @@ export default function ProfilesPage() {
 
           <div>
             <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
-              Saved Listings
+              Favorites
             </h3>
             <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
               Listings you've favorited for easy access later. Keep track of auctions you're interested in but not 
-              ready to bid on yet.
+              ready to bid on yet. Favorite any listing with one click.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              Following & Followers
+            </h3>
+            <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              Follow artists and collectors to stay updated on their new listings and activity. See who follows you 
+              and build your community.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              Galleries (Admins)
+            </h3>
+            <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              If you're an admin, view your curated galleries. Create collections of listings and publish them 
+              for public viewing or feature them on the homepage.
             </p>
           </div>
         </div>
@@ -129,8 +149,58 @@ export default function ProfilesPage() {
             </h3>
             <p className="font-mono text-sm" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
               Profiles are linked to Farcaster, so you can see Farcaster usernames, avatars, and follow relationships. 
-              The marketplace seamlessly integrates with your Farcaster social graph.
+              The marketplace seamlessly integrates with your Farcaster social graph. Follow and favorite features 
+              work across the platform.
             </p>
+          </div>
+        </div>
+      </TerminalCard>
+
+      {/* Social Features */}
+      <TerminalCard className="mb-12">
+        <h2 className="text-2xl font-bold mb-4 uppercase" style={{ color: 'var(--color-primary)' }}>
+          Social Features
+        </h2>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              Favorites
+            </h3>
+            <p className="font-mono text-sm mb-3" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              Save listings you're interested in for later. Your favorites are private and help you track auctions 
+              you want to watch or bid on.
+            </p>
+            <ul className="space-y-1">
+              <li className="font-mono text-xs" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                • One-click favorite/unfavorite
+              </li>
+              <li className="font-mono text-xs" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                • View all favorites in your profile
+              </li>
+              <li className="font-mono text-xs" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                • Quick access to saved listings
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold mb-2 uppercase" style={{ color: 'var(--color-secondary)' }}>
+              Follows
+            </h3>
+            <p className="font-mono text-sm mb-3" style={{ color: 'var(--color-text)', opacity: 0.9 }}>
+              Follow artists and collectors to discover their new listings and activity. Build your network and 
+              stay updated on creators you love.
+            </p>
+            <ul className="space-y-1">
+              <li className="font-mono text-xs" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                • Follow/unfollow from any profile
+              </li>
+              <li className="font-mono text-xs" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                • See who you follow and who follows you
+              </li>
+              <li className="font-mono text-xs" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+                • Discover new artists through your network
+              </li>
+            </ul>
           </div>
         </div>
       </TerminalCard>
