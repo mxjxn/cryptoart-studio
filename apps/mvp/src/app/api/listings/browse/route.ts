@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
     const orderBy = searchParams.get("orderBy") || "listingId";
     const orderDirection = (searchParams.get("orderDirection") || "desc") as "asc" | "desc";
     
+    console.log('[API /listings/browse] Request:', { first, skip, orderBy, orderDirection, enrich });
+    
     const result = await browseListings({
       first,
       skip,
@@ -20,6 +22,8 @@ export async function GET(req: NextRequest) {
       orderDirection,
       enrich,
     });
+    
+    console.log('[API /listings/browse] Result:', { listingsCount: result.listings.length, subgraphReturnedFullCount: result.subgraphReturnedFullCount });
 
     const enrichedListings = result.listings;
 

@@ -161,30 +161,43 @@ export async function fetchNFTMetadata(
         // Only try IPFS caching on server-side (check for Node.js environment)
         if (typeof window === 'undefined' && typeof process !== 'undefined' && process.env) {
           try {
-            const { getCachedIPFSImageUrl, cacheIPFSImage } = await import('./server/ipfs-cache');
-            // First check if already cached (fast path)
-            const cached = await getCachedIPFSImageUrl(imageUrl);
+            // Use a shorter timeout for IPFS cache check to avoid blocking
+            const cacheCheckPromise = (async () => {
+              try {
+                const { getCachedIPFSImageUrl } = await import('./server/ipfs-cache');
+                return await getCachedIPFSImageUrl(imageUrl);
+              } catch (error) {
+                // If cache check fails, return null to use gateway
+                console.warn(`[NFT Metadata] IPFS cache check failed:`, error instanceof Error ? error.message : String(error));
+                return null;
+              }
+            })();
+            
+            const timeoutPromise = new Promise<string | null>((resolve) => {
+              setTimeout(() => resolve(null), 1000); // 1 second timeout for cache check
+            });
+            
+            const cached = await Promise.race([cacheCheckPromise, timeoutPromise]);
             if (cached) {
               metadata.image = cached;
             } else {
-              // Not cached, try to cache it with timeout
-              // Use Promise.race to avoid blocking too long
-              const cachePromise = cacheIPFSImage(imageUrl);
-              const timeoutPromise = new Promise<string>((resolve) => {
-                setTimeout(() => resolve(ipfsToGateway(imageUrl)), 5000); // 5 second timeout
-              });
-              
-              try {
-                metadata.image = await Promise.race([cachePromise, timeoutPromise]);
-              } catch (error) {
-                // If caching fails, fall back to gateway URL
-                console.warn(`[NFT Metadata] Failed to cache IPFS image ${imageUrl}:`, error);
-                metadata.image = ipfsToGateway(imageUrl);
-              }
+              // Not cached or cache check timed out, use gateway URL
+              // Cache in background (don't wait for it)
+              (async () => {
+                try {
+                  const { cacheIPFSImage } = await import('./server/ipfs-cache');
+                  await cacheIPFSImage(imageUrl).catch(() => {
+                    // Ignore background cache errors
+                  });
+                } catch {
+                  // Ignore import or cache errors in background
+                }
+              })();
+              metadata.image = ipfsToGateway(imageUrl);
             }
           } catch (error) {
             // If IPFS cache fails, fall back to gateway
-            console.warn(`[NFT Metadata] IPFS cache error, using gateway:`, error);
+            console.warn(`[NFT Metadata] IPFS cache error, using gateway:`, error instanceof Error ? error.message : String(error));
             metadata.image = ipfsToGateway(imageUrl);
           }
         } else {

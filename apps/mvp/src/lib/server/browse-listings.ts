@@ -103,17 +103,30 @@ export async function browseListings(
   // So we need to fetch extra to ensure we have enough after filtering
   const fetchCount = Math.min(Math.ceil(first * 1.5), 100); // Fetch 50% more, capped at 100
   
-  const data = await request<{ listings: any[] }>(
-    endpoint,
-    BROWSE_LISTINGS_QUERY,
-    {
-      first: fetchCount,
-      skip,
-      orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
-      orderDirection: orderDirection === "asc" ? "asc" : "desc",
-    },
-    getSubgraphHeaders()
-  );
+  let data: { listings: any[] };
+  try {
+    console.log('[Browse Listings] Fetching from subgraph:', { endpoint, fetchCount, skip, orderBy, orderDirection });
+    data = await request<{ listings: any[] }>(
+      endpoint,
+      BROWSE_LISTINGS_QUERY,
+      {
+        first: fetchCount,
+        skip,
+        orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
+        orderDirection: orderDirection === "asc" ? "asc" : "desc",
+      },
+      getSubgraphHeaders()
+    );
+    console.log('[Browse Listings] Subgraph returned', data.listings?.length || 0, 'listings');
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    console.error('[Browse Listings] Subgraph error:', errorMessage, error);
+    // Return empty result instead of throwing - let client handle gracefully
+    return {
+      listings: [],
+      subgraphReturnedFullCount: false,
+    };
+  }
   
   // Get hidden user addresses for filtering
   const hiddenAddresses = await getHiddenUserAddresses();
@@ -151,6 +164,8 @@ export async function browseListings(
   let enrichedListings: EnrichedAuctionData[] = activeListings;
 
   if (enrich) {
+    console.log('[Browse Listings] Enriching', activeListings.length, 'listings');
+    
     // Collect all addresses that need user discovery
     const addressesToDiscover = new Set<string>();
     
@@ -198,8 +213,9 @@ export async function browseListings(
               listing.tokenId,
               listing.tokenSpec
             );
-          } catch {
-            // Ignore metadata fetch errors
+          } catch (error) {
+            // Log but don't throw - metadata is optional
+            console.warn(`[Browse Listings] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error instanceof Error ? error.message : String(error));
           }
         }
 
@@ -246,10 +262,13 @@ export async function browseListings(
   // This helps determine if there might be more listings available
   const subgraphReturnedFullCount = data.listings.length === fetchCount;
   
+  const finalListings = enrichedListings.slice(0, first);
+  console.log('[Browse Listings] Returning', finalListings.length, 'listings (requested', first, ', filtered from', activeListings.length, 'active)');
+  
   // Return only the requested number of listings
   // This ensures we don't return more than requested, and helps with hasMore calculation
   return {
-    listings: enrichedListings.slice(0, first),
+    listings: finalListings,
     subgraphReturnedFullCount,
   };
 }
