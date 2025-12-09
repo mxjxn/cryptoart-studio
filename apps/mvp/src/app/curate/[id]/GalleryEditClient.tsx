@@ -9,6 +9,8 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { AuctionCard } from "~/components/AuctionCard";
+import { useUsername } from "~/hooks/useUsername";
+import { getGalleryUrl } from "~/lib/gallery-url";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { APP_URL } from "~/lib/constants";
 
@@ -220,7 +222,10 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
     }
   };
 
-  const galleryUrl = data?.gallery?.slug
+  const { username } = useUsername(data?.gallery?.curatorAddress);
+  const galleryUrl = data?.gallery?.slug && username
+    ? `${APP_URL}${getGalleryUrl(data.gallery, username)}`
+    : data?.gallery?.slug
     ? `${APP_URL}/gallery/${data.gallery.curatorAddress}/${data.gallery.slug}`
     : null;
 

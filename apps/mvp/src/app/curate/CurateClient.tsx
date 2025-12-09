@@ -8,6 +8,8 @@ import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
+import { useUsername } from "~/hooks/useUsername";
+import { getGalleryUrl } from "~/lib/gallery-url";
 import type { CurationData } from "@cryptoart/db";
 
 type FilterTab = "all" | "published" | "drafts";
@@ -280,15 +282,21 @@ interface GalleryCardProps {
 }
 
 function GalleryCard({ gallery }: GalleryCardProps) {
+  const { username } = useUsername(gallery.curatorAddress);
   const createdDate = new Date(gallery.createdAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 
+  // Use new URL structure for published galleries, edit URL for drafts
+  const galleryUrl = gallery.isPublished && gallery.slug
+    ? getGalleryUrl(gallery, username)
+    : `/curate/${gallery.id}`;
+
   return (
     <TransitionLink
-      href={`/curate/${gallery.id}`}
+      href={galleryUrl}
       className="block bg-[#1a1a1a] border border-[#333333] rounded-lg overflow-hidden hover:border-[#666666] transition-colors"
     >
       <div className="p-4">

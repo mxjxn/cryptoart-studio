@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { TransitionLink } from "~/components/TransitionLink";
+import { useUsername } from "~/hooks/useUsername";
+import { getGalleryUrl } from "~/lib/gallery-url";
 import type { CurationData } from "@cryptoart/db";
 
 interface ProfileGalleriesSectionProps {
@@ -71,9 +73,8 @@ interface GalleryCardProps {
 }
 
 function GalleryCard({ gallery, curatorAddress }: GalleryCardProps) {
-  const galleryUrl = gallery.slug
-    ? `/gallery/${curatorAddress}/${gallery.slug}`
-    : `/curate/${gallery.id}`;
+  const { username } = useUsername(curatorAddress);
+  const galleryUrl = getGalleryUrl(gallery, username);
 
   return (
     <TransitionLink
