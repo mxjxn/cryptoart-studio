@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/docs/**'
+      - 'docs/**'
       - 'packages/auctionhouse-contracts/**'
       - '.github/workflows/deploy-auctionhouse-docs.yml'
   workflow_dispatch:
