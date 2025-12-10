@@ -189,14 +189,14 @@ export function generateShareOGImageUrl(
 export function generateShareUrl(
   momentType: ShareMomentType,
   listingId: string,
-  referralId?: string | null
+  referralAddress?: string | null
 ): string {
   const baseUrl =
     process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const url = new URL(`${baseUrl}/share/${momentType}/${listingId}`);
 
-  if (referralId) {
-    url.searchParams.set("referralId", referralId);
+  if (referralAddress) {
+    url.searchParams.set("referralAddress", referralAddress);
   }
 
   return url.toString();

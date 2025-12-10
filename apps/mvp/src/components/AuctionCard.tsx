@@ -22,9 +22,10 @@ interface AuctionCardProps {
   auction: EnrichedAuctionData;
   gradient: string;
   index: number;
+  referralAddress?: string | null;
 }
 
-export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
+export function AuctionCard({ auction, gradient, index, referralAddress }: AuctionCardProps) {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
@@ -291,7 +292,11 @@ export function AuctionCard({ auction, gradient, index }: AuctionCardProps) {
 
     // Use router.push without view transition to avoid flash
     // View transitions can cause black flashes on navigation
-    router.push(`/listing/${auction.listingId}`);
+    // Include referralAddress in URL if provided
+    const listingUrl = referralAddress 
+      ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
+      : `/listing/${auction.listingId}`;
+    router.push(listingUrl);
   };
 
   return (

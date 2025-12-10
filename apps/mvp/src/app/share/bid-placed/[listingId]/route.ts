@@ -52,11 +52,11 @@ export async function GET(
 
   // Regular user - redirect to listing page
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-  const referralId = request.nextUrl.searchParams.get("referralId");
-  const redirectUrl = new URL(`${baseUrl}/auction/${listingId}`);
+  const referralAddress = request.nextUrl.searchParams.get("referralAddress");
+  const redirectUrl = new URL(`${baseUrl}/listing/${listingId}`);
   
-  if (referralId) {
-    redirectUrl.searchParams.set("referralId", referralId);
+  if (referralAddress) {
+    redirectUrl.searchParams.set("referralAddress", referralAddress);
   }
 
   return NextResponse.redirect(redirectUrl);

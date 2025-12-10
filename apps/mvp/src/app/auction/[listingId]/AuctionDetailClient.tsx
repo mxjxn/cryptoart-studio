@@ -100,21 +100,22 @@ export default function AuctionDetailClient({
   const referrerBPS = listingData ? (listingData as any).referrerBPS : undefined;
 
   // Extract and validate referrer from URL
+  // Support both 'referralAddress' (new) and 'ref' (legacy) for backwards compatibility
   const referrer = useMemo(() => {
-    const refParam = searchParams.get('ref');
-    if (!refParam) {
+    const referralAddressParam = searchParams.get('referralAddress') || searchParams.get('ref');
+    if (!referralAddressParam) {
       return null;
     }
     
     // Validate that it's a valid Ethereum address
-    if (!isAddress(refParam)) {
-      console.warn('Invalid referrer address in URL:', refParam);
+    if (!isAddress(referralAddressParam)) {
+      console.warn('Invalid referrer address in URL:', referralAddressParam);
       return null;
     }
     
     // Only use referrer if listing supports referrers (referrerBPS > 0)
     if (referrerBPS && referrerBPS > 0) {
-      return refParam.toLowerCase() as Address;
+      return referralAddressParam.toLowerCase() as Address;
     }
     
     return null;

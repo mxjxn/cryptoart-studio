@@ -17,7 +17,7 @@ export async function GET(
   const userAgent = request.headers.get("user-agent") || "";
   const topBidAmount = request.nextUrl.searchParams.get("topBidAmount");
   const topBidderAddress = request.nextUrl.searchParams.get("topBidderAddress");
-  const referralId = request.nextUrl.searchParams.get("referralId");
+  const referralAddress = request.nextUrl.searchParams.get("referralAddress");
 
   // Check if this is a bot/scraper request (for OG image)
   const isBot =
@@ -55,10 +55,10 @@ export async function GET(
 
   // Regular user - redirect to listing page
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-  const redirectUrl = new URL(`${baseUrl}/auction/${listingId}`);
+  const redirectUrl = new URL(`${baseUrl}/listing/${listingId}`);
   
-  if (referralId) {
-    redirectUrl.searchParams.set("referralId", referralId);
+  if (referralAddress) {
+    redirectUrl.searchParams.set("referralAddress", referralAddress);
   }
 
   return NextResponse.redirect(redirectUrl);

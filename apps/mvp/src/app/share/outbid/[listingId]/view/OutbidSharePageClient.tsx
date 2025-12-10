@@ -12,14 +12,14 @@ interface OutbidSharePageClientProps {
   listingId: string;
   auction: EnrichedAuctionData;
   currentBid?: string;
-  referralId?: string;
+  referralAddress?: string;
 }
 
 export function OutbidSharePageClient({
   listingId,
   auction,
   currentBid,
-  referralId,
+  referralAddress,
 }: OutbidSharePageClientProps) {
   const router = useRouter();
 
@@ -107,7 +107,7 @@ export function OutbidSharePageClient({
             />
 
             <TransitionLink
-              href={`/auction/${listingId}${referralId ? `?referralId=${referralId}` : ""}`}
+              href={`/listing/${listingId}${referralAddress ? `?referralAddress=${referralAddress}` : ""}`}
               className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#1a1a1a] transition-colors text-center"
             >
               View Listing

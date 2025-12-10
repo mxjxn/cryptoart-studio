@@ -16,7 +16,7 @@ export async function GET(
   const { listingId } = await params;
   const userAgent = request.headers.get("user-agent") || "";
   const currentBid = request.nextUrl.searchParams.get("currentBid");
-  const referralId = request.nextUrl.searchParams.get("referralId");
+  const referralAddress = request.nextUrl.searchParams.get("referralAddress");
 
   // Check if this is a bot/scraper request (for OG image)
   const isBot =
@@ -58,8 +58,8 @@ export async function GET(
   if (currentBid) {
     redirectUrl.searchParams.set("currentBid", currentBid);
   }
-  if (referralId) {
-    redirectUrl.searchParams.set("referralId", referralId);
+  if (referralAddress) {
+    redirectUrl.searchParams.set("referralAddress", referralAddress);
   }
 
   return NextResponse.redirect(redirectUrl);

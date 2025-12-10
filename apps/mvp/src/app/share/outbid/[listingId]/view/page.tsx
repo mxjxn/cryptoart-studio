@@ -4,7 +4,7 @@ import { getAuctionServer } from "~/lib/server/auction";
 
 interface OutbidSharePageProps {
   params: Promise<{ listingId: string }>;
-  searchParams: Promise<{ currentBid?: string; referralId?: string }>;
+  searchParams: Promise<{ currentBid?: string; referralAddress?: string }>;
 }
 
 export default async function OutbidSharePage({
@@ -12,7 +12,7 @@ export default async function OutbidSharePage({
   searchParams,
 }: OutbidSharePageProps) {
   const { listingId } = await params;
-  const { currentBid, referralId } = await searchParams;
+  const { currentBid, referralAddress } = await searchParams;
 
   // Fetch auction data
   const auction = await getAuctionServer(listingId);
@@ -27,7 +27,7 @@ export default async function OutbidSharePage({
       listingId={listingId}
       auction={auction}
       currentBid={currentBid}
-      referralId={referralId}
+      referralAddress={referralAddress}
     />
   );
 }

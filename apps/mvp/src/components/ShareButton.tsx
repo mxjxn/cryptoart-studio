@@ -55,27 +55,28 @@ export function ShareButton({
       
       if (listingId) {
         // Use referral share endpoint
-        shareUrl = generateShareUrl("referral", listingId, primaryWallet || undefined);
+        const referralAddress = primaryWallet?.startsWith('0x') ? primaryWallet : primaryWallet ? `0x${primaryWallet}` : undefined;
+        shareUrl = generateShareUrl("referral", listingId, referralAddress);
         castText = text || generateShareCastText("referral", {
           listingId,
           artworkName,
           artistName,
         });
       } else {
-        // Use original URL with referralId
+        // Use original URL with referralAddress
         shareUrl = url;
         if (primaryWallet) {
           try {
             const urlObj = new URL(url);
             // Ensure address has 0x prefix
-            const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
-            urlObj.searchParams.set('referralId', referralId);
+            const referralAddress = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+            urlObj.searchParams.set('referralAddress', referralAddress);
             shareUrl = urlObj.toString();
           } catch (e) {
             // If URL parsing fails, append query parameter manually
             const separator = url.includes('?') ? '&' : '?';
-            const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
-            shareUrl = `${url}${separator}referralId=${referralId}`;
+            const referralAddress = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+            shareUrl = `${url}${separator}referralAddress=${referralAddress}`;
           }
         }
         castText = text || "Check out this auction!";

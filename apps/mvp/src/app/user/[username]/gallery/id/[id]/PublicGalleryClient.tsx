@@ -162,6 +162,7 @@ export default function PublicGalleryClient({ username, galleryId }: PublicGalle
                 auction={auction}
                 gradient={gradients[index % gradients.length]}
                 index={index}
+                referralAddress={curatorAddress}
               />
             ))}
           </div>

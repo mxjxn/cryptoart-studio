@@ -17,20 +17,20 @@ export function LinkShareButton({ url, className = "" }: LinkShareButtonProps) {
 
   const handleShare = useCallback(async () => {
     try {
-      // Add referralId parameter to URL if user has a primary wallet
+      // Add referralAddress parameter to URL if user has a primary wallet
       let shareUrl = url;
       if (primaryWallet) {
         try {
           const urlObj = new URL(url);
           // Ensure address has 0x prefix
-          const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
-          urlObj.searchParams.set('referralId', referralId);
+          const referralAddress = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+          urlObj.searchParams.set('referralAddress', referralAddress);
           shareUrl = urlObj.toString();
         } catch (e) {
           // If URL parsing fails, append query parameter manually
           const separator = url.includes('?') ? '&' : '?';
-          const referralId = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
-          shareUrl = `${url}${separator}referralId=${referralId}`;
+          const referralAddress = primaryWallet.startsWith('0x') ? primaryWallet : `0x${primaryWallet}`;
+          shareUrl = `${url}${separator}referralAddress=${referralAddress}`;
         }
       }
       
