@@ -80,6 +80,21 @@ export default function FeaturedListingsPage() {
         }
       }
 
+      // Create a corresponding homepage layout section so it appears in the sortable list
+      const layoutResponse = await fetch('/api/admin/homepage-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionType: 'custom_section',
+          title: title || gallery.title,
+          description: description || gallery.description || undefined,
+          config: { sectionId: section.id },
+          isActive: true,
+          adminAddress: address,
+        }),
+      });
+      if (!layoutResponse.ok) throw new Error('Failed to create homepage layout section');
+
       return { section, gallery, title: title || gallery.title };
     },
     onSuccess: (data) => {
