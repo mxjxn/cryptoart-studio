@@ -8,27 +8,28 @@ import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
-import { normalizeListingType } from "~/lib/server/auction";
+import { normalizeListingType, getHiddenUserAddresses, getAuctionServer } from "~/lib/server/auction";
+import { getDatabase, featuredListings, asc } from "@cryptoart/db";
 
 export const dynamic = 'force-dynamic';
 
-// In-memory cache for recent listings to reduce repeated GraphQL calls
+// In-memory cache for featured listings to reduce repeated database calls
 type CachedListings = { data: EnrichedAuctionData[]; expiresAt: number };
-const RECENT_LISTINGS_CACHE: { value: CachedListings | null } = { value: null };
-const RECENT_LISTINGS_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const FEATURED_LISTINGS_CACHE: { value: CachedListings | null } = { value: null };
+const FEATURED_LISTINGS_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-function getCachedRecentListings(): EnrichedAuctionData[] | null {
+function getCachedFeaturedListings(): EnrichedAuctionData[] | null {
   const now = Date.now();
-  if (RECENT_LISTINGS_CACHE.value && RECENT_LISTINGS_CACHE.value.expiresAt > now) {
-    return RECENT_LISTINGS_CACHE.value.data;
+  if (FEATURED_LISTINGS_CACHE.value && FEATURED_LISTINGS_CACHE.value.expiresAt > now) {
+    return FEATURED_LISTINGS_CACHE.value.data;
   }
   return null;
 }
 
-function setCachedRecentListings(data: EnrichedAuctionData[]): void {
-  RECENT_LISTINGS_CACHE.value = {
+function setCachedFeaturedListings(data: EnrichedAuctionData[]): void {
+  FEATURED_LISTINGS_CACHE.value = {
     data,
-    expiresAt: Date.now() + RECENT_LISTINGS_TTL_MS,
+    expiresAt: Date.now() + FEATURED_LISTINGS_TTL_MS,
   };
 }
 
@@ -81,47 +82,8 @@ const getSubgraphHeaders = (): Record<string, string> => {
   return {};
 };
 
-/**
- * Query for most recent listings
- */
-const RECENT_LISTINGS_QUERY = gql`
-  query RecentListings($first: Int!) {
-    listings(
-      first: $first
-      orderBy: listingId
-      orderDirection: desc
-    ) {
-      id
-      listingId
-      marketplace
-      seller
-      tokenAddress
-      tokenId
-      tokenSpec
-      listingType
-      initialAmount
-      totalAvailable
-      totalPerSale
-      startTime
-      endTime
-      lazy
-      status
-      totalSold
-      hasBid
-      finalized
-      createdAt
-      createdAtBlock
-      updatedAt
-      erc20
-      bids(orderBy: amount, orderDirection: desc, first: 1) {
-        id
-        bidder
-        amount
-        timestamp
-      }
-    }
-  }
-`;
+// Note: We now use featured listings from the database instead of querying recent listings
+// This ensures we show curated content and automatically filter banned users
 
 /**
  * Fetch ERC20 token info server-side
@@ -270,123 +232,77 @@ export async function GET(request: NextRequest) {
       console.warn(`[OG Image] Logo data URL is null - will fall back to text`);
     }
 
-    // Fetch 5 most recent listings with cache and fallback
-    let recentListings: EnrichedAuctionData[] = getCachedRecentListings() || [];
+    // Fetch featured listings from database (curated, not just recent)
+    let featuredListingsData: EnrichedAuctionData[] = getCachedFeaturedListings() || [];
     try {
-      const endpoint = getSubgraphEndpoint();
-      const data = await withTimeout(
-        graphqlRequest<{ listings: any[] }>(
-          endpoint,
-          RECENT_LISTINGS_QUERY,
-          { first: 5 },
-          getSubgraphHeaders()
-        ),
-        5000,
-        { listings: [] }
-      );
-
-      // Enrich listings with metadata
-      const enrichedListings = await Promise.all(
-        data.listings.slice(0, 5).map(async (listing) => {
-          const bidCount = listing.bids?.length || 0;
-          const highestBid = listing.bids && listing.bids.length > 0 
-            ? listing.bids[0]
-            : undefined;
-
-          // Fetch NFT metadata
-          let metadata = null;
-          if (listing.tokenAddress && listing.tokenId) {
-            try {
-              metadata = await withTimeout(
-                fetchNFTMetadata(
-                  listing.tokenAddress as Address,
-                  listing.tokenId,
-                  listing.tokenSpec
-                ),
-                5000, // Increased timeout to 5 seconds
-                null
-              );
-              if (!metadata) {
-                console.warn(`[OG Image] Metadata fetch returned null for ${listing.tokenAddress}:${listing.tokenId}`);
-              } else if (!metadata.image) {
-                console.warn(`[OG Image] Metadata fetched but no image URL for ${listing.tokenAddress}:${listing.tokenId}`);
-              }
-            } catch (error) {
-              console.error(`[OG Image] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);
+      const db = getDatabase();
+      
+      // Get featured listing IDs from database
+      const featured = await db
+        .select()
+        .from(featuredListings)
+        .orderBy(asc(featuredListings.displayOrder))
+        .limit(5); // Get up to 5 featured listings
+      
+      if (featured.length > 0) {
+        // Get hidden user addresses for filtering
+        const hiddenAddresses = await getHiddenUserAddresses();
+        
+        // Fetch full listing data for each featured listing
+        const listings = await Promise.all(
+          featured.map(async (f) => {
+            const listing = await getAuctionServer(f.listingId);
+            if (!listing) {
+              return null;
             }
-          } else {
-            console.warn(`[OG Image] Missing tokenAddress or tokenId for listing ${listing.listingId}`);
-          }
-
-          // Fetch artist name and contract name
-          const [artistResult, contractName] = await Promise.all([
-            listing.tokenAddress && listing.tokenId
-              ? withTimeout(
-                  getArtistNameServer(listing.tokenAddress, listing.tokenId),
-                  3000,
-                  { name: null, source: null }
-                )
-              : Promise.resolve({ name: null, source: null }),
-            listing.tokenAddress
-              ? withTimeout(
-                  getContractNameServer(listing.tokenAddress),
-                  3000,
-                  null
-                )
-              : Promise.resolve(null),
-          ]);
-
-          // Fetch ERC20 token info if applicable
-          let tokenSymbol = "ETH";
-          let tokenDecimals = 18;
-          if (listing.erc20 && !isETH(listing.erc20)) {
-            const tokenInfo = await withTimeout(
-              getERC20TokenInfo(listing.erc20),
-              3000,
-              null
-            );
-            if (tokenInfo) {
-              tokenSymbol = tokenInfo.symbol;
-              tokenDecimals = tokenInfo.decimals;
+            
+            // Filter out banned/hidden users
+            if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+              console.log(`[OG Image] Filtering out featured listing ${f.listingId}: seller ${listing.seller} is hidden`);
+              return null;
             }
-          }
-
-          const enriched: EnrichedAuctionData = {
-            ...listing,
-            listingType: normalizeListingType(listing.listingType, listing),
-            bidCount,
-            highestBid: highestBid ? {
-              amount: highestBid.amount,
-              bidder: highestBid.bidder,
-              timestamp: highestBid.timestamp,
-            } : undefined,
-            title: metadata?.title || metadata?.name || (listing.tokenId ? `Token #${listing.tokenId}` : "Untitled"),
-            artist: metadata?.artist || metadata?.creator || artistResult.name,
-            image: metadata?.image,
-            description: metadata?.description,
-            metadata,
-          };
-
-          return {
-            ...enriched,
-            tokenSymbol,
-            tokenDecimals,
-            contractName,
-          } as EnrichedAuctionData & { tokenSymbol: string; tokenDecimals: number; contractName: string | null };
-        })
-      );
-
-      recentListings = enrichedListings;
-      setCachedRecentListings(enrichedListings);
+            
+            // Filter out cancelled, finalized, or sold-out listings
+            if (listing.status === "CANCELLED" || listing.status === "FINALIZED") {
+              return null;
+            }
+            
+            const totalAvailable = parseInt(listing.totalAvailable || "0");
+            const totalSold = parseInt(listing.totalSold || "0");
+            const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
+            if (isFullySold) {
+              return null;
+            }
+            
+            return listing;
+          })
+        );
+        
+        // Filter out null listings and take up to 5
+        featuredListingsData = listings.filter(Boolean).slice(0, 5) as EnrichedAuctionData[];
+        
+        // If we don't have enough featured listings, we could fall back to recent
+        // but for now, we'll just use what we have
+        if (featuredListingsData.length === 0) {
+          console.warn(`[OG Image] No valid featured listings found after filtering`);
+        }
+        
+        setCachedFeaturedListings(featuredListingsData);
+      } else {
+        console.warn(`[OG Image] No featured listings in database`);
+      }
     } catch (error) {
-      console.error(`[OG Image] Error fetching recent listings:`, error);
+      console.error(`[OG Image] Error fetching featured listings:`, error);
       // Use cached data if available
-      const cached = getCachedRecentListings();
+      const cached = getCachedFeaturedListings();
       if (cached) {
-        recentListings = cached;
-        console.log(`[OG Image] Using cached recent listings after fetch error`);
+        featuredListingsData = cached;
+        console.log(`[OG Image] Using cached featured listings after fetch error`);
       }
     }
+    
+    // Use featured listings (rename for consistency with rest of code)
+    const recentListings = featuredListingsData;
 
     // Fetch and cache images for listings (OG-sized variant)
     const listingImages: (string | null)[] = await Promise.all(
