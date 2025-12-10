@@ -85,6 +85,216 @@ function ipfsToGateway(url: string): string {
 }
 
 /**
+ * Extract IPFS hash from various URL formats
+ */
+function extractIPFSHash(url: string): string | null {
+  // Remove protocol if present
+  let normalized = url.replace(/^ipfs:\/\//, '');
+  
+  // Extract IPFS hash
+  if (normalized.startsWith('Qm') || normalized.startsWith('baf')) {
+    // Direct hash (ipfs://Qm... or ipfs://baf...)
+    return normalized.split('/')[0];
+  } else if (normalized.includes('/ipfs/')) {
+    // Gateway URL format: https://gateway.com/ipfs/Qm...
+    const match = normalized.match(/\/ipfs\/([^\/]+)/);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Check if an IPFS URL points to a directory (not a file)
+ * Returns true if the URL is a directory, false if it's a file or unknown
+ */
+async function isIPFSDirectory(ipfsUrl: string): Promise<boolean> {
+  const hash = extractIPFSHash(ipfsUrl);
+  if (!hash) {
+    return false;
+  }
+  
+  // If the URL has a path component after the hash, it's likely a file
+  // e.g., ipfs://QmHash/file.jpg is a file, ipfs://QmHash is potentially a directory
+  // Check if there's anything after the hash in the path
+  const hashIndex = ipfsUrl.indexOf(hash);
+  if (hashIndex !== -1) {
+    const afterHash = ipfsUrl.slice(hashIndex + hash.length);
+    // If there's a path after the hash (not just / or empty), it's a file
+    if (afterHash && afterHash !== '/' && afterHash.trim() !== '') {
+      // Has path component after hash, likely a file
+      return false;
+    }
+  }
+  
+  // Check if accessing the hash directly returns HTML (directory listing) or JSON
+  try {
+    const gatewayUrl = `https://ipfs.io/ipfs/${hash}`;
+    const response = await fetch(gatewayUrl, { 
+      method: 'HEAD',
+      signal: AbortSignal.timeout(3000), // 3 second timeout
+    });
+    
+    const contentType = response.headers.get('content-type') || '';
+    
+    // If it returns HTML, it's likely a directory listing
+    if (contentType.includes('text/html')) {
+      return true;
+    }
+    
+    // If it returns JSON, it might be a directory listing (some gateways)
+    if (contentType.includes('application/json')) {
+      return true;
+    }
+    
+    // If it returns an image, it's definitely a file
+    if (contentType.startsWith('image/')) {
+      return false;
+    }
+    
+    // Default: assume it's a file if we can't determine
+    return false;
+  } catch (error) {
+    // On error, assume it's not a directory
+    return false;
+  }
+}
+
+/**
+ * Find image files in an IPFS directory
+ * Tries common image file names and patterns
+ */
+async function findImageInIPFSDirectory(directoryHash: string): Promise<string | null> {
+  const commonImageNames = [
+    'image',
+    'image.png',
+    'image.jpg',
+    'image.jpeg',
+    'image.webp',
+    '0',
+    '1',
+    'token.png',
+    'token.jpg',
+    'token.webp',
+    'nft.png',
+    'nft.jpg',
+    'nft.webp',
+  ];
+  
+  const gateways = [
+    'https://ipfs.io',
+    'https://cloudflare-ipfs.com',
+    'https://gateway.pinata.cloud',
+  ];
+  
+  // Try each gateway
+  for (const gateway of gateways) {
+    // Try common image file names
+    for (const fileName of commonImageNames) {
+      const testUrl = `${gateway}/ipfs/${directoryHash}/${fileName}`;
+      try {
+        const response = await fetch(testUrl, { 
+          method: 'HEAD',
+          signal: AbortSignal.timeout(2000), // 2 second timeout per attempt
+        });
+        
+        if (response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.startsWith('image/')) {
+            // Found an image! Return the IPFS URL format
+            return `ipfs://${directoryHash}/${fileName}`;
+          }
+        }
+      } catch {
+        // Continue to next attempt
+      }
+    }
+    
+    // Also try to parse directory listing HTML/JSON if available
+    try {
+      const dirUrl = `${gateway}/ipfs/${directoryHash}`;
+      const dirResponse = await fetch(dirUrl, {
+        signal: AbortSignal.timeout(3000),
+      });
+      
+      if (dirResponse.ok) {
+        const contentType = dirResponse.headers.get('content-type') || '';
+        
+        if (contentType.includes('text/html')) {
+          // Parse HTML directory listing
+          const html = await dirResponse.text();
+          // Look for image file links in HTML
+          const imagePattern = /href=["']([^"']*\.(jpg|jpeg|png|gif|webp|svg))["']/gi;
+          const matches = Array.from(html.matchAll(imagePattern));
+          
+          if (matches.length > 0) {
+            // Use the first image file found
+            const imagePath = matches[0][1];
+            // Remove leading slash if present
+            const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+            return `ipfs://${directoryHash}/${cleanPath}`;
+          }
+        } else if (contentType.includes('application/json')) {
+          // Parse JSON directory listing (some gateways use this)
+          const dirData = await dirResponse.json();
+          // Look for image files in the directory listing
+          if (Array.isArray(dirData)) {
+            const imageFile = dirData.find((entry: any) => {
+              const name = entry.name || entry.Name || entry.filename || '';
+              return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
+            });
+            
+            if (imageFile) {
+              const fileName = imageFile.name || imageFile.Name || imageFile.filename;
+              return `ipfs://${directoryHash}/${fileName}`;
+            }
+          }
+        }
+      }
+    } catch {
+      // Continue to next gateway
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Resolve IPFS image URL - handles both files and directories
+ * If the URL points to a directory, attempts to find an image file within it
+ */
+async function resolveIPFSImageUrl(imageUrl: string): Promise<string> {
+  // If it's not an IPFS URL, just convert it normally
+  if (!imageUrl.startsWith('ipfs://') && !imageUrl.includes('/ipfs/')) {
+    return ipfsToGateway(imageUrl);
+  }
+  
+  // Check if it's a directory
+  const isDirectory = await isIPFSDirectory(imageUrl);
+  
+  if (isDirectory) {
+    const hash = extractIPFSHash(imageUrl);
+    if (hash) {
+      // Try to find an image file in the directory
+      const foundImage = await findImageInIPFSDirectory(hash);
+      if (foundImage) {
+        console.log(`[NFT Metadata] Found image in IPFS directory: ${foundImage}`);
+        return ipfsToGateway(foundImage);
+      } else {
+        console.warn(`[NFT Metadata] IPFS directory detected but no image file found: ${imageUrl}`);
+        // Fall back to the original URL (might work if gateway handles it)
+        return ipfsToGateway(imageUrl);
+      }
+    }
+  }
+  
+  // Not a directory or already has a file path, convert normally
+  return ipfsToGateway(imageUrl);
+}
+
+/**
  * Fetch NFT metadata from token URI
  * Handles both HTTP/IPFS URLs and data URIs (onchain metadata)
  */
@@ -156,8 +366,20 @@ export async function fetchNFTMetadata(
     // Convert image URL if it's IPFS (skip if already a data URI)
     if (metadata.image) {
       const imageUrl = metadata.image; // Store in const to ensure it's defined
-      // Check if it's an IPFS URL and try to get cached version (server-side only)
+      
+      // Resolve IPFS image URL (handles directories and files)
+      // This will detect if the URL points to a directory and find the image file within it
+      let resolvedImageUrl: string;
       if (imageUrl.startsWith('ipfs://') || imageUrl.includes('/ipfs/')) {
+        // Resolve IPFS URL (handles directories)
+        resolvedImageUrl = await resolveIPFSImageUrl(imageUrl);
+      } else {
+        // Not IPFS, just convert if needed
+        resolvedImageUrl = ipfsToGateway(imageUrl);
+      }
+      
+      // Check if it's an IPFS URL and try to get cached version (server-side only)
+      if (resolvedImageUrl.includes('/ipfs/') || resolvedImageUrl.startsWith('ipfs://')) {
         // Only try IPFS caching on server-side (check for Node.js environment)
         if (typeof window === 'undefined' && typeof process !== 'undefined' && process.env) {
           try {
@@ -165,7 +387,8 @@ export async function fetchNFTMetadata(
             const cacheCheckPromise = (async () => {
               try {
                 const { getCachedIPFSImageUrl } = await import('./server/ipfs-cache');
-                return await getCachedIPFSImageUrl(imageUrl);
+                // Use the resolved URL (which may have found a file in a directory)
+                return await getCachedIPFSImageUrl(resolvedImageUrl);
               } catch (error) {
                 // If cache check fails, return null to use gateway
                 console.warn(`[NFT Metadata] IPFS cache check failed:`, error instanceof Error ? error.message : String(error));
@@ -179,34 +402,51 @@ export async function fetchNFTMetadata(
             
             const cached = await Promise.race([cacheCheckPromise, timeoutPromise]);
             if (cached) {
-              metadata.image = cached;
+              // Validate cached URL is actually an image before using it
+              // Check if it looks like a Vercel Blob URL and validate it's not HTML
+              try {
+                const validateResponse = await fetch(cached, { method: 'HEAD' });
+                const cachedContentType = validateResponse.headers.get('content-type') || '';
+                
+                // If cached URL returns HTML, it's probably broken - fall back to gateway
+                if (cachedContentType.startsWith('text/html')) {
+                  console.warn(`[NFT Metadata] Cached IPFS image URL returns HTML instead of image, using gateway fallback: ${resolvedImageUrl}`);
+                  metadata.image = resolvedImageUrl;
+                } else {
+                  metadata.image = cached;
+                }
+              } catch (error) {
+                // If validation fails, fall back to gateway URL
+                console.warn(`[NFT Metadata] Failed to validate cached IPFS image, using gateway fallback:`, error instanceof Error ? error.message : String(error));
+                metadata.image = resolvedImageUrl;
+              }
             } else {
-              // Not cached or cache check timed out, use gateway URL
+              // Not cached or cache check timed out, use resolved gateway URL
               // Cache in background (don't wait for it)
               (async () => {
                 try {
                   const { cacheIPFSImage } = await import('./server/ipfs-cache');
-                  await cacheIPFSImage(imageUrl).catch(() => {
+                  await cacheIPFSImage(resolvedImageUrl).catch(() => {
                     // Ignore background cache errors
                   });
                 } catch {
                   // Ignore import or cache errors in background
                 }
               })();
-              metadata.image = ipfsToGateway(imageUrl);
+              metadata.image = resolvedImageUrl;
             }
           } catch (error) {
-            // If IPFS cache fails, fall back to gateway
+            // If IPFS cache fails, fall back to resolved gateway URL
             console.warn(`[NFT Metadata] IPFS cache error, using gateway:`, error instanceof Error ? error.message : String(error));
-            metadata.image = ipfsToGateway(imageUrl);
+            metadata.image = resolvedImageUrl;
           }
         } else {
-          // Client-side: just convert to gateway URL
-          metadata.image = ipfsToGateway(imageUrl);
+          // Client-side: use resolved gateway URL
+          metadata.image = resolvedImageUrl;
         }
       } else {
-        // Not IPFS, just convert if needed
-        metadata.image = ipfsToGateway(imageUrl);
+        // Not IPFS, use resolved URL
+        metadata.image = resolvedImageUrl;
       }
     }
 

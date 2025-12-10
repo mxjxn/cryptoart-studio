@@ -202,11 +202,31 @@ async function fetchFromIPFSGateway(gatewayUrl: string): Promise<{ buffer: Buffe
     throw new Error(`Image too large: ${contentLength} bytes (max ${MAX_IMAGE_SIZE})`);
   }
   
+  // Read the response body
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   
   if (buffer.length > MAX_IMAGE_SIZE) {
     throw new Error(`Image too large: ${buffer.length} bytes (max ${MAX_IMAGE_SIZE})`);
+  }
+  
+  // Validate that we're actually getting an image, not HTML or other content
+  const validImageTypes = ['image/', 'application/octet-stream'];
+  const isImageByContentType = validImageTypes.some(prefix => contentType.startsWith(prefix));
+  
+  // If content-type doesn't indicate an image, check file signatures
+  if (!isImageByContentType) {
+    // Check for common image file signatures
+    const isImageBySignature = buffer.length >= 4 && (
+      (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) || // JPEG
+      (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) || // PNG
+      (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) || // GIF
+      (buffer.length >= 12 && buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46) // WebP/RIFF
+    );
+    
+    if (!isImageBySignature) {
+      throw new Error(`IPFS gateway returned non-image content (content-type: ${contentType}). This might be a directory listing or error page.`);
+    }
   }
   
   return { buffer, contentType };
