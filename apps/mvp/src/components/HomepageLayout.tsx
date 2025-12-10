@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FeaturedSectionCarousel } from "~/components/FeaturedSectionCarousel";
 import { FeaturedSectionGrid } from "~/components/FeaturedSectionGrid";
 import { SingleListingSection } from "~/components/sections/SingleListingSection";
+import { FeaturedArtistSection } from "~/components/sections/FeaturedArtistSection";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 type SectionType =
@@ -62,6 +63,19 @@ export function HomepageLayout() {
   return (
     <>
       {sections.map((section) => {
+        // Featured Artist Section - special full-width layout
+        if (section.sectionType === "artist" && section.listings.length > 0) {
+          return (
+            <FeaturedArtistSection
+              key={section.id}
+              title={section.title}
+              description={section.description}
+              listing={section.listings[0]}
+            />
+          );
+        }
+
+        // Single Listing Section
         if (section.sectionType === "listing" && section.listings.length > 0) {
           return (
             <SingleListingSection

@@ -26,3 +26,4 @@ ALTER TABLE "favorites" ADD CONSTRAINT "favorites_unique_user_listing" UNIQUE ("
 
 
 
+
