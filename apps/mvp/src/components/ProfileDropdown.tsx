@@ -4,9 +4,10 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { useState, useRef, useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
 import { useAccount, useDisconnect } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { useRouter } from "next/navigation";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { useEnsAvatarForAddress } from "~/hooks/useEnsAvatar";
 import { ThemeToggle } from "~/components/ThemeToggle";
@@ -105,6 +106,8 @@ export function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { openConnectModal } = useConnectModal();
+  const router = useRouter();
   
   // Resolve ENS name and avatar for address when not in mini-app context
   const shouldResolveEns = !isMiniApp && isConnected && !!address;
@@ -267,22 +270,30 @@ export function ProfileDropdown() {
                     Manage on Hypersub →
                   </a>
                 )}
-                <TransitionLink
-                  href="/membership"
-                  onClick={() => setIsOpen(false)}
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors"
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    router.push("/membership");
+                  }}
+                  className="block w-full px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors text-left"
                 >
                   Renew Membership
-                </TransitionLink>
+                </button>
               </>
             ) : (
-              <TransitionLink
-                href="/membership"
-                onClick={() => setIsOpen(false)}
-                className="block px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors border-t border-[#333333] mt-1"
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  if (isConnected) {
+                    router.push("/membership");
+                  } else if (openConnectModal) {
+                    openConnectModal();
+                  }
+                }}
+                className="block w-full px-4 py-2 text-sm text-white hover:bg-[#1a1a1a] transition-colors text-left border-t border-[#333333] mt-1"
               >
                 Mint Membership
-              </TransitionLink>
+              </button>
             )}
 
             {/* Theme Toggle */}

@@ -66,3 +66,4 @@ Make sure these are set:
 - `NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL` - Subgraph endpoint
 - `GRAPH_STUDIO_API_KEY` - Optional, for authenticated subgraph requests
 
+

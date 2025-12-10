@@ -40,3 +40,4 @@ export default async function GalleryPage({ params }: GalleryPageProps) {
 }
 
 
+

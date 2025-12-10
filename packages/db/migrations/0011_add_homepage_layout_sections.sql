@@ -17,3 +17,4 @@ CREATE INDEX "homepage_layout_sections_is_active_idx" ON "homepage_layout_sectio
 --> statement-breakpoint
 CREATE INDEX "homepage_layout_sections_type_idx" ON "homepage_layout_sections" USING btree ("section_type");
 
+

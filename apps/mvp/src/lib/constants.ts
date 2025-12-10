@@ -57,6 +57,11 @@ export const RETURN_URL: string | undefined = undefined;
 // --- Membership Configuration ---
 export const STP_V2_CONTRACT_ADDRESS = '0x4b212e795b74a36B4CCf744Fc2272B34eC2e9d90' as const;
 
+// --- Gallery Access NFT Configuration ---
+// NFT contract address that gates access to the galleries feature
+// Users with balanceOf > 0 in any associated wallet can use galleries
+export const GALLERY_ACCESS_NFT_CONTRACT_ADDRESS = '0x96640349f9e87A2FE151d8114Acbc53D6e43CE7A' as const;
+
 // --- Admin Configuration ---
 // Admin identity loaded from environment variables for security
 // Set ADMIN_WALLET_ADDRESS (or NEXT_PUBLIC_ADMIN_WALLET_ADDRESS for client-side),

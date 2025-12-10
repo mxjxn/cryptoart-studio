@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, curation, curationItems, eq, and, asc } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
+import { hasGalleryAccess } from '~/lib/server/nft-access';
+import { isAddress } from 'viem';
 
 /**
  * POST /api/curation/[id]/items
@@ -13,7 +15,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { userAddress, listingIds, notes } = body;
+    const { userAddress, listingIds, notes, verifiedAddresses } = body;
     
     if (!userAddress) {
       return NextResponse.json(
@@ -30,10 +32,23 @@ export async function POST(
     }
     
     // Validate address
-    if (!/^0x[a-fA-F0-9]{40}$/i.test(userAddress)) {
+    if (!isAddress(userAddress)) {
       return NextResponse.json(
         { error: 'Invalid address format' },
         { status: 400 }
+      );
+    }
+    
+    // Check if user has gallery access (NFT balance > 0 in any associated wallet)
+    // verifiedAddresses is optional - provided by client-side hook for optimization
+    const hasAccess = await hasGalleryAccess(
+      userAddress as `0x${string}`,
+      verifiedAddresses as string[] | undefined
+    );
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied. Gallery feature requires NFT ownership.' },
+        { status: 403 }
       );
     }
     
@@ -143,6 +158,8 @@ export async function DELETE(
     const { searchParams } = new URL(req.url);
     const userAddress = searchParams.get('userAddress');
     const listingId = searchParams.get('listingId');
+    const verifiedAddressesParam = searchParams.get('verifiedAddresses');
+    const verifiedAddresses = verifiedAddressesParam ? JSON.parse(verifiedAddressesParam) : undefined;
     
     if (!userAddress || !listingId) {
       return NextResponse.json(
@@ -152,10 +169,23 @@ export async function DELETE(
     }
     
     // Validate address
-    if (!/^0x[a-fA-F0-9]{40}$/i.test(userAddress)) {
+    if (!isAddress(userAddress)) {
       return NextResponse.json(
         { error: 'Invalid address format' },
         { status: 400 }
+      );
+    }
+    
+    // Check if user has gallery access (NFT balance > 0 in any associated wallet)
+    // verifiedAddresses is optional - provided by client-side hook for optimization
+    const hasAccess = await hasGalleryAccess(
+      userAddress as `0x${string}`,
+      verifiedAddresses as string[] | undefined
+    );
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied. Gallery feature requires NFT ownership.' },
+        { status: 403 }
       );
     }
     

@@ -563,6 +563,34 @@ export default function CreateAuctionClient() {
   const handleApprove = async () => {
     if (!contractAddress || !address || !hasValidTokenId) return;
 
+    // Double-check ownership before approving
+    if (!ownershipStatus.isOwner) {
+      alert('You do not own this token. Please refresh and try again.');
+      return;
+    }
+
+    // Check if token is already listed/sold
+    try {
+      const checkResponse = await fetch(
+        `/api/listings/check-token?tokenAddress=${encodeURIComponent(contractAddress)}&tokenId=${encodeURIComponent(formData.tokenId)}`
+      );
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        if (checkData.isSold) {
+          alert('This token has already been sold and cannot be listed again.');
+          return;
+        }
+        if (checkData.isListed && checkData.activeListings?.length > 0) {
+          const listingIds = checkData.activeListings.map((l: any) => l.listingId).join(', ');
+          alert(`This token is already listed (Listing IDs: ${listingIds}). Please cancel the existing listing first.`);
+          return;
+        }
+      }
+    } catch (checkError) {
+      console.error('[CreateAuction] Error checking token listing status:', checkError);
+      // Continue with approval even if check fails (fail open)
+    }
+
     // Check if we're on the correct chain (web only - miniapp handles this automatically)
     if (!isMiniApp && chainId !== base.id) {
       console.log('[CreateAuction] Wrong network detected, switching to Base');
@@ -1185,6 +1213,37 @@ export default function CreateAuctionClient() {
       };
 
       const listingReceivers: Array<{ receiver: Address; receiverBPS: number }> = [];
+
+      // Double-check ownership before submitting
+      if (!ownershipStatus.isOwner) {
+        setIsSubmitting(false);
+        alert('You do not own this token. Please refresh and try again.');
+        return;
+      }
+
+      // Check if token is already listed/sold before submitting
+      try {
+        const checkResponse = await fetch(
+          `/api/listings/check-token?tokenAddress=${encodeURIComponent(formData.nftContract)}&tokenId=${encodeURIComponent(formData.tokenId)}`
+        );
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          if (checkData.isSold) {
+            setIsSubmitting(false);
+            alert('This token has already been sold and cannot be listed again.');
+            return;
+          }
+          if (checkData.isListed && checkData.activeListings?.length > 0) {
+            const listingIds = checkData.activeListings.map((l: any) => l.listingId).join(', ');
+            setIsSubmitting(false);
+            alert(`This token is already listed (Listing IDs: ${listingIds}). Please cancel the existing listing first.`);
+            return;
+          }
+        }
+      } catch (checkError) {
+        console.error('[CreateAuction] Error checking token listing status:', checkError);
+        // Continue with submission even if check fails (fail open)
+      }
 
       // Check if we're on the correct chain (web only - miniapp handles this automatically)
       if (!isMiniApp && chainId !== base.id) {

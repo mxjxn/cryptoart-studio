@@ -1,5 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Alchemy, Network } from "alchemy-sdk";
+import { request, gql } from "graphql-request";
+
+const getSubgraphEndpoint = (): string | null => {
+  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
+  return envEndpoint || null;
+};
+
+const CHECK_TOKEN_LISTINGS_QUERY = gql`
+  query CheckTokenListings($tokenAddress: String!, $tokenIds: [String!]!) {
+    listings(
+      where: {
+        tokenAddress: $tokenAddress
+        tokenId_in: $tokenIds
+        status: "ACTIVE"
+        finalized: false
+      }
+      first: 1000
+    ) {
+      tokenId
+      totalAvailable
+      totalSold
+    }
+  }
+`;
+
+/**
+ * Check which tokens are already listed or sold
+ * Returns a Set of tokenIds that are sold out
+ */
+async function getSoldOutTokens(
+  contractAddress: string,
+  tokenIds: string[]
+): Promise<Set<string>> {
+  const endpoint = getSubgraphEndpoint();
+  if (!endpoint || tokenIds.length === 0) {
+    return new Set();
+  }
+
+  try {
+    const data = await request<{
+      listings: Array<{
+        tokenId: string;
+        totalAvailable: number;
+        totalSold: number;
+      }>;
+    }>(endpoint, CHECK_TOKEN_LISTINGS_QUERY, {
+      tokenAddress: contractAddress.toLowerCase(),
+      tokenIds: tokenIds,
+    });
+
+    const soldOutTokens = new Set<string>();
+    (data.listings || []).forEach((listing) => {
+      // Token is sold out if totalSold >= totalAvailable
+      if (listing.totalSold >= listing.totalAvailable) {
+        soldOutTokens.add(listing.tokenId);
+      }
+    });
+
+    return soldOutTokens;
+  } catch (error) {
+    console.error("Error checking token listings:", error);
+    // Fail open - if subgraph is down, don't filter tokens
+    return new Set();
+  }
+}
 
 /**
  * Get NFTs owned by an address from a specific contract
@@ -88,8 +153,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       balance: nft.balance ? String(nft.balance) : undefined,
     }));
 
+    // Check which tokens are already sold out in active listings
+    const tokenIds = allNfts.map((nft) => nft.tokenId);
+    const soldOutTokens = await getSoldOutTokens(contractAddress, tokenIds);
+
+    // Filter out tokens that are sold out
+    const availableNfts = allNfts.filter((nft) => !soldOutTokens.has(nft.tokenId));
+
     // Sort by token ID (convert to number if possible, otherwise lexicographic)
-    allNfts.sort((a, b) => {
+    availableNfts.sort((a, b) => {
       try {
         const aNum = BigInt(a.tokenId);
         const bNum = BigInt(b.tokenId);
@@ -100,10 +172,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
 
     // Apply pagination
-    const total = allNfts.length;
+    const total = availableNfts.length;
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
-    const nfts = allNfts.slice(startIndex, endIndex);
+    const nfts = availableNfts.slice(startIndex, endIndex);
     const hasMore = endIndex < total;
 
     return NextResponse.json({

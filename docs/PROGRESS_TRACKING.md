@@ -43,6 +43,11 @@ This document tracks development progress and milestones. Each entry represents 
 - ✅ Support galleries without slugs via `/user/[username]/gallery/id/[uuid]`
 - ✅ Update gallery URLs to use `/user/[username]/gallery/[slug]` structure
 - ✅ Remove manual featured listings, use galleries instead
+- ✅ Implement NFT-based gallery access gating (0x96640349f9e87A2FE151d8114Acbc53D6e43CE7A)
+- ✅ Add cross-wallet NFT access check (supports associated Farcaster wallets)
+- ✅ Create reusable useHasNFTAccess hook for feature gating
+- ✅ Add server-side NFT balance validation for gallery API routes
+- ✅ Add admin bypass for gallery feature access
 
 #### Infrastructure & Performance
 - ✅ Add ERC1155 total supply fetching to individual listing API route

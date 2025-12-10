@@ -8,6 +8,7 @@ import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { type Address, parseEther, formatEther, encodeFunctionData } from "viem";
 import { base } from "viem/chains";
 import Link from "next/link";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 // STP v2 ABI for subscription functions
 const STP_V2_ABI = [
@@ -226,12 +227,15 @@ export default function MembershipClient() {
     }
   };
 
-  // Not authenticated - show sign in prompt
+  // Not authenticated - show connect wallet prompt
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-[#cccccc] mb-4">Please sign in to view membership options.</p>
+          <p className="text-[#cccccc] mb-4">Please connect your wallet to view membership options.</p>
+          <div className="flex justify-center">
+            <ConnectButton />
+          </div>
         </div>
       </div>
     );

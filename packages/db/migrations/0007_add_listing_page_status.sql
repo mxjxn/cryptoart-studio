@@ -20,3 +20,4 @@ CREATE INDEX "listing_page_status_created_at_idx" ON "listing_page_status" USING
 
 
 
+

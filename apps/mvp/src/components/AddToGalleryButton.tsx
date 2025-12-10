@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
+import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
+import { GALLERY_ACCESS_NFT_CONTRACT_ADDRESS } from "~/lib/constants";
 import type { CurationData } from "@cryptoart/db";
 
 interface AddToGalleryButtonProps {
@@ -17,7 +19,11 @@ interface GalleryWithCount extends CurationData {
 export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const { hasAccess: hasNFTAccess, loading: isNFTLoading, addressesWithNFT } = useHasNFTAccess(GALLERY_ACCESS_NFT_CONTRACT_ADDRESS);
   const queryClient = useQueryClient();
+  
+  // User has access if they're admin OR have NFT access
+  const hasGalleryAccess = isAdmin || hasNFTAccess;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
@@ -32,7 +38,7 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
       if (!response.ok) return { galleries: [] };
       return response.json();
     },
-    enabled: !!address && isConnected && isAdmin && !isAdminLoading,
+    enabled: !!address && isConnected && hasGalleryAccess && !isNFTLoading && !isAdminLoading,
   });
 
   const galleries: GalleryWithCount[] = galleriesData?.galleries || [];
@@ -46,6 +52,7 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
         body: JSON.stringify({
           userAddress: address,
           listingIds: [listingId],
+          verifiedAddresses: addressesWithNFT, // Send verified addresses that have NFT for server-side validation
         }),
       });
       if (!response.ok) throw new Error("Failed to add listing");
@@ -69,6 +76,7 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
           userAddress: address,
           title: data.title,
           description: data.description,
+          verifiedAddresses: addressesWithNFT, // Send verified addresses that have NFT for server-side validation
         }),
       });
       if (!createResponse.ok) throw new Error("Failed to create gallery");
@@ -81,6 +89,7 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
         body: JSON.stringify({
           userAddress: address,
           listingIds: [listingId],
+          verifiedAddresses: addressesWithNFT, // Send verified addresses that have NFT for server-side validation
         }),
       });
       if (!addResponse.ok) throw new Error("Failed to add listing");
@@ -105,7 +114,8 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
     });
   };
 
-  // Only show for connected admins - hide while loading or if not connected/admin
+  // Only show for users with gallery access (admin OR NFT balance > 0 in any associated wallet)
+  // Hide while loading or if not connected/has access
   // This check must come AFTER all hooks are called
   // Only render if ALL conditions are explicitly true
   // Be extra defensive - treat undefined/null as false
@@ -114,11 +124,12 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
     address && 
     address !== null && 
     address !== undefined && 
+    isNFTLoading === false && 
     isAdminLoading === false && 
-    isAdmin === true
+    hasGalleryAccess === true
   );
   
-  // Early return - don't render anything if not admin
+  // Early return - don't render anything if user doesn't have gallery access
   if (!shouldShow) {
     return null;
   }

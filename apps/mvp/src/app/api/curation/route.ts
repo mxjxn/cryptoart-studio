@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, curation, curationItems, eq, and, asc, desc } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
 import { generateSlug } from '~/lib/utils/slug';
+import { hasGalleryAccess } from '~/lib/server/nft-access';
+import { isAddress } from 'viem';
 
 /**
  * GET /api/curation?userAddress=...
@@ -78,7 +80,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userAddress, title, description } = body;
+    const { userAddress, title, description, verifiedAddresses } = body;
     
     if (!userAddress || !title) {
       return NextResponse.json(
@@ -88,10 +90,23 @@ export async function POST(req: NextRequest) {
     }
     
     // Validate address
-    if (!/^0x[a-fA-F0-9]{40}$/i.test(userAddress)) {
+    if (!isAddress(userAddress)) {
       return NextResponse.json(
         { error: 'Invalid address format' },
         { status: 400 }
+      );
+    }
+    
+    // Check if user has gallery access (NFT balance > 0 in any associated wallet)
+    // verifiedAddresses is optional - provided by client-side hook for optimization
+    const hasAccess = await hasGalleryAccess(
+      userAddress as `0x${string}`,
+      verifiedAddresses as string[] | undefined
+    );
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access denied. Gallery feature requires NFT ownership.' },
+        { status: 403 }
       );
     }
     
