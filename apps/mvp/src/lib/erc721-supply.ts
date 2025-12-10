@@ -28,9 +28,12 @@ export async function fetchERC721TotalSupply(
     // Get contract metadata which includes totalSupply
     const contractMetadata = await alchemy.nft.getContractMetadata(contractAddress);
     
-    // totalSupply is a number or undefined
+    // totalSupply might be a string or number
     if (contractMetadata?.totalSupply !== undefined && contractMetadata.totalSupply !== null) {
-      return contractMetadata.totalSupply;
+      const supply = typeof contractMetadata.totalSupply === 'string' 
+        ? parseInt(contractMetadata.totalSupply, 10)
+        : contractMetadata.totalSupply;
+      return isNaN(supply) ? null : supply;
     }
 
     return null;

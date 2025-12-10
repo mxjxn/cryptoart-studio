@@ -7,11 +7,14 @@ import { Logo } from "~/components/Logo";
 import { RecentListingsTable } from "~/components/RecentListingsTable";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { HomepageLayout } from "~/components/HomepageLayout";
+import { TopBuyersSellers } from "~/components/TopBuyersSellers";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useRouter } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
-import Image from "next/image";
 
 
 interface HomePageClientProps {
@@ -37,6 +40,9 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
+  const { isConnected } = useEffectiveAddress();
+  const { openConnectModal } = useConnectModal();
+  const router = useRouter();
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
@@ -186,6 +192,9 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       {/* Homepage Layout (driven by admin arranger) */}
       <HomepageLayout />
 
+      {/* Top Buyers and Sellers */}
+      <TopBuyersSellers />
+
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
       {isMiniApp && !isMiniAppInstalled && actions && (
         <section className="border-b border-[#333333]">
@@ -213,12 +222,18 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
               </div>
             </div>
             <div className="flex items-center">
-              <TransitionLink
-                href="/membership"
+              <button
+                onClick={() => {
+                  if (isConnected) {
+                    router.push("/membership");
+                  } else if (openConnectModal) {
+                    openConnectModal();
+                  }
+                }}
                 className="px-6 py-2.5 bg-[#ff6b35] text-black text-sm font-bold tracking-[0.5px] hover:bg-[#ff8555] transition-colors whitespace-nowrap"
               >
                 Mint Member
-              </TransitionLink>
+              </button>
             </div>
           </div>
         </section>
