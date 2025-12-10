@@ -231,7 +231,18 @@ export default function Home() {
         <h2 className="text-2xl font-bold mb-6 text-center uppercase" style={{ color: 'var(--color-primary)' }}>
           Quick Links
         </h2>
-        <div className="grid md:grid-cols-1 gap-4">
+        <div className="grid md:grid-cols-2 gap-4">
+          <TerminalCard className="text-center">
+            <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
+              News & Updates
+            </div>
+            <div className="text-sm" style={{ color: 'var(--color-text)', opacity: 0.8 }}>
+              Latest development progress
+            </div>
+            <TerminalLink href="/news" className="text-xs mt-2 block">
+              View →
+            </TerminalLink>
+          </TerminalCard>
           <TerminalCard className="text-center">
             <div className="font-semibold mb-1 uppercase" style={{ color: 'var(--color-primary)' }}>
               GitHub Repository

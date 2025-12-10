@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 
 const navigation: Array<{ name: string; href: string; external?: boolean }> = [
   { name: 'Home', href: '/' },
+  { name: 'News', href: '/news' },
   { name: 'MVP', href: '/mvp' },
   { name: 'Auctionhouse', href: '/auctionhouse' },
 ]
