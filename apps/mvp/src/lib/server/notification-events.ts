@@ -46,6 +46,7 @@ const NEW_LISTINGS_QUERY = gql`
       tokenAddress
       tokenId
       tokenSpec
+      status
       createdAtBlock
     }
   }
@@ -256,6 +257,11 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
     );
     
     for (const listing of data.listings || []) {
+      // Skip cancelled listings - don't generate thumbnails or send notifications
+      if (listing.status === "CANCELLED") {
+        continue;
+      }
+      
       // Discover seller in background
       discoverAndCacheUserBackground(listing.seller);
       

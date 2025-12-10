@@ -313,7 +313,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
             : gradient,
         }}
       >
-        {(auction.thumbnailUrl || auction.image) && !imageError ? (
+        {(auction.thumbnailUrl || auction.image) && !imageError && !isCancelled ? (
           <>
             {imageLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">

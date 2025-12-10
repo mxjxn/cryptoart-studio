@@ -210,10 +210,11 @@ export async function browseListings(
         // Check for thumbnail - use cached if available, otherwise use original image
         // Background generation should have created thumbnails by the time users view listings
         // If not ready yet, we use the original image to avoid blocking page load
+        // Skip thumbnail generation for cancelled listings
         let thumbnailUrl: string | undefined = undefined;
         const imageUrl = metadata?.image;
         
-        if (imageUrl) {
+        if (imageUrl && listing.status !== "CANCELLED") {
           try {
             const { getCachedThumbnail } = await import('./thumbnail-cache');
             const { getThumbnailStatus } = await import('./background-thumbnails');

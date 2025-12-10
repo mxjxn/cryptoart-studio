@@ -226,7 +226,7 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
     >
       {/* Thumbnail */}
       <div className="flex-shrink-0 w-16 h-16 bg-[#1a1a1a] rounded overflow-hidden flex items-center justify-center">
-        {thumbnailUrl ? (
+        {thumbnailUrl && !isCancelled ? (
           <img
             src={thumbnailUrl}
             alt={title}

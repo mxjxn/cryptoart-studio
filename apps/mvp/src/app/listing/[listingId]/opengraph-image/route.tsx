@@ -301,9 +301,10 @@ export async function GET(
 
   // Get artwork image URL and convert to data URL for ImageResponse
   // Prefer thumbnailUrl if available (smaller, more reliable for embeds)
+  // Skip image caching for cancelled listings
   let artworkImageDataUrl: string | null = null;
   const imageUrlToUse = auction?.thumbnailUrl || auction?.image || auction?.metadata?.image;
-  if (imageUrlToUse) {
+  if (imageUrlToUse && auction?.status !== "CANCELLED") {
     console.log(`[OG Image] [Listing ${listingId}] Using ${auction?.thumbnailUrl ? 'thumbnail' : 'original'} image URL: ${imageUrlToUse.substring(0, 100)}...`);
     
     // Handle data URIs directly - no need to cache or fetch
