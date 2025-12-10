@@ -305,6 +305,13 @@ export const MARKETPLACE_ABI = [
     stateMutability: 'view',
   },
   {
+    type: 'function',
+    name: 'isAdmin',
+    inputs: [{ name: 'admin', type: 'address', internalType: 'address' }],
+    outputs: [{ name: '', type: 'bool', internalType: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
     type: 'event',
     name: 'CreateListing',
     inputs: [
@@ -355,4 +362,118 @@ export const PURCHASE_ABI_WITH_REFERRER = [
     stateMutability: 'payable',
   },
 ] as const;
+
+/**
+ * Contract listing structure from getListing()
+ */
+export type ContractListing = {
+  id: bigint;
+  seller: `0x${string}`;
+  finalized: boolean;
+  totalSold: number;
+  marketplaceBPS: number;
+  referrerBPS: number;
+  details: {
+    initialAmount: bigint;
+    type_: number; // enum MarketplaceLib.ListingType
+    totalAvailable: number;
+    totalPerSale: number;
+    extensionInterval: number;
+    minIncrementBPS: number;
+    erc20: `0x${string}`;
+    identityVerifier: `0x${string}`;
+    startTime: bigint;
+    endTime: bigint;
+  };
+  token: {
+    id: bigint;
+    address_: `0x${string}`;
+    spec: number; // enum TokenLib.Spec
+    lazy: boolean;
+  };
+  receivers: Array<{
+    receiver: `0x${string}`;
+    receiverBPS: number;
+  }>;
+  fees: {
+    deliverBPS: number;
+    deliverFixed: bigint;
+  };
+  bid: {
+    amount: bigint;
+    bidder: `0x${string}`;
+    delivered: boolean;
+    settled: boolean;
+    refunded: boolean;
+    timestamp: bigint;
+    referrer: `0x${string}`;
+  };
+  offersAccepted: boolean;
+};
+
+/**
+ * Listing type enum values (from MarketplaceLib.ListingType)
+ */
+export enum ListingType {
+  INDIVIDUAL_AUCTION = 0,
+  FIXED_PRICE = 1,
+  DYNAMIC_PRICE = 2,
+  OFFERS_ONLY = 3,
+}
+
+/**
+ * Check if a listing has an active bid
+ * A bid is considered active if it has a non-zero amount
+ */
+export function hasBid(listing: ContractListing): boolean {
+  return listing.bid.amount > 0n;
+}
+
+/**
+ * Check if a listing is finalized
+ */
+export function isFinalized(listing: ContractListing): boolean {
+  return listing.finalized;
+}
+
+/**
+ * Get the listing type as an enum value
+ */
+export function getListingType(listing: ContractListing): ListingType {
+  return listing.details.type_ as ListingType;
+}
+
+/**
+ * Check if listing is an auction type
+ */
+export function isAuction(listing: ContractListing): boolean {
+  return getListingType(listing) === ListingType.INDIVIDUAL_AUCTION;
+}
+
+/**
+ * Check if listing can be cancelled by admin
+ * Returns true if listing exists and is not finalized
+ */
+export function canCancelListing(listing: ContractListing | null | undefined): boolean {
+  if (!listing) return false;
+  return !isFinalized(listing);
+}
+
+/**
+ * Get warning message for canceling a listing
+ */
+export function getCancelWarning(listing: ContractListing | null | undefined): string | null {
+  if (!listing) return null;
+  
+  if (isFinalized(listing)) {
+    return "This listing is already finalized and cannot be cancelled.";
+  }
+  
+  if (hasBid(listing)) {
+    const bidAmount = listing.bid.amount;
+    return `This listing has an active bid of ${bidAmount.toString()}. Canceling will refund the bidder.`;
+  }
+  
+  return "This will permanently cancel the listing.";
+}
 

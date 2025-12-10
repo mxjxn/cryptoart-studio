@@ -3,10 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useAdminMode } from "~/hooks/useAdminMode";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useIsAdminOnChain } from "~/hooks/useIsAdminOnChain";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
+import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, type ContractListing, canCancelListing } from "~/lib/contracts/marketplace";
+import { AdminCancelDialog } from "./AdminCancelDialog";
 
 interface AdminContextMenuProps {
   listingId?: string;
@@ -14,32 +16,45 @@ interface AdminContextMenuProps {
   isFeatured?: boolean;
 }
 
-const DEPLOYER_ADDRESS = "0x6da173b1d50f7bc5c686f8880c20378965408344";
-
 export function AdminContextMenu({ 
   listingId, 
   sellerAddress,
   isFeatured: propIsFeatured
 }: AdminContextMenuProps) {
   const { isAdmin } = useAdminMode();
+  const { isAdminOnChain, isLoading: isAdminOnChainLoading } = useIsAdminOnChain();
   const { address } = useAccount();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
-  // Check if current user is deployer
-  const isDeployer = address && address.toLowerCase() === DEPLOYER_ADDRESS.toLowerCase();
+  // Fetch listing data from contract
+  const { data: listingData, isLoading: isListingLoading } = useReadContract({
+    address: MARKETPLACE_ADDRESS,
+    abi: MARKETPLACE_ABI,
+    functionName: "getListing",
+    args: listingId ? [Number(listingId)] : undefined,
+    query: {
+      enabled: !!listingId,
+    },
+  });
+
+  const listing = listingData as ContractListing | undefined;
 
   // Cancel listing transaction
-  const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling } = useWriteContract();
+  const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
   const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
     hash: cancelHash,
   });
+
+  // Check if user can cancel (must be admin on-chain)
+  const canCancel = isAdminOnChain && listing && canCancelListing(listing);
 
   // Check if listing is featured
   const { data: featuredData } = useQuery({
@@ -95,7 +110,9 @@ export function AdminContextMenu({
     }
   }, [isOpen]);
 
-  if (!isAdmin && !isDeployer) {
+  // Only show menu if user is admin (frontend check) or admin on-chain
+  // We check both for better UX - frontend for immediate UI, on-chain for actual permissions
+  if (!isAdmin && !isAdminOnChain) {
     return null;
   }
 
@@ -157,26 +174,40 @@ export function AdminContextMenu({
     }
   };
 
-  const handleCancelListing = async () => {
-    if (!listingId || !address || !isDeployer) return;
-    setIsLoading(true);
+  const handleCancelListingClick = () => {
+    if (!listingId || !canCancel) return;
+    setShowCancelDialog(true);
+    setIsOpen(false);
+  };
+
+  const handleCancelConfirm = async (holdbackBPS: number) => {
+    if (!listingId || !address || !canCancel) return;
+    
     try {
       await cancelListing({
         address: MARKETPLACE_ADDRESS,
         abi: MARKETPLACE_ABI,
         functionName: 'cancel',
         chainId: CHAIN_ID,
-        args: [Number(listingId), 0], // holdbackBPS = 0
+        args: [Number(listingId), holdbackBPS],
       });
+      // Dialog will close on success via useEffect below
     } catch (error) {
       console.error("Error cancelling listing:", error);
-      setIsLoading(false);
+      // Keep dialog open on error so user can retry
     }
   };
 
-  // Redirect after successful cancellation
+  const handleCancelDialogClose = () => {
+    setShowCancelDialog(false);
+  };
+
+  // Handle successful cancellation
   useEffect(() => {
     if (isCancelConfirmed && listingId) {
+      // Close dialog
+      setShowCancelDialog(false);
+      
       // Invalidate cache
       fetch('/api/auctions/invalidate-cache', { 
         method: 'POST',
@@ -184,13 +215,16 @@ export function AdminContextMenu({
         body: JSON.stringify({ listingId }),
       }).catch(err => console.error('Error invalidating cache:', err));
       
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["admin", "featured"] });
+      
       // Refresh router and navigate to home
       router.refresh();
       setTimeout(() => {
         router.push("/");
       }, 100);
     }
-  }, [isCancelConfirmed, listingId, router]);
+  }, [isCancelConfirmed, listingId, router, queryClient]);
 
   const isCancelLoading = isCancelling || isConfirmingCancel;
 
@@ -233,11 +267,12 @@ export function AdminContextMenu({
           Hide User
         </button>
       )}
-      {listingId && isDeployer && (
+      {listingId && canCancel && (
         <button
-          onClick={handleCancelListing}
-          disabled={isLoading || isCancelLoading}
+          onClick={handleCancelListingClick}
+          disabled={isLoading || isCancelLoading || isListingLoading || isAdminOnChainLoading}
           className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-[#333333] transition-colors whitespace-nowrap"
+          title={!isAdminOnChain ? "Admin verification in progress..." : undefined}
         >
           {isCancelLoading
             ? isConfirmingCancel
@@ -266,6 +301,19 @@ export function AdminContextMenu({
         </button>
       </div>
       {typeof document !== "undefined" && createPortal(dropdownContent, document.body)}
+      
+      {/* Cancel Confirmation Dialog */}
+      {listingId && (
+        <AdminCancelDialog
+          isOpen={showCancelDialog}
+          onClose={handleCancelDialogClose}
+          onConfirm={handleCancelConfirm}
+          listing={listing ?? null}
+          listingId={listingId}
+          isLoading={isCancelling || isConfirmingCancel}
+          error={cancelError}
+        />
+      )}
     </>
   );
 }
