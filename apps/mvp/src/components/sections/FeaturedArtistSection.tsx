@@ -29,19 +29,19 @@ export function FeaturedArtistSection({
   const listingTitle = listing.metadata?.name || listing.title || "Untitled";
 
   return (
-    <section className="border-b border-[#333333] h-[50vh] relative overflow-hidden">
+    <section className="border-b border-[#333333] h-[50vh] relative overflow-hidden w-full">
       <TransitionLink
         href={`/listing/${listing.listingId}`}
         prefetch={false}
-        className="block h-full relative group"
+        className="block h-full w-full relative group"
       >
-        {/* Full width background image */}
+        {/* Full width background image - will crop top/bottom for tall images */}
         <div className="absolute inset-0 w-full h-full">
           <Image
             src={imageUrl}
             alt={listingTitle}
             fill
-            className="object-cover object-center"
+            className="object-cover"
             sizes="100vw"
             priority
           />
