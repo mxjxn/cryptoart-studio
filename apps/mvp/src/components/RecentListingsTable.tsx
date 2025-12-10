@@ -7,7 +7,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { useUsername } from "~/hooks/useUsername";
-import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
+import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
 import { getAuction } from "~/lib/subgraph";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
@@ -114,20 +114,56 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
   const startTime = parseInt(auction.startTime || "0");
   const endTime = parseInt(auction.endTime || "0");
   const hasBid = bidCount > 0 || !!auction.highestBid;
-
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Check for sold out/ended status
+  const isERC1155 = auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2";
+  const isERC721 = auction.tokenSpec === "ERC721" || String(auction.tokenSpec) === "1";
+  const isCancelled = auction.status === "CANCELLED";
+  const isFinalized = auction.status === "FINALIZED";
+  
+  // Check if ERC1155 is sold out (all available items sold)
+  const totalAvailable = parseInt(auction.totalAvailable || "0");
+  const totalSold = parseInt(auction.totalSold || "0");
+  const isSoldOut = isERC1155 
+    ? totalSold >= totalAvailable && totalAvailable > 0
+    : isERC721 && isFinalized;
+  
+  // Check if auction has ended (but not finalized or cancelled)
+  const isEnded = !isNeverExpiring(endTime) && endTime <= now && !isFinalized && !isCancelled;
+  
   let timeStatusDisplay: string | null = null;
+  let statusDisplay: string | null = null;
 
-  if (auction.listingType === "INDIVIDUAL_AUCTION") {
-    const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid);
-    if (timeStatus.status === "Not started") {
-      timeStatusDisplay = "Not started";
-    } else if (!timeStatus.neverExpires && timeStatus.timeRemaining) {
-      timeStatusDisplay = timeStatus.timeRemaining;
+  // Show status for sold out, ended, cancelled, or finalized items
+  if (isCancelled) {
+    statusDisplay = "Cancelled";
+  } else if (isSoldOut) {
+    statusDisplay = "Sold out";
+  } else if (isEnded) {
+    // Auction or fixed price listing has ended
+    if (auction.listingType === "INDIVIDUAL_AUCTION") {
+      statusDisplay = "Ended";
+    } else if (auction.listingType === "FIXED_PRICE") {
+      statusDisplay = "Ended";
     }
-  } else if (auction.listingType === "FIXED_PRICE") {
-    const timeStatus = getFixedPriceTimeStatus(endTime);
-    if (!timeStatus.neverExpires && timeStatus.timeRemaining) {
-      timeStatusDisplay = timeStatus.timeRemaining;
+  } else if (isFinalized && isERC721) {
+    // ERC721 finalized (sold)
+    statusDisplay = "Sold";
+  } else {
+    // Show time status only if not sold out, not ended, and not long-term sale
+    if (auction.listingType === "INDIVIDUAL_AUCTION") {
+      const timeStatus = getAuctionTimeStatus(startTime, endTime, hasBid, now);
+      if (timeStatus.status === "Not started") {
+        statusDisplay = "Not started";
+      } else if (!timeStatus.neverExpires && !isLongTermSale(endTime) && timeStatus.timeRemaining) {
+        timeStatusDisplay = timeStatus.timeRemaining;
+      }
+    } else if (auction.listingType === "FIXED_PRICE") {
+      const timeStatus = getFixedPriceTimeStatus(endTime, now);
+      if (!timeStatus.neverExpires && !isLongTermSale(endTime) && timeStatus.timeRemaining) {
+        timeStatusDisplay = timeStatus.timeRemaining;
+      }
     }
   }
 
@@ -249,12 +285,15 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
         </div>
       </div>
 
-      {/* Bid Count / Time */}
+      {/* Bid Count / Time / Status */}
       <div className="flex-shrink-0 text-right w-32">
-        {auction.listingType === "INDIVIDUAL_AUCTION" && (
+        {auction.listingType === "INDIVIDUAL_AUCTION" && !isSoldOut && !isEnded && !isCancelled && !isFinalized && (
           <div className="text-xs text-[#999999]">
             {bidCount} {bidCount === 1 ? "bid" : "bids"}
           </div>
+        )}
+        {statusDisplay && (
+          <div className="text-xs text-[#999999] mt-1">{statusDisplay}</div>
         )}
         {timeStatusDisplay && (
           <div className="text-xs text-[#999999] mt-1">{timeStatusDisplay}</div>
