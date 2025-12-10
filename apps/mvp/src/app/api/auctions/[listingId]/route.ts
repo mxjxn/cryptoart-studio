@@ -208,6 +208,23 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     }
   }
 
+  // Fetch ERC721 collection total supply if applicable
+  let erc721TotalSupply: number | undefined = undefined;
+  if ((listing.tokenSpec === "ERC721" || listing.tokenSpec === 1) && listing.tokenAddress) {
+    try {
+      const { fetchERC721TotalSupply } = await import('~/lib/erc721-supply');
+      const totalSupply = await fetchERC721TotalSupply(listing.tokenAddress);
+      if (totalSupply !== null) {
+        erc721TotalSupply = totalSupply;
+      }
+    } catch (error: any) {
+      // Log but don't throw - this is optional enrichment data
+      const errorMsg = error?.message || String(error);
+      console.error(`[fetchAuctionData] Error fetching ERC721 total supply for ${listing.tokenAddress}:`, errorMsg);
+      // Continue without total supply - listing will still work
+    }
+  }
+
   // Normalize listing type and token spec for consistent handling
   const normalizedListingType = normalizeListingType(listing.listingType, listing);
   const normalizedTokenSpec = normalizeTokenSpec(listing.tokenSpec);
@@ -241,6 +258,7 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     description: metadata?.description,
     metadata,
     erc1155TotalSupply,
+    erc721TotalSupply,
   };
 
   return enriched;

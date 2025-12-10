@@ -11,6 +11,7 @@ interface MetadataViewerProps {
   tokenId: string;
   tokenSpec: "ERC721" | "ERC1155" | number;
   collectionName?: string | null;
+  totalSupply?: number | null; // Collection total supply (for ERC721)
 }
 
 export function MetadataViewer({
@@ -18,6 +19,7 @@ export function MetadataViewer({
   tokenId,
   tokenSpec,
   collectionName,
+  totalSupply,
 }: MetadataViewerProps) {
   const [metadata, setMetadata] = useState<NFTMetadata | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,11 @@ export function MetadataViewer({
   }, [contractAddress, tokenId, tokenSpec]);
 
   const displayName = collectionName || metadata?.name || metadata?.title || "Collection";
-  const displayText = `${displayName} #${tokenId}`;
+  // For ERC721, add "out of y" if totalSupply is available
+  const isERC721 = tokenSpec === "ERC721" || tokenSpec === 1;
+  const displayText = isERC721 && totalSupply !== null && totalSupply !== undefined
+    ? `${displayName} #${tokenId} out of ${totalSupply}`
+    : `${displayName} #${tokenId}`;
 
   if (loading) {
     return (

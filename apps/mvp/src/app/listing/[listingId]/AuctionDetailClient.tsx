@@ -1442,6 +1442,7 @@ export default function AuctionDetailClient({
                 tokenId={auction.tokenId}
                 tokenSpec={auction.tokenSpec || "ERC721"}
                 collectionName={contractName || undefined}
+                totalSupply={auction.erc721TotalSupply}
               />
             </div>
           )}

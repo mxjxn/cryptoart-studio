@@ -354,7 +354,11 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
             <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
             {contractName && (
               <div className="text-xs text-[#999999] mb-1 line-clamp-1">
-                {contractName}
+                {!isERC1155 && auction.tokenId && auction.erc721TotalSupply !== undefined && auction.erc721TotalSupply !== null
+                  ? `${contractName} #${auction.tokenId} out of ${auction.erc721TotalSupply}`
+                  : !isERC1155 && auction.tokenId
+                    ? `${contractName} #${auction.tokenId}`
+                    : contractName}
               </div>
             )}
             {showArtist ? (

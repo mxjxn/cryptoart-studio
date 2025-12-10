@@ -102,6 +102,9 @@ export interface EnrichedAuctionData extends AuctionData {
   
   // ERC1155 total supply (for ERC1155 tokens)
   erc1155TotalSupply?: string;
+  
+  // ERC721 collection total supply (for ERC721 tokens)
+  erc721TotalSupply?: number;
 }
 
 /**
