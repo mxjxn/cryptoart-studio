@@ -1469,6 +1469,9 @@ export default function AuctionDetailClient({
         {/* Title, Collection, Creator - each on own row */}
         <div className="mb-4">
           <h1 className="text-2xl font-light mb-1">{title}</h1>
+          {auction.tokenSpec === "ERC1155" && auction.erc1155TotalSupply && (
+            <p className="text-sm text-[#999999] mb-1">edition of {auction.erc1155TotalSupply}</p>
+          )}
           {contractName && (
             <div className="text-xs text-[#999999] mb-1">{contractName}</div>
           )}
