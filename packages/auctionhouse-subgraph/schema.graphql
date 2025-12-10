@@ -39,6 +39,11 @@ type Listing @entity(immutable: false) {
   status: String! # ACTIVE, CANCELLED, FINALIZED
   hasBid: Boolean!
   finalized: Boolean!
+  # Winner tracking (auctions / offers)
+  currentBidder: Bytes
+  currentBidAmount: BigInt
+  currentOfferer: Bytes
+  currentOfferAmount: BigInt
   
   # Related entities
   purchases: [Purchase!]! @derivedFrom(field: "listing")

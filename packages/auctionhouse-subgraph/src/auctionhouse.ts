@@ -164,8 +164,10 @@ export function handleBidEvent(event: BidEvent): void {
     event.block.timestamp
   );
   
-  // Update listing hasBid flag
+  // Update listing hasBid flag and track current high bid
   listing.hasBid = true;
+  listing.currentBidder = event.params.bidder;
+  listing.currentBidAmount = event.params.amount;
   listing.updatedAt = event.block.timestamp;
   listing.updatedAtBlock = event.block.number;
   listing.save();
@@ -192,6 +194,13 @@ export function handleOfferEvent(event: OfferEvent): void {
     event.block.timestamp
   );
   
+  // Track latest offerer/amount (ABI uses "offerrer")
+  listing.currentOfferer = event.params.offerrer;
+  listing.currentOfferAmount = event.params.amount;
+  listing.updatedAt = event.block.timestamp;
+  listing.updatedAtBlock = event.block.number;
+  listing.save();
+
   // Create Offer entity
   let offerId = event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
   let offer = new Offer(offerId);
@@ -218,9 +227,12 @@ export function handleRescindOfferEvent(event: RescindOfferEvent): void {
     event.block.timestamp
   );
   
-  // In a real implementation, you'd query offers by listingId and offerer
-  // For now, we'll create a new entity to track rescinded offers
-  // The frontend can filter offers by status
+  // Clear tracked offer if the rescinded offer matches
+  if (listing.currentOfferer && listing.currentOfferer!.equals(event.params.offerrer)) {
+    listing.currentOfferer = null;
+    listing.currentOfferAmount = null;
+  }
+
   listing.updatedAt = event.block.timestamp;
   listing.updatedAtBlock = event.block.number;
   listing.save();
@@ -234,7 +246,26 @@ export function handleAcceptOfferEvent(event: AcceptOfferEvent): void {
     event.block.timestamp
   );
   
-  // Update offer status (simplified - would need to find the specific offer)
+  // Create a Purchase for the accepted offer
+  let purchaseId = event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
+  let purchase = new Purchase(purchaseId);
+  purchase.listing = listing.id;
+  purchase.listingId = event.params.listingId;
+  purchase.referrer = null;
+  purchase.buyer = event.params.offerrer; // ABI typo "offerrer"
+  purchase.count = listing.totalPerSale;
+  purchase.amount = event.params.amount;
+  purchase.timestamp = event.block.timestamp;
+  purchase.blockNumber = event.block.number;
+  purchase.transactionHash = event.transaction.hash;
+  purchase.save();
+
+  // Update listing state
+  listing.currentOfferer = event.params.offerrer;
+  listing.currentOfferAmount = event.params.amount;
+  listing.status = "FINALIZED";
+  listing.finalized = true;
+  listing.totalSold = listing.totalSold + listing.totalPerSale;
   listing.updatedAt = event.block.timestamp;
   listing.updatedAtBlock = event.block.number;
   listing.save();
@@ -278,6 +309,25 @@ export function handleFinalizeListing(event: FinalizeListing): void {
     event.block.timestamp
   );
   
+  // If there was a winning bid, create a Purchase for the auction winner
+  if (listing.hasBid && listing.currentBidder) {
+    let purchaseId = event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
+    let purchase = new Purchase(purchaseId);
+    purchase.listing = listing.id;
+    purchase.listingId = event.params.listingId;
+    purchase.referrer = null;
+    purchase.buyer = listing.currentBidder as Bytes;
+    purchase.count = listing.totalPerSale;
+    purchase.amount = listing.currentBidAmount ? (listing.currentBidAmount as BigInt) : BigInt.fromI32(0);
+    purchase.timestamp = event.block.timestamp;
+    purchase.blockNumber = event.block.number;
+    purchase.transactionHash = event.transaction.hash;
+    purchase.save();
+
+    // Increment totalSold for auction close
+    listing.totalSold = listing.totalSold + listing.totalPerSale;
+  }
+
   listing.status = "FINALIZED";
   listing.finalized = true;
   listing.updatedAt = event.block.timestamp;
