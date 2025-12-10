@@ -13,6 +13,22 @@ export async function generateMetadata(): Promise<Metadata> {
   // Use the opengraph-image route that shows recent listings with images
   // (not the /api/opengraph-image which is just text)
   const ogImageUrl = `${APP_URL}/opengraph-image`;
+  const homepageUrl = APP_URL;
+  
+  // Create separate metadata objects for fc:miniapp and fc:frame
+  // fc:frame needs useFrameType: true for backward compatibility
+  const miniappMetadata = getMiniAppEmbedMetadata(
+    ogImageUrl,  // imageUrl for the embed card
+    homepageUrl, // action.url where button navigates
+    false,        // use launch_miniapp type
+    ogImageUrl,   // splashImageUrl
+  );
+  const frameMetadata = getMiniAppEmbedMetadata(
+    ogImageUrl,
+    homepageUrl,
+    true,         // use launch_frame type for backward compatibility
+    ogImageUrl,   // splashImageUrl
+  );
   
   return {
     title: APP_NAME,
@@ -23,8 +39,11 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [ogImageUrl],
     },
     other: {
-      "fc:miniapp": JSON.stringify(getMiniAppEmbedMetadata(ogImageUrl)),
-      "fc:frame": JSON.stringify(getMiniAppEmbedMetadata(ogImageUrl)),
+      // Farcaster Mini App embed metadata
+      // Follows spec: https://miniapps.farcaster.xyz/docs/guides/sharing
+      "fc:miniapp": JSON.stringify(miniappMetadata),
+      // For backward compatibility - use launch_frame type
+      "fc:frame": JSON.stringify(frameMetadata),
     },
   };
 }
