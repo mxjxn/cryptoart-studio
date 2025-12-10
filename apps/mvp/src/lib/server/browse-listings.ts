@@ -99,7 +99,8 @@ export async function browseListings(
   const endpoint = getSubgraphEndpoint();
   
   // Fetch more listings than requested to account for filtering
-  // We'll filter out cancelled, finalized, sold-out, and hidden listings
+  // We'll filter out cancelled and hidden listings
+  // Finalized and sold-out listings are included in recent listings
   // So we need to fetch extra to ensure we have enough after filtering
   const fetchCount = Math.min(Math.ceil(first * 1.5), 100); // Fetch 50% more, capped at 100
   
@@ -131,24 +132,11 @@ export async function browseListings(
   // Get hidden user addresses for filtering
   const hiddenAddresses = await getHiddenUserAddresses();
   
-  // Filter out cancelled listings, sold-out listings, and hidden users
+  // Filter out cancelled listings and hidden users
+  // Include finalized and sold-out listings in recent listings
   const activeListings = data.listings.filter(listing => {
     // Exclude cancelled listings
     if (listing.status === "CANCELLED") {
-      return false;
-    }
-    
-    // Exclude finalized listings
-    if (listing.finalized) {
-      return false;
-    }
-    
-    // Exclude sold-out listings (even if subgraph hasn't marked them as finalized yet)
-    const totalAvailable = parseInt(listing.totalAvailable || "0");
-    const totalSold = parseInt(listing.totalSold || "0");
-    const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
-    
-    if (isFullySold) {
       return false;
     }
     
