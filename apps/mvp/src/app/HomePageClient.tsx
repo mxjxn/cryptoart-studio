@@ -7,7 +7,6 @@ import { Logo } from "~/components/Logo";
 import { RecentListingsTable } from "~/components/RecentListingsTable";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { HomepageLayout } from "~/components/HomepageLayout";
-import { TopBuyersSellers } from "~/components/TopBuyersSellers";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -191,9 +190,6 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
 
       {/* Homepage Layout (driven by admin arranger) */}
       <HomepageLayout />
-
-      {/* Top Buyers and Sellers */}
-      <TopBuyersSellers />
 
       {/* Add Mini App Banner - Only show in miniapp context if not already added */}
       {isMiniApp && !isMiniAppInstalled && actions && (
