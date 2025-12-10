@@ -5,6 +5,7 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import { RecentListingsTable } from "~/components/RecentListingsTable";
+import { AuctionCard } from "~/components/AuctionCard";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { HomepageLayout } from "~/components/HomepageLayout";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
@@ -42,6 +43,15 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const { isConnected } = useEffectiveAddress();
   const { openConnectModal } = useConnectModal();
   const router = useRouter();
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const gradients = [
+    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+    "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+    "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+    "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
+    "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+  ];
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
@@ -241,15 +251,42 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           <h2 className="text-[13px] uppercase tracking-[2px] text-[#999999] font-mek-mono">
             Recent Listings
           </h2>
-          {auctions.length > 0 && (
-            <TransitionLink
-              href="/market?tab=recent"
-              prefetch={false}
-              className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
-            >
-              View All Recent →
-            </TransitionLink>
-          )}
+          <div className="flex items-center gap-3">
+            {auctions.length > 0 && (
+              <TransitionLink
+                href="/market?tab=recent"
+                prefetch={false}
+                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+              >
+                View All Recent →
+              </TransitionLink>
+            )}
+            <div className="flex items-center gap-2 text-xs text-[#999999] font-mek-mono">
+              <span>View</span>
+              <div className="flex rounded border border-[#333333] overflow-hidden">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`px-2 py-1 transition-colors ${
+                    viewMode === "list"
+                      ? "bg-white text-black"
+                      : "text-[#999999] hover:text-white"
+                  }`}
+                >
+                  List
+                </button>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`px-2 py-1 transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-white text-black"
+                      : "text-[#999999] hover:text-white"
+                  }`}
+                >
+                  Grid
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -286,7 +323,20 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         ) : (
           <>
-            <RecentListingsTable listings={auctions} loading={false} />
+            {viewMode === "list" ? (
+              <RecentListingsTable listings={auctions} loading={false} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {auctions.map((auction, index) => (
+                  <AuctionCard
+                    key={auction.id}
+                    auction={auction}
+                    gradient={gradients[index % gradients.length]}
+                    index={index}
+                  />
+                ))}
+              </div>
+            )}
             {/* Intersection observer target for infinite scroll */}
             <div ref={loadMoreRef} className="h-1" />
             {/* Loading indicator when loading more */}
