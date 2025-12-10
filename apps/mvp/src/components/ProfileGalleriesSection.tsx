@@ -60,8 +60,13 @@ export function ProfileGalleriesSection({ userAddress }: ProfileGalleriesSection
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {galleries.map((gallery) => (
-        <GalleryCard key={gallery.id} gallery={gallery} curatorAddress={userAddress || ""} />
+      {galleries.map((gallery, index) => (
+        <GalleryCard 
+          key={gallery.id} 
+          gallery={gallery} 
+          curatorAddress={userAddress || ""} 
+          galleryIndex={index + 1}
+        />
       ))}
     </div>
   );
@@ -70,11 +75,12 @@ export function ProfileGalleriesSection({ userAddress }: ProfileGalleriesSection
 interface GalleryCardProps {
   gallery: GalleryWithCount;
   curatorAddress: string;
+  galleryIndex: number;
 }
 
-function GalleryCard({ gallery, curatorAddress }: GalleryCardProps) {
+function GalleryCard({ gallery, curatorAddress, galleryIndex }: GalleryCardProps) {
   const { username } = useUsername(curatorAddress);
-  const galleryUrl = getGalleryUrl(gallery, username);
+  const galleryUrl = getGalleryUrl(gallery, username, galleryIndex);
 
   return (
     <TransitionLink

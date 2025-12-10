@@ -215,9 +215,21 @@ export default function CurateClient() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredGalleries.map((gallery) => (
-              <GalleryCard key={gallery.id} gallery={gallery} />
-            ))}
+            {filteredGalleries.map((gallery, index) => {
+              // Find index in published galleries only (for published galleries)
+              // Galleries are ordered by createdAt desc, so newest is index 0, which maps to gallery index 1
+              const publishedGalleries = galleries.filter((g) => g.isPublished);
+              const galleryIndex = gallery.isPublished 
+                ? publishedGalleries.findIndex((g) => g.id === gallery.id) + 1
+                : undefined;
+              return (
+                <GalleryCard 
+                  key={gallery.id} 
+                  gallery={gallery} 
+                  galleryIndex={galleryIndex}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -279,9 +291,10 @@ export default function CurateClient() {
 
 interface GalleryCardProps {
   gallery: GalleryWithCount;
+  galleryIndex?: number;
 }
 
-function GalleryCard({ gallery }: GalleryCardProps) {
+function GalleryCard({ gallery, galleryIndex }: GalleryCardProps) {
   const { username } = useUsername(gallery.curatorAddress);
   const createdDate = new Date(gallery.createdAt).toLocaleDateString("en-US", {
     month: "short",
@@ -291,7 +304,7 @@ function GalleryCard({ gallery }: GalleryCardProps) {
 
   // Use new URL structure for published galleries (with or without slug), edit URL for drafts
   const galleryUrl = gallery.isPublished
-    ? getGalleryUrl(gallery, username)
+    ? getGalleryUrl(gallery, username, galleryIndex)
     : `/curate/${gallery.id}`;
 
   return (

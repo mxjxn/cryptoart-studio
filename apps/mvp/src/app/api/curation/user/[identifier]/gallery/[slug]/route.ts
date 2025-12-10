@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, curation, curationItems, eq, and, asc } from '@cryptoart/db';
+import { getDatabase, curation, curationItems, eq, and, asc, desc } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
 import { getUserFromCache } from '~/lib/server/user-cache';
 import { lookupNeynarByUsername } from '~/lib/artist-name-resolution';
@@ -47,17 +47,37 @@ export async function GET(
     
     const db = getDatabase();
     
-    // Get gallery by slug and curator
-    const [gallery] = await db
-      .select()
-      .from(curation)
-      .where(
-        and(
-          eq(curation.curatorAddress, curatorAddress),
-          eq(curation.slug, slug)
+    let gallery;
+    
+    // Check if slug is numeric (gallery index)
+    const numericSlug = /^\d+$/.test(slug);
+    
+    if (numericSlug) {
+      // Get galleries ordered by creation date (newest first, index 1 = newest)
+      const allGalleries = await db
+        .select()
+        .from(curation)
+        .where(eq(curation.curatorAddress, curatorAddress))
+        .orderBy(desc(curation.createdAt));
+      
+      const index = parseInt(slug, 10) - 1; // Convert to 0-based index
+      if (index >= 0 && index < allGalleries.length) {
+        gallery = allGalleries[index];
+      }
+    } else {
+      // Get gallery by slug
+      const [foundGallery] = await db
+        .select()
+        .from(curation)
+        .where(
+          and(
+            eq(curation.curatorAddress, curatorAddress),
+            eq(curation.slug, slug)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
+      gallery = foundGallery;
+    }
     
     if (!gallery) {
       return NextResponse.json(

@@ -223,10 +223,8 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
   };
 
   const { username } = useUsername(data?.gallery?.curatorAddress);
-  const galleryUrl = data?.gallery?.slug && username
+  const galleryUrl = data?.gallery && username && data.gallery.isPublished
     ? `${APP_URL}${getGalleryUrl(data.gallery, username)}`
-    : data?.gallery?.slug
-    ? `${APP_URL}/gallery/${data.gallery.curatorAddress}/${data.gallery.slug}`
     : null;
 
   // Redirect non-admins
