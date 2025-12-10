@@ -1764,9 +1764,24 @@ export default function AuctionDetailClient({
             )}
 
             {/* FIXED_PRICE - Purchase */}
-            {auction.listingType === "FIXED_PRICE" && isActive && (
-              <div className="mb-4 space-y-3">
-                {auction.tokenSpec === "ERC1155" && (
+            {auction.listingType === "FIXED_PRICE" && isActive && (() => {
+              // Check if ERC721 is sold out
+              const isERC721SoldOut = auction.tokenSpec === "ERC721" && 
+                parseInt(auction.totalSold || "0") >= parseInt(auction.totalAvailable || "1");
+              
+              if (isERC721SoldOut) {
+                return (
+                  <div className="mb-4">
+                    <p className="text-center text-lg font-medium text-[#999999] py-4">
+                      Sold Out
+                    </p>
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="mb-4 space-y-3">
+                  {auction.tokenSpec === "ERC1155" && (
                   <div>
                     <label className="block text-sm font-medium text-[#cccccc] mb-2">
                       Number of Purchases
@@ -1901,8 +1916,9 @@ export default function AuctionDetailClient({
                     )}
                   </>
                 )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {/* OFFERS_ONLY - Make Offer */}
             {auction.listingType === "OFFERS_ONLY" && isActive && (
