@@ -89,7 +89,12 @@ export default function MarketClient() {
           setListings(data.listings || []);
           setSubgraphDown(data.subgraphDown || false);
         } else {
-          setListings((prev) => [...prev, ...(data.listings || [])]);
+          // Deduplicate by listingId to prevent duplicates from pagination issues
+          setListings((prev) => {
+            const existingIds = new Set(prev.map((l: EnrichedAuctionData) => l.listingId));
+            const newListings = (data.listings || []).filter((l: EnrichedAuctionData) => !existingIds.has(l.listingId));
+            return [...prev, ...newListings];
+          });
         }
         setHasMore(data.pagination?.hasMore || false);
       } catch (error) {
