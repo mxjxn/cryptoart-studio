@@ -203,7 +203,10 @@ async function getRecentlyConcluded(limit: number): Promise<EnrichedAuctionData[
 
 async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
   try {
-    const active = await fetchActiveAuctionsUncached(limit * 2, 0, true);
+    // Fetch more listings to ensure we capture all with bids, even if they're older
+    // Active auctions are ordered by createdAt desc, so older listings with bids might be excluded
+    // Fetch up to 100 to ensure we get all listings with bids
+    const active = await fetchActiveAuctionsUncached(100, 0, true);
     console.log(`[getLiveBids] Fetched ${active.length} active auctions`);
     
     const withBids = active.filter((auction) => {
