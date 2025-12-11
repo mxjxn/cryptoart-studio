@@ -227,8 +227,10 @@ export default function HomePageClient() {
         </section>
       )}
 
+      {/* Recent NFTs and Editions - Side by side on xl screens */}
+      <div className="xl:flex xl:gap-8">
       {/* Recent NFTs (721s) */}
-      <section id="nfts" className="px-5 py-8">
+      <section id="nfts" className="px-5 py-8 xl:flex-1">
         <div className="flex items-center justify-between mb-6">
           <TransitionLink
             href="/market?tab=recent"
@@ -303,7 +305,7 @@ export default function HomePageClient() {
       </section>
 
       {/* Recent Editions */}
-      <section id="editions" className="px-5 py-8">
+      <section id="editions" className="px-5 py-8 xl:flex-1">
         <div className="flex items-center justify-between mb-6">
           <TransitionLink
             href="/market?tab=recent"
@@ -376,6 +378,7 @@ export default function HomePageClient() {
           </div>
         )}
       </section>
+      </div>
 
       {/* Admin Tools Panel - Only visible when admin mode is enabled */}
       <AdminToolsPanel />
