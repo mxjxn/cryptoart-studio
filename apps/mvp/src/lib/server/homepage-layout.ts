@@ -104,10 +104,20 @@ async function getUpcomingAuctions(limit: number, _displayFormat?: string): Prom
       .filter((listing) => {
         const start = parseInt(String(listing.startTime || 0));
         const end = parseInt(String(listing.endTime || 0));
+        const MAX_UINT48 = 281474976710655;
+        
         // Show auctions that are currently live (started but not ended)
         // Or auctions that haven't started yet (upcoming)
+        
+        // If startTime is 0, it means the auction started immediately (no start time restriction)
+        // In this case, check if it hasn't ended yet
+        if (start === 0) {
+          return end === 0 || end > now || end >= MAX_UINT48;
+        }
+        
+        // If startTime > 0, check if it's upcoming or currently live
         const isUpcoming = start > now;
-        const isLive = start > 0 && start <= now && (end === 0 || end > now || end >= 281474976710655); // 281474976710655 is MAX_UINT48 (never expires)
+        const isLive = start <= now && (end === 0 || end > now || end >= MAX_UINT48);
         return isUpcoming || isLive;
       })
       .slice(0, limit);
