@@ -204,9 +204,24 @@ async function getRecentlyConcluded(limit: number): Promise<EnrichedAuctionData[
 async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
   try {
     const active = await fetchActiveAuctionsUncached(limit * 2, 0, true);
-    return active
-      .filter((auction) => (auction.bidCount || 0) > 0 || !!auction.highestBid)
-      .slice(0, limit);
+    console.log(`[getLiveBids] Fetched ${active.length} active auctions`);
+    
+    const withBids = active.filter((auction) => {
+      // Check multiple fields to ensure we catch listings with bids
+      const bidCount = auction.bidCount || 0;
+      const hasHighestBid = !!auction.highestBid;
+      const hasBid = (auction as any).hasBid === true; // Check original hasBid field from subgraph
+      const passes = bidCount > 0 || hasHighestBid || hasBid;
+      
+      if (passes) {
+        console.log(`[getLiveBids] Listing ${auction.listingId} passes filter: bidCount=${bidCount}, hasHighestBid=${hasHighestBid}, hasBid=${hasBid}`);
+      }
+      
+      return passes;
+    });
+    
+    console.log(`[getLiveBids] Filtered to ${withBids.length} listings with bids`);
+    return withBids.slice(0, limit);
   } catch (error) {
     console.error('[Homepage] Failed to get live bids', error);
     return [];
