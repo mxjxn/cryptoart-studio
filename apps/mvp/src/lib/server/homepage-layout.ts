@@ -96,19 +96,19 @@ async function resolveSectionListings(sectionType: SectionType, config?: Record<
 
 async function getUpcomingAuctions(limit: number, _displayFormat?: string): Promise<EnrichedAuctionData[]> {
   try {
-    const { listings } = await browseListings({
-      first: limit * 2,
-      skip: 0,
-      orderBy: 'startTime',
-      orderDirection: 'asc',
-      enrich: true,
-    });
-
+    // Get active auctions (status: ACTIVE, finalized: false)
+    const active = await fetchActiveAuctionsUncached(limit * 2, 0, true);
+    
     const now = Math.floor(Date.now() / 1000);
-    return listings
+    return active
       .filter((listing) => {
         const start = parseInt(String(listing.startTime || 0));
-        return start > now;
+        const end = parseInt(String(listing.endTime || 0));
+        // Show auctions that are currently live (started but not ended)
+        // Or auctions that haven't started yet (upcoming)
+        const isUpcoming = start > now;
+        const isLive = start > 0 && start <= now && (end === 0 || end > now || end >= 281474976710655); // 281474976710655 is MAX_UINT48 (never expires)
+        return isUpcoming || isLive;
       })
       .slice(0, limit);
   } catch (error) {
