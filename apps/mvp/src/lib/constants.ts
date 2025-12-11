@@ -147,9 +147,9 @@ export const SIGNED_KEY_REQUEST_TYPE = [
 ];
 
 // --- Manifest Metadata ---
-export const APP_SUBTITLE: string = 'NFT marketplace & auctions';
+export const APP_SUBTITLE: string = 'NFT marketplace and auctions';
 
-export const APP_TAGLINE: string = 'Auctionhouse & Marketplace';
+export const APP_TAGLINE: string = 'Auctionhouse and Marketplace';
 
 // Screenshot URLs (add when you create portrait screenshots)
 // Format: 1284x2778px portrait images, max 3
