@@ -291,15 +291,29 @@ export default function HomePageClient() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
-            {nftListings.map((auction, index) => (
-              <AuctionCard
-                key={auction.id}
-                auction={auction}
-                gradient={gradients[index % gradients.length]}
-                index={index}
-              />
-            ))}
+          <div className="relative">
+            <div className="grid grid-cols-2 gap-4">
+              {nftListings.map((auction, index) => (
+                <AuctionCard
+                  key={auction.id}
+                  auction={auction}
+                  gradient={gradients[index % gradients.length]}
+                  index={index}
+                />
+              ))}
+            </div>
+            <div className="flex justify-end mt-4">
+              <TransitionLink
+                href="/market?tab=recent"
+                prefetch={false}
+                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1"
+              >
+                <span>[</span>
+                <span>—</span>
+                <span>&gt;</span>
+                <span>]</span>
+              </TransitionLink>
+            </div>
           </div>
         )}
       </section>
@@ -366,15 +380,29 @@ export default function HomePageClient() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
-            {editionListings.map((auction, index) => (
-              <AuctionCard
-                key={auction.id}
-                auction={auction}
-                gradient={gradients[index % gradients.length]}
-                index={index}
-              />
-            ))}
+          <div className="relative">
+            <div className="grid grid-cols-2 gap-4">
+              {editionListings.map((auction, index) => (
+                <AuctionCard
+                  key={auction.id}
+                  auction={auction}
+                  gradient={gradients[index % gradients.length]}
+                  index={index}
+                />
+              ))}
+            </div>
+            <div className="flex justify-end mt-4">
+              <TransitionLink
+                href="/market?tab=recent"
+                prefetch={false}
+                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1"
+              >
+                <span>[</span>
+                <span>—</span>
+                <span>&gt;</span>
+                <span>]</span>
+              </TransitionLink>
+            </div>
           </div>
         )}
       </section>
