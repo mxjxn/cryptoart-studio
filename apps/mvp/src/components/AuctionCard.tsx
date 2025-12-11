@@ -30,6 +30,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Reset image state when image URL changes
   useEffect(() => {
@@ -287,19 +288,27 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
     e.preventDefault();
     e.stopPropagation();
     
-    // Preload the listing data in the background (non-blocking)
-    getAuction(auction.listingId).catch((error) => {
-      console.error("Error preloading listing:", error);
-    });
-
-    // Use router.push without view transition to avoid flash
-    // View transitions can cause black flashes on navigation
-    // Include referralAddress in URL if provided
-    const listingUrl = referralAddress 
-      ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
-      : `/listing/${auction.listingId}`;
-    router.push(listingUrl);
+    // Two-tap interaction: first tap reveals info, second tap navigates
+    if (!isExpanded) {
+      // First tap: expand to show info
+      setIsExpanded(true);
+      // Preload the listing data in the background (non-blocking)
+      getAuction(auction.listingId).catch((error) => {
+        console.error("Error preloading listing:", error);
+      });
+    } else {
+      // Second tap: navigate to listing
+      const listingUrl = referralAddress 
+        ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
+        : `/listing/${auction.listingId}`;
+      router.push(listingUrl);
+    }
   };
+
+  // Reset expanded state when card changes (e.g., different listing)
+  useEffect(() => {
+    setIsExpanded(false);
+  }, [auction.listingId]);
 
   return (
     <div
@@ -360,8 +369,13 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />
         </div> */}
-        {/* Overlay with gradient and data - only visible on hover */}
-        <div className="absolute bottom-0 left-0 right-0 h-[33.33%] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto" data-no-click>
+        {/* Overlay with gradient and data - visible on hover (desktop) or when expanded (mobile) */}
+        <div 
+          className={`absolute bottom-0 left-0 right-0 h-[33.33%] transition-opacity duration-300 pointer-events-none ${
+            isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto'
+          }`}
+          data-no-click
+        >
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none"></div>
           {/* Content overlay */}
