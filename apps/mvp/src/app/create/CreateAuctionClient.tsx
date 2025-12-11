@@ -999,10 +999,10 @@ export default function CreateAuctionClient() {
       // Handle endTime based on listing type
       // CRITICAL: When startTime is 0 (starts on first interaction), the contract adds
       // block.timestamp to endTime. If endTime is max uint48, this causes an overflow!
-      // So we must use a duration (like 100 years) instead of max uint48 when startTime is 0.
+      // So we must use a duration (10 years) instead of max uint48 when startTime is 0.
       let endTime: number;
       const MAX_UINT48 = 281474976710655;
-      const SAFE_DURATION_100_YEARS = 3153600000; // 100 years in seconds
+      const SAFE_DURATION_10_YEARS = 315360000; // 10 years in seconds
       
       // Check if "no timeframe" option was selected (for FIXED_PRICE listings)
       // This is indicated by empty endTime AND empty startTime (or explicit noTimeframe flag)
@@ -1013,11 +1013,11 @@ export default function CreateAuctionClient() {
         // For FIXED_PRICE with "no timeframe" option:
         // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
         // that gets added to block.timestamp on first purchase.
-        // Using max uint48 would cause overflow, so use 100 years instead.
+        // Using max uint48 would cause overflow, so use 10 years instead.
         // If startTime is set, endTime is an absolute timestamp, so max uint48 is fine.
         if (startTime === 0) {
-          endTime = SAFE_DURATION_100_YEARS;
-          console.log('[CreateListing] Using safe duration (100 years) for open-ended FIXED_PRICE with startTime=0');
+          endTime = SAFE_DURATION_10_YEARS;
+          console.log('[CreateListing] Using safe duration (10 years) for open-ended FIXED_PRICE with startTime=0');
         } else {
           // Absolute timestamp - max uint48 means "never expires"
           endTime = MAX_UINT48;
@@ -1029,9 +1029,9 @@ export default function CreateAuctionClient() {
         // For other listing types without endTime, use a safe duration
         if (startTime === 0) {
           // IMPORTANT: If startTime is 0, endTime becomes a duration added to block.timestamp
-          // Use 100 years as a safe "never expires" equivalent
-          endTime = SAFE_DURATION_100_YEARS;
-          console.log('[CreateListing] Using safe duration (100 years) for listing with startTime=0');
+          // Use 10 years as a safe "never expires" equivalent
+          endTime = SAFE_DURATION_10_YEARS;
+          console.log('[CreateListing] Using safe duration (10 years) for listing with startTime=0');
         } else {
           endTime = 0;
         }
@@ -1040,7 +1040,7 @@ export default function CreateAuctionClient() {
       // Safety check: Prevent the dangerous combination that causes contract overflow
       if (startTime === 0 && endTime === MAX_UINT48) {
         console.error('[CreateListing] CRITICAL: Preventing overflow - startTime=0 with endTime=max uint48');
-        endTime = SAFE_DURATION_100_YEARS;
+        endTime = SAFE_DURATION_10_YEARS;
       }
 
       // Validate endTime based on listing type and startTime

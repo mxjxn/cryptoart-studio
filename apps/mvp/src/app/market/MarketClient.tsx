@@ -26,6 +26,7 @@ export default function MarketClient() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [subgraphDown, setSubgraphDown] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
@@ -86,6 +87,7 @@ export default function MarketClient() {
         }
         if (page === 0) {
           setListings(data.listings || []);
+          setSubgraphDown(data.subgraphDown || false);
         } else {
           setListings((prev) => [...prev, ...(data.listings || [])]);
         }
@@ -190,7 +192,25 @@ export default function MarketClient() {
           </div>
         ) : listings.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-[#cccccc]">No listings found</p>
+            {subgraphDown ? (
+              <>
+                <p className="text-[#cccccc] mb-2">Unable to load listings</p>
+                <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
+                <button
+                  onClick={() => {
+                    setSubgraphDown(false);
+                    setPage(0);
+                    setError(null);
+                    setLoading(true);
+                  }}
+                  className="text-white hover:underline text-sm"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <p className="text-[#cccccc]">No listings found</p>
+            )}
           </div>
         ) : tab === "recent" ? (
           <>

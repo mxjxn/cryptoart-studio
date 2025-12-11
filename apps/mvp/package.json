@@ -8,6 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
+    "clean": "rm -rf .next node_modules/.cache",
     "backfill-thumbnails": "tsx scripts/backfill-thumbnails.ts",
     "cleanup-cancelled-images": "tsx scripts/cleanup-cancelled-listings-images.ts"
   },

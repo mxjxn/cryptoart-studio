@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       success: true,
       listings: enrichedListings,
       count: enrichedListings.length,
+      subgraphDown: result.subgraphDown || false,
       pagination: {
         first,
         skip,

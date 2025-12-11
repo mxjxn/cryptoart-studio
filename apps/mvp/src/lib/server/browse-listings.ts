@@ -68,6 +68,50 @@ const BROWSE_LISTINGS_QUERY = gql`
   }
 `;
 
+/**
+ * Retry a subgraph request with exponential backoff
+ * Handles transient errors like "bad indexers" from The Graph Network
+ */
+async function retrySubgraphRequest<T>(
+  requestFn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error: any) {
+      lastError = error;
+      const errorMessage = error?.message || String(error);
+      
+      // Check if this is a retryable error
+      const isRetryable = 
+        errorMessage.includes('bad indexers') ||
+        errorMessage.includes('BadResponse') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('ECONNRESET') ||
+        errorMessage.includes('ETIMEDOUT');
+      
+      if (!isRetryable || attempt === maxRetries) {
+        // Not retryable or out of retries
+        throw error;
+      }
+      
+      // Calculate delay with exponential backoff
+      const delay = initialDelay * Math.pow(2, attempt);
+      console.log(`[Browse Listings] Subgraph request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`, errorMessage);
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
+
 export interface BrowseListingsOptions {
   first?: number;
   skip?: number;
@@ -79,6 +123,7 @@ export interface BrowseListingsOptions {
 export interface BrowseListingsResult {
   listings: EnrichedAuctionData[];
   subgraphReturnedFullCount: boolean; // Whether the subgraph returned the full amount we requested
+  subgraphDown?: boolean; // Whether the subgraph is down/unavailable
 }
 
 /**
@@ -107,25 +152,49 @@ export async function browseListings(
   let data: { listings: any[] };
   try {
     console.log('[Browse Listings] Fetching from subgraph:', { endpoint, fetchCount, skip, orderBy, orderDirection });
-    data = await request<{ listings: any[] }>(
-      endpoint,
-      BROWSE_LISTINGS_QUERY,
-      {
-        first: fetchCount,
-        skip,
-        orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
-        orderDirection: orderDirection === "asc" ? "asc" : "desc",
-      },
-      getSubgraphHeaders()
-    );
+    
+    // Use retry logic for subgraph requests to handle transient errors
+    data = await retrySubgraphRequest(async () => {
+      return await request<{ listings: any[] }>(
+        endpoint,
+        BROWSE_LISTINGS_QUERY,
+        {
+          first: fetchCount,
+          skip,
+          orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
+          orderDirection: orderDirection === "asc" ? "asc" : "desc",
+        },
+        getSubgraphHeaders()
+      );
+    });
+    
     console.log('[Browse Listings] Subgraph returned', data.listings?.length || 0, 'listings');
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
-    console.error('[Browse Listings] Subgraph error:', errorMessage, error);
-    // Return empty result instead of throwing - let client handle gracefully
+    console.error('[Browse Listings] Subgraph error after retries:', errorMessage, {
+      endpoint,
+      errorType: error?.constructor?.name,
+      stack: error?.stack?.substring(0, 500),
+    });
+    
+    // Detect if this is a subgraph availability issue
+    const isSubgraphDown = 
+      errorMessage.includes('bad indexers') ||
+      errorMessage.includes('BadResponse') ||
+      errorMessage.includes('ENOTFOUND') ||
+      errorMessage.includes('ECONNREFUSED') ||
+      errorMessage.includes('ETIMEDOUT') ||
+      errorMessage.includes('network') ||
+      error?.response?.errors?.some((e: any) => 
+        e.message?.includes('bad indexers') || 
+        e.message?.includes('indexer')
+      );
+    
+    // Return empty result with subgraph status - let client handle gracefully
     return {
       listings: [],
       subgraphReturnedFullCount: false,
+      subgraphDown: isSubgraphDown,
     };
   }
   
@@ -282,6 +351,7 @@ export async function browseListings(
   return {
     listings: finalListings,
     subgraphReturnedFullCount,
+    subgraphDown: false, // Subgraph is working if we got here
   };
 }
 

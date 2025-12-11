@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
+
 interface DateSelectorProps {
   value: string;
   onChange: (value: string) => void;
+  onValidationChange?: (isValid: boolean, error?: string) => void;
   min?: string; // datetime-local format: YYYY-MM-DDTHH:mm
   max?: string; // datetime-local format: YYYY-MM-DDTHH:mm
   label?: string;
@@ -12,17 +15,74 @@ interface DateSelectorProps {
 
 /**
  * DateSelector component with min/max constraints
- * Prevents invalid date selections through HTML5 constraints
+ * Prevents invalid date selections through HTML5 constraints and shows validation errors
  */
 export function DateSelector({
   value,
   onChange,
+  onValidationChange,
   min,
   max,
   label,
   required = false,
   disabled = false,
 }: DateSelectorProps) {
+  const [hasBlurred, setHasBlurred] = useState(false);
+
+  // Validation logic
+  const validation = useMemo(() => {
+    if (!value || value === "") {
+      if (required) {
+        return { isValid: false, error: "This field is required" };
+      }
+      return { isValid: true, error: undefined };
+    }
+
+    const selectedDate = new Date(value);
+    const now = new Date();
+
+    if (min) {
+      const minDate = new Date(min);
+      if (selectedDate < minDate) {
+        return { isValid: false, error: "Date must be after the minimum allowed date" };
+      }
+    }
+
+    if (max) {
+      const maxDate = new Date(max);
+      if (selectedDate > maxDate) {
+        return { isValid: false, error: "Date must be before the maximum allowed date" };
+      }
+    }
+
+    // Additional check: if required, ensure date is valid
+    if (isNaN(selectedDate.getTime())) {
+      return { isValid: false, error: "Please enter a valid date and time" };
+    }
+
+    return { isValid: true, error: undefined };
+  }, [value, min, max, required]);
+
+  // Notify parent of validation state
+  useEffect(() => {
+    onValidationChange?.(validation.isValid, validation.error);
+  }, [validation.isValid, validation.error, onValidationChange]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    // Reset blur state when user changes value
+    if (newValue) {
+      setHasBlurred(false);
+    }
+  };
+
+  const handleBlur = () => {
+    setHasBlurred(true);
+  };
+
+  const showError = hasBlurred && !validation.isValid;
+
   return (
     <div>
       {label && (
@@ -33,13 +93,19 @@ export function DateSelector({
       <input
         type="datetime-local"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleChange}
+        onBlur={handleBlur}
         min={min}
         max={max}
         required={required}
         disabled={disabled}
-        className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white"
+        className={`w-full px-3 py-2 bg-black border text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white ${
+          showError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "border-[#333333]"
+        }`}
       />
+      {showError && validation.error && (
+        <p className="mt-1 text-xs text-red-400">{validation.error}</p>
+      )}
     </div>
   );
 }

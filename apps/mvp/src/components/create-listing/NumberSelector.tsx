@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 interface NumberSelectorProps {
   value: string | number;
   onChange: (value: string) => void;
+  onValidationChange?: (isValid: boolean, error?: string) => void;
   min?: number;
   max?: number;
   step?: number;
@@ -16,11 +17,12 @@ interface NumberSelectorProps {
 
 /**
  * NumberSelector component with increment/decrement buttons and min/max constraints
- * Prevents invalid values through UI constraints rather than alerts
+ * Prevents invalid values through UI constraints and shows validation errors
  */
 export function NumberSelector({
   value,
   onChange,
+  onValidationChange,
   min = 0,
   max = Number.MAX_SAFE_INTEGER,
   step = 1,
@@ -30,11 +32,19 @@ export function NumberSelector({
   required = false,
 }: NumberSelectorProps) {
   const [inputValue, setInputValue] = useState<string>(String(value || ""));
+  const [hasBlurred, setHasBlurred] = useState(false);
 
   // Sync input value when prop changes
   useEffect(() => {
-    setInputValue(String(value || ""));
-  }, [value]);
+    const strValue = String(value || "");
+    if (strValue !== inputValue) {
+      setInputValue(strValue);
+      // Reset blur state when value is set externally
+      if (strValue && parseFloat(strValue) >= min && parseFloat(strValue) <= max) {
+        setHasBlurred(false);
+      }
+    }
+  }, [value, min, max]);
 
   // Helper to clamp value within bounds
   const clampValue = (val: number): number => {
@@ -49,6 +59,36 @@ export function NumberSelector({
     return clampValue(num);
   };
 
+  // Validation logic
+  const validation = useMemo(() => {
+    if (!inputValue || inputValue === "") {
+      if (required) {
+        return { isValid: false, error: "This field is required" };
+      }
+      return { isValid: true, error: undefined };
+    }
+
+    const num = parseFloat(inputValue);
+    if (isNaN(num)) {
+      return { isValid: false, error: "Please enter a valid number" };
+    }
+
+    if (num < min) {
+      return { isValid: false, error: `Value must be at least ${min}` };
+    }
+
+    if (num > max) {
+      return { isValid: false, error: `Value must be at most ${max}` };
+    }
+
+    return { isValid: true, error: undefined };
+  }, [inputValue, min, max, required]);
+
+  // Notify parent of validation state
+  useEffect(() => {
+    onValidationChange?.(validation.isValid, validation.error);
+  }, [validation.isValid, validation.error, onValidationChange]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
@@ -62,12 +102,17 @@ export function NumberSelector({
     } else if (newValue === "") {
       // Allow empty temporarily for user typing
       onChange("");
+    } else {
+      // Invalid input - don't update parent, but keep in local state for display
+      // The value will be clamped on blur
     }
   };
 
   const handleInputBlur = () => {
+    setHasBlurred(true);
     const clamped = parseAndClamp(inputValue);
     if (clamped !== null) {
+      // Format to appropriate decimal places based on step
       const decimals = step < 1 ? String(step).split(".")[1]?.length || 0 : 0;
       const formatted = decimals > 0 ? clamped.toFixed(decimals) : String(clamped);
       setInputValue(formatted);
@@ -92,6 +137,7 @@ export function NumberSelector({
     const formatted = decimals > 0 ? newValue.toFixed(decimals) : String(newValue);
     setInputValue(formatted);
     onChange(formatted);
+    setHasBlurred(false); // Reset blur since we set a valid value
   };
 
   const handleDecrement = () => {
@@ -101,11 +147,13 @@ export function NumberSelector({
     const formatted = decimals > 0 ? newValue.toFixed(decimals) : String(newValue);
     setInputValue(formatted);
     onChange(formatted);
+    setHasBlurred(false); // Reset blur since we set a valid value
   };
 
   const currentNum = parseFloat(String(value || min));
   const isAtMin = currentNum <= min;
   const isAtMax = currentNum >= max;
+  const showError = hasBlurred && !validation.isValid;
 
   return (
     <div>
@@ -123,19 +171,26 @@ export function NumberSelector({
         >
           <span className="text-lg">−</span>
         </button>
-        <input
-          type="number"
-          value={inputValue}
-          onChange={handleInputChange}
-          onBlur={handleInputBlur}
-          min={min}
-          max={max}
-          step={step}
-          placeholder={placeholder}
-          disabled={disabled}
-          required={required}
-          className="flex-1 px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black text-center"
-        />
+        <div className="flex-1">
+          <input
+            type="number"
+            value={inputValue}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            min={min}
+            max={max}
+            step={step}
+            placeholder={placeholder}
+            disabled={disabled}
+            required={required}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black text-center ${
+              showError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "border-[#333333]"
+            }`}
+          />
+          {showError && validation.error && (
+            <p className="mt-1 text-xs text-red-400">{validation.error}</p>
+          )}
+        </div>
         <button
           type="button"
           onClick={handleIncrement}
