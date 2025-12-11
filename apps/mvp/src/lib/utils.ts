@@ -3,17 +3,14 @@ import { twMerge } from 'tailwind-merge';
 import {
   APP_BUTTON_TEXT,
   APP_DESCRIPTION,
-  APP_ICON_URL,
   APP_NAME,
   APP_OG_IMAGE_URL,
-  APP_PRIMARY_CATEGORY,
   APP_SPLASH_BACKGROUND_COLOR,
   APP_SPLASH_URL,
   APP_TAGS,
   APP_URL,
-  APP_WEBHOOK_URL,
-  APP_ACCOUNT_ASSOCIATION,
 } from './constants';
+import { manifestConfig } from './farcaster-manifest.config';
 
 // Manifest type definition (from Farcaster miniapp spec)
 type AccountAssociation = {
@@ -23,12 +20,12 @@ type AccountAssociation = {
 };
 
 // Updated Manifest type definition with all optional fields
-// Note: Neynar requires 'frame' object for webhookUrl to work properly
-// We include both 'frame' and 'miniapp' for maximum compatibility
+// According to Farcaster spec, Mini Apps should only include 'miniapp', not 'frame'
+// The 'frame' object is for backward compatibility with Frames, not Mini Apps
 type Manifest = {
   accountAssociation: AccountAssociation | null;
-  // Neynar requires 'frame' object for webhook events
-  frame: {
+  // 'frame' is optional - only needed for backward compatibility with Frames
+  frame?: {
     version: string;
     name: string;
     homeUrl: string;
@@ -169,6 +166,8 @@ export function getMiniAppEmbedMetadata(
  * Get Farcaster domain manifest for /.well-known/farcaster.json
  * This manifest is used by Farcaster clients to identify and configure the Mini App
  * See: https://miniapps.farcaster.xyz/docs/guides/publishing
+ * 
+ * The manifest is built from farcaster-manifest.config.ts. Edit that file to modify the manifest.
  */
 export async function getFarcasterDomainManifest(): Promise<Manifest> {
   // Format tags: lowercase, no spaces, max 20 chars each, max 5 tags
@@ -190,57 +189,35 @@ export async function getFarcasterDomainManifest(): Promise<Manifest> {
     ? APP_DESCRIPTION.slice(0, 97) + '...'
     : APP_DESCRIPTION;
 
-  // Neynar requires 'frame' object for webhook events to work properly
-  // We include both 'frame' and 'miniapp' for maximum compatibility
-  const frameConfig = {
-    version: '4.2.0', // Neynar docs specify version 4.2.0
-    name: APP_NAME,
-    homeUrl: APP_URL,
-    iconUrl: APP_ICON_URL,
-    splashImageUrl: APP_SPLASH_URL,
-    splashBackgroundColor: APP_SPLASH_BACKGROUND_COLOR,
-    webhookUrl: APP_WEBHOOK_URL, // Critical: Neynar webhook URL must be in 'frame' object
+  // Build miniapp config from manifest config
+  const miniappConfig: Manifest['miniapp'] = {
+    ...manifestConfig.miniapp,
+    // Ensure required fields are present (Manifest type requires these)
+    splashImageUrl: manifestConfig.miniapp.splashImageUrl ?? APP_SPLASH_URL,
+    splashBackgroundColor: manifestConfig.miniapp.splashBackgroundColor ?? APP_SPLASH_BACKGROUND_COLOR,
+    webhookUrl: manifestConfig.miniapp.webhookUrl ?? `${APP_URL}/api/webhook`,
+    // Override with formatted/truncated values
+    description: truncatedDescription,
+    ogDescription: ogDescription,
+    tags: formattedTags.length > 0 ? formattedTags : undefined,
+    canonicalDomain: canonicalDomain,
   };
+  
+  // Remove empty screenshotUrls array (should be omitted if empty)
+  if (Array.isArray(miniappConfig.screenshotUrls) && miniappConfig.screenshotUrls.length === 0) {
+    delete miniappConfig.screenshotUrls;
+  }
+  
+  // Remove undefined optional fields to keep manifest clean
+  (Object.keys(miniappConfig) as Array<keyof typeof miniappConfig>).forEach(key => {
+    if (miniappConfig[key] === undefined) {
+      delete miniappConfig[key];
+    }
+  });
 
   return {
-    accountAssociation: APP_ACCOUNT_ASSOCIATION ?? null,
-    frame: frameConfig,
-    miniapp: {
-      version: '1',
-      name: APP_NAME,
-      homeUrl: APP_URL,
-      iconUrl: APP_ICON_URL,
-      // Deprecated fields (keep for backward compatibility)
-      imageUrl: APP_OG_IMAGE_URL,
-      buttonTitle: APP_BUTTON_TEXT,
-      splashImageUrl: APP_SPLASH_URL,
-      splashBackgroundColor: APP_SPLASH_BACKGROUND_COLOR,
-      webhookUrl: APP_WEBHOOK_URL,
-      // New recommended fields for better discovery
-      subtitle: 'NFT marketplace & auctions', // Max 30 chars, no emojis
-      description: truncatedDescription, // Max 170 chars, no emojis
-      screenshotUrls: [
-        // TODO: Add portrait screenshots (1284x2778px) when available
-        // `${APP_URL}/screenshots/screenshot1.png`,
-        // `${APP_URL}/screenshots/screenshot2.png`,
-        // `${APP_URL}/screenshots/screenshot3.png`,
-      ],
-      primaryCategory: APP_PRIMARY_CATEGORY, // 'art-creativity'
-      tags: formattedTags.length > 0 ? formattedTags : undefined,
-      heroImageUrl: APP_OG_IMAGE_URL, // 1200x630px - using your OG image
-      tagline: 'Auctionhouse & Marketplace', // Max 30 chars
-      ogTitle: APP_NAME, // Max 30 chars
-      ogDescription: ogDescription, // Max 100 chars
-      ogImageUrl: APP_OG_IMAGE_URL, // 1200x630px PNG - using your OG image route
-      requiredChains: ['eip155:8453'], // Base Mainnet
-      requiredCapabilities: [
-        'wallet.getEthereumProvider',
-        'actions.swapToken', // For your top-up feature
-        'actions.signIn',
-      ],
-      canonicalDomain: canonicalDomain,
-      noindex: false, // Include in search results
-    },
+    accountAssociation: manifestConfig.accountAssociation ?? null,
+    miniapp: miniappConfig,
   };
 }
 
