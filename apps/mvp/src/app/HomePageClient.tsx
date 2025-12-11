@@ -304,7 +304,7 @@ export default function HomePageClient() {
             </div>
             <div className="flex justify-end mt-4">
               <TransitionLink
-                href="/market?tab=recent"
+                href="/market?tab=recent&tokenSpec=ERC721"
                 prefetch={false}
                 className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1"
               >
@@ -393,7 +393,7 @@ export default function HomePageClient() {
             </div>
             <div className="flex justify-end mt-4">
               <TransitionLink
-                href="/market?tab=recent"
+                href="/market?tab=recent&tokenSpec=ERC1155"
                 prefetch={false}
                 className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1"
               >
