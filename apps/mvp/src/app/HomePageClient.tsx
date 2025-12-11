@@ -233,7 +233,7 @@ export default function HomePageClient() {
           <TransitionLink
             href="/market?tab=recent"
             prefetch={false}
-            className="text-[13px] uppercase tracking-[2px] text-[#999999] hover:text-white transition-colors font-mek-mono cursor-pointer"
+            className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
           >
             Recent NFTs
           </TransitionLink>
@@ -308,7 +308,7 @@ export default function HomePageClient() {
           <TransitionLink
             href="/market?tab=recent"
             prefetch={false}
-            className="text-[13px] uppercase tracking-[2px] text-[#999999] hover:text-white transition-colors font-mek-mono cursor-pointer"
+            className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
           >
             Recent Editions
           </TransitionLink>
