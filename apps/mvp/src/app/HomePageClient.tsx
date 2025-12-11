@@ -289,7 +289,7 @@ export default function HomePageClient() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {nftListings.map((auction, index) => (
               <AuctionCard
                 key={auction.id}
@@ -364,7 +364,7 @@ export default function HomePageClient() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {editionListings.map((auction, index) => (
               <AuctionCard
                 key={auction.id}

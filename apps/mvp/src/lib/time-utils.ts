@@ -37,9 +37,9 @@ export function formatTimeRemaining(endTime: number, now?: number): string {
   const hours = Math.floor((timeRemaining % 86400) / 3600);
 
   if (days > 0) {
-    return `${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""} remaining`;
+    return `ends in ${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""}`;
   } else {
-    return `${hours} hr${hours !== 1 ? "s" : ""} remaining`;
+    return `ends in ${hours} hr${hours !== 1 ? "s" : ""}`;
   }
 }
 

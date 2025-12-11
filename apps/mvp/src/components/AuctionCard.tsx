@@ -221,11 +221,10 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         </div>
       );
     } else if (hasBid) {
-      // Active with bids: "Current bid: [amount], [N] bids, [time remaining]"
+      // Active with bids: Show bid count and time (price is already shown in price section)
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
       stateDisplay = (
-        <div className="text-xs text-[#999999] mt-1">
-          <div>Current bid: {formatPrice(auction.highestBid?.amount || "0")} {tokenSymbol}</div>
+        <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
           <div>{bidCount} {bidCount === 1 ? "bid" : "bids"}</div>
           {showTime && timeStatus.timeRemaining && (
             <div>{timeStatus.timeRemaining}</div>
@@ -233,16 +232,15 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         </div>
       );
     } else {
-      // Active no bids: "Reserve: [amount], [time remaining]"
+      // Active no bids: Only show time (reserve is already shown in price section)
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-      stateDisplay = (
-        <div className="text-xs text-[#999999] mt-1">
-          <div>Reserve: {formatPrice(auction.initialAmount || "0")} {tokenSymbol}</div>
-          {showTime && timeStatus.timeRemaining && (
-            <div>{timeStatus.timeRemaining}</div>
-          )}
-        </div>
-      );
+      if (showTime && timeStatus.timeRemaining) {
+        stateDisplay = (
+          <div className="text-xs text-[#999999] mt-1 leading-tight">
+            {timeStatus.timeRemaining}
+          </div>
+        );
+      }
     }
   } else if (auction.listingType === "FIXED_PRICE") {
     const timeStatus = getFixedPriceTimeStatus(endTime, now);
@@ -255,7 +253,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
       
       if (remaining > 0) {
         stateDisplay = (
-          <div className="text-xs text-[#999999] mt-1">
+          <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
             <div>{remaining} left</div>
             {showTime && timeStatus.timeRemaining && (
               <div>{timeStatus.timeRemaining}</div>
@@ -268,8 +266,8 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
       if (showTime && timeStatus.timeRemaining) {
         stateDisplay = (
-          <div className="text-xs text-[#999999] mt-1">
-            <div>{timeStatus.timeRemaining}</div>
+          <div className="text-xs text-[#999999] mt-1 leading-tight">
+            {timeStatus.timeRemaining}
           </div>
         );
       }
@@ -426,17 +424,12 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
               </div>
             ) : null}
             {supplyDisplay}
-            <div className="flex items-center justify-between mb-2">
-              {auction.listingType === "OFFERS_ONLY" && (
-                <div className="text-xs text-[#999999]">
-                  Make offer
-                </div>
-              )}
-              <div className="text-base font-medium flex items-baseline gap-1">
-                <span className="text-[10px] uppercase tracking-[1px] text-[#999999]">
-                  {priceLabel}
-                </span>
-                <span>{currentPrice} {currentPrice !== "—" && tokenSymbol}</span>
+            <div className="mb-1">
+              <div className="text-xs text-[#999999] leading-tight">
+                {priceLabel}
+              </div>
+              <div className="text-base font-medium leading-tight">
+                {currentPrice} {currentPrice !== "—" && tokenSymbol}
               </div>
             </div>
             {stateDisplay}
