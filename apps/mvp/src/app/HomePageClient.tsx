@@ -44,7 +44,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const { isConnected } = useEffectiveAddress();
   const { openConnectModal } = useConnectModal();
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
   const gradients = [
     "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
