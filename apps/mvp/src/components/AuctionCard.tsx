@@ -277,13 +277,15 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
 
 
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     // Only handle clicks on the card itself, not on interactive children
-    if ((e.target as HTMLElement).closest('a, button')) {
+    const target = e.target as HTMLElement;
+    if (target.closest('a, button, [data-no-click]')) {
       return;
     }
     
     e.preventDefault();
+    e.stopPropagation();
     
     // Preload the listing data in the background (non-blocking)
     getAuction(auction.listingId).catch((error) => {
@@ -301,8 +303,18 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
 
   return (
     <div
-      className="relative w-full cursor-pointer group"
+      className="relative w-full cursor-pointer group touch-manipulation"
       onClick={handleClick}
+      onTouchEnd={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`View listing: ${title}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleClick(e as any);
+        }
+      }}
     >
       <div
         ref={cardRef}
@@ -324,11 +336,12 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
               src={(auction.thumbnailUrl || auction.image) ?? ''}
               alt={title}
               fill
-              className={`object-contain transition-opacity duration-200 ${
+              className={`object-contain transition-opacity duration-200 pointer-events-none ${
                 imageLoading ? 'opacity-0' : 'opacity-100'
               }`}
               style={{
                 objectFit: 'contain',
+                pointerEvents: 'none',
               }}
               priority={index < 6} // Prioritize first 6 images (above the fold)
               onLoad={() => setImageLoading(false)}
@@ -340,17 +353,19 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
             />
           </>
         ) : null}
-        <ListingChips auction={auction} />
+        <div data-no-click>
+          <ListingChips auction={auction} />
+        </div>
         {/* FavoriteButton hidden - will reconsider placement later */}
         {/* <div className="absolute top-2 left-2">
           <FavoriteButton listingId={auction.listingId} />
         </div> */}
         {/* Overlay with gradient and data - only visible on hover */}
-        <div className="absolute bottom-0 left-0 right-0 h-[33.33%] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto">
+        <div className="absolute bottom-0 left-0 right-0 h-[33.33%] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto" data-no-click>
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none"></div>
           {/* Content overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-5 relative z-10 pointer-events-auto">
+          <div className="absolute bottom-0 left-0 right-0 p-5 z-10 pointer-events-auto" data-no-click>
             <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
             {contractName && (
               <div className="text-xs text-[#999999] mb-1 line-clamp-1">
@@ -414,8 +429,47 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
           </div>
         </div>
       </div>
+      {/* Title and Artist - Always visible below image */}
+      <div className="mt-2 px-1">
+        <div className="text-xs font-normal text-white line-clamp-1 mb-0.5">{title}</div>
+        {showArtist ? (
+          <div className="text-[10px] text-[#999999] line-clamp-1">
+            by{" "}
+            {creatorUsername ? (
+              <TransitionLink
+                href={`/user/${creatorUsername}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-white transition-colors"
+              >
+                {displayArtist}
+              </TransitionLink>
+            ) : addressToShow ? (
+              <TransitionLink
+                href={`/user/${addressToShow}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-white transition-colors"
+              >
+                {displayArtist}
+              </TransitionLink>
+            ) : (
+              displayArtist
+            )}
+          </div>
+        ) : addressToShow && !artistNameLoading ? (
+          <div className="text-[10px] text-[#999999] flex items-center gap-1.5">
+            <TransitionLink
+              href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
+              onClick={(e) => e.stopPropagation()}
+              className="font-mono hover:text-white transition-colors"
+            >
+              {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
+            </TransitionLink>
+            <CopyButton text={addressToShow} size="sm" />
+          </div>
+        ) : null}
+      </div>
       {/* Admin Context Menu - Below the card */}
-      <div className="mt-2 flex justify-end" onClick={(e) => e.stopPropagation()}>
+      <div className="mt-2 flex justify-end" data-no-click onClick={(e) => e.stopPropagation()}>
         <AdminContextMenu 
           listingId={auction.listingId} 
           sellerAddress={auction.seller}

@@ -17,26 +17,48 @@ import { useRouter } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 
-interface HomePageClientProps {
-  initialAuctions?: EnrichedAuctionData[];
+// Helper function to check if a listing is ERC721
+function isERC721(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
+  return tokenSpec === "ERC721" || String(tokenSpec) === "1";
 }
 
-export default function HomePageClient({ initialAuctions = [] }: HomePageClientProps) {
-  const [auctions, setAuctions] = useState<EnrichedAuctionData[]>(initialAuctions);
-  // Start with loading true only if we don't have initial data
-  const [loading, setLoading] = useState(initialAuctions.length === 0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const [subgraphDown, setSubgraphDown] = useState(false);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const pageSize = 20;
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  const loadingRef = useRef(initialAuctions.length === 0);
-  const loadingMoreRef = useRef(false);
-  const hasMoreRef = useRef(true);
-  const hasInitializedRef = useRef(false);
+// Helper function to check if a listing is ERC1155
+function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
+  return tokenSpec === "ERC1155" || String(tokenSpec) === "2";
+}
+
+export default function HomePageClient() {
+  // Recent NFTs (ERC721) state
+  const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>([]);
+  const [nftLoading, setNftLoading] = useState(true);
+  const [nftLoadingMore, setNftLoadingMore] = useState(false);
+  const [nftError, setNftError] = useState<string | null>(null);
+  const [nftLoadMoreError, setNftLoadMoreError] = useState<string | null>(null);
+  const [nftSubgraphDown, setNftSubgraphDown] = useState(false);
+  const [nftPage, setNftPage] = useState(0);
+  const [nftHasMore, setNftHasMore] = useState(true);
+  const nftLoadMoreRef = useRef<HTMLDivElement>(null);
+  const nftLoadingRef = useRef(true);
+  const nftLoadingMoreRef = useRef(false);
+  const nftHasMoreRef = useRef(true);
+  const nftHasInitializedRef = useRef(false);
+
+  // Recent Editions (ERC1155) state
+  const [editionListings, setEditionListings] = useState<EnrichedAuctionData[]>([]);
+  const [editionLoading, setEditionLoading] = useState(true);
+  const [editionLoadingMore, setEditionLoadingMore] = useState(false);
+  const [editionError, setEditionError] = useState<string | null>(null);
+  const [editionLoadMoreError, setEditionLoadMoreError] = useState<string | null>(null);
+  const [editionSubgraphDown, setEditionSubgraphDown] = useState(false);
+  const [editionPage, setEditionPage] = useState(0);
+  const [editionHasMore, setEditionHasMore] = useState(true);
+  const editionLoadMoreRef = useRef<HTMLDivElement>(null);
+  const editionLoadingRef = useRef(true);
+  const editionLoadingMoreRef = useRef(false);
+  const editionHasMoreRef = useRef(true);
+  const editionHasInitializedRef = useRef(false);
+
+  const pageSize = 40; // Fetch 40 listings per section
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
@@ -57,90 +79,160 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
 
-  // Fetch recent listings with pagination
-  const fetchRecentListings = useCallback(async (pageNum: number, append: boolean = false) => {
+  // Fetch recent NFTs (ERC721) with pagination
+  const fetchRecentNFTs = useCallback(async (pageNum: number, append: boolean = false) => {
     if (append) {
-      setLoadingMore(true);
-      loadingMoreRef.current = true;
+      setNftLoadingMore(true);
+      nftLoadingMoreRef.current = true;
     } else {
-      setLoading(true);
-      loadingRef.current = true;
+      setNftLoading(true);
+      nftLoadingRef.current = true;
     }
-    setError(null);
+    setNftError(null);
     try {
+      // Fetch more than needed to account for filtering
+      const fetchCount = pageSize * 2; // Fetch 2x to ensure we get enough after filtering
       const skip = pageNum * pageSize;
-      console.log('[HomePageClient] Fetching recent listings...', { pageNum, skip });
+      console.log('[HomePageClient] Fetching recent NFTs...', { pageNum, skip, fetchCount });
       const startTime = Date.now();
-      // Fetch recent listings ordered by creation date (newest first)
-      const response = await fetch(`/api/listings/browse?first=${pageSize}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true`);
+      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true`);
       const fetchTime = Date.now() - startTime;
-      console.log('[HomePageClient] Fetch completed in', fetchTime, 'ms, status:', response.status);
+      console.log('[HomePageClient] NFT fetch completed in', fetchTime, 'ms, status:', response.status);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const parseStartTime = Date.now();
       const data = await response.json();
-      const parseTime = Date.now() - parseStartTime;
-      console.log('[HomePageClient] JSON parsed in', parseTime, 'ms');
-      
-      const recentListings = data.listings || [];
+      const allListings = data.listings || [];
+      // Filter for ERC721 only
+      const nftListings = allListings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
       const isSubgraphDown = data.subgraphDown || false;
-      console.log('[HomePageClient] Received listings:', recentListings.length, 'hasMore:', data.pagination?.hasMore, 'subgraphDown:', isSubgraphDown);
+      console.log('[HomePageClient] Received NFTs:', nftListings.length, 'from', allListings.length, 'total listings');
+      
+      // Take only the requested amount
+      const listingsToAdd = nftListings.slice(0, pageSize);
       
       if (append) {
-        setAuctions((prev) => [...prev, ...recentListings]);
+        setNftListings((prev) => [...prev, ...listingsToAdd]);
       } else {
-        setAuctions(recentListings);
-        setSubgraphDown(isSubgraphDown);
+        setNftListings(listingsToAdd);
+        setNftSubgraphDown(isSubgraphDown);
       }
-      const moreAvailable = data.pagination?.hasMore || false;
-      setHasMore(moreAvailable);
-      hasMoreRef.current = moreAvailable;
-      // Clear any previous load more errors on success
+      
+      // Check if there might be more (if we got the full fetchCount and still have more after filtering)
+      const moreAvailable = allListings.length === fetchCount && (nftListings.length >= pageSize || data.pagination?.hasMore);
+      setNftHasMore(moreAvailable);
+      nftHasMoreRef.current = moreAvailable;
+      
       if (append) {
-        setLoadMoreError(null);
+        setNftLoadMoreError(null);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
-      console.error('[HomePageClient] Error fetching listings:', errorMessage, error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch NFTs';
+      console.error('[HomePageClient] Error fetching NFTs:', errorMessage, error);
       if (append) {
-        setLoadMoreError(errorMessage);
+        setNftLoadMoreError(errorMessage);
       } else {
-        setError(errorMessage);
-        // Keep using initialAuctions on error for initial load
-        setAuctions(initialAuctions);
+        setNftError(errorMessage);
       }
     } finally {
       if (append) {
-        setLoadingMore(false);
-        loadingMoreRef.current = false;
+        setNftLoadingMore(false);
+        nftLoadingMoreRef.current = false;
       } else {
-        setLoading(false);
-        loadingRef.current = false;
+        setNftLoading(false);
+        nftLoadingRef.current = false;
       }
     }
-  }, [initialAuctions, pageSize]);
+  }, [pageSize]);
 
-  // Set up intersection observer for infinite scroll
+  // Fetch recent Editions (ERC1155) with pagination
+  const fetchRecentEditions = useCallback(async (pageNum: number, append: boolean = false) => {
+    if (append) {
+      setEditionLoadingMore(true);
+      editionLoadingMoreRef.current = true;
+    } else {
+      setEditionLoading(true);
+      editionLoadingRef.current = true;
+    }
+    setEditionError(null);
+    try {
+      // Fetch more than needed to account for filtering
+      const fetchCount = pageSize * 2; // Fetch 2x to ensure we get enough after filtering
+      const skip = pageNum * pageSize;
+      console.log('[HomePageClient] Fetching recent Editions...', { pageNum, skip, fetchCount });
+      const startTime = Date.now();
+      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true`);
+      const fetchTime = Date.now() - startTime;
+      console.log('[HomePageClient] Edition fetch completed in', fetchTime, 'ms, status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const allListings = data.listings || [];
+      // Filter for ERC1155 only
+      const editionListings = allListings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
+      const isSubgraphDown = data.subgraphDown || false;
+      console.log('[HomePageClient] Received Editions:', editionListings.length, 'from', allListings.length, 'total listings');
+      
+      // Take only the requested amount
+      const listingsToAdd = editionListings.slice(0, pageSize);
+      
+      if (append) {
+        setEditionListings((prev) => [...prev, ...listingsToAdd]);
+      } else {
+        setEditionListings(listingsToAdd);
+        setEditionSubgraphDown(isSubgraphDown);
+      }
+      
+      // Check if there might be more (if we got the full fetchCount and still have more after filtering)
+      const moreAvailable = allListings.length === fetchCount && (editionListings.length >= pageSize || data.pagination?.hasMore);
+      setEditionHasMore(moreAvailable);
+      editionHasMoreRef.current = moreAvailable;
+      
+      if (append) {
+        setEditionLoadMoreError(null);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Editions';
+      console.error('[HomePageClient] Error fetching Editions:', errorMessage, error);
+      if (append) {
+        setEditionLoadMoreError(errorMessage);
+      } else {
+        setEditionError(errorMessage);
+      }
+    } finally {
+      if (append) {
+        setEditionLoadingMore(false);
+        editionLoadingMoreRef.current = false;
+      } else {
+        setEditionLoading(false);
+        editionLoadingRef.current = false;
+      }
+    }
+  }, [pageSize]);
+
+  // Set up intersection observer for NFTs infinite scroll
   useEffect(() => {
-    const observer = loadMoreRef.current;
+    const observer = nftLoadMoreRef.current;
     if (!observer) return;
 
     const intersectionObserver = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry?.isIntersecting && hasMoreRef.current && !loadingRef.current && !loadingMoreRef.current) {
-          setPage((currentPage) => {
+        if (entry?.isIntersecting && nftHasMoreRef.current && !nftLoadingRef.current && !nftLoadingMoreRef.current) {
+          setNftPage((currentPage) => {
             const nextPage = currentPage + 1;
-            fetchRecentListings(nextPage, true);
+            fetchRecentNFTs(nextPage, true);
             return nextPage;
           });
         }
       },
       {
-        rootMargin: '200px', // Start loading 200px before reaching the bottom
+        rootMargin: '200px',
         threshold: 0.1,
       }
     );
@@ -150,66 +242,50 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     return () => {
       intersectionObserver.disconnect();
     };
-  }, [fetchRecentListings]);
+  }, [fetchRecentNFTs]);
 
-  // Use server-side cached data initially and check for fresh listings
+  // Set up intersection observer for Editions infinite scroll
   useEffect(() => {
-    // Prevent double-fetching in React Strict Mode
-    if (hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
-    
-    // If we have initial auctions from server, use them (they're from ISR cache)
-    // Only fetch if we don't have any initial data
-    if (initialAuctions.length === 0) {
-      fetchRecentListings(0, false);
-    } else {
-      // We have initial data from server (ISR cache), use it immediately
-      setAuctions(initialAuctions);
-      // Ensure loading is false since we have data
-      setLoading(false);
-      loadingRef.current = false;
-      // Check if there might be more listings
-      const moreAvailable = initialAuctions.length >= pageSize;
-      setHasMore(moreAvailable);
-      hasMoreRef.current = moreAvailable;
-      
-      // Optimistically check for fresh listings in the background
-      // This provides real-time updates without blocking the initial render
-      checkForFreshListings();
-    }
-  }, []); // Empty deps - only run once on mount
+    const observer = editionLoadMoreRef.current;
+    if (!observer) return;
 
-  // Check for fresh listings that may have appeared since the ISR cache was generated
-  const checkForFreshListings = useCallback(async () => {
-    if (initialAuctions.length === 0) return;
-    
-    try {
-      // Get the most recent listing ID from our initial data
-      const mostRecentId = initialAuctions[0]?.listingId;
-      if (!mostRecentId) return;
-      
-      // Fetch just the first few listings to see if there are any new ones
-      const response = await fetch(`/api/listings/browse?first=5&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true`);
-      if (!response.ok) return;
-      
-      const data = await response.json();
-      const freshListings = data.listings || [];
-      
-      // Find any listings newer than what we have
-      const newListings = freshListings.filter((listing: EnrichedAuctionData) => 
-        !initialAuctions.some(existing => existing.listingId === listing.listingId)
-      );
-      
-      // If we found new listings, prepend them to the list
-      if (newListings.length > 0) {
-        console.log(`[HomePageClient] Found ${newListings.length} fresh listings, prepending to list`);
-        setAuctions(prev => [...newListings, ...prev]);
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting && editionHasMoreRef.current && !editionLoadingRef.current && !editionLoadingMoreRef.current) {
+          setEditionPage((currentPage) => {
+            const nextPage = currentPage + 1;
+            fetchRecentEditions(nextPage, true);
+            return nextPage;
+          });
+        }
+      },
+      {
+        rootMargin: '200px',
+        threshold: 0.1,
       }
-    } catch (error) {
-      // Silently fail - this is an optimization, not critical
-      console.debug('[HomePageClient] Error checking for fresh listings:', error);
-    }
-  }, [initialAuctions]);
+    );
+
+    intersectionObserver.observe(observer);
+
+    return () => {
+      intersectionObserver.disconnect();
+    };
+  }, [fetchRecentEditions]);
+
+  // Initialize NFTs section
+  useEffect(() => {
+    if (nftHasInitializedRef.current) return;
+    nftHasInitializedRef.current = true;
+    fetchRecentNFTs(0, false);
+  }, [fetchRecentNFTs]);
+
+  // Initialize Editions section
+  useEffect(() => {
+    if (editionHasInitializedRef.current) return;
+    editionHasInitializedRef.current = true;
+    fetchRecentEditions(0, false);
+  }, [fetchRecentEditions]);
 
 
   return (
@@ -284,20 +360,20 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         </section>
       )}
 
-      {/* Recent Listings */}
-      <section id="listings" className="px-5 py-8">
+      {/* Recent NFTs (721s) */}
+      <section id="nfts" className="px-5 py-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-[13px] uppercase tracking-[2px] text-[#999999] font-mek-mono">
-            Recent Listings
+            Recent NFTs
           </h2>
           <div className="flex items-center gap-3">
-            {auctions.length > 0 && (
+            {nftListings.length > 0 && (
               <TransitionLink
                 href="/market?tab=recent"
                 prefetch={false}
                 className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
               >
-                View All Recent →
+                View All →
               </TransitionLink>
             )}
             <div className="flex items-center gap-2 text-xs text-[#999999] font-mek-mono">
@@ -328,35 +404,35 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         </div>
 
-        {loading ? (
+        {nftLoading ? (
           <div className="text-center py-12">
-            <p className="text-[#cccccc]">Loading listings...</p>
+            <p className="text-[#cccccc]">Loading NFTs...</p>
           </div>
-        ) : error ? (
+        ) : nftError ? (
           <div className="text-center py-12">
-            <p className="text-red-400 mb-2">Error loading listings</p>
-            <p className="text-[#999999] text-sm mb-4">{error}</p>
+            <p className="text-red-400 mb-2">Error loading NFTs</p>
+            <p className="text-[#999999] text-sm mb-4">{nftError}</p>
             <button
               onClick={() => {
-                setAuctions([]);
-                setPage(0);
-                fetchRecentListings(0, false);
+                setNftListings([]);
+                setNftPage(0);
+                fetchRecentNFTs(0, false);
               }}
               className="text-white hover:underline"
             >
               Retry
             </button>
           </div>
-        ) : auctions.length === 0 ? (
+        ) : nftListings.length === 0 ? (
           <div className="text-center py-12">
-            {subgraphDown ? (
+            {nftSubgraphDown ? (
               <>
-                <p className="text-[#cccccc] mb-2">Unable to load listings</p>
+                <p className="text-[#cccccc] mb-2">Unable to load NFTs</p>
                 <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
                 <button
                   onClick={() => {
-                    setSubgraphDown(false);
-                    fetchRecentListings(0, false);
+                    setNftSubgraphDown(false);
+                    fetchRecentNFTs(0, false);
                   }}
                   className="text-white hover:underline text-sm"
                 >
@@ -365,7 +441,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
               </>
             ) : (
               <>
-                <p className="text-[#cccccc] mb-4">No listings found</p>
+                <p className="text-[#cccccc] mb-4">No NFTs found</p>
                 {isMember && (
                   <TransitionLink
                     href="/create"
@@ -381,10 +457,10 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
         ) : (
           <>
             {viewMode === "list" ? (
-              <RecentListingsTable listings={auctions} loading={false} />
+              <RecentListingsTable listings={nftListings} loading={false} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {auctions.map((auction, index) => (
+                {nftListings.map((auction, index) => (
                   <AuctionCard
                     key={auction.id}
                     auction={auction}
@@ -394,28 +470,24 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 ))}
               </div>
             )}
-            {/* Intersection observer target for infinite scroll */}
-            <div ref={loadMoreRef} className="h-1" />
-            {/* Loading indicator when loading more */}
-            {loadingMore && (
+            <div ref={nftLoadMoreRef} className="h-1" />
+            {nftLoadingMore && (
               <div className="text-center py-8">
                 <div className="inline-flex items-center gap-3">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-[#cccccc] text-sm">Loading more listings...</p>
+                  <p className="text-[#cccccc] text-sm">Loading more NFTs...</p>
                 </div>
               </div>
             )}
-
-            {/* Load more error */}
-            {loadMoreError && !loadingMore && (
+            {nftLoadMoreError && !nftLoadingMore && (
               <div className="text-center py-8">
-                <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
+                <p className="text-red-400 text-sm mb-3">{nftLoadMoreError}</p>
                 <button
                   onClick={() => {
-                    setLoadMoreError(null);
-                    setPage((currentPage) => {
+                    setNftLoadMoreError(null);
+                    setNftPage((currentPage) => {
                       const nextPage = currentPage + 1;
-                      fetchRecentListings(nextPage, true);
+                      fetchRecentNFTs(nextPage, true);
                       return nextPage;
                     });
                   }}
@@ -425,11 +497,155 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
                 </button>
               </div>
             )}
-
-            {/* End of list indicator */}
-            {!hasMore && auctions.length > 0 && !loadingMore && !loadMoreError && (
+            {!nftHasMore && nftListings.length > 0 && !nftLoadingMore && !nftLoadMoreError && (
               <div className="text-center py-8">
-                <p className="text-[#666666] text-xs">No more listings to load</p>
+                <p className="text-[#666666] text-xs">No more NFTs to load</p>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* Recent Editions */}
+      <section id="editions" className="px-5 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-[13px] uppercase tracking-[2px] text-[#999999] font-mek-mono">
+            Recent Editions
+          </h2>
+          <div className="flex items-center gap-3">
+            {editionListings.length > 0 && (
+              <TransitionLink
+                href="/market?tab=recent"
+                prefetch={false}
+                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+              >
+                View All →
+              </TransitionLink>
+            )}
+            <div className="flex items-center gap-2 text-xs text-[#999999] font-mek-mono">
+              <span>View</span>
+              <div className="flex rounded border border-[#333333] overflow-hidden">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`px-2 py-1 transition-colors ${
+                    viewMode === "list"
+                      ? "bg-white text-black"
+                      : "text-[#999999] hover:text-white"
+                  }`}
+                >
+                  List
+                </button>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`px-2 py-1 transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-white text-black"
+                      : "text-[#999999] hover:text-white"
+                  }`}
+                >
+                  Grid
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {editionLoading ? (
+          <div className="text-center py-12">
+            <p className="text-[#cccccc]">Loading editions...</p>
+          </div>
+        ) : editionError ? (
+          <div className="text-center py-12">
+            <p className="text-red-400 mb-2">Error loading editions</p>
+            <p className="text-[#999999] text-sm mb-4">{editionError}</p>
+            <button
+              onClick={() => {
+                setEditionListings([]);
+                setEditionPage(0);
+                fetchRecentEditions(0, false);
+              }}
+              className="text-white hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        ) : editionListings.length === 0 ? (
+          <div className="text-center py-12">
+            {editionSubgraphDown ? (
+              <>
+                <p className="text-[#cccccc] mb-2">Unable to load editions</p>
+                <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
+                <button
+                  onClick={() => {
+                    setEditionSubgraphDown(false);
+                    fetchRecentEditions(0, false);
+                  }}
+                  className="text-white hover:underline text-sm"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-[#cccccc] mb-4">No editions found</p>
+                {isMember && (
+                  <TransitionLink
+                    href="/create"
+                    prefetch={false}
+                    className="text-white hover:underline"
+                  >
+                    Create your first listing
+                  </TransitionLink>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            {viewMode === "list" ? (
+              <RecentListingsTable listings={editionListings} loading={false} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {editionListings.map((auction, index) => (
+                  <AuctionCard
+                    key={auction.id}
+                    auction={auction}
+                    gradient={gradients[index % gradients.length]}
+                    index={index}
+                  />
+                ))}
+              </div>
+            )}
+            <div ref={editionLoadMoreRef} className="h-1" />
+            {editionLoadingMore && (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[#cccccc] text-sm">Loading more editions...</p>
+                </div>
+              </div>
+            )}
+            {editionLoadMoreError && !editionLoadingMore && (
+              <div className="text-center py-8">
+                <p className="text-red-400 text-sm mb-3">{editionLoadMoreError}</p>
+                <button
+                  onClick={() => {
+                    setEditionLoadMoreError(null);
+                    setEditionPage((currentPage) => {
+                      const nextPage = currentPage + 1;
+                      fetchRecentEditions(nextPage, true);
+                      return nextPage;
+                    });
+                  }}
+                  className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!editionHasMore && editionListings.length > 0 && !editionLoadingMore && !editionLoadMoreError && (
+              <div className="text-center py-8">
+                <p className="text-[#666666] text-xs">No more editions to load</p>
               </div>
             )}
           </>
