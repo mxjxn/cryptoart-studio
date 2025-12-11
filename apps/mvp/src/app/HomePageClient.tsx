@@ -152,19 +152,18 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
     };
   }, [fetchRecentListings]);
 
-  // Use server-side cached data initially
-  // Only refetch if we don't have initial data (e.g., after navigation)
+  // Use server-side cached data initially and check for fresh listings
   useEffect(() => {
     // Prevent double-fetching in React Strict Mode
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
     
-    // If we have initial auctions from server, use them (they're cached server-side)
+    // If we have initial auctions from server, use them (they're from ISR cache)
     // Only fetch if we don't have any initial data
     if (initialAuctions.length === 0) {
       fetchRecentListings(0, false);
     } else {
-      // We have initial data from server, use it
+      // We have initial data from server (ISR cache), use it immediately
       setAuctions(initialAuctions);
       // Ensure loading is false since we have data
       setLoading(false);
@@ -173,8 +172,45 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       const moreAvailable = initialAuctions.length >= pageSize;
       setHasMore(moreAvailable);
       hasMoreRef.current = moreAvailable;
+      
+      // Optimistically check for fresh listings in the background
+      // This provides real-time updates without blocking the initial render
+      checkForFreshListings();
     }
   }, []); // Empty deps - only run once on mount
+
+  // Check for fresh listings that may have appeared since the ISR cache was generated
+  const checkForFreshListings = useCallback(async () => {
+    if (initialAuctions.length === 0) return;
+    
+    try {
+      // Get the most recent listing ID from our initial data
+      const mostRecentId = initialAuctions[0]?.listingId;
+      if (!mostRecentId) return;
+      
+      // Fetch just the first few listings to see if there are any new ones
+      const response = await fetch(`/api/listings/browse?first=5&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true`);
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      const freshListings = data.listings || [];
+      
+      // Find any listings newer than what we have
+      const newListings = freshListings.filter((listing: EnrichedAuctionData) => 
+        !initialAuctions.some(existing => existing.listingId === listing.listingId)
+      );
+      
+      // If we found new listings, prepend them to the list
+      if (newListings.length > 0) {
+        console.log(`[HomePageClient] Found ${newListings.length} fresh listings, prepending to list`);
+        setAuctions(prev => [...newListings, ...prev]);
+      }
+    } catch (error) {
+      // Silently fail - this is an optimization, not critical
+      console.debug('[HomePageClient] Error checking for fresh listings:', error);
+    }
+  }, [initialAuctions]);
+
 
   return (
     <div className="min-h-screen bg-black text-white">
