@@ -374,55 +374,58 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
           }`}
           data-no-click
         >
-          {/* Gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pointer-events-none"></div>
+          {/* Gradient background - semi-translucent to less-translucent */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent pointer-events-none"></div>
           {/* Content overlay */}
           <div className="absolute bottom-0 left-0 right-0 p-5 z-10 pointer-events-auto" data-no-click>
-            <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
-            {contractName && (
-              <div className="text-xs text-[#999999] mb-1 line-clamp-1">
-                {!isERC1155 && auction.tokenId && auction.erc721TotalSupply !== undefined && auction.erc721TotalSupply !== null
-                  ? `${contractName} #${auction.tokenId} out of ${auction.erc721TotalSupply}`
-                  : !isERC1155 && auction.tokenId
-                    ? `${contractName} #${auction.tokenId}`
-                    : contractName}
-              </div>
-            )}
-            {showArtist ? (
-              <div className="text-xs text-[#cccccc] mb-2">
-                by{" "}
-                {creatorUsername ? (
+            {/* Title and creator with 40% opacity black background */}
+            <div className="bg-black/40 px-2 py-1.5 -mx-2 -mt-2 mb-2 rounded-sm">
+              <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
+              {contractName && (
+                <div className="text-xs text-[#999999] mb-1 line-clamp-1">
+                  {!isERC1155 && auction.tokenId && auction.erc721TotalSupply !== undefined && auction.erc721TotalSupply !== null
+                    ? `${contractName} #${auction.tokenId} out of ${auction.erc721TotalSupply}`
+                    : !isERC1155 && auction.tokenId
+                      ? `${contractName} #${auction.tokenId}`
+                      : contractName}
+                </div>
+              )}
+              {showArtist ? (
+                <div className="text-xs text-[#cccccc]">
+                  by{" "}
+                  {creatorUsername ? (
+                    <TransitionLink
+                      href={`/user/${creatorUsername}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {displayArtist}
+                    </TransitionLink>
+                  ) : addressToShow ? (
+                    <TransitionLink
+                      href={`/user/${addressToShow}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:underline"
+                    >
+                      {displayArtist}
+                    </TransitionLink>
+                  ) : (
+                    displayArtist
+                  )}
+                </div>
+              ) : addressToShow && !artistNameLoading ? (
+                <div className="text-xs text-[#cccccc] flex items-center gap-1.5">
                   <TransitionLink
-                    href={`/user/${creatorUsername}`}
+                    href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="hover:underline"
+                    className="font-mono text-[10px] hover:underline"
                   >
-                    {displayArtist}
+                    {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
                   </TransitionLink>
-                ) : addressToShow ? (
-                  <TransitionLink
-                    href={`/user/${addressToShow}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:underline"
-                  >
-                    {displayArtist}
-                  </TransitionLink>
-                ) : (
-                  displayArtist
-                )}
-              </div>
-            ) : addressToShow && !artistNameLoading ? (
-              <div className="text-xs text-[#cccccc] mb-2 flex items-center gap-1.5">
-                <TransitionLink
-                  href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="font-mono text-[10px] hover:underline"
-                >
-                  {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
-                </TransitionLink>
-                <CopyButton text={addressToShow} size="sm" />
-              </div>
-            ) : null}
+                  <CopyButton text={addressToShow} size="sm" />
+                </div>
+              ) : null}
+            </div>
             {supplyDisplay}
             <div className="mb-1">
               <div className="text-xs text-[#999999] leading-tight">
