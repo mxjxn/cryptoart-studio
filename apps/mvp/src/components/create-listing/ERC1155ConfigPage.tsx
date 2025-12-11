@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useERC20Token } from "~/hooks/useERC20Token";
 import { zeroAddress } from "viem";
 import { NumberSelector } from "./NumberSelector";
@@ -34,13 +34,23 @@ export function ERC1155ConfigPage({
   onSubmit,
   isSubmitting = false,
 }: ERC1155ConfigPageProps) {
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState("0.1"); // Sensible default
   const [quantity, setQuantity] = useState("1");
   const [paymentType, setPaymentType] = useState<"ETH" | "ERC20">("ETH");
   const [erc20Address, setErc20Address] = useState("");
   const [useTimeframe, setUseTimeframe] = useState(true);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  
+  // Validation state
+  const [priceValid, setPriceValid] = useState(true);
+  const [priceError, setPriceError] = useState<string | undefined>();
+  const [quantityValid, setQuantityValid] = useState(true);
+  const [quantityError, setQuantityError] = useState<string | undefined>();
+  const [startTimeValid, setStartTimeValid] = useState(true);
+  const [startTimeError, setStartTimeError] = useState<string | undefined>();
+  const [endTimeValid, setEndTimeValid] = useState(true);
+  const [endTimeError, setEndTimeError] = useState<string | undefined>();
 
   // Auto-fill start time with current date/time when switching to timeframe mode
   // Clear times when switching to no timeframe mode
@@ -64,6 +74,33 @@ export function ERC1155ConfigPage({
   const isValidERC20 = paymentType === "ETH" || (paymentType === "ERC20" && erc20Token.isValid);
   const priceSymbol = paymentType === "ETH" ? "ETH" : (erc20Token.symbol || "TOKEN");
 
+  // Overall form validation
+  const isFormValid = useMemo(() => {
+    if (!priceValid) return false;
+    if (!quantityValid) return false;
+    if (!isValidERC20) return false;
+    if (useTimeframe) {
+      if (!startTimeValid || !endTimeValid) return false;
+      if (!startTime || !endTime) return false;
+    }
+    return true;
+  }, [priceValid, quantityValid, isValidERC20, useTimeframe, startTimeValid, endTimeValid, startTime, endTime]);
+
+  // Collect all errors
+  const allErrors = useMemo(() => {
+    const errors: string[] = [];
+    if (!priceValid && priceError) errors.push(`Price: ${priceError}`);
+    if (!quantityValid && quantityError) errors.push(`Quantity: ${quantityError}`);
+    if (!isValidERC20 && paymentType === "ERC20") {
+      errors.push("ERC20 Address: Please enter a valid ERC20 token address");
+    }
+    if (useTimeframe) {
+      if (!startTimeValid && startTimeError) errors.push(`Start Time: ${startTimeError}`);
+      if (!endTimeValid && endTimeError) errors.push(`End Time: ${endTimeError}`);
+    }
+    return errors;
+  }, [priceValid, priceError, quantityValid, quantityError, isValidERC20, paymentType, useTimeframe, startTimeValid, startTimeError, endTimeValid, endTimeError]);
+
   const handleQuickEndTime = (hours: number) => {
     if (!startTime) return;
     const start = new Date(startTime);
@@ -79,16 +116,11 @@ export function ERC1155ConfigPage({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation is handled by constrained selectors, but ensure we have valid values
-    if (!price || parseFloat(price) <= 0) {
-      return; // NumberSelector prevents invalid values, but guard against edge cases
+    if (!isFormValid) {
+      return;
     }
 
     const quantityNum = parseInt(quantity);
-    if (quantityNum < 1 || quantityNum > balance) {
-      return; // NumberSelector prevents invalid values, but guard against edge cases
-    }
-
     onSubmit({
       price,
       quantity: quantityNum,
@@ -113,6 +145,10 @@ export function ERC1155ConfigPage({
       <NumberSelector
         value={quantity}
         onChange={setQuantity}
+        onValidationChange={(isValid, error) => {
+          setQuantityValid(isValid);
+          setQuantityError(error);
+        }}
         min={1}
         max={balance}
         step={1}
@@ -178,6 +214,10 @@ export function ERC1155ConfigPage({
       <NumberSelector
         value={price}
         onChange={setPrice}
+        onValidationChange={(isValid, error) => {
+          setPriceValid(isValid);
+          setPriceError(error);
+        }}
         min={0.001}
         step={0.001}
         label={`Price Per Copy (${priceSymbol})`}
@@ -210,7 +250,7 @@ export function ERC1155ConfigPage({
             <div>
               <span className="text-sm text-white">No timeframe - open until sold out</span>
               <p className="text-xs text-[#666666] mt-0.5">
-                Listing starts immediately and remains active for ~100 years or until all copies are sold
+                Listing starts immediately and remains active for ~10 years or until all copies are sold
               </p>
             </div>
           </label>
@@ -222,17 +262,11 @@ export function ERC1155ConfigPage({
             <DateSelector
               value={startTime}
               onChange={setStartTime}
-              min={(() => {
-                // Allow editing even if slightly in the past - set min to 1 hour ago
-                const oneHourAgo = new Date();
-                oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-                const year = oneHourAgo.getFullYear();
-                const month = String(oneHourAgo.getMonth() + 1).padStart(2, "0");
-                const day = String(oneHourAgo.getDate()).padStart(2, "0");
-                const hours = String(oneHourAgo.getHours()).padStart(2, "0");
-                const minutes = String(oneHourAgo.getMinutes()).padStart(2, "0");
-                return `${year}-${month}-${day}T${hours}:${minutes}`;
-              })()}
+              onValidationChange={(isValid, error) => {
+                setStartTimeValid(isValid);
+                setStartTimeError(error);
+              }}
+              min={getMinDateTime()}
               max={getMaxDateTime(10)}
               label="Start Time"
             />
@@ -242,19 +276,14 @@ export function ERC1155ConfigPage({
               <DateSelector
                 value={endTime}
                 onChange={setEndTime}
-                min={startTime ? getDateTimeAfterHours(startTime, 1) : (() => {
-                  // Allow editing even if slightly in the past - set min to 1 hour ago
-                  const oneHourAgo = new Date();
-                  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-                  const year = oneHourAgo.getFullYear();
-                  const month = String(oneHourAgo.getMonth() + 1).padStart(2, "0");
-                  const day = String(oneHourAgo.getDate()).padStart(2, "0");
-                  const hours = String(oneHourAgo.getHours()).padStart(2, "0");
-                  const minutes = String(oneHourAgo.getMinutes()).padStart(2, "0");
-                  return `${year}-${month}-${day}T${hours}:${minutes}`;
-                })()}
+                onValidationChange={(isValid, error) => {
+                  setEndTimeValid(isValid);
+                  setEndTimeError(error);
+                }}
+                min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
                 max={getMaxDateTime(10)}
                 label="End Time"
+                required
               />
               <div className="flex gap-2 flex-wrap mt-2">
                 <button
@@ -291,6 +320,18 @@ export function ERC1155ConfigPage({
         )}
       </div>
 
+      {/* Error Messages */}
+      {allErrors.length > 0 && (
+        <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+          <p className="text-red-400 text-sm font-medium mb-2">Please fix the following errors:</p>
+          <ul className="list-disc list-inside text-red-300 text-xs space-y-1">
+            {allErrors.map((error, idx) => (
+              <li key={idx}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex gap-3 pt-4 border-t border-[#333333]">
         <button
@@ -302,7 +343,7 @@ export function ERC1155ConfigPage({
         </button>
         <button
           type="submit"
-          disabled={isSubmitting || !isValidERC20 || !price || parseFloat(quantity) < 1}
+          disabled={isSubmitting || !isFormValid}
           className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Creating Listing..." : "Create Listing"}

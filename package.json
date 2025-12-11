@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "build": "turbo run build --filter=mvp",
-    "dev": "turbo run dev --filter=mvp",
+    "dev": "concurrently \"turbo run dev --filter=mvp\" \"ngrok http 3000\"",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
@@ -32,6 +32,7 @@
     "@mxjxn/lssvm-abis": "^0.1.0"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "prettier": "^3.6.2",
     "turbo": "^2.5.8",
     "typescript": "5.9.2"

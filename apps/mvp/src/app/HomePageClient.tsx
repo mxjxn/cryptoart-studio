@@ -28,6 +28,7 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [subgraphDown, setSubgraphDown] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
@@ -85,12 +86,14 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
       console.log('[HomePageClient] JSON parsed in', parseTime, 'ms');
       
       const recentListings = data.listings || [];
-      console.log('[HomePageClient] Received listings:', recentListings.length, 'hasMore:', data.pagination?.hasMore);
+      const isSubgraphDown = data.subgraphDown || false;
+      console.log('[HomePageClient] Received listings:', recentListings.length, 'hasMore:', data.pagination?.hasMore, 'subgraphDown:', isSubgraphDown);
       
       if (append) {
         setAuctions((prev) => [...prev, ...recentListings]);
       } else {
         setAuctions(recentListings);
+        setSubgraphDown(isSubgraphDown);
       }
       const moreAvailable = data.pagination?.hasMore || false;
       setHasMore(moreAvailable);
@@ -310,15 +313,33 @@ export default function HomePageClient({ initialAuctions = [] }: HomePageClientP
           </div>
         ) : auctions.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-[#cccccc] mb-4">No listings found</p>
-            {isMember && (
-              <TransitionLink
-                href="/create"
-                prefetch={false}
-                className="text-white hover:underline"
-              >
-                Create your first listing
-              </TransitionLink>
+            {subgraphDown ? (
+              <>
+                <p className="text-[#cccccc] mb-2">Unable to load listings</p>
+                <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
+                <button
+                  onClick={() => {
+                    setSubgraphDown(false);
+                    fetchRecentListings(0, false);
+                  }}
+                  className="text-white hover:underline text-sm"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-[#cccccc] mb-4">No listings found</p>
+                {isMember && (
+                  <TransitionLink
+                    href="/create"
+                    prefetch={false}
+                    className="text-white hover:underline"
+                  >
+                    Create your first listing
+                  </TransitionLink>
+                )}
+              </>
             )}
           </div>
         ) : (

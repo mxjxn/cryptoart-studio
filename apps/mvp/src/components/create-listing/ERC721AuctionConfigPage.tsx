@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useERC20Token } from "~/hooks/useERC20Token";
 import { DurationSelector } from "./DurationSelector";
 import { NumberSelector } from "./NumberSelector";
@@ -32,13 +32,21 @@ export function ERC721AuctionConfigPage({
   onSubmit,
   isSubmitting = false,
 }: ERC721AuctionConfigPageProps) {
-  const [reservePrice, setReservePrice] = useState("");
+  const [reservePrice, setReservePrice] = useState("0.1"); // Sensible default
   const [paymentType, setPaymentType] = useState<"ETH" | "ERC20">("ETH");
   const [erc20Address, setErc20Address] = useState("");
   const [timeMode, setTimeMode] = useState<"start_end" | "duration">("duration");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [durationSeconds, setDurationSeconds] = useState(7 * 24 * 60 * 60); // Default 1 week
+  
+  // Validation state
+  const [reservePriceValid, setReservePriceValid] = useState(true);
+  const [reservePriceError, setReservePriceError] = useState<string | undefined>();
+  const [startTimeValid, setStartTimeValid] = useState(true);
+  const [startTimeError, setStartTimeError] = useState<string | undefined>();
+  const [endTimeValid, setEndTimeValid] = useState(true);
+  const [endTimeError, setEndTimeError] = useState<string | undefined>();
 
   // Auto-fill start time when switching to start/end mode
   useEffect(() => {
@@ -57,6 +65,31 @@ export function ERC721AuctionConfigPage({
   const isValidERC20 = paymentType === "ETH" || (paymentType === "ERC20" && erc20Token.isValid);
   const priceSymbol = paymentType === "ETH" ? "ETH" : (erc20Token.symbol || "TOKEN");
 
+  // Overall form validation
+  const isFormValid = useMemo(() => {
+    if (!reservePriceValid) return false;
+    if (timeMode === "start_end") {
+      if (!startTimeValid || !endTimeValid) return false;
+      if (!startTime || !endTime) return false;
+    }
+    if (!isValidERC20) return false;
+    return true;
+  }, [reservePriceValid, startTimeValid, endTimeValid, timeMode, startTime, endTime, isValidERC20]);
+
+  // Collect all errors
+  const allErrors = useMemo(() => {
+    const errors: string[] = [];
+    if (!reservePriceValid && reservePriceError) errors.push(`Reserve Price: ${reservePriceError}`);
+    if (timeMode === "start_end") {
+      if (!startTimeValid && startTimeError) errors.push(`Start Time: ${startTimeError}`);
+      if (!endTimeValid && endTimeError) errors.push(`End Time: ${endTimeError}`);
+    }
+    if (!isValidERC20 && paymentType === "ERC20") {
+      errors.push("ERC20 Address: Please enter a valid ERC20 token address");
+    }
+    return errors;
+  }, [reservePriceValid, reservePriceError, startTimeValid, startTimeError, endTimeValid, endTimeError, isValidERC20, paymentType, timeMode]);
+
   const handleQuickEndTime = (hours: number) => {
     if (!startTime) return;
     const start = new Date(startTime);
@@ -72,9 +105,8 @@ export function ERC721AuctionConfigPage({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation is handled by constrained selectors, but ensure we have a value
-    if (!reservePrice || parseFloat(reservePrice) <= 0) {
-      return; // NumberSelector prevents invalid values, but guard against edge cases
+    if (!isFormValid) {
+      return;
     }
 
     onSubmit({
@@ -101,6 +133,10 @@ export function ERC721AuctionConfigPage({
       <NumberSelector
         value={reservePrice}
         onChange={setReservePrice}
+        onValidationChange={(isValid, error) => {
+          setReservePriceValid(isValid);
+          setReservePriceError(error);
+        }}
         min={0.001}
         step={0.001}
         label={`Reserve Price (${priceSymbol})`}
@@ -202,6 +238,10 @@ export function ERC721AuctionConfigPage({
             <DateSelector
               value={startTime}
               onChange={setStartTime}
+              onValidationChange={(isValid, error) => {
+                setStartTimeValid(isValid);
+                setStartTimeError(error);
+              }}
               min={getMinDateTime()}
               max={getMaxDateTime(10)}
               label="Start Time"
@@ -212,6 +252,10 @@ export function ERC721AuctionConfigPage({
               <DateSelector
                 value={endTime}
                 onChange={setEndTime}
+                onValidationChange={(isValid, error) => {
+                  setEndTimeValid(isValid);
+                  setEndTimeError(error);
+                }}
                 min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
                 max={getMaxDateTime(10)}
                 label="End Time"
@@ -252,6 +296,18 @@ export function ERC721AuctionConfigPage({
         )}
       </div>
 
+      {/* Error Messages */}
+      {allErrors.length > 0 && (
+        <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+          <p className="text-red-400 text-sm font-medium mb-2">Please fix the following errors:</p>
+          <ul className="list-disc list-inside text-red-300 text-xs space-y-1">
+            {allErrors.map((error, idx) => (
+              <li key={idx}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex gap-3 pt-4 border-t border-[#333333]">
         <button
@@ -263,7 +319,7 @@ export function ERC721AuctionConfigPage({
         </button>
         <button
           type="submit"
-          disabled={isSubmitting || !isValidERC20 || !reservePrice || (timeMode === "start_end" && !endTime)}
+          disabled={isSubmitting || !isFormValid}
           className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Creating Auction..." : "Create Auction"}

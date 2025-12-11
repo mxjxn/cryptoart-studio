@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useERC20Token } from "~/hooks/useERC20Token";
+import { NumberSelector } from "./NumberSelector";
+import { DateSelector, getMinDateTime, getMaxDateTime, getDateTimeAfterHours } from "./DateSelector";
 
 interface ERC721FixedPriceConfigPageProps {
   contractAddress: string;
@@ -28,12 +30,20 @@ export function ERC721FixedPriceConfigPage({
   onSubmit,
   isSubmitting = false,
 }: ERC721FixedPriceConfigPageProps) {
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState("0.1"); // Sensible default
   const [paymentType, setPaymentType] = useState<"ETH" | "ERC20">("ETH");
   const [erc20Address, setErc20Address] = useState("");
   const [useTimeframe, setUseTimeframe] = useState(true);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  
+  // Validation state
+  const [priceValid, setPriceValid] = useState(true);
+  const [priceError, setPriceError] = useState<string | undefined>();
+  const [startTimeValid, setStartTimeValid] = useState(true);
+  const [startTimeError, setStartTimeError] = useState<string | undefined>();
+  const [endTimeValid, setEndTimeValid] = useState(true);
+  const [endTimeError, setEndTimeError] = useState<string | undefined>();
 
   // Auto-fill start time with current date/time when switching to timeframe mode
   // Clear times when switching to no timeframe mode
@@ -57,6 +67,31 @@ export function ERC721FixedPriceConfigPage({
   const isValidERC20 = paymentType === "ETH" || (paymentType === "ERC20" && erc20Token.isValid);
   const priceSymbol = paymentType === "ETH" ? "ETH" : (erc20Token.symbol || "TOKEN");
 
+  // Overall form validation
+  const isFormValid = useMemo(() => {
+    if (!priceValid) return false;
+    if (!isValidERC20) return false;
+    if (useTimeframe) {
+      if (!startTimeValid || !endTimeValid) return false;
+      if (!startTime || !endTime) return false;
+    }
+    return true;
+  }, [priceValid, isValidERC20, useTimeframe, startTimeValid, endTimeValid, startTime, endTime]);
+
+  // Collect all errors
+  const allErrors = useMemo(() => {
+    const errors: string[] = [];
+    if (!priceValid && priceError) errors.push(`Price: ${priceError}`);
+    if (!isValidERC20 && paymentType === "ERC20") {
+      errors.push("ERC20 Address: Please enter a valid ERC20 token address");
+    }
+    if (useTimeframe) {
+      if (!startTimeValid && startTimeError) errors.push(`Start Time: ${startTimeError}`);
+      if (!endTimeValid && endTimeError) errors.push(`End Time: ${endTimeError}`);
+    }
+    return errors;
+  }, [priceValid, priceError, isValidERC20, paymentType, useTimeframe, startTimeValid, startTimeError, endTimeValid, endTimeError]);
+
   const handleQuickEndTime = (hours: number) => {
     if (!startTime) return;
     const start = new Date(startTime);
@@ -69,11 +104,11 @@ export function ERC721FixedPriceConfigPage({
     setEndTime(`${year}-${month}-${day}T${hrs}:${mins}`);
   };
 
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!price || parseFloat(price) <= 0) {
-      alert("Please enter a valid price");
+    if (!isFormValid) {
       return;
     }
 
@@ -151,20 +186,19 @@ export function ERC721FixedPriceConfigPage({
       </div>
 
       {/* Price Input */}
-      <div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-          Price ({priceSymbol})
-        </label>
-        <input
-          type="number"
-          step="0.001"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          className="w-full px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black"
-          placeholder="0.1"
-          required
-        />
-      </div>
+      <NumberSelector
+        value={price}
+        onChange={setPrice}
+        onValidationChange={(isValid, error) => {
+          setPriceValid(isValid);
+          setPriceError(error);
+        }}
+        min={0.001}
+        step={0.001}
+        label={`Price (${priceSymbol})`}
+        placeholder="0.1"
+        required
+      />
 
       {/* Timeframe Options */}
       <div>
@@ -200,68 +234,31 @@ export function ERC721FixedPriceConfigPage({
         {useTimeframe && (
           <div className="mt-4 space-y-4">
             {/* Start Time */}
-            <div>
-              <label className="block text-xs text-[#cccccc] mb-2">Start Time</label>
-              <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                min={(() => {
-                  // Allow editing even if slightly in the past - set min to 1 hour ago
-                  const oneHourAgo = new Date();
-                  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-                  const year = oneHourAgo.getFullYear();
-                  const month = String(oneHourAgo.getMonth() + 1).padStart(2, "0");
-                  const day = String(oneHourAgo.getDate()).padStart(2, "0");
-                  const hours = String(oneHourAgo.getHours()).padStart(2, "0");
-                  const minutes = String(oneHourAgo.getMinutes()).padStart(2, "0");
-                  return `${year}-${month}-${day}T${hours}:${minutes}`;
-                })()}
-                max={(() => {
-                  // Allow up to 10 years in the future
-                  const future = new Date();
-                  future.setFullYear(future.getFullYear() + 10);
-                  const year = future.getFullYear();
-                  const month = String(future.getMonth() + 1).padStart(2, "0");
-                  const day = String(future.getDate()).padStart(2, "0");
-                  const hours = String(future.getHours()).padStart(2, "0");
-                  const minutes = String(future.getMinutes()).padStart(2, "0");
-                  return `${year}-${month}-${day}T${hours}:${minutes}`;
-                })()}
-                className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white"
-              />
-            </div>
+            <DateSelector
+              value={startTime}
+              onChange={setStartTime}
+              onValidationChange={(isValid, error) => {
+                setStartTimeValid(isValid);
+                setStartTimeError(error);
+              }}
+              min={getMinDateTime()}
+              max={getMaxDateTime(10)}
+              label="Start Time"
+            />
 
             {/* End Time with Quick Options */}
             <div>
-              <label className="block text-xs text-[#cccccc] mb-2">End Time</label>
-              <input
-                type="datetime-local"
+              <DateSelector
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                min={startTime ? (() => {
-                  // End time must be at least 1 hour after start time
-                  const start = new Date(startTime);
-                  start.setHours(start.getHours() + 1);
-                  const year = start.getFullYear();
-                  const month = String(start.getMonth() + 1).padStart(2, "0");
-                  const day = String(start.getDate()).padStart(2, "0");
-                  const hours = String(start.getHours()).padStart(2, "0");
-                  const minutes = String(start.getMinutes()).padStart(2, "0");
-                  return `${year}-${month}-${day}T${hours}:${minutes}`;
-                })() : undefined}
-                max={(() => {
-                  // Allow up to 10 years in the future
-                  const future = new Date();
-                  future.setFullYear(future.getFullYear() + 10);
-                  const year = future.getFullYear();
-                  const month = String(future.getMonth() + 1).padStart(2, "0");
-                  const day = String(future.getDate()).padStart(2, "0");
-                  const hours = String(future.getHours()).padStart(2, "0");
-                  const minutes = String(future.getMinutes()).padStart(2, "0");
-                  return `${year}-${month}-${day}T${hours}:${minutes}`;
-                })()}
-                className="w-full px-3 py-2 bg-black border border-[#333333] text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white mb-2"
+                onChange={setEndTime}
+                onValidationChange={(isValid, error) => {
+                  setEndTimeValid(isValid);
+                  setEndTimeError(error);
+                }}
+                min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
+                max={getMaxDateTime(10)}
+                label="End Time"
+                required
               />
               <div className="flex gap-2 flex-wrap">
                 <button
@@ -298,6 +295,18 @@ export function ERC721FixedPriceConfigPage({
         )}
       </div>
 
+      {/* Error Messages */}
+      {allErrors.length > 0 && (
+        <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+          <p className="text-red-400 text-sm font-medium mb-2">Please fix the following errors:</p>
+          <ul className="list-disc list-inside text-red-300 text-xs space-y-1">
+            {allErrors.map((error, idx) => (
+              <li key={idx}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex gap-3 pt-4 border-t border-[#333333]">
         <button
@@ -309,7 +318,7 @@ export function ERC721FixedPriceConfigPage({
         </button>
         <button
           type="submit"
-          disabled={isSubmitting || !isValidERC20 || !price}
+          disabled={isSubmitting || !isFormValid}
           className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Creating Listing..." : "Create Listing"}
