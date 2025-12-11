@@ -5,9 +5,11 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import HomePageClient from "./HomePageClient";
 import { browseListings } from "~/lib/server/browse-listings";
 
-// Revalidate is handled by cron job that checks for new listings
-// The cron job runs every 15 minutes and revalidates if listing ID changes
-export const revalidate = false; // Disable automatic revalidation, use cron job instead
+// Enable ISR (Incremental Static Regeneration) for fast homepage rendering
+// Page will be statically generated and revalidated every 60 seconds
+// This allows the homepage to be served instantly from cache while staying fresh
+// The cron job (every 15 minutes) provides additional revalidation when new listings appear
+export const revalidate = 60; // Revalidate every 60 seconds
 
 export async function generateMetadata(): Promise<Metadata> {
   // Use the opengraph-image route that shows recent listings with images
@@ -49,9 +51,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  // Fetch recent listings server-side with thumbnails for fast initial render
-  // This allows the homepage to be server-rendered with optimized images
-  // In development, skip server-side fetch if database is slow to avoid blocking page load
+  // Fetch recent listings server-side with thumbnails for ISR (Incremental Static Regeneration)
+  // This allows the homepage to be statically generated with optimized images
+  // The page will be cached and served instantly, then revalidated every 60 seconds
   let initialAuctions: EnrichedAuctionData[] = [];
   
   const isDevelopment = process.env.NODE_ENV === 'development';
@@ -60,9 +62,10 @@ export default async function Home() {
   
   if (enableServerFetch) {
     try {
-      // Add short timeout to prevent hanging - if database is slow, client will fetch
+      // Longer timeout for ISR build - we want complete data for static generation
+      // In production, this runs during build/revalidation, not on every request
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Server-side fetch timeout')), 2000); // 2 second timeout
+        setTimeout(() => reject(new Error('Server-side fetch timeout')), 5000); // 5 second timeout
       });
       
       const listingsPromise = browseListings({

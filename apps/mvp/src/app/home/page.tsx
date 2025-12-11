@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
 };
 
+// Enable ISR for preview page as well
+export const revalidate = 60;
+
 export default async function HomePreview() {
   // Fetch recent listings server-side with thumbnails for fast initial render
   let initialAuctions: EnrichedAuctionData[] = [];
