@@ -1,10 +1,55 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { TransitionLink } from '~/components/TransitionLink';
 import { HomepageLayoutManager } from '../HomepageLayoutManager';
+import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortableSectionRow({
+  section,
+  sectionLabels,
+}: {
+  section: any;
+  sectionLabels: Record<string, string>;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: section.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between p-3 bg-[var(--color-background)] border border-[var(--color-border)] cursor-move"
+    >
+      <div className="flex items-center gap-3">
+        <div className="cursor-move px-2 py-1 text-xs bg-[var(--color-border)] text-[var(--color-text)]" {...attributes} {...listeners}>
+          ⇅
+        </div>
+        <span className="text-sm font-semibold text-[var(--color-text)]">
+          {section.title || sectionLabels[section.sectionType] || section.sectionType}
+        </span>
+        <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
+          {sectionLabels[section.sectionType] || section.sectionType}
+        </span>
+        {section.description && (
+          <span className="text-xs text-[var(--color-secondary)] line-clamp-1">
+            {section.description}
+          </span>
+        )}
+      </div>
+      <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">
+        Active
+      </span>
+    </div>
+  );
+}
 
 export default function FeaturedListingsPage() {
   const queryClient = useQueryClient();
@@ -36,8 +81,73 @@ export default function FeaturedListingsPage() {
     enabled: !!address,
   });
 
-  const activeSections = (layoutData?.sections || []).filter((s: any) => s.isActive);
-
+  const allSections = layoutData?.sections || [];
+  const activeSections = allSections.filter((s: any) => s.isActive);
+  
+  // Local state for reordering (not saved until Save is clicked)
+  const [localSections, setLocalSections] = useState<any[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Initialize local sections when data loads
+  useEffect(() => {
+    if (allSections.length > 0) {
+      if (localSections.length === 0 || JSON.stringify(localSections.map(s => s.id)) !== JSON.stringify(allSections.map(s => s.id))) {
+        setLocalSections([...allSections]);
+        setHasUnsavedChanges(false);
+      }
+    }
+  }, [allSections]);
+  
+  const sensors = useSensors(useSensor(PointerSensor));
+  
+  const reorderSections = useMutation({
+    mutationFn: async (items: any[]) => {
+      const res = await fetch('/api/admin/homepage-layout/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminAddress: address,
+          sections: items.map((s, index) => ({ id: s.id, displayOrder: index })),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to reorder sections');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] });
+      setHasUnsavedChanges(false);
+      setSuccessMessage('Homepage layout saved successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    },
+  });
+  
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || localSections.length === 0) return;
+    
+    const oldIndex = localSections.findIndex((s: any) => s.id === active.id);
+    const newIndex = localSections.findIndex((s: any) => s.id === over.id);
+    
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = arrayMove(localSections, oldIndex, newIndex);
+      setLocalSections(newOrder);
+      setHasUnsavedChanges(true);
+    }
+  };
+  
+  const handleSave = () => {
+    reorderSections.mutate(localSections);
+  };
+  
+  const handleRevert = () => {
+    setLocalSections([...allSections]);
+    setHasUnsavedChanges(false);
+  };
+  
+  // Use local sections for display if we have unsaved changes, otherwise use server data
+  const displaySections = hasUnsavedChanges ? localSections : allSections;
+  const displayActiveSections = displaySections.filter((s: any) => s.isActive);
+  
   // Create featured section from gallery mutation
   const createSectionFromGallery = useMutation({
     mutationFn: async ({ galleryId, title, description }: { galleryId: string; title: string; description?: string }) => {
@@ -132,59 +242,64 @@ export default function FeaturedListingsPage() {
           <div>
             <h2 className="text-lg font-semibold text-[var(--color-text)]">Current Homepage Sections</h2>
             <p className="text-sm text-[var(--color-secondary)] mt-1">
-              What's currently displayed on the homepage
+              Drag to reorder sections. Click Save to apply changes or Revert to undo.
             </p>
           </div>
+          {hasUnsavedChanges && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRevert}
+                className="px-4 py-2 text-sm border border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)] transition-colors"
+              >
+                Revert
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={reorderSections.isPending}
+                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-[var(--color-background)] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {reorderSections.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="space-y-2">
-          {/* Recent Listings - Always present */}
-          <div className="flex items-center justify-between p-3 bg-[var(--color-background)] border border-[var(--color-border)]">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-[var(--color-text)]">Recent Listings</span>
-              <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
-                Always Active
-              </span>
-              <span className="text-xs text-[var(--color-secondary)]">
-                Shows all recent listings with infinite scroll
-              </span>
-            </div>
-            <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">
-              Active
-            </span>
-          </div>
-
-          {/* Active sections from layout manager */}
-          {activeSections.length > 0 ? (
-            activeSections.map((section: any) => (
-              <div
-                key={section.id}
-                className="flex items-center justify-between p-3 bg-[var(--color-background)] border border-[var(--color-border)]"
-              >
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <SortableContext items={displaySections.map((s: any) => s.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {/* Recent Listings - Always present */}
+              <div className="flex items-center justify-between p-3 bg-[var(--color-background)] border border-[var(--color-border)]">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-[var(--color-text)]">
-                    {section.title || SECTION_LABELS[section.sectionType] || section.sectionType}
-                  </span>
+                  <span className="text-sm font-semibold text-[var(--color-text)]">Recent Listings</span>
                   <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
-                    {SECTION_LABELS[section.sectionType] || section.sectionType}
+                    Always Active
                   </span>
-                  {section.description && (
-                    <span className="text-xs text-[var(--color-secondary)] line-clamp-1">
-                      {section.description}
-                    </span>
-                  )}
+                  <span className="text-xs text-[var(--color-secondary)]">
+                    Shows all recent listings with infinite scroll
+                  </span>
                 </div>
                 <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">
                   Active
                 </span>
               </div>
-            ))
-          ) : (
-            <div className="text-center py-4 text-[var(--color-secondary)] text-sm">
-              No additional sections configured. Use the Homepage Layout Manager below to add sections.
+
+              {/* Active sections from layout manager - now draggable */}
+              {displayActiveSections.length > 0 ? (
+                displayActiveSections.map((section: any) => (
+                  <SortableSectionRow
+                    key={section.id}
+                    section={section}
+                    sectionLabels={SECTION_LABELS}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-4 text-[var(--color-secondary)] text-sm">
+                  No additional sections configured. Use the Homepage Layout Manager below to add sections.
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </SortableContext>
+        </DndContext>
       </div>
 
       <HomepageLayoutManager />
@@ -276,4 +391,3 @@ export default function FeaturedListingsPage() {
     </div>
   );
 }
-

@@ -1,9 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { useAccount } from 'wagmi';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -40,88 +37,10 @@ const SECTION_LABELS: Record<SectionType, string> = {
   custom_section: 'Custom Section',
 };
 
-function SortableRow({
-  section,
-  onEdit,
-  onDelete,
-  onToggle,
-}: {
-  section: LayoutSection;
-  onEdit: (section: LayoutSection) => void;
-  onDelete: (id: string) => void;
-  onToggle: (id: string, value: boolean) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: section.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-start justify-between gap-3 p-3 bg-[var(--color-background)] border border-[var(--color-border)]"
-    >
-      <div className="flex items-start gap-3">
-        <button
-          className="cursor-move px-2 py-1 text-xs bg-[var(--color-border)] text-[var(--color-text)]"
-          {...attributes}
-          {...listeners}
-          title="Drag to reorder"
-        >
-          ⇅
-        </button>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--color-text)]">{section.title || SECTION_LABELS[section.sectionType]}</span>
-            <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
-              {SECTION_LABELS[section.sectionType]}
-            </span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded ${
-                section.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-              }`}
-            >
-              {section.isActive ? 'Active' : 'Inactive'}
-            </span>
-          </div>
-          {section.description && <p className="text-xs text-[var(--color-secondary)] mt-1 line-clamp-2">{section.description}</p>}
-          {section.config && (
-            <p className="text-[10px] text-[var(--color-tertiary)] mt-1">
-              Config: {JSON.stringify(section.config)}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onToggle(section.id, !section.isActive)}
-          className="px-3 py-1 text-xs bg-[var(--color-border)] text-[var(--color-text)]"
-        >
-          {section.isActive ? 'Disable' : 'Enable'}
-        </button>
-        <button
-          onClick={() => onEdit(section)}
-          className="px-3 py-1 text-xs bg-[var(--color-primary)] text-[var(--color-background)]"
-        >
-          Edit
-        </button>
-        <button
-          onClick={() => onDelete(section.id)}
-          className="px-3 py-1 text-xs bg-red-500 text-white"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export function HomepageLayoutManager() {
   const queryClient = useQueryClient();
   const { address } = useAccount();
-  const sensors = useSensors(useSensor(PointerSensor));
 
   const [form, setForm] = useState<{
     id?: string;
@@ -187,21 +106,7 @@ export function HomepageLayoutManager() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] }),
   });
 
-  const reorderSections = useMutation({
-    mutationFn: async (items: LayoutSection[]) => {
-      const res = await fetch('/api/admin/homepage-layout/reorder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminAddress: address,
-          sections: items.map((s, index) => ({ id: s.id, displayOrder: index })),
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to reorder sections');
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] }),
-  });
+  // Reordering is now handled in the "Current Homepage Sections" section
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -228,14 +133,8 @@ export function HomepageLayoutManager() {
     });
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !sections) return;
-    const oldIndex = sections.findIndex((s: LayoutSection) => s.id === active.id);
-    const newIndex = sections.findIndex((s: LayoutSection) => s.id === over.id);
-    const newOrder = arrayMove(sections, oldIndex, newIndex);
-    reorderSections.mutate(newOrder);
-  };
+  // Drag and drop is now handled in the "Current Homepage Sections" section above
+  // This component is just for adding/editing/deleting sections
 
   const renderConfigFields = () => {
     switch (form.sectionType) {
@@ -408,30 +307,70 @@ export function HomepageLayoutManager() {
         ) : sections.length === 0 ? (
           <p className="text-[var(--color-secondary)]">No sections yet. Add one above.</p>
         ) : (
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <SortableContext items={sections.map((s: LayoutSection) => s.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {sections.map((section: LayoutSection) => (
-                  <SortableRow
-                    key={section.id}
-                    section={section}
-                    onDelete={(id) => deleteSection.mutate(id)}
-                    onEdit={(s) =>
-                      setForm({
-                        id: s.id,
-                        sectionType: s.sectionType,
-                        title: s.title || '',
-                        description: s.description || '',
-                        config: s.config || {},
-                        isActive: s.isActive,
-                      })
-                    }
-                    onToggle={(id, value) => updateSection.mutate({ id, isActive: value })}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <div className="space-y-2">
+            {sections.map((section: LayoutSection) => {
+              const onEdit = (s: LayoutSection) =>
+                setForm({
+                  id: s.id,
+                  sectionType: s.sectionType,
+                  title: s.title || '',
+                  description: s.description || '',
+                  config: s.config || {},
+                  isActive: s.isActive,
+                });
+              const onDelete = (id: string) => deleteSection.mutate(id);
+              const onToggle = (id: string, value: boolean) => updateSection.mutate({ id, isActive: value });
+              
+              return (
+                <div
+                  key={section.id}
+                  className="flex items-start justify-between gap-3 p-3 bg-[var(--color-background)] border border-[var(--color-border)]"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-[var(--color-text)]">{section.title || SECTION_LABELS[section.sectionType]}</span>
+                      <span className="text-xs text-[var(--color-secondary)] bg-[var(--color-border)] px-2 py-0.5 rounded">
+                        {SECTION_LABELS[section.sectionType]}
+                      </span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${
+                          section.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                        }`}
+                      >
+                        {section.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    {section.description && <p className="text-xs text-[var(--color-secondary)] mt-1 line-clamp-2">{section.description}</p>}
+                    {section.config && (
+                      <p className="text-[10px] text-[var(--color-tertiary)] mt-1">
+                        Config: {JSON.stringify(section.config)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onToggle(section.id, !section.isActive)}
+                      className="px-3 py-1 text-xs bg-[var(--color-border)] text-[var(--color-text)]"
+                    >
+                      {section.isActive ? 'Disable' : 'Enable'}
+                    </button>
+                    <button
+                      onClick={() => onEdit(section)}
+                      className="px-3 py-1 text-xs bg-[var(--color-primary)] text-[var(--color-background)]"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onDelete(section.id)}
+                      className="px-3 py-1 text-xs bg-red-500 text-white"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
