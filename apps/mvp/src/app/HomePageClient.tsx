@@ -43,8 +43,8 @@ export default function HomePageClient() {
   const editionLoadingRef = useRef(true);
   const editionHasInitializedRef = useRef(false);
 
-  const pageSize = 6; // Show 6 listings per section on homepage
-  const displayCount = 6; // Display exactly 6 items
+  const pageSize = 4; // Show 4 listings per section on homepage
+  const displayCount = 4; // Display exactly 4 items
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
@@ -289,7 +289,7 @@ export default function HomePageClient() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {nftListings.map((auction, index) => (
               <AuctionCard
                 key={auction.id}
@@ -364,7 +364,7 @@ export default function HomePageClient() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {editionListings.map((auction, index) => (
               <AuctionCard
                 key={auction.id}
