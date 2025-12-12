@@ -9,6 +9,7 @@ import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { useUsername } from "~/hooks/useUsername";
+import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { CopyButton } from "~/components/CopyButton";
 // import { FavoriteButton } from "~/components/FavoriteButton";
 import { ListingChips } from "~/components/ListingChips";
@@ -116,9 +117,10 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   // Get username for linking to profile
   const { username: creatorUsername } = useUsername(addressToShow || null);
   
-  // Get buyer username for finalized auctions (must be declared before use in stateDisplay)
+  // Get buyer username and ENS name for highest bidder
   const buyerAddress = auction.highestBid?.bidder;
   const { username: buyerUsername } = useUsername(buyerAddress || null);
+  const buyerEnsName = useEnsNameForAddress(buyerAddress || null);
   
   // Get time status for display
   const startTime = parseInt(auction.startTime || "0");
@@ -427,6 +429,37 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
               <div className="text-base font-medium leading-tight">
                 {currentPrice} {currentPrice !== "—" && tokenSymbol}
               </div>
+              {/* Show bidder info for high bids */}
+              {auction.highestBid && buyerAddress && (
+                <div className="text-xs text-[#999999] mt-0.5 leading-tight">
+                  by{" "}
+                  {buyerUsername ? (
+                    <TransitionLink
+                      href={`/user/${buyerUsername}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-white transition-colors"
+                    >
+                      @{buyerUsername}
+                    </TransitionLink>
+                  ) : buyerEnsName ? (
+                    <TransitionLink
+                      href={`/user/${buyerAddress}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-white transition-colors"
+                    >
+                      {buyerEnsName}
+                    </TransitionLink>
+                  ) : (
+                    <TransitionLink
+                      href={`/user/${buyerAddress}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-mono text-[10px] hover:text-white transition-colors"
+                    >
+                      {`${buyerAddress.slice(0, 6)}...${buyerAddress.slice(-4)}`}
+                    </TransitionLink>
+                  )}
+                </div>
+              )}
             </div>
             {stateDisplay}
           </div>
