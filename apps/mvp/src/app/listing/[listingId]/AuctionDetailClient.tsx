@@ -1447,27 +1447,29 @@ export default function AuctionDetailClient({
             </div>
           )}
           {displayCreatorName ? (
-            <div className="text-xs text-[#cccccc] mb-1 flex items-center justify-between">
-              <span>
-                by{" "}
-                {creatorUsername ? (
-                  <TransitionLink
-                    href={`/user/${creatorUsername}`}
-                    className="hover:underline"
-                  >
-                    {displayCreatorName}
-                  </TransitionLink>
-                ) : displayCreatorAddress ? (
-                  <TransitionLink
-                    href={`/user/${displayCreatorAddress}`}
-                    className="hover:underline"
-                  >
-                    {displayCreatorName}
-                  </TransitionLink>
-                ) : (
-                  displayCreatorName
-                )}
-              </span>
+            <div className="text-xs text-[#cccccc] mb-1">
+              <div className="mb-2">
+                <span>
+                  by{" "}
+                  {creatorUsername ? (
+                    <TransitionLink
+                      href={`/user/${creatorUsername}`}
+                      className="hover:underline"
+                    >
+                      {displayCreatorName}
+                    </TransitionLink>
+                  ) : displayCreatorAddress ? (
+                    <TransitionLink
+                      href={`/user/${displayCreatorAddress}`}
+                      className="hover:underline"
+                    >
+                      {displayCreatorName}
+                    </TransitionLink>
+                  ) : (
+                    displayCreatorName
+                  )}
+                </span>
+              </div>
               {/* Only show share buttons if auction is not cancelled */}
               {!isCancelled && (
                 <div className="flex gap-2 items-center">
@@ -1484,8 +1486,8 @@ export default function AuctionDetailClient({
               )}
             </div>
           ) : displayCreatorAddress && !creatorNameLoading ? (
-            <div className="text-xs text-[#cccccc] mb-1 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="text-xs text-[#cccccc] mb-1">
+              <div className="mb-2 flex items-center gap-2">
                 <TransitionLink
                   href={creatorUsername ? `/user/${creatorUsername}` : `/user/${displayCreatorAddress}`}
                   className="font-mono hover:underline"
@@ -1510,16 +1512,18 @@ export default function AuctionDetailClient({
               )}
             </div>
           ) : !isCancelled ? (
-            <div className="text-xs mb-1 flex items-center justify-end gap-3">
-              <AddToGalleryButton listingId={listingId} />
-              <LinkShareButton
-                url={typeof window !== "undefined" ? window.location.href : ""}
-              />
-              <ShareButton
-                url={typeof window !== "undefined" ? window.location.href : ""}
-                artworkUrl={auction.image || auction.metadata?.image || null}
-                text={`Check out ${title}!`}
-              />
+            <div className="text-xs mb-1">
+              <div className="flex gap-2 items-center">
+                <AddToGalleryButton listingId={listingId} />
+                <LinkShareButton
+                  url={typeof window !== "undefined" ? window.location.href : ""}
+                />
+                <ShareButton
+                  url={typeof window !== "undefined" ? window.location.href : ""}
+                  artworkUrl={auction.image || auction.metadata?.image || null}
+                  text={`Check out ${title}!`}
+                />
+              </div>
             </div>
           ) : null}
           {/* Description */}

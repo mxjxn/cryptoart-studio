@@ -261,14 +261,25 @@ export default function MembershipClient() {
           {/* Membership Benefits */}
           <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6 mb-6">
             <h2 className="text-lg font-medium mb-3">Member Benefits</h2>
-            <ul className="space-y-2 text-sm text-[#cccccc]">
+            <ul className="space-y-3 text-sm text-[#cccccc]">
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">•</span>
-                <span>Use new features early</span>
+                <span>Create and curate galleries to showcase your collection</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">•</span>
-                <span>Access to cast in the channel (soon, pending new admin bot)</span>
+                <span>
+                  Cast in the{' '}
+                  <a
+                    href="https://warpcast.com/~/channel/cryptoart"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    /cryptoart
+                  </a>{' '}
+                  channel
+                </span>
               </li>
             </ul>
           </div>

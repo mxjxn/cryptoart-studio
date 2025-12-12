@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, curation, curationItems, eq, and, asc } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
 import { hasGalleryAccess } from '~/lib/server/nft-access';
+import { prerenderGalleryOGImage } from '~/lib/server/gallery-og-prerender';
+import { getUserFromCache } from '~/lib/server/user-cache';
 import { isAddress } from 'viem';
 
 /**
@@ -128,6 +130,34 @@ export async function POST(
         .returning();
       
       addedItems.push(newItem);
+    }
+    
+    // Pre-render OG image after items are added (fire and forget)
+    if (addedItems.length > 0) {
+      // Get username from curator address for OG image pre-rendering
+      const getUserName = async () => {
+        try {
+          // Try to get username from user cache
+          const user = await getUserFromCache(gallery.curatorAddress);
+          if (user?.username) {
+            return user.username;
+          }
+          // If no username found, we can't pre-render (would need address-based lookup)
+          return null;
+        } catch (error) {
+          console.warn('[Curation API] Error fetching username for OG pre-render:', error);
+          return null;
+        }
+      };
+      
+      // Pre-render in background (don't block response)
+      getUserName().then((username) => {
+        if (username && gallery.slug) {
+          prerenderGalleryOGImage(username, gallery.slug).catch((error) => {
+            console.warn('[Curation API] Error pre-rendering gallery OG image:', error);
+          });
+        }
+      });
     }
     
     return NextResponse.json({

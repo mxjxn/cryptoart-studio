@@ -12,6 +12,7 @@ export async function generateMetadata({ params }: GalleryPageProps): Promise<Me
   // Fetch gallery data for metadata
   let title = `${APP_NAME} Gallery`;
   let description = "Curated gallery of listings";
+  const ogImageUrl = `${APP_URL}/user/${encodeURIComponent(username)}/gallery/${encodeURIComponent(slug)}/opengraph-image`;
   
   try {
     const response = await fetch(`${APP_URL}/api/curation/user/${encodeURIComponent(username)}/gallery/${encodeURIComponent(slug)}`, {
@@ -31,6 +32,24 @@ export async function generateMetadata({ params }: GalleryPageProps): Promise<Me
   return {
     title,
     description,
+    openGraph: {
+      title,
+      description,
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 800,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 

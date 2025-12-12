@@ -3,6 +3,8 @@ import { getDatabase, curation, curationItems, eq, and, asc } from '@cryptoart/d
 import { getAuctionServer } from '~/lib/server/auction';
 import { generateSlug } from '~/lib/utils/slug';
 import { hasGalleryAccess } from '~/lib/server/nft-access';
+import { prerenderGalleryOGImage } from '~/lib/server/gallery-og-prerender';
+import { getUserFromCache } from '~/lib/server/user-cache';
 import { isAddress } from 'viem';
 
 /**
@@ -208,6 +210,32 @@ export async function PATCH(
       .set(updateData)
       .where(eq(curation.id, id))
       .returning();
+    
+    // Pre-render OG image after gallery is updated (fire and forget)
+    // Get username from curator address for OG image pre-rendering
+    const getUserName = async () => {
+      try {
+        // Try to get username from user cache
+        const user = await getUserFromCache(updatedGallery.curatorAddress);
+        if (user?.username) {
+          return user.username;
+        }
+        // If no username found, we can't pre-render (would need address-based lookup)
+        return null;
+      } catch (error) {
+        console.warn('[Curation API] Error fetching username for OG pre-render:', error);
+        return null;
+      }
+    };
+    
+    // Pre-render in background (don't block response)
+    getUserName().then((username) => {
+      if (username && updatedGallery.slug) {
+        prerenderGalleryOGImage(username, updatedGallery.slug).catch((error) => {
+          console.warn('[Curation API] Error pre-rendering gallery OG image:', error);
+        });
+      }
+    });
     
     return NextResponse.json({ gallery: updatedGallery });
   } catch (error) {

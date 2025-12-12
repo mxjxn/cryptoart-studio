@@ -138,10 +138,11 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
     <>
       <button
         onClick={() => setIsModalOpen(true)}
-        className="px-4 py-2 text-sm bg-[#1a1a1a] border border-[#333333] hover:border-[#666666] transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#999999] hover:text-[#cccccc] border border-[#333333] hover:border-[#666666] transition-colors"
         title="Add to Gallery"
       >
-        + Gallery
+        <span>+</span>
+        <span>Gallery</span>
       </button>
 
       {isModalOpen && (
