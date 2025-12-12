@@ -902,3 +902,108 @@ export interface IPFSImageCacheData {
   cachedAt: Date;
   expiresAt: Date | null;
 }
+
+// ============================================
+// USER STATISTICS
+// ============================================
+
+/**
+ * User statistics table - Cache pre-calculated user stats
+ * Updated periodically by cron job from subgraph data
+ */
+export const userStats = pgTable('user_stats', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userAddress: text('user_address').notNull().unique(), // Lowercase ETH address
+  
+  // Sales Statistics (as seller)
+  totalArtworksSold: integer('total_artworks_sold').notNull().default(0),
+  totalSalesVolumeWei: text('total_sales_volume_wei').notNull().default('0'), // Total ETH received
+  totalSalesCount: integer('total_sales_count').notNull().default(0), // Total number of sales
+  uniqueBuyers: integer('unique_buyers').notNull().default(0), // Number of unique buyers
+  tokensSoldIn: jsonb('tokens_sold_in'), // Array of {address, symbol, count, totalAmount}
+  
+  // Purchase Statistics (as buyer)
+  totalArtworksPurchased: integer('total_artworks_purchased').notNull().default(0),
+  totalPurchaseVolumeWei: text('total_purchase_volume_wei').notNull().default('0'), // Total ETH spent
+  totalPurchaseCount: integer('total_purchase_count').notNull().default(0), // Total number of purchases
+  uniqueSellers: integer('unique_sellers').notNull().default(0), // Number of unique sellers
+  tokensBoughtIn: jsonb('tokens_bought_in'), // Array of {address, symbol, count, totalAmount}
+  
+  // Bidding Statistics
+  totalBidsPlaced: integer('total_bids_placed').notNull().default(0),
+  totalBidsWon: integer('total_bids_won').notNull().default(0), // Bids that resulted in purchase
+  totalBidVolumeWei: text('total_bid_volume_wei').notNull().default('0'), // Sum of all bid amounts
+  activeBids: integer('active_bids').notNull().default(0), // Current active bids
+  
+  // Offer Statistics
+  totalOffersMade: integer('total_offers_made').notNull().default(0),
+  totalOffersReceived: integer('total_offers_received').notNull().default(0),
+  offersAccepted: integer('offers_accepted').notNull().default(0),
+  offersRescinded: integer('offers_rescinded').notNull().default(0),
+  
+  // Listing Statistics (as seller)
+  activeListings: integer('active_listings').notNull().default(0),
+  totalListingsCreated: integer('total_listings_created').notNull().default(0),
+  cancelledListings: integer('cancelled_listings').notNull().default(0),
+  
+  // Time-based metrics
+  firstSaleDate: timestamp('first_sale_date'),
+  lastSaleDate: timestamp('last_sale_date'),
+  firstPurchaseDate: timestamp('first_purchase_date'),
+  lastPurchaseDate: timestamp('last_purchase_date'),
+  
+  // Metadata
+  calculatedAt: timestamp('calculated_at').notNull(), // When stats were last calculated
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  userAddressIdx: index('user_stats_user_address_idx').on(table.userAddress),
+  calculatedAtIdx: index('user_stats_calculated_at_idx').on(table.calculatedAt),
+}));
+
+export interface TokenStats {
+  address: string; // '0x0000...' for ETH
+  symbol: string; // 'ETH' or token symbol
+  count: number; // Number of transactions
+  totalAmount: string; // Total amount in wei
+}
+
+export interface UserStatsData {
+  id: string;
+  userAddress: string;
+  // Sales stats
+  totalArtworksSold: number;
+  totalSalesVolumeWei: string;
+  totalSalesCount: number;
+  uniqueBuyers: number;
+  tokensSoldIn?: TokenStats[] | null;
+  // Purchase stats
+  totalArtworksPurchased: number;
+  totalPurchaseVolumeWei: string;
+  totalPurchaseCount: number;
+  uniqueSellers: number;
+  tokensBoughtIn?: TokenStats[] | null;
+  // Bidding stats
+  totalBidsPlaced: number;
+  totalBidsWon: number;
+  totalBidVolumeWei: string;
+  activeBids: number;
+  // Offer stats
+  totalOffersMade: number;
+  totalOffersReceived: number;
+  offersAccepted: number;
+  offersRescinded: number;
+  // Listing stats
+  activeListings: number;
+  totalListingsCreated: number;
+  cancelledListings: number;
+  // Time metrics
+  firstSaleDate?: Date | null;
+  lastSaleDate?: Date | null;
+  firstPurchaseDate?: Date | null;
+  lastPurchaseDate?: Date | null;
+  // Metadata
+  calculatedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
