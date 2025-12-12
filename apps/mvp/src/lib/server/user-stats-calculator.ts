@@ -226,7 +226,7 @@ export async function calculateUserStats(userAddress: string): Promise<Omit<User
   
   // Calculate purchase stats
   const totalPurchaseVolumeWei = purchases.reduce((sum, p) => sum + BigInt(p.amount), BigInt(0));
-  const uniqueSellers = new Set(sales.map((s: any) => s.buyer?.toLowerCase())).size;
+  const uniqueSellers = new Set(purchases.map((p: any) => p.listing?.seller?.toLowerCase()).filter(Boolean)).size;
   const tokensBoughtIn = aggregateTokenStats(purchases);
   
   const purchaseDates = purchases.map((p: any) => new Date(Number(p.timestamp) * 1000));
