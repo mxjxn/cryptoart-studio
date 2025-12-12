@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, userStats, userCache, eq, sql } from '@cryptoart/db';
+import { hasGalleryAccess } from '~/lib/server/nft-access';
 
 /**
  * Resolve identifier to user address
@@ -30,6 +31,7 @@ async function resolveUserAddress(identifier: string): Promise<string | null> {
  * GET /api/user/[identifier]/stats
  * Get cached user statistics
  * Falls back to calculating on-demand if not cached
+ * Requires membership access
  */
 export async function GET(
   req: NextRequest,
@@ -42,6 +44,32 @@ export async function GET(
       return NextResponse.json(
         { error: 'Username or address is required' },
         { status: 400 }
+      );
+    }
+    
+    // Get requesting user's address from query params (optional)
+    const { searchParams } = new URL(req.url);
+    const requestingUserAddress = searchParams.get('userAddress');
+    const verifiedAddresses = searchParams.get('verifiedAddresses');
+    
+    // Check membership access - user must be a member to view stats
+    if (requestingUserAddress) {
+      const hasAccess = await hasGalleryAccess(
+        requestingUserAddress as `0x${string}`,
+        verifiedAddresses ? JSON.parse(verifiedAddresses) : undefined
+      );
+      
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Access denied. Stats feature requires membership.' },
+          { status: 403 }
+        );
+      }
+    } else {
+      // If no user address provided, deny access
+      return NextResponse.json(
+        { error: 'Access denied. Stats feature requires membership.' },
+        { status: 403 }
       );
     }
     

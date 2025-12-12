@@ -10,6 +10,8 @@ import { FollowersModal } from "~/components/FollowersModal";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
 import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
+import { useMembershipStatus } from "~/hooks/useMembershipStatus";
+import { useAccount } from "wagmi";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
 import { formatEther } from "viem";
@@ -71,6 +73,8 @@ type ProfileTab = 'wallets' | 'artworks' | 'listings' | 'collections' | 'galleri
 
 export default function UserProfileClient({ username }: UserProfileClientProps) {
   const { isAdmin } = useIsAdmin();
+  const { isPro: isMember } = useMembershipStatus();
+  const { address: connectedAddress } = useAccount();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,13 +139,20 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
   // Fetch stats when stats tab is active
   useEffect(() => {
     async function fetchStats() {
-      if (activeTab === 'stats' && profileData?.primaryAddress && !statsData) {
+      if (activeTab === 'stats' && profileData?.primaryAddress && !statsData && isMember && connectedAddress) {
         setLoadingStats(true);
         try {
-          const response = await fetch(`/api/user/${encodeURIComponent(profileData.primaryAddress)}/stats`);
+          // Build query params with user address for membership check
+          const params = new URLSearchParams();
+          params.set('userAddress', connectedAddress);
+          
+          const response = await fetch(`/api/user/${encodeURIComponent(profileData.primaryAddress)}/stats?${params}`);
           if (response.ok) {
             const data = await response.json();
             setStatsData(data);
+          } else if (response.status === 403) {
+            // Access denied
+            setStatsData({ error: 'Membership required to view stats' });
           }
         } catch (err) {
           console.error('[UserProfileClient] Error fetching stats:', err);
@@ -152,7 +163,7 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
     }
 
     fetchStats();
-  }, [activeTab, profileData?.primaryAddress, statsData]);
+  }, [activeTab, profileData?.primaryAddress, statsData, isMember, connectedAddress]);
 
   if (loading) {
     return (
@@ -297,16 +308,18 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
             >
               Collected ({profileData.purchases.length})
             </button>
-            <button
-              onClick={() => setActiveTab('stats')}
-              className={`pb-2 px-2 text-sm ${
-                activeTab === 'stats'
-                  ? 'border-b-2 border-white text-white'
-                  : 'text-[#999999] hover:text-[#cccccc]'
-              }`}
-            >
-              Stats
-            </button>
+            {isMember && (
+              <button
+                onClick={() => setActiveTab('stats')}
+                className={`pb-2 px-2 text-sm ${
+                  activeTab === 'stats'
+                    ? 'border-b-2 border-white text-white'
+                    : 'text-[#999999] hover:text-[#cccccc]'
+                }`}
+              >
+                Stats
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('galleries')}
@@ -399,7 +412,7 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
           </div>
         )}
 
-        {activeTab === 'stats' && (
+        {activeTab === 'stats' && isMember && (
           <div className="space-y-6">
             {loadingStats ? (
               <p className="text-[#999999]">Loading stats...</p>
