@@ -19,6 +19,11 @@ interface GalleryWithCount extends CurationData {
   itemCount: number;
 }
 
+// UI constants
+const DROPDOWN_WIDTH = 200;
+const DROPDOWN_PADDING = 8;
+const DROPDOWN_MAX_HEIGHT = 192; // max-h-48 (48 * 4px = 192px)
+
 export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuProps) {
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
@@ -132,19 +137,18 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const dropdownWidth = 200; // min-w-[200px]
       
       // Calculate position: below button, aligned to right edge
-      let left = rect.right - dropdownWidth;
+      let left = rect.right - DROPDOWN_WIDTH;
       
       // Ensure dropdown doesn't go off-screen to the left
-      if (left < 8) {
-        left = 8;
+      if (left < DROPDOWN_PADDING) {
+        left = DROPDOWN_PADDING;
       }
       
       // Ensure dropdown doesn't go off-screen to the right
-      if (rect.right > window.innerWidth - 8) {
-        left = window.innerWidth - dropdownWidth - 8;
+      if (rect.right > window.innerWidth - DROPDOWN_PADDING) {
+        left = window.innerWidth - DROPDOWN_WIDTH - DROPDOWN_PADDING;
       }
       
       setDropdownPosition({
@@ -174,14 +178,11 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
     }
   }, [isOpen]);
 
-  // Only show for users with gallery access (admin OR NFT balance > 0 in any associated wallet) OR admins (for admin menu)
-  const shouldShow = Boolean(
-    (isConnected === true && 
-    address && 
-    isNFTLoading === false && 
-    isAdminLoading === false && 
-    hasGalleryAccess === true) || isAdmin
-  );
+  // Determine if menu should be shown
+  const isDataReady = !isNFTLoading && !isAdminLoading;
+  const isUserConnected = isConnected && address;
+  const hasMenuAccess = hasGalleryAccess || isAdmin;
+  const shouldShow = isDataReady && isUserConnected && hasMenuAccess;
   
   if (!shouldShow) {
     return null;
@@ -195,10 +196,11 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
   const dropdownContent = isOpen ? (
     <div
       ref={dropdownRef}
-      className="fixed z-[9999] bg-black border border-[#333333] rounded-lg shadow-lg min-w-[200px] py-1"
+      className="fixed z-[9999] bg-black border border-[#333333] rounded-lg shadow-lg py-1"
       style={{
         top: `${dropdownPosition.top}px`,
         left: `${dropdownPosition.left}px`,
+        minWidth: `${DROPDOWN_WIDTH}px`,
       }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -218,7 +220,7 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
             </div>
           ) : (
             <>
-              <div className="max-h-48 overflow-y-auto">
+              <div className="overflow-y-auto" style={{ maxHeight: `${DROPDOWN_MAX_HEIGHT}px` }}>
                 {galleries.map((gallery) => (
                   <button
                     key={gallery.id}
