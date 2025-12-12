@@ -17,6 +17,7 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
 import { getAuction } from "~/lib/subgraph";
+import { useCountdown } from "~/hooks/useCountdown";
 
 interface AuctionCardProps {
   auction: EnrichedAuctionData;
@@ -129,6 +130,9 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   const isCancelled = auction.status === "CANCELLED";
   const isERC1155 = auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2";
   
+  // Use countdown hook for active auctions
+  const countdown = useCountdown(endTime);
+  
   // Calculate ERC1155 supply info
   let supplyDisplay: React.ReactElement | null = null;
   if (isERC1155) {
@@ -221,23 +225,23 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         </div>
       );
     } else if (hasBid) {
-      // Active with bids: Show bid count and time (price is already shown in price section)
+      // Active with bids: Show bid count and live countdown
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
       stateDisplay = (
         <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
           <div>{bidCount} {bidCount === 1 ? "bid" : "bids"}</div>
-          {showTime && timeStatus.timeRemaining && (
-            <div>{timeStatus.timeRemaining}</div>
+          {showTime && countdown !== "Ended" && (
+            <div>{countdown}</div>
           )}
         </div>
       );
     } else {
-      // Active no bids: Only show time (reserve is already shown in price section)
+      // Active no bids: Only show live countdown (reserve is already shown in price section)
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-      if (showTime && timeStatus.timeRemaining) {
+      if (showTime && countdown !== "Ended") {
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight">
-            {timeStatus.timeRemaining}
+            {countdown}
           </div>
         );
       }
@@ -255,8 +259,8 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
             <div>{remaining} left</div>
-            {showTime && timeStatus.timeRemaining && (
-              <div>{timeStatus.timeRemaining}</div>
+            {showTime && countdown !== "Ended" && (
+              <div>{countdown}</div>
             )}
           </div>
         );
@@ -264,10 +268,10 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
     } else {
       // 1/1 fixed price
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-      if (showTime && timeStatus.timeRemaining) {
+      if (showTime && countdown !== "Ended") {
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight">
-            {timeStatus.timeRemaining}
+            {countdown}
           </div>
         );
       }
