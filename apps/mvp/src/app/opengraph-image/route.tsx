@@ -5,6 +5,7 @@ import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
+import { processMediaForImage } from "~/lib/server/media-processor";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
@@ -352,8 +353,9 @@ export async function GET(request: NextRequest) {
             "https://gateway.pinata.cloud",
           ];
           
-          // Maximum image size: 2MB for OG-sized thumbnails (smaller than full images)
+          // Maximum media size: 10MB for videos/GIFs, 2MB for images
           const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+          const MAX_MEDIA_SIZE = 10 * 1024 * 1024; // 10MB for videos/GIFs
           
           // Build list of URLs to try
           let urlsToTry = [httpUrl];
@@ -381,20 +383,22 @@ export async function GET(request: NextRequest) {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (compatible; OG-Image-Bot/1.0)',
                 },
-                signal: AbortSignal.timeout(5000),
+                signal: AbortSignal.timeout(15000), // 15 second timeout for videos/large files
               });
               
               if (!response.ok) continue;
               
               const contentType = response.headers.get('content-type') || '';
-              if (!contentType.startsWith('image/')) continue;
+              // Accept images, videos, and GIFs (we'll process them)
+              if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) continue;
               
               // Check Content-Length header before downloading
               const contentLength = response.headers.get('content-length');
+              const maxSize = contentType.startsWith('video/') ? MAX_MEDIA_SIZE : MAX_IMAGE_SIZE;
               if (contentLength) {
                 const size = parseInt(contentLength, 10);
-                if (size > MAX_IMAGE_SIZE) {
-                  console.warn(`[OG Image] Image too large (${size} bytes > ${MAX_IMAGE_SIZE} bytes) for ${url}, skipping...`);
+                if (size > maxSize) {
+                  console.warn(`[OG Image] Media too large (${size} bytes > ${maxSize} bytes) for ${url}, skipping...`);
                   continue;
                 }
               }
@@ -403,49 +407,29 @@ export async function GET(request: NextRequest) {
               const buffer = Buffer.from(arrayBuffer);
               
               // Check actual buffer size after download
-              if (buffer.length > MAX_IMAGE_SIZE) {
-                console.warn(`[OG Image] Image too large after download (${buffer.length} bytes > ${MAX_IMAGE_SIZE} bytes) for ${url}, skipping...`);
+              if (buffer.length > maxSize) {
+                console.warn(`[OG Image] Media too large after download (${buffer.length} bytes > ${maxSize} bytes) for ${url}, skipping...`);
                 continue;
               }
               
-              // Validate image format (check magic bytes)
-              const magicBytes = buffer.subarray(0, 12);
-              const isValidImage = 
-                // JPEG: FF D8 FF
-                (magicBytes[0] === 0xFF && magicBytes[1] === 0xD8 && magicBytes[2] === 0xFF) ||
-                // PNG: 89 50 4E 47
-                (magicBytes[0] === 0x89 && magicBytes[1] === 0x50 && magicBytes[2] === 0x4E && magicBytes[3] === 0x47) ||
-                // GIF: 47 49 46 38 (GIF8)
-                (magicBytes[0] === 0x47 && magicBytes[1] === 0x49 && magicBytes[2] === 0x46 && magicBytes[3] === 0x38) ||
-                // WebP: RIFF....WEBP (52 49 46 46 ... 57 45 42 50)
-                (magicBytes[0] === 0x52 && magicBytes[1] === 0x49 && magicBytes[2] === 0x46 && magicBytes[3] === 0x46 &&
-                 buffer.length >= 12 && 
-                 magicBytes[8] === 0x57 && magicBytes[9] === 0x45 && magicBytes[10] === 0x42 && magicBytes[11] === 0x50);
-              
-              if (!isValidImage) {
-                const hexBytes = Array.from(magicBytes.slice(0, 12))
-                  .map(b => '0x' + b.toString(16).padStart(2, '0'))
-                  .join(' ');
-                console.warn(`[OG Image] Invalid image format for listing ${listing.listingId} from ${url}. Magic bytes: ${hexBytes}, Content-Type: ${contentType}, Size: ${buffer.length} bytes`);
+              // Process media (handles images, videos, and GIFs)
+              const processed = await processMediaForImage(buffer, contentType, url);
+              if (!processed) {
+                console.warn(`[OG Image] Failed to process media for listing ${listing.listingId} from ${url}`);
                 continue;
               }
               
-              const base64 = buffer.toString('base64');
-              const dataUrl = `data:${contentType};base64,${base64}`;
-              
-              // Cache the image (only if under size limit) using the original imageUrl
-              if (buffer.length <= MAX_IMAGE_SIZE) {
-                try {
-                  await cacheImage(imageUrl, dataUrl, contentType);
-                  console.log(`[OG Image] Successfully cached image for listing ${listing.listingId}`);
-                } catch (cacheError) {
-                  // Don't fail the request if caching fails
-                  console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
-                }
+              // Cache the processed image using the original imageUrl
+              try {
+                await cacheImage(imageUrl, processed.dataUrl, 'image/png'); // Processed images are always PNG
+                console.log(`[OG Image] Successfully cached processed image for listing ${listing.listingId} (original type: ${processed.originalType})`);
+              } catch (cacheError) {
+                // Don't fail the request if caching fails
+                console.warn(`[OG Image] Failed to cache image (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
               }
               
-              console.log(`[OG Image] Successfully fetched image for listing ${listing.listingId} from ${url}`);
-              return dataUrl;
+              console.log(`[OG Image] Successfully processed media for listing ${listing.listingId} from ${url} (${processed.originalType} -> ${processed.processedType})`);
+              return processed.dataUrl;
             } catch (error) {
               console.warn(`[OG Image] Error fetching from ${url} for listing ${listing.listingId}:`, error instanceof Error ? error.message : String(error));
               continue;
@@ -645,7 +629,7 @@ export async function GET(request: NextRequest) {
                       left: 0,
                     }}
                   >
-                    {card.image ? (
+                    {card.image && (
                       <img
                         src={card.image}
                         alt={card.title}
@@ -657,15 +641,6 @@ export async function GET(request: NextRequest) {
                           objectFit: 'cover',
                         }}
                       />
-                    ) : (
-                      <div
-                        style={{
-                          fontSize: 20,
-                          opacity: 0.5,
-                        }}
-                      >
-                        No Image
-                      </div>
                     )}
                   </div>
 

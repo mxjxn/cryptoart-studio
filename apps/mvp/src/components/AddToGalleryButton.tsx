@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
-import { GALLERY_ACCESS_NFT_CONTRACT_ADDRESS, MAX_GALLERIES_PER_USER } from "~/lib/constants";
+import { STP_V2_CONTRACT_ADDRESS, MAX_GALLERIES_PER_USER } from "~/lib/constants";
 import type { CurationData } from "@cryptoart/db";
 
 interface AddToGalleryButtonProps {
@@ -19,7 +19,7 @@ interface GalleryWithCount extends CurationData {
 export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
-  const { hasAccess: hasNFTAccess, loading: isNFTLoading, addressesWithNFT } = useHasNFTAccess(GALLERY_ACCESS_NFT_CONTRACT_ADDRESS);
+  const { hasAccess: hasNFTAccess, loading: isNFTLoading, addressesWithNFT } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
   const queryClient = useQueryClient();
   
   // User has access if they're admin OR have NFT access

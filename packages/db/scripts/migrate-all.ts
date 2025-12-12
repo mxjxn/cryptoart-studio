@@ -20,6 +20,9 @@
  *   0011_add_homepage_layout_sections.sql - Homepage layout sections for admin-arranged homepage
  *   0012_add_erc1155_token_supply_cache.sql - ERC1155 token supply cache table
  *   0013_add_ipfs_image_cache.sql - IPFS image cache table for caching IPFS images to Vercel Blob
+ *   0016_add_thumbnail_cache.sql - Thumbnail cache table (metadata for blob-stored thumbnails) - Added late, should have been 0002
+ *   0014_add_thumbnail_generation_status.sql - Thumbnail generation status table (adds columns to thumbnail_cache)
+ *   0015_add_membership_cache.sql - Membership cache table for caching membership NFT balance checks
  */
 
 import { config } from 'dotenv';
@@ -60,6 +63,9 @@ const MIGRATIONS = [
   '0011_add_homepage_layout_sections.sql',
   '0012_add_erc1155_token_supply_cache.sql',
   '0013_add_ipfs_image_cache.sql',
+  '0016_add_thumbnail_cache.sql', // Added late - should have been 0002 but was skipped. Must run before 0014.
+  '0014_add_thumbnail_generation_status.sql', // Adds columns to thumbnail_cache (requires table from 0016)
+  '0015_add_membership_cache.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

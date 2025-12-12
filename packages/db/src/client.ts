@@ -7,7 +7,8 @@ import {
   notificationPreferences,
   notificationTokens,
   notificationWorkerState, 
-  imageCache, 
+  imageCache,
+  membershipCache,
   follows, 
   favorites,
   // Admin tables
@@ -154,6 +155,7 @@ export {
   notificationTokens,
   notificationWorkerState,
   imageCache,
+  membershipCache,
   follows,
   favorites,
   // Admin tables
@@ -190,6 +192,7 @@ export type {
   NotificationType,
   NotificationWorkerStateData,
   ImageCacheData,
+  MembershipCacheData,
   FollowData,
   FavoriteData,
   // Admin types

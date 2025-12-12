@@ -1,7 +1,8 @@
 import { createPublicClient, http, type Address, isAddress } from "viem";
 import { base } from "viem/chains";
-import { GALLERY_ACCESS_NFT_CONTRACT_ADDRESS } from "~/lib/constants";
+import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { isAdminAddress } from "~/lib/server/admin";
+import { getDatabase, membershipCache, eq, and, gt } from "@cryptoart/db";
 
 // Standard ERC721/ERC1155 ABI for balanceOf
 const NFT_BALANCE_ABI = [
@@ -21,18 +22,92 @@ const publicClient = createPublicClient({
 });
 
 /**
- * Check if an address has NFT balance > 0
+ * Check if an address has membership NFT balance > 0
+ * Uses database cache to avoid repeated onchain calls
  */
 async function checkAddressBalance(address: Address): Promise<boolean> {
   try {
+    const db = getDatabase();
+    const addressLower = address.toLowerCase();
+    const now = new Date();
+    
+    // Check cache first
+    if (db) {
+      const cached = await db
+        .select()
+        .from(membershipCache)
+        .where(
+          and(
+            eq(membershipCache.address, addressLower),
+            eq(membershipCache.hasMembership, true),
+            gt(membershipCache.expiresAt, now)
+          )
+        )
+        .limit(1);
+      
+      if (cached.length > 0) {
+        console.log(`[checkAddressBalance] Cache hit for ${addressLower}`);
+        return true;
+      }
+      
+      // Check if we have a recent negative cache entry (to avoid repeated failed calls)
+      const negativeCache = await db
+        .select()
+        .from(membershipCache)
+        .where(
+          and(
+            eq(membershipCache.address, addressLower),
+            eq(membershipCache.hasMembership, false),
+            gt(membershipCache.expiresAt, now)
+          )
+        )
+        .limit(1);
+      
+      if (negativeCache.length > 0) {
+        console.log(`[checkAddressBalance] Negative cache hit for ${addressLower}`);
+        return false;
+      }
+    }
+    
+    // Cache miss - check onchain
+    console.log(`[checkAddressBalance] Cache miss, checking onchain for ${addressLower}`);
     const balance = await publicClient.readContract({
-      address: GALLERY_ACCESS_NFT_CONTRACT_ADDRESS,
+      address: STP_V2_CONTRACT_ADDRESS,
       abi: NFT_BALANCE_ABI,
       functionName: "balanceOf",
       args: [address],
     });
 
-    return balance > 0n;
+    const hasMembership = balance > 0n;
+    
+    // Cache the result (5 minute TTL for positive, 1 minute for negative)
+    if (db) {
+      const expiresAt = new Date(now.getTime() + (hasMembership ? 5 * 60 * 1000 : 1 * 60 * 1000));
+      try {
+        await db
+          .insert(membershipCache)
+          .values({
+            address: addressLower,
+            hasMembership,
+            cachedAt: now,
+            expiresAt,
+          })
+          .onConflictDoUpdate({
+            target: membershipCache.address,
+            set: {
+              hasMembership,
+              cachedAt: now,
+              expiresAt,
+            },
+          });
+        console.log(`[checkAddressBalance] Cached result for ${addressLower}: ${hasMembership}`);
+      } catch (cacheError) {
+        // Don't fail if caching fails
+        console.warn(`[checkAddressBalance] Failed to cache result:`, cacheError);
+      }
+    }
+
+    return hasMembership;
   } catch (error) {
     console.error(`[checkAddressBalance] Error checking balance for ${address}:`, error);
     return false;
@@ -102,17 +177,20 @@ async function getVerifiedAddresses(address: Address): Promise<Address[]> {
 }
 
 /**
- * Server-side check if a user has access to galleries (balanceOf > 0 or admin).
+ * Server-side check if a user has access to galleries (membership NFT balanceOf > 0 or admin).
  * 
  * Admin users always have access. For non-admins:
+ * - Checks membership NFT (STP_V2_CONTRACT_ADDRESS) balanceOf > 0
  * - Checks multiple addresses:
  *   1. The provided address
  *   2. Any verifiedAddresses provided by the client (from client-side hook)
  *   3. Falls back to fetching verified addresses from Neynar API if verifiedAddresses not provided
  * 
+ * Uses database cache to avoid repeated onchain calls.
+ * 
  * @param address - The primary wallet address
- * @param verifiedAddresses - Optional array of verified addresses that have NFT (from client-side hook)
- * @returns true if user is admin or any address has balanceOf > 0, false otherwise
+ * @param verifiedAddresses - Optional array of verified addresses that have membership (from client-side hook)
+ * @returns true if user is admin or any address has membership NFT balanceOf > 0, false otherwise
  */
 export async function hasGalleryAccess(
   address: Address,
