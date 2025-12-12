@@ -276,31 +276,18 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
 
 
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Only handle clicks on the card itself, not on interactive children
     const target = e.target as HTMLElement;
     if (target.closest('a, button, [data-no-click]')) {
       return;
     }
     
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Two-tap interaction: first tap reveals info, second tap navigates
-    if (!isExpanded) {
-      // First tap: expand to show info
-      setIsExpanded(true);
-      // Preload the listing data in the background (non-blocking)
-      getAuction(auction.listingId).catch((error) => {
-        console.error("Error preloading listing:", error);
-      });
-    } else {
-      // Second tap: navigate to listing
-      const listingUrl = referralAddress 
-        ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
-        : `/listing/${auction.listingId}`;
-      router.push(listingUrl);
-    }
+    // Navigate directly to listing
+    const listingUrl = referralAddress 
+      ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
+      : `/listing/${auction.listingId}`;
+    router.push(listingUrl);
   };
 
   // Reset expanded state when card changes (e.g., different listing)
@@ -310,9 +297,8 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
 
   return (
     <div
-      className="relative w-full cursor-pointer group touch-manipulation"
+      className="relative w-full cursor-pointer group"
       onClick={handleClick}
-      onTouchEnd={handleClick}
       role="button"
       tabIndex={0}
       aria-label={`View listing: ${title}`}

@@ -322,13 +322,13 @@ export function AuctionCardClient({
     }
   }
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    // Don't navigate if clicking on interactive elements
     if (target.closest('a, button, [data-no-click]')) {
       return;
     }
     
-    e.preventDefault();
     const href = referralAddress
       ? `/auction/${listingId}?ref=${referralAddress}`
       : `/auction/${listingId}`;
@@ -341,7 +341,6 @@ export function AuctionCardClient({
     <div
       ref={cardRef}
       onClick={handleClick}
-      onTouchEnd={handleClick}
       className="relative group cursor-pointer"
       style={{ background: gradient }}
     >
