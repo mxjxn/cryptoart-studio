@@ -8,8 +8,10 @@ import {
   homepageLayoutSections,
 } from '@cryptoart/db';
 import type { EnrichedAuctionData } from '~/lib/types';
-import { getAuctionServer, fetchActiveAuctionsUncached } from '~/lib/server/auction';
+import { getAuctionServer, fetchActiveAuctionsUncached, normalizeListingType, normalizeTokenSpec, getHiddenUserAddresses } from '~/lib/server/auction';
 import { browseListings } from '~/lib/server/browse-listings';
+import { fetchNFTMetadata } from '~/lib/nft-metadata';
+import { type Address } from 'viem';
 
 type SectionType =
   | 'upcoming_auctions'
@@ -172,6 +174,49 @@ const RECENTLY_CONCLUDED_QUERY = gql`
   }
 `;
 
+// Query for listings with bids - filters by hasBid: true to get all listings with bids
+// regardless of creation date, ordered by updatedAt desc so recently bid-on listings appear first
+const LISTINGS_WITH_BIDS_QUERY = gql`
+  query ListingsWithBids($first: Int!, $skip: Int!) {
+    listings(
+      where: { status: "ACTIVE", finalized: false, hasBid: true }
+      first: $first
+      skip: $skip
+      orderBy: updatedAt
+      orderDirection: desc
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      erc20
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
 async function getRecentlyConcluded(limit: number): Promise<EnrichedAuctionData[]> {
   try {
     const endpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -203,28 +248,143 @@ async function getRecentlyConcluded(limit: number): Promise<EnrichedAuctionData[
 
 async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
   try {
-    // Fetch more listings to ensure we capture all with bids, even if they're older
-    // Active auctions are ordered by createdAt desc, so older listings with bids might be excluded
-    // Fetch up to 100 to ensure we get all listings with bids
-    const active = await fetchActiveAuctionsUncached(100, 0, true);
-    console.log(`[getLiveBids] Fetched ${active.length} active auctions`);
+    // Query subgraph directly for listings with bids - this ensures we get ALL listings with bids
+    // regardless of creation date, and scales to any number of listings
+    // Ordered by updatedAt desc so recently bid-on listings appear first
+    const endpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
+    if (!endpoint) {
+      throw new Error('Missing NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
+    }
+
+    console.log(`[getLiveBids] Querying subgraph for listings with bids (limit: ${limit})`);
     
-    const withBids = active.filter((auction) => {
-      // Check multiple fields to ensure we catch listings with bids
-      const bidCount = auction.bidCount || 0;
-      const hasHighestBid = !!auction.highestBid;
-      const hasBid = (auction as any).hasBid === true; // Check original hasBid field from subgraph
-      const passes = bidCount > 0 || hasHighestBid || hasBid;
+    const data = await request<{ listings: any[] }>(
+      endpoint,
+      LISTINGS_WITH_BIDS_QUERY,
+      {
+        first: limit,
+        skip: 0,
+      },
+      getSubgraphHeaders()
+    );
+
+    console.log(`[getLiveBids] Subgraph returned ${data.listings?.length || 0} listings with bids`);
+
+    if (!data.listings || data.listings.length === 0) {
+      return [];
+    }
+
+    // Get hidden user addresses to filter out
+    const hiddenAddresses = await getHiddenUserAddresses();
+
+    // Filter out hidden users and fully sold listings
+    const filteredListings = data.listings.filter((listing) => {
+      const totalAvailable = parseInt(listing.totalAvailable || "0");
+      const totalSold = parseInt(listing.totalSold || "0");
+      const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
       
-      if (passes) {
-        console.log(`[getLiveBids] Listing ${auction.listingId} passes filter: bidCount=${bidCount}, hasHighestBid=${hasHighestBid}, hasBid=${hasBid}`);
+      if (listing.finalized || isFullySold) {
+        return false;
       }
       
-      return passes;
+      if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+        return false;
+      }
+      
+      return true;
     });
-    
-    console.log(`[getLiveBids] Filtered to ${withBids.length} listings with bids`);
-    return withBids.slice(0, limit);
+
+    // Enrich listings with metadata and bid information (same as fetchActiveAuctions)
+    const enrichedListings = await Promise.all(
+      filteredListings.map(async (listing) => {
+        const bidCount = listing.bids?.length || 0;
+        const highestBid = listing.bids && listing.bids.length > 0 
+          ? listing.bids[0] // Already sorted by amount desc
+          : undefined;
+
+        // Fetch NFT metadata
+        let metadata = null;
+        if (listing.tokenAddress && listing.tokenId) {
+          try {
+            metadata = await fetchNFTMetadata(
+              listing.tokenAddress as Address,
+              listing.tokenId,
+              listing.tokenSpec
+            );
+          } catch (error) {
+            console.error(`[getLiveBids] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);
+          }
+        }
+
+        // Fetch ERC1155 total supply if applicable
+        let erc1155TotalSupply: string | undefined = undefined;
+        if ((listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) && listing.tokenAddress && listing.tokenId) {
+          try {
+            const { getERC1155TotalSupply } = await import('~/lib/server/erc1155-supply');
+            const totalSupply = await getERC1155TotalSupply(
+              listing.tokenAddress,
+              listing.tokenId
+            );
+            if (totalSupply !== null) {
+              erc1155TotalSupply = totalSupply.toString();
+            }
+          } catch (error: any) {
+            // Optional enrichment - continue without it
+          }
+        }
+
+        // Fetch ERC721 collection total supply if applicable
+        let erc721TotalSupply: number | undefined = undefined;
+        if ((listing.tokenSpec === "ERC721" || listing.tokenSpec === 1) && listing.tokenAddress) {
+          try {
+            const { fetchERC721TotalSupply } = await import('~/lib/erc721-supply');
+            const totalSupply = await fetchERC721TotalSupply(listing.tokenAddress);
+            if (totalSupply !== null) {
+              erc721TotalSupply = totalSupply;
+            }
+          } catch (error: any) {
+            // Optional enrichment - continue without it
+          }
+        }
+
+        // Generate thumbnail
+        let thumbnailUrl: string | undefined = undefined;
+        const imageUrl = metadata?.image;
+        if (imageUrl && listing.status !== "CANCELLED") {
+          try {
+            const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
+            thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+          } catch (error) {
+            thumbnailUrl = imageUrl; // Fall back to original image
+          }
+        }
+
+        const enriched: EnrichedAuctionData = {
+          ...listing,
+          listingType: normalizeListingType(listing.listingType, listing),
+          tokenSpec: normalizeTokenSpec(listing.tokenSpec),
+          bidCount,
+          highestBid: highestBid ? {
+            amount: highestBid.amount,
+            bidder: highestBid.bidder,
+            timestamp: highestBid.timestamp,
+          } : undefined,
+          title: metadata?.title || metadata?.name,
+          artist: metadata?.artist || metadata?.creator,
+          image: metadata?.image,
+          description: metadata?.description,
+          thumbnailUrl,
+          metadata,
+          erc1155TotalSupply,
+          erc721TotalSupply,
+        };
+
+        return enriched;
+      })
+    );
+
+    console.log(`[getLiveBids] Returning ${enrichedListings.length} enriched listings with bids`);
+    return enrichedListings;
   } catch (error) {
     console.error('[Homepage] Failed to get live bids', error);
     return [];
