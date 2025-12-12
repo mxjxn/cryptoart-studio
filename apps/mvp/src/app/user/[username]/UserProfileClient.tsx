@@ -12,6 +12,7 @@ import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
 import type { EnrichedAuctionData } from "~/lib/types";
 import Link from "next/link";
+import { formatEther } from "viem";
 
 interface UserProfileClientProps {
   username: string;
@@ -71,7 +72,9 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections' | 'galleries'>('wallets');
+  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections' | 'galleries' | 'stats'>('wallets');
+  const [statsData, setStatsData] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
   const [followersCount, setFollowersCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -126,6 +129,28 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
 
     fetchProfile();
   }, [username]);
+
+  // Fetch stats when stats tab is active
+  useEffect(() => {
+    async function fetchStats() {
+      if (activeTab === 'stats' && profileData?.primaryAddress && !statsData) {
+        setLoadingStats(true);
+        try {
+          const response = await fetch(`/api/user/${encodeURIComponent(profileData.primaryAddress)}/stats`);
+          if (response.ok) {
+            const data = await response.json();
+            setStatsData(data);
+          }
+        } catch (err) {
+          console.error('[UserProfileClient] Error fetching stats:', err);
+        } finally {
+          setLoadingStats(false);
+        }
+      }
+    }
+
+    fetchStats();
+  }, [activeTab, profileData?.primaryAddress, statsData]);
 
   if (loading) {
     return (
@@ -270,6 +295,16 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
             >
               Collected ({profileData.purchases.length})
             </button>
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === 'stats'
+                  ? 'border-b-2 border-white text-white'
+                  : 'text-[#999999] hover:text-[#cccccc]'
+              }`}
+            >
+              Stats
+            </button>
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('galleries')}
@@ -358,6 +393,137 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
                   />
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'stats' && (
+          <div className="space-y-6">
+            {loadingStats ? (
+              <p className="text-[#999999]">Loading stats...</p>
+            ) : !statsData?.stats ? (
+              <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                <p className="text-[#999999]">
+                  {statsData?.message || 'Stats not yet available. They will be calculated in the next update cycle.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Sales Stats */}
+                <div>
+                  <h2 className="text-lg font-light mb-4">Sales</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Artworks Sold</p>
+                      <p className="text-2xl font-semibold">{statsData.stats.totalArtworksSold}</p>
+                    </div>
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Total Volume</p>
+                      <p className="text-xl font-semibold">
+                        {formatEther(BigInt(statsData.stats.totalSalesVolumeWei))} ETH
+                      </p>
+                    </div>
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Unique Buyers</p>
+                      <p className="text-2xl font-semibold">{statsData.stats.uniqueBuyers}</p>
+                    </div>
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Total Sales</p>
+                      <p className="text-2xl font-semibold">{statsData.stats.totalSalesCount}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Purchase Stats */}
+                <div>
+                  <h2 className="text-lg font-light mb-4">Purchases</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Artworks Purchased</p>
+                      <p className="text-2xl font-semibold">{statsData.stats.totalArtworksPurchased}</p>
+                    </div>
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Total Spent</p>
+                      <p className="text-xl font-semibold">
+                        {formatEther(BigInt(statsData.stats.totalPurchaseVolumeWei))} ETH
+                      </p>
+                    </div>
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Unique Sellers</p>
+                      <p className="text-2xl font-semibold">{statsData.stats.uniqueSellers}</p>
+                    </div>
+                    <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                      <p className="text-sm text-[#999999]">Total Purchases</p>
+                      <p className="text-2xl font-semibold">{statsData.stats.totalPurchaseCount}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Bidding Stats */}
+                {(statsData.stats.totalBidsPlaced > 0 || statsData.stats.totalOffersMade > 0) && (
+                  <div>
+                    <h2 className="text-lg font-light mb-4">Activity</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                        <p className="text-sm text-[#999999]">Bids Placed</p>
+                        <p className="text-2xl font-semibold">{statsData.stats.totalBidsPlaced}</p>
+                      </div>
+                      <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                        <p className="text-sm text-[#999999]">Bids Won</p>
+                        <p className="text-2xl font-semibold">{statsData.stats.totalBidsWon}</p>
+                      </div>
+                      <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                        <p className="text-sm text-[#999999]">Offers Made</p>
+                        <p className="text-2xl font-semibold">{statsData.stats.totalOffersMade}</p>
+                      </div>
+                      <div className="p-4 bg-[#1a1a1a] border border-[#333333]">
+                        <p className="text-sm text-[#999999]">Active Listings</p>
+                        <p className="text-2xl font-semibold">{statsData.stats.activeListings}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Token Breakdown */}
+                {statsData.stats.tokensSoldIn && statsData.stats.tokensSoldIn.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-light mb-4">Tokens Sold In</h2>
+                    <div className="space-y-2">
+                      {statsData.stats.tokensSoldIn.map((token: any) => (
+                        <div key={token.address} className="flex justify-between p-3 bg-[#1a1a1a] border border-[#333333]">
+                          <span className="text-sm">{token.symbol}</span>
+                          <span className="text-sm font-medium">
+                            {formatEther(BigInt(token.totalAmount))} ({token.count} sales)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {statsData.stats.tokensBoughtIn && statsData.stats.tokensBoughtIn.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-light mb-4">Tokens Bought In</h2>
+                    <div className="space-y-2">
+                      {statsData.stats.tokensBoughtIn.map((token: any) => (
+                        <div key={token.address} className="flex justify-between p-3 bg-[#1a1a1a] border border-[#333333]">
+                          <span className="text-sm">{token.symbol}</span>
+                          <span className="text-sm font-medium">
+                            {formatEther(BigInt(token.totalAmount))} ({token.count} purchases)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {statsData.cached && statsData.calculatedAt && (
+                  <p className="text-xs text-[#666666]">
+                    Last updated: {new Date(statsData.calculatedAt).toLocaleString()}
+                    {statsData.stale && ' (updating soon)'}
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
