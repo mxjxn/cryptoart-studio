@@ -9,6 +9,7 @@ import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { useUsername } from "~/hooks/useUsername";
+import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { CopyButton } from "~/components/CopyButton";
 // import { FavoriteButton } from "~/components/FavoriteButton";
 import { ListingChips } from "~/components/ListingChips";
@@ -17,6 +18,7 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
 import { getAuction } from "~/lib/subgraph";
+import { useCountdown } from "~/hooks/useCountdown";
 
 interface AuctionCardProps {
   auction: EnrichedAuctionData;
@@ -115,9 +117,10 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   // Get username for linking to profile
   const { username: creatorUsername } = useUsername(addressToShow || null);
   
-  // Get buyer username for finalized auctions (must be declared before use in stateDisplay)
+  // Get buyer username and ENS name for highest bidder
   const buyerAddress = auction.highestBid?.bidder;
   const { username: buyerUsername } = useUsername(buyerAddress || null);
+  const buyerEnsName = useEnsNameForAddress(buyerAddress || null);
   
   // Get time status for display
   const startTime = parseInt(auction.startTime || "0");
@@ -128,6 +131,12 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   const isFinalized = auction.status === "FINALIZED";
   const isCancelled = auction.status === "CANCELLED";
   const isERC1155 = auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2";
+  
+  // Only use countdown hook for active auctions that aren't ended/finalized/cancelled
+  // This prevents unnecessary intervals from running
+  const shouldShowCountdown = !isEnded && !isFinalized && !isCancelled && 
+                              !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+  const countdown = useCountdown(shouldShowCountdown ? endTime : 0);
   
   // Calculate ERC1155 supply info
   let supplyDisplay: React.ReactElement | null = null;
@@ -221,23 +230,23 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         </div>
       );
     } else if (hasBid) {
-      // Active with bids: Show bid count and time (price is already shown in price section)
+      // Active with bids: Show bid count and live countdown
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
       stateDisplay = (
         <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
           <div>{bidCount} {bidCount === 1 ? "bid" : "bids"}</div>
-          {showTime && timeStatus.timeRemaining && (
-            <div>{timeStatus.timeRemaining}</div>
+          {showTime && countdown !== "Ended" && (
+            <div>{countdown}</div>
           )}
         </div>
       );
     } else {
-      // Active no bids: Only show time (reserve is already shown in price section)
+      // Active no bids: Only show live countdown (reserve is already shown in price section)
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-      if (showTime && timeStatus.timeRemaining) {
+      if (showTime && countdown !== "Ended") {
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight">
-            {timeStatus.timeRemaining}
+            {countdown}
           </div>
         );
       }
@@ -255,8 +264,8 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
             <div>{remaining} left</div>
-            {showTime && timeStatus.timeRemaining && (
-              <div>{timeStatus.timeRemaining}</div>
+            {showTime && countdown !== "Ended" && (
+              <div>{countdown}</div>
             )}
           </div>
         );
@@ -264,10 +273,10 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
     } else {
       // 1/1 fixed price
       const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-      if (showTime && timeStatus.timeRemaining) {
+      if (showTime && countdown !== "Ended") {
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight">
-            {timeStatus.timeRemaining}
+            {countdown}
           </div>
         );
       }
@@ -420,6 +429,37 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
               <div className="text-base font-medium leading-tight">
                 {currentPrice} {currentPrice !== "—" && tokenSymbol}
               </div>
+              {/* Show bidder info for high bids */}
+              {auction.highestBid && buyerAddress && (
+                <div className="text-xs text-[#999999] mt-0.5 leading-tight">
+                  by{" "}
+                  {buyerUsername ? (
+                    <TransitionLink
+                      href={`/user/${buyerUsername}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-white transition-colors"
+                    >
+                      @{buyerUsername}
+                    </TransitionLink>
+                  ) : buyerEnsName ? (
+                    <TransitionLink
+                      href={`/user/${buyerAddress}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-white transition-colors"
+                    >
+                      {buyerEnsName}
+                    </TransitionLink>
+                  ) : (
+                    <TransitionLink
+                      href={`/user/${buyerAddress}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-mono text-[10px] hover:text-white transition-colors"
+                    >
+                      {`${buyerAddress.slice(0, 6)}...${buyerAddress.slice(-4)}`}
+                    </TransitionLink>
+                  )}
+                </div>
+              )}
             </div>
             {stateDisplay}
           </div>
