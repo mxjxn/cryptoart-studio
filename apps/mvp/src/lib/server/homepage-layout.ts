@@ -271,23 +271,39 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
     console.log(`[getLiveBids] Subgraph returned ${data.listings?.length || 0} listings with bids`);
 
     if (!data.listings || data.listings.length === 0) {
+      console.log(`[getLiveBids] No listings returned from subgraph query with hasBid: true`);
       return [];
     }
+
+    // Log listing IDs for debugging
+    const listingIds = data.listings.map(l => l.listingId);
+    console.log(`[getLiveBids] Listing IDs from subgraph: ${listingIds.join(', ')}`);
 
     // Get hidden user addresses to filter out
     const hiddenAddresses = await getHiddenUserAddresses();
 
     // Filter out hidden users and fully sold listings
+    // Also verify that bids actually exist (defensive check in case hasBid field is wrong)
     const filteredListings = data.listings.filter((listing) => {
+      // Verify bids actually exist (defensive check)
+      const bidCount = listing.bids?.length || 0;
+      const hasBidField = listing.hasBid === true;
+      if (!hasBidField && bidCount === 0) {
+        console.log(`[getLiveBids] Listing ${listing.listingId} has hasBid=false and no bids, skipping`);
+        return false;
+      }
+
       const totalAvailable = parseInt(listing.totalAvailable || "0");
       const totalSold = parseInt(listing.totalSold || "0");
       const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
       
       if (listing.finalized || isFullySold) {
+        console.log(`[getLiveBids] Listing ${listing.listingId} filtered: finalized=${listing.finalized}, isFullySold=${isFullySold}`);
         return false;
       }
       
       if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+        console.log(`[getLiveBids] Listing ${listing.listingId} filtered: seller is hidden`);
         return false;
       }
       
