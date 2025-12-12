@@ -225,6 +225,28 @@ export interface ImageCacheData {
 }
 
 /**
+ * Membership cache table - Cache membership NFT balance checks
+ * Primary key: address (lowercase)
+ * Used to avoid repeated onchain calls for membership checks
+ */
+export const membershipCache = pgTable('membership_cache', {
+  address: text('address').primaryKey().notNull(), // ETH address (lowercase)
+  hasMembership: boolean('has_membership').notNull(), // Whether balanceOf > 0
+  cachedAt: timestamp('cached_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // TTL: 5 minutes for positive, 1 minute for negative
+}, (table) => ({
+  expiresAtIdx: index('membership_cache_expires_at_idx').on(table.expiresAt),
+  hasMembershipIdx: index('membership_cache_has_membership_idx').on(table.hasMembership),
+}));
+
+export interface MembershipCacheData {
+  address: string;
+  hasMembership: boolean;
+  cachedAt: Date;
+  expiresAt: Date;
+}
+
+/**
  * Follows table - Track user follows
  * followerAddress follows followingAddress
  */

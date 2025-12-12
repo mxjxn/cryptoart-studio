@@ -12,7 +12,7 @@ import { useUsername } from "~/hooks/useUsername";
 import { CopyButton } from "~/components/CopyButton";
 // import { FavoriteButton } from "~/components/FavoriteButton";
 import { ListingChips } from "~/components/ListingChips";
-import { AdminContextMenu } from "~/components/AdminContextMenu";
+import { ListingCardMenu } from "~/components/ListingCardMenu";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
@@ -478,9 +478,9 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
           </div>
         ) : null}
       </div>
-      {/* Admin Context Menu - Below the card */}
+      {/* Listing Card Menu - Below the card (includes Gallery + Admin options) */}
       <div className="mt-2 flex justify-end" data-no-click onClick={(e) => e.stopPropagation()}>
-        <AdminContextMenu 
+        <ListingCardMenu 
           listingId={auction.listingId} 
           sellerAddress={auction.seller}
         />

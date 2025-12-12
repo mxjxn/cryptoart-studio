@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
-import { GALLERY_ACCESS_NFT_CONTRACT_ADDRESS } from "~/lib/constants";
+import { STP_V2_CONTRACT_ADDRESS, MAX_GALLERIES_PER_USER } from "~/lib/constants";
 import type { CurationData } from "@cryptoart/db";
 
 interface AddToGalleryButtonProps {
@@ -19,7 +19,7 @@ interface GalleryWithCount extends CurationData {
 export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
-  const { hasAccess: hasNFTAccess, loading: isNFTLoading, addressesWithNFT } = useHasNFTAccess(GALLERY_ACCESS_NFT_CONTRACT_ADDRESS);
+  const { hasAccess: hasNFTAccess, loading: isNFTLoading, addressesWithNFT } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
   const queryClient = useQueryClient();
   
   // User has access if they're admin OR have NFT access
@@ -172,7 +172,7 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
                         disabled={addToListing.isPending}
                         className="w-full text-left px-4 py-3 bg-[#1a1a1a] border border-[#333333] rounded hover:border-[#666666] transition-colors disabled:opacity-50"
                       >
-                        <div className="font-medium">{gallery.title}</div>
+                        <div className="font-medium">Add to {gallery.title}</div>
                         <div className="text-xs text-[#999999]">
                           {gallery.itemCount} {gallery.itemCount === 1 ? "listing" : "listings"}
                           {!gallery.isPublished && " • Draft"}
@@ -181,12 +181,18 @@ export function AddToGalleryButton({ listingId }: AddToGalleryButtonProps) {
                     ))
                   )}
                 </div>
-                <button
-                  onClick={() => setIsCreating(true)}
-                  className="w-full px-4 py-2 text-sm bg-white text-black font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-                >
-                  + Create New Gallery
-                </button>
+                {galleries.length < MAX_GALLERIES_PER_USER ? (
+                  <button
+                    onClick={() => setIsCreating(true)}
+                    className="w-full px-4 py-2 text-sm bg-white text-black font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                  >
+                    + Create New Gallery
+                  </button>
+                ) : (
+                  <p className="text-xs text-[#999999] text-center py-2">
+                    Maximum of {MAX_GALLERIES_PER_USER} galleries reached
+                  </p>
+                )}
               </>
             ) : (
               <>
