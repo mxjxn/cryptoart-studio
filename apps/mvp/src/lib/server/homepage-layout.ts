@@ -284,6 +284,9 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
 
     // Filter out hidden users and fully sold listings
     // Also verify that bids actually exist (defensive check in case hasBid field is wrong)
+    const now = Math.floor(Date.now() / 1000);
+    const MAX_UINT48 = 281474976710655;
+    
     const filteredListings = data.listings.filter((listing) => {
       // Verify bids actually exist (defensive check)
       const bidCount = listing.bids?.length || 0;
@@ -300,6 +303,24 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
       if (listing.finalized || isFullySold) {
         console.log(`[getLiveBids] Listing ${listing.listingId} filtered: finalized=${listing.finalized}, isFullySold=${isFullySold}`);
         return false;
+      }
+      
+      // Check if auction has ended - for ERC721 (1/1), if it ended with a bid, it's likely finalized
+      // even if subgraph hasn't synced yet. This prevents showing finalized auctions that subgraph
+      // hasn't updated yet.
+      const endTime = parseInt(listing.endTime || "0");
+      const isERC721 = listing.tokenSpec === "ERC721" || String(listing.tokenSpec) === "1";
+      const hasEnded = endTime > 0 && endTime < now && endTime < MAX_UINT48;
+      
+      if (hasEnded && isERC721 && bidCount > 0) {
+        // For 1/1 auctions that ended with bids, they're likely finalized even if subgraph hasn't synced
+        // Only filter if it ended more than 1 hour ago to allow for finalization grace period
+        const endedAgo = now - endTime;
+        const oneHour = 60 * 60;
+        if (endedAgo > oneHour) {
+          console.log(`[getLiveBids] Listing ${listing.listingId} filtered: ERC721 auction ended ${Math.floor(endedAgo / 3600)} hours ago with bid, likely finalized`);
+          return false;
+        }
       }
       
       if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
