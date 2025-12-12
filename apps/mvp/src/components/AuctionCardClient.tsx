@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
@@ -40,8 +39,6 @@ export function AuctionCardClient({
   index,
   referralAddress,
 }: AuctionCardClientProps) {
-  const router = useRouter();
-  const cardRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -322,26 +319,16 @@ export function AuctionCardClient({
     }
   }
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    // Don't navigate if clicking on interactive elements
-    if (target.closest('a, button, [data-no-click]')) {
-      return;
-    }
-    
-    const href = referralAddress
-      ? `/auction/${listingId}?ref=${referralAddress}`
-      : `/auction/${listingId}`;
-    router.push(href);
-  };
+  const href = referralAddress
+    ? `/auction/${listingId}?ref=${referralAddress}`
+    : `/auction/${listingId}`;
 
   // Use the same JSX structure as the original AuctionCard
   // This is a simplified version - you may need to copy the full JSX from AuctionCard.tsx
   return (
-    <div
-      ref={cardRef}
-      onClick={handleClick}
-      className="relative group cursor-pointer"
+    <TransitionLink
+      href={href}
+      className="relative group cursor-pointer block"
       style={{ background: gradient }}
     >
       {/* Image */}
@@ -400,10 +387,10 @@ export function AuctionCardClient({
       
       {/* Loading indicator for dynamic data */}
       {loadingDynamic && (
-        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
           <div className="text-white text-xs">Loading...</div>
         </div>
       )}
-    </div>
+    </TransitionLink>
   );
 }

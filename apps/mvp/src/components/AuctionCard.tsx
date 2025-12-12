@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
@@ -28,8 +27,6 @@ interface AuctionCardProps {
 }
 
 export function AuctionCard({ auction, gradient, index, referralAddress }: AuctionCardProps) {
-  const router = useRouter();
-  const cardRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -285,41 +282,22 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
 
 
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only handle clicks on the card itself, not on interactive children
-    const target = e.target as HTMLElement;
-    if (target.closest('a, button, [data-no-click]')) {
-      return;
-    }
-    
-    // Navigate directly to listing
-    const listingUrl = referralAddress 
-      ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
-      : `/listing/${auction.listingId}`;
-    router.push(listingUrl);
-  };
 
   // Reset expanded state when card changes (e.g., different listing)
   useEffect(() => {
     setIsExpanded(false);
   }, [auction.listingId]);
 
+  const listingUrl = referralAddress 
+    ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
+    : `/listing/${auction.listingId}`;
+
   return (
-    <div
-      className="relative w-full cursor-pointer group"
-      onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      aria-label={`View listing: ${title}`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleClick(e as any);
-        }
-      }}
+    <TransitionLink
+      href={listingUrl}
+      className="relative w-full cursor-pointer group block"
     >
       <div
-        ref={cardRef}
         className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
         style={{
           background: (auction.thumbnailUrl || auction.image)
@@ -365,14 +343,13 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         {/* Overlay with gradient and data - visible on hover (desktop) or when expanded (mobile) */}
         <div 
           className={`absolute bottom-0 left-0 right-0 h-[33.33%] transition-opacity duration-300 pointer-events-none ${
-            isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto'
+            isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           }`}
-          data-no-click
         >
           {/* Gradient background - semi-translucent to less-translucent */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent pointer-events-none"></div>
-          {/* Content overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-5 z-10 pointer-events-auto" data-no-click>
+          {/* Content overlay - pointer events none so clicks pass through to link */}
+          <div className="absolute bottom-0 left-0 right-0 p-5 z-10 pointer-events-none">
             {/* Title and creator with 40% opacity black background */}
             <div className="bg-black/40 px-2 py-1.5 -mx-2 -mt-2 mb-2 rounded-sm">
               <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
@@ -386,7 +363,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
                 </div>
               )}
               {showArtist ? (
-                <div className="text-xs text-[#cccccc]">
+                <div className="text-xs text-[#cccccc] pointer-events-auto">
                   by{" "}
                   {creatorUsername ? (
                     <TransitionLink
@@ -409,7 +386,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
                   )}
                 </div>
               ) : addressToShow && !artistNameLoading ? (
-                <div className="text-xs text-[#cccccc] flex items-center gap-1.5">
+                <div className="text-xs text-[#cccccc] flex items-center gap-1.5 pointer-events-auto">
                   <TransitionLink
                     href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
                     onClick={(e) => e.stopPropagation()}
@@ -431,7 +408,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
               </div>
               {/* Show bidder info for high bids */}
               {auction.highestBid && buyerAddress && (
-                <div className="text-xs text-[#999999] mt-0.5 leading-tight">
+                <div className="text-xs text-[#999999] mt-0.5 leading-tight pointer-events-auto">
                   by{" "}
                   {buyerUsername ? (
                     <TransitionLink
@@ -505,13 +482,13 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         ) : null}
       </div>
       {/* Listing Card Menu - Below the card (includes Gallery + Admin options) */}
-      <div className="mt-2 flex justify-end" data-no-click onClick={(e) => e.stopPropagation()}>
+      <div className="mt-2 flex justify-end pointer-events-auto" onClick={(e) => e.stopPropagation()}>
         <ListingCardMenu 
-          listingId={auction.listingId} 
+          listingId={auction.listingId}
           sellerAddress={auction.seller}
         />
       </div>
-    </div>
+    </TransitionLink>
   );
 }
 
