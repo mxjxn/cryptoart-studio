@@ -27,11 +27,6 @@ export function useCountdown(endTime: number): string {
       const now = Math.floor(Date.now() / 1000);
       const remaining = Math.max(0, endTime - now);
       setTimeRemaining(remaining);
-
-      // Clear interval if countdown finished
-      if (remaining <= 0) {
-        clearInterval(interval);
-      }
     }, 1000);
 
     return () => clearInterval(interval);

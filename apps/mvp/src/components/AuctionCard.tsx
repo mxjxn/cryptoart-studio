@@ -130,8 +130,11 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   const isCancelled = auction.status === "CANCELLED";
   const isERC1155 = auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2";
   
-  // Use countdown hook for active auctions
-  const countdown = useCountdown(endTime);
+  // Only use countdown hook for active auctions that aren't ended/finalized/cancelled
+  // This prevents unnecessary intervals from running
+  const shouldShowCountdown = !isEnded && !isFinalized && !isCancelled && 
+                              !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+  const countdown = useCountdown(shouldShowCountdown ? endTime : 0);
   
   // Calculate ERC1155 supply info
   let supplyDisplay: React.ReactElement | null = null;
