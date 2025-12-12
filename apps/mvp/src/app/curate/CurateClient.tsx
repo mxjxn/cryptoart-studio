@@ -11,6 +11,7 @@ import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useUsername } from "~/hooks/useUsername";
 import { getGalleryUrl } from "~/lib/gallery-url";
 import type { CurationData } from "@cryptoart/db";
+import { MAX_GALLERIES_PER_USER } from "~/lib/constants";
 
 type FilterTab = "all" | "published" | "drafts";
 
@@ -142,10 +143,17 @@ export default function CurateClient() {
 
       <div className="px-5 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-light">My Galleries</h1>
+          <div>
+            <h1 className="text-2xl font-light">My Galleries</h1>
+            <p className="text-sm text-[#999999] mt-1">
+              {galleries.length} of {MAX_GALLERIES_PER_USER} galleries created
+            </p>
+          </div>
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+            disabled={galleries.length >= MAX_GALLERIES_PER_USER}
+            className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+            title={galleries.length >= MAX_GALLERIES_PER_USER ? `You can only create up to ${MAX_GALLERIES_PER_USER} galleries` : ''}
           >
             + Create Gallery
           </button>
@@ -204,7 +212,7 @@ export default function CurateClient() {
                   ? "No published galleries"
                   : "No draft galleries"}
             </p>
-            {filterTab === "all" && (
+            {filterTab === "all" && galleries.length < MAX_GALLERIES_PER_USER && (
               <button
                 onClick={() => setIsCreateModalOpen(true)}
                 className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"

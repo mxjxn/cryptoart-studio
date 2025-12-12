@@ -4,6 +4,7 @@ import { getAuctionServer } from '~/lib/server/auction';
 import { generateSlug } from '~/lib/utils/slug';
 import { hasGalleryAccess } from '~/lib/server/nft-access';
 import { isAddress } from 'viem';
+import { MAX_GALLERIES_PER_USER } from '~/lib/constants';
 
 /**
  * GET /api/curation?userAddress=...
@@ -119,6 +120,19 @@ export async function POST(req: NextRequest) {
     
     const db = getDatabase();
     const normalizedAddress = userAddress.toLowerCase();
+    
+    // Check if user has reached the maximum number of galleries
+    const existingGalleries = await db
+      .select()
+      .from(curation)
+      .where(eq(curation.curatorAddress, normalizedAddress));
+    
+    if (existingGalleries.length >= MAX_GALLERIES_PER_USER) {
+      return NextResponse.json(
+        { error: `You can only create up to ${MAX_GALLERIES_PER_USER} galleries.` },
+        { status: 400 }
+      );
+    }
     
     // Generate slug from title
     const baseSlug = generateSlug(title);
