@@ -67,12 +67,14 @@ const gradients = [
   "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
 ];
 
+type ProfileTab = 'wallets' | 'artworks' | 'listings' | 'collections' | 'galleries' | 'stats';
+
 export default function UserProfileClient({ username }: UserProfileClientProps) {
   const { isAdmin } = useIsAdmin();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections' | 'galleries' | 'stats'>('wallets');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('wallets');
   const [statsData, setStatsData] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [followersCount, setFollowersCount] = useState<number | null>(null);

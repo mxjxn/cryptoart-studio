@@ -239,7 +239,7 @@ export async function calculateUserStats(userAddress: string): Promise<Omit<User
   
   // Calculate sales stats
   const totalSalesVolumeWei = sales.reduce((sum, s) => sum + BigInt(s.amount), BigInt(0));
-  const uniqueBuyers = new Set(sales.map((s: any) => s.buyer?.toLowerCase())).size;
+  const uniqueBuyers = new Set(sales.map((s: any) => s.buyer?.toLowerCase()).filter(Boolean)).size;
   const tokensSoldIn = aggregateTokenStats(sales);
   
   const saleDates = sales.map((s: any) => new Date(Number(s.timestamp) * 1000));
@@ -252,9 +252,10 @@ export async function calculateUserStats(userAddress: string): Promise<Omit<User
   
   // Calculate bidding stats
   const totalBidVolumeWei = bids.reduce((sum, b) => sum + BigInt(b.amount), BigInt(0));
-  const bidsWon = bids.filter((b: any) => b.listing?.finalized && b.listing?.status === 'FINALIZED').length;
+  // Note: Using both finalized flag and status for defensive programming - ensures consistency
+  const bidsWon = bids.filter((b: any) => b.listing?.finalized === true && b.listing?.status === 'FINALIZED').length;
   const activeBids = bids.filter((b: any) => 
-    !b.listing?.finalized && b.listing?.status === 'ACTIVE'
+    b.listing?.finalized === false && b.listing?.status === 'ACTIVE'
   ).length;
   
   // Calculate offer stats
