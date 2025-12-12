@@ -329,8 +329,8 @@ export function AuctionCardClient({
     <TransitionLink
       href={href}
       className="relative group cursor-pointer block"
-      style={{ background: gradient }}
     >
+      <div style={{ background: gradient }}>
       {/* Image */}
       {displayImage && (
         <div className="relative w-full aspect-square overflow-hidden">
@@ -391,6 +391,7 @@ export function AuctionCardClient({
           <div className="text-white text-xs">Loading...</div>
         </div>
       )}
+      </div>
     </TransitionLink>
   );
 }

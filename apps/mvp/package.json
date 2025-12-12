@@ -36,6 +36,7 @@
     "clsx": "^2.1.1",
     "graphql-request": "^6.1.0",
     "lucide-react": "^0.469.0",
+    "mvp": "link:",
     "next": "^16.0.7",
     "pino-pretty": "^11.3.0",
     "react": "^19.2.1",
