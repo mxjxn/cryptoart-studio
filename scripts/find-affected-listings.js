@@ -87,12 +87,8 @@ async function findAffectedListings() {
           // Additional check: if contract endTime - subgraph endTime ≈ contract startTime,
           // that's a strong indicator of the bug (endTime + startTime)
           const expectedBugResult = subgraphEnd + contractStart;
-          const isLikelyBug = Math.abs(contractEnd - expectedBugResult) < 1000; // Allow 1000s tolerance
-          
-          if (!isLikelyBug) {
-            // If it doesn't match the expected pattern, skip it
-            continue;
-          }
+          const diffFromExpected = Math.abs(contractEnd - expectedBugResult);
+          const isLikelyBug = diffFromExpected < 1000; // Allow 1000s tolerance
           const diff = contractEnd - subgraphEnd;
           const diffDays = Math.floor(diff / 86400);
           
@@ -115,6 +111,7 @@ async function findAffectedListings() {
             differenceDays: diffDays,
             expectedBugResult,
             isLikelyBug,
+            diffFromExpected,
             hasBid: listing.hasBid || debugData.subgraph?.hasBid || false,
             bidCount: listing.bidCount || 0,
             status: listing.status || debugData.subgraph?.status || 'ACTIVE',
