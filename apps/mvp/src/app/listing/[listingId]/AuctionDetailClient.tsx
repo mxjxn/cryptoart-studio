@@ -1295,6 +1295,33 @@ export default function AuctionDetailClient({
     );
   }, [auction, contractName, displayCreatorName, displayCreatorAddress, creatorUsername, paymentSymbol, paymentDecimals, isCancelled]);
 
+  // Calculate at-risk listing status (must be called before conditional returns)
+  // This is needed for the useEffect hook below
+  const endTime = auction?.endTime ? parseInt(auction.endTime) : 0;
+  const startTime = auction?.startTime ? parseInt(auction.startTime) : 0;
+  const bidCount = auction?.bidCount || 0;
+  const nowTimestamp = Math.floor(Date.now() / 1000);
+  const oneYearInSeconds = 365 * 24 * 60 * 60;
+  const hasStarted = auction?.listingType === "INDIVIDUAL_AUCTION" 
+    ? bidCount > 0 || !!auction?.highestBid
+    : parseInt(auction?.totalSold || "0") > 0;
+  const isAtRiskListing = auction?.listingType === "INDIVIDUAL_AUCTION" &&
+    startTime === 0 &&
+    endTime > 0 &&
+    endTime > nowTimestamp + oneYearInSeconds &&
+    !hasStarted;
+  const isOwnAuctionForRisk = isConnected && address && auction?.seller && 
+    address.toLowerCase() === auction.seller.toLowerCase();
+  const canUpdateAtRisk = isOwnAuctionForRisk && isAtRiskListing && auction?.status !== "CANCELLED";
+
+  // Auto-show update form for at-risk listings (seller needs to fix it)
+  // MUST be called before any conditional returns to avoid hook order violations
+  useEffect(() => {
+    if (canUpdateAtRisk) {
+      setShowUpdateForm(true);
+    }
+  }, [canUpdateAtRisk]);
+
   // Show building state if page is building or listing not found yet
   const isBuilding = pageStatus === 'building' || (!auction && !loading && pageStatus !== 'ready');
   
@@ -1336,12 +1363,12 @@ export default function AuctionDetailClient({
   }
 
   const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";
-  const endTime = auction.endTime ? parseInt(auction.endTime) : 0;
-  const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
+  // endTime, startTime already calculated above for at-risk detection
+  // Use `now` state variable for isActive/isEnded to ensure countdown updates properly
   const isActive = endTime > now && auction.status === "ACTIVE";
   const isEnded = endTime <= now && auction.status === "ACTIVE" && !isCancelled;
   const title = auction.title || `Auction #${listingId}`;
-  const bidCount = auction.bidCount || 0;
+  // bidCount already calculated above
   const hasBid = bidCount > 0 || !!auction.highestBid;
   
   // Check if the current user is the auction seller
@@ -1363,7 +1390,7 @@ export default function AuctionDetailClient({
   const contractStartTime = listingData?.details?.startTime 
     ? Number(listingData.details.startTime) 
     : null;
-  const nowTimestamp = Math.floor(Date.now() / 1000);
+  // nowTimestamp already calculated above
   
   // Detect if contract endTime is way in the future (bug where absolute timestamp was treated as duration)
   // This happens when startTime=0 and frontend sent endTime as absolute timestamp instead of duration
@@ -1375,22 +1402,8 @@ export default function AuctionDetailClient({
   // This indicates the bug where absolute timestamp was treated as duration
   const hasMismatch = hasInvalidContractEndTime && subgraphEndTime && subgraphEndTime < nowTimestamp + 365 * 24 * 60 * 60;
   
-  // Check if listing has started (for auctions: has bids, for fixed price: has sales)
-  // Must be declared before isAtRiskListing since it uses hasStarted
-  const hasStarted = auction.listingType === "INDIVIDUAL_AUCTION" 
-    ? bidCount > 0 || !!auction.highestBid
-    : parseInt(auction.totalSold || "0") > 0;
-  
-  // CRITICAL FIX: Detect at-risk listings (startTime=0 with endTime > 1 year as absolute timestamp)
-  // These will trigger the bug when first bid is placed
-  // subgraphStartTime = 0 means not started, subgraphEndTime > 1 year means it's an absolute timestamp (not duration)
-  const oneYearInSeconds = 365 * 24 * 60 * 60;
-  const isAtRiskListing = 
-    auction.listingType === "INDIVIDUAL_AUCTION" &&
-    startTime === 0 && // Not started yet
-    subgraphEndTime > 0 && // Has an endTime
-    subgraphEndTime > nowTimestamp + oneYearInSeconds && // EndTime is > 1 year from now (absolute timestamp, not duration)
-    !hasStarted; // No bids yet
+  // hasStarted already calculated above for at-risk detection
+  // isAtRiskListing already calculated above
   
   // For finalization, use subgraph endTime if there's a mismatch (subgraph has the correct original endTime)
   // Otherwise trust contract state as source of truth
@@ -1406,15 +1419,8 @@ export default function AuctionDetailClient({
   // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
   // OR if listing is at-risk (special case to fix the bug)
   const canUpdate = isOwnAuction && !hasStarted && isActive && !isCancelled;
-  const canUpdateAtRisk = isOwnAuction && isAtRiskListing && !isCancelled; // Special permission for at-risk listings
+  // canUpdateAtRisk already calculated above (before conditional returns)
   const isModifyLoading = isModifying || isConfirmingModify;
-  
-  // Auto-show update form for at-risk listings (seller needs to fix it)
-  useEffect(() => {
-    if (canUpdateAtRisk && !showUpdateForm) {
-      setShowUpdateForm(true);
-    }
-  }, [canUpdateAtRisk]);
 
   return (
     <div className="min-h-screen bg-black text-white animate-in fade-in duration-100">
