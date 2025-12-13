@@ -9,6 +9,7 @@ interface UpdateListingFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   listingType: "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY" | "DYNAMIC_PRICE";
+  hideCancel?: boolean; // Hide cancel button (for required updates)
 }
 
 export function UpdateListingForm({
@@ -18,6 +19,7 @@ export function UpdateListingForm({
   onCancel,
   isLoading = false,
   listingType,
+  hideCancel = false,
 }: UpdateListingFormProps) {
   // Toggle between duration mode and specific dates mode
   const [useDuration, setUseDuration] = useState(false);
@@ -159,13 +161,15 @@ export function UpdateListingForm({
     <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-white">Update Listing Timeframe</h3>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-xs text-[#999999] hover:text-[#cccccc]"
-        >
-          Cancel
-        </button>
+        {!hideCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-xs text-[#999999] hover:text-[#cccccc]"
+          >
+            Cancel
+          </button>
+        )}
       </div>
 
       {/* Toggle Switch */}
@@ -303,21 +307,23 @@ export function UpdateListingForm({
         </div>
       )}
 
-      <div className="flex gap-2 pt-2">
+      <div className={`flex gap-2 pt-2 ${hideCancel ? '' : ''}`}>
         <button
           type="submit"
           disabled={isLoading || (useDuration && durationDays === 0 && durationHours === 0) || (!useDuration && !endDate)}
-          className="flex-1 px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`${hideCancel ? 'w-full' : 'flex-1'} px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {isLoading ? "Updating..." : "Update Listing"}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 bg-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#444444] transition-colors"
-        >
-          Cancel
-        </button>
+        {!hideCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 bg-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#444444] transition-colors"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </form>
   );

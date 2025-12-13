@@ -782,7 +782,29 @@ export default function AuctionDetailClient({
       // Convert to number for timestamps (null becomes 0)
       // uint48 can be represented as a number (safe up to 2^53-1, but uint48 max is 2^48-1)
       const startTime48 = startTime || 0;
-      const endTime48 = endTime || 0;
+      let endTime48 = endTime || 0;
+      
+      // CRITICAL FIX: When startTime=0, endTime must be a DURATION, not an absolute timestamp!
+      // If endTime is provided as an absolute timestamp when startTime=0, convert it to duration
+      const now = Math.floor(Date.now() / 1000);
+      const SAFE_DURATION_10_YEARS = 315360000; // 10 years in seconds
+      
+      if (startTime48 === 0 && endTime48 > 0) {
+        // Check if endTime looks like an absolute timestamp (> year 2000)
+        // If it's > now but < now + 10 years, it's likely an absolute timestamp
+        if (endTime48 > 946684800 && endTime48 > now && endTime48 < now + SAFE_DURATION_10_YEARS) {
+          // This is an absolute timestamp, convert to duration
+          endTime48 = Math.max(0, endTime48 - now);
+          
+          // Safety check: cap at 10 years
+          if (endTime48 > SAFE_DURATION_10_YEARS) {
+            console.warn(`[UpdateListing] Duration calculated (${endTime48}s) exceeds safe limit. Capping to ${SAFE_DURATION_10_YEARS}s`);
+            endTime48 = SAFE_DURATION_10_YEARS;
+          }
+          
+          console.log(`[UpdateListing] startTime=0: Converting absolute timestamp to duration ${endTime48}s (${Math.floor(endTime48 / 86400)} days)`);
+        }
+      }
 
       await modifyListing({
         address: MARKETPLACE_ADDRESS,
@@ -1353,6 +1375,23 @@ export default function AuctionDetailClient({
   // This indicates the bug where absolute timestamp was treated as duration
   const hasMismatch = hasInvalidContractEndTime && subgraphEndTime && subgraphEndTime < nowTimestamp + 365 * 24 * 60 * 60;
   
+  // Check if listing has started (for auctions: has bids, for fixed price: has sales)
+  // Must be declared before isAtRiskListing since it uses hasStarted
+  const hasStarted = auction.listingType === "INDIVIDUAL_AUCTION" 
+    ? bidCount > 0 || !!auction.highestBid
+    : parseInt(auction.totalSold || "0") > 0;
+  
+  // CRITICAL FIX: Detect at-risk listings (startTime=0 with endTime > 1 year as absolute timestamp)
+  // These will trigger the bug when first bid is placed
+  // subgraphStartTime = 0 means not started, subgraphEndTime > 1 year means it's an absolute timestamp (not duration)
+  const oneYearInSeconds = 365 * 24 * 60 * 60;
+  const isAtRiskListing = 
+    auction.listingType === "INDIVIDUAL_AUCTION" &&
+    startTime === 0 && // Not started yet
+    subgraphEndTime > 0 && // Has an endTime
+    subgraphEndTime > nowTimestamp + oneYearInSeconds && // EndTime is > 1 year from now (absolute timestamp, not duration)
+    !hasStarted; // No bids yet
+  
   // For finalization, use subgraph endTime if there's a mismatch (subgraph has the correct original endTime)
   // Otherwise trust contract state as source of truth
   const effectiveEndTime = hasMismatch ? subgraphEndTime : (contractEndTime || subgraphEndTime);
@@ -1365,11 +1404,17 @@ export default function AuctionDetailClient({
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
-  const hasStarted = auction.listingType === "INDIVIDUAL_AUCTION" 
-    ? bidCount > 0 || !!auction.highestBid
-    : parseInt(auction.totalSold || "0") > 0;
+  // OR if listing is at-risk (special case to fix the bug)
   const canUpdate = isOwnAuction && !hasStarted && isActive && !isCancelled;
+  const canUpdateAtRisk = isOwnAuction && isAtRiskListing && !isCancelled; // Special permission for at-risk listings
   const isModifyLoading = isModifying || isConfirmingModify;
+  
+  // Auto-show update form for at-risk listings (seller needs to fix it)
+  useEffect(() => {
+    if (canUpdateAtRisk && !showUpdateForm) {
+      setShowUpdateForm(true);
+    }
+  }, [canUpdateAtRisk]);
 
   return (
     <div className="min-h-screen bg-black text-white animate-in fade-in duration-100">
@@ -1604,9 +1649,27 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Update Listing Form - Show when update button is clicked */}
-        {showUpdateForm && canUpdate && !isCancelled && (
+        {/* Warning for at-risk listings */}
+        {isAtRiskListing && !isCancelled && (
+          <div className="mb-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
+            <p className="text-yellow-400 font-medium mb-2">⚠️ Auction Configuration Issue</p>
+            <p className="text-yellow-300 text-sm mb-3">
+              This auction has a configuration issue that would prevent proper finalization. 
+              Bidding has been disabled until the auction is updated. Please use the form below to set 
+              a valid auction duration (limited to 10 years maximum).
+            </p>
+          </div>
+        )}
+
+        {/* Update Listing Form - Show when update button is clicked OR for at-risk listings */}
+        {showUpdateForm && (canUpdate || canUpdateAtRisk) && !isCancelled && (
           <div className="mb-4">
+            {isAtRiskListing && (
+              <p className="text-sm text-[#cccccc] mb-3">
+                Update your auction configuration. Set a start time and end time, or use duration mode.
+                Maximum duration is 10 years.
+              </p>
+            )}
             <UpdateListingForm
               currentStartTime={startTime || null}
               currentEndTime={endTime || null}
@@ -1614,6 +1677,7 @@ export default function AuctionDetailClient({
               onCancel={() => setShowUpdateForm(false)}
               isLoading={isModifyLoading}
               listingType={auction.listingType}
+              hideCancel={isAtRiskListing} // Don't allow cancel for at-risk listings (must fix)
             />
             {modifyError && (
               <p className="text-xs text-red-400 mt-2">
@@ -1773,8 +1837,8 @@ export default function AuctionDetailClient({
         {/* Action Buttons - Conditional based on listing type */}
         {!isCancelled && (
           <>
-            {/* INDIVIDUAL_AUCTION - Place Bid (only show if active) */}
-            {auction.listingType === "INDIVIDUAL_AUCTION" && isActive && !isEnded && (
+            {/* INDIVIDUAL_AUCTION - Place Bid (only show if active and not at-risk) */}
+            {auction.listingType === "INDIVIDUAL_AUCTION" && isActive && !isEnded && !isAtRiskListing && (
               <div className="mb-4">
                 {!isConnected ? (
                   <p className="text-xs text-[#cccccc]">
