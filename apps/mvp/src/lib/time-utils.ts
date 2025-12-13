@@ -66,16 +66,45 @@ export function getAuctionTimeStatus(
   // If startTime is 0, auction starts on first bid
   if (startTime === 0) {
     if (!hasBid) {
-      // Not started yet - endTime represents duration
-      return { status: "Not started", neverExpires: false };
+      // Not started yet - endTime should represent duration, not absolute timestamp
+      // However, due to a bug, some listings might have absolute timestamps in subgraph
+      // Detect if endTime looks like an absolute timestamp (> 1 year in future)
+      const oneYearInSeconds = 365 * 24 * 60 * 60;
+      const isLikelyAbsoluteTimestamp = endTime > currentTime + oneYearInSeconds;
+      
+      if (isLikelyAbsoluteTimestamp) {
+        // This is likely an absolute timestamp due to the bug - don't display time remaining
+        // because we can't know when the auction will start (depends on first bid)
+        // The auction should be marked as "at-risk" and seller should update it
+        return { status: "Not started", neverExpires: false };
+      } else {
+        // endTime is a duration (or a small absolute timestamp that's in the past/near future)
+        // Still can't show time remaining because we don't know when auction starts
+        return { status: "Not started", neverExpires: false };
+      }
     } else {
-      // Has started - endTime is now absolute timestamp
-      return {
-        status: "Live",
-        endDate: formatEndTime(endTime),
-        timeRemaining: formatTimeRemaining(endTime, currentTime),
-        neverExpires: false,
-      };
+      // Has started - endTime should be absolute timestamp after contract processed first bid
+      // However, if the bug occurred, endTime might be way in the future
+      // Check if it's unreasonably far in the future (> 10 years)
+      const tenYearsInSeconds = 10 * 365 * 24 * 60 * 60;
+      const isBuggyEndTime = endTime > currentTime + tenYearsInSeconds;
+      
+      if (isBuggyEndTime) {
+        // Bug occurred - endTime is way in the future, can't display meaningful time remaining
+        return {
+          status: "Live",
+          neverExpires: false,
+          // Don't set timeRemaining or endDate as they would be misleading
+        };
+      } else {
+        // Normal case - endTime is a reasonable absolute timestamp
+        return {
+          status: "Live",
+          endDate: formatEndTime(endTime),
+          timeRemaining: formatTimeRemaining(endTime, currentTime),
+          neverExpires: false,
+        };
+      }
     }
   } else {
     // Has fixed start time
