@@ -112,8 +112,8 @@ export function UpdateListingForm({
     // Validate timeframes
     const now = Math.floor(Date.now() / 1000);
     const MAX_UINT48 = 281474976710655;
-    const MAX_REASONABLE_YEARS = 10;
-    const MAX_REASONABLE_SECONDS = MAX_REASONABLE_YEARS * 365 * 24 * 60 * 60; // 10 years in seconds
+    const MAX_REASONABLE_MONTHS = 6;
+    const MAX_REASONABLE_SECONDS = MAX_REASONABLE_MONTHS * 30 * 24 * 60 * 60; // 6 months in seconds (180 days)
     
     // Prevent never-expiring for auctions (INDIVIDUAL_AUCTION)
     if (listingType === "INDIVIDUAL_AUCTION" && finalEndTime && (finalEndTime >= MAX_UINT48 || finalEndTime === MAX_UINT48)) {
@@ -134,9 +134,9 @@ export function UpdateListingForm({
         return;
       }
       
-      // Validate reasonable timeframe (max 10 years from now)
+      // Validate reasonable timeframe (max 6 months from now)
       if (finalEndTime > now + MAX_REASONABLE_SECONDS) {
-        alert(`End time cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
+        alert(`End time cannot be more than ${MAX_REASONABLE_MONTHS} months in the future`);
         return;
       }
     }
@@ -145,7 +145,7 @@ export function UpdateListingForm({
     if (useDuration && finalEndTime) {
       const durationSeconds = finalEndTime - (finalStartTime || now);
       if (durationSeconds > MAX_REASONABLE_SECONDS) {
-        alert(`Duration cannot be more than ${MAX_REASONABLE_YEARS} years`);
+        alert(`Duration cannot be more than ${MAX_REASONABLE_MONTHS} months`);
         return;
       }
       if (durationSeconds <= 0) {

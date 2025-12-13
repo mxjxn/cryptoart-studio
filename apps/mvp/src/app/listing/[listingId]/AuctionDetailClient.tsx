@@ -787,19 +787,19 @@ export default function AuctionDetailClient({
       // CRITICAL FIX: When startTime=0, endTime must be a DURATION, not an absolute timestamp!
       // If endTime is provided as an absolute timestamp when startTime=0, convert it to duration
       const now = Math.floor(Date.now() / 1000);
-      const SAFE_DURATION_10_YEARS = 315360000; // 10 years in seconds
+      const SAFE_DURATION_6_MONTHS = 15552000; // 6 months in seconds (180 days)
       
       if (startTime48 === 0 && endTime48 > 0) {
         // Check if endTime looks like an absolute timestamp (> year 2000)
-        // If it's > now but < now + 10 years, it's likely an absolute timestamp
-        if (endTime48 > 946684800 && endTime48 > now && endTime48 < now + SAFE_DURATION_10_YEARS) {
+        // If it's > now but < now + 6 months, it's likely an absolute timestamp
+        if (endTime48 > 946684800 && endTime48 > now && endTime48 < now + SAFE_DURATION_6_MONTHS) {
           // This is an absolute timestamp, convert to duration
           endTime48 = Math.max(0, endTime48 - now);
           
-          // Safety check: cap at 10 years
-          if (endTime48 > SAFE_DURATION_10_YEARS) {
-            console.warn(`[UpdateListing] Duration calculated (${endTime48}s) exceeds safe limit. Capping to ${SAFE_DURATION_10_YEARS}s`);
-            endTime48 = SAFE_DURATION_10_YEARS;
+          // Safety check: cap at 6 months
+          if (endTime48 > SAFE_DURATION_6_MONTHS) {
+            console.warn(`[UpdateListing] Duration calculated (${endTime48}s) exceeds safe limit. Capping to ${SAFE_DURATION_6_MONTHS}s (6 months)`);
+            endTime48 = SAFE_DURATION_6_MONTHS;
           }
           
           console.log(`[UpdateListing] startTime=0: Converting absolute timestamp to duration ${endTime48}s (${Math.floor(endTime48 / 86400)} days)`);
@@ -1656,7 +1656,7 @@ export default function AuctionDetailClient({
             <p className="text-yellow-300 text-sm mb-3">
               This auction has a configuration issue that would prevent proper finalization. 
               Bidding has been disabled until the auction is updated. Please use the form below to set 
-              a valid auction duration (limited to 10 years maximum).
+              a valid auction duration (limited to 6 months maximum).
             </p>
           </div>
         )}
@@ -1667,7 +1667,7 @@ export default function AuctionDetailClient({
             {isAtRiskListing && (
               <p className="text-sm text-[#cccccc] mb-3">
                 Update your auction configuration. Set a start time and end time, or use duration mode.
-                Maximum duration is 10 years.
+                Maximum duration is 6 months.
               </p>
             )}
             <UpdateListingForm

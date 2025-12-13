@@ -1004,7 +1004,7 @@ export default function CreateAuctionClient() {
       // So we must use a duration (10 years) instead of max uint48 when startTime is 0.
       let endTime: number;
       const MAX_UINT48 = 281474976710655;
-      const SAFE_DURATION_10_YEARS = 315360000; // 10 years in seconds
+      const SAFE_DURATION_6_MONTHS = 15552000; // 6 months in seconds (180 days)
       
       // Check if "no timeframe" option was selected (for FIXED_PRICE listings)
       // This is indicated by empty endTime AND empty startTime (or explicit noTimeframe flag)
@@ -1015,11 +1015,11 @@ export default function CreateAuctionClient() {
         // For FIXED_PRICE with "no timeframe" option:
         // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
         // that gets added to block.timestamp on first purchase.
-        // Using max uint48 would cause overflow, so use 10 years instead.
+        // Using max uint48 would cause overflow, so use 6 months instead.
         // If startTime is set, endTime is an absolute timestamp, so max uint48 is fine.
         if (startTime === 0) {
-          endTime = SAFE_DURATION_10_YEARS;
-          console.log('[CreateListing] Using safe duration (10 years) for open-ended FIXED_PRICE with startTime=0');
+          endTime = SAFE_DURATION_6_MONTHS;
+          console.log('[CreateListing] Using safe duration (6 months) for open-ended FIXED_PRICE with startTime=0');
         } else {
           // Absolute timestamp - max uint48 means "never expires"
           endTime = MAX_UINT48;
@@ -1038,10 +1038,10 @@ export default function CreateAuctionClient() {
           // or better yet, calculate duration from now (which is when listing is created)
           endTime = Math.max(0, absoluteEndTime - now);
           
-          // Safety check: if duration is unreasonably large (> 10 years), cap it
-          if (endTime > SAFE_DURATION_10_YEARS) {
-            console.warn(`[CreateListing] Duration calculated from endTime (${endTime}s) exceeds safe limit. Capping to ${SAFE_DURATION_10_YEARS}s (10 years)`);
-            endTime = SAFE_DURATION_10_YEARS;
+          // Safety check: if duration is unreasonably large (> 6 months), cap it
+          if (endTime > SAFE_DURATION_6_MONTHS) {
+            console.warn(`[CreateListing] Duration calculated from endTime (${endTime}s) exceeds safe limit. Capping to ${SAFE_DURATION_6_MONTHS}s (6 months)`);
+            endTime = SAFE_DURATION_6_MONTHS;
           }
           
           console.log(`[CreateListing] startTime=0 with endTime provided: Converting absolute timestamp ${absoluteEndTime} to duration ${endTime}s (${Math.floor(endTime / 86400)} days)`);
@@ -1053,9 +1053,9 @@ export default function CreateAuctionClient() {
         // For other listing types without endTime, use a safe duration
         if (startTime === 0) {
           // IMPORTANT: If startTime is 0, endTime becomes a duration added to block.timestamp
-          // Use 10 years as a safe "never expires" equivalent
-          endTime = SAFE_DURATION_10_YEARS;
-          console.log('[CreateListing] Using safe duration (10 years) for listing with startTime=0');
+          // Use 6 months as a safe duration
+          endTime = SAFE_DURATION_6_MONTHS;
+          console.log('[CreateListing] Using safe duration (6 months) for listing with startTime=0');
         } else {
           endTime = 0;
         }
@@ -1064,18 +1064,18 @@ export default function CreateAuctionClient() {
       // Safety check: Prevent the dangerous combination that causes contract overflow
       if (startTime === 0 && endTime === MAX_UINT48) {
         console.error('[CreateListing] CRITICAL: Preventing overflow - startTime=0 with endTime=max uint48');
-        endTime = SAFE_DURATION_10_YEARS;
+        endTime = SAFE_DURATION_6_MONTHS;
       }
 
       // Validate endTime based on listing type and startTime
-      const MAX_REASONABLE_YEARS = 10;
-      const MAX_REASONABLE_SECONDS = MAX_REASONABLE_YEARS * 365 * 24 * 60 * 60; // 10 years in seconds
+      const MAX_REASONABLE_MONTHS = 6;
+      const MAX_REASONABLE_SECONDS = MAX_REASONABLE_MONTHS * 30 * 24 * 60 * 60; // 6 months in seconds (180 days)
       
       if (effectiveFormData.listingType === "FIXED_PRICE") {
         // FIXED_PRICE: endTime can be max uint48 (never expires) or a future timestamp
         if (endTime === MAX_UINT48) {
           // Never-expiring is allowed for FIXED_PRICE
-        } else if (startTime === 0 && endTime === SAFE_DURATION_10_YEARS) {
+        } else if (startTime === 0 && endTime === SAFE_DURATION_6_MONTHS) {
           // When startTime is 0 and no timeframe is selected, endTime is a duration, not a timestamp
           // This is valid - skip timestamp validation
         } else if (endTime <= now) {
@@ -1085,7 +1085,7 @@ export default function CreateAuctionClient() {
           return;
         } else if (endTime > now + MAX_REASONABLE_SECONDS) {
           // Validation handled by DateSelector constraints
-          console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
+          console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_MONTHS} months in the future`);
           setIsSubmitting(false);
           return;
         }
@@ -1107,10 +1107,10 @@ export default function CreateAuctionClient() {
             setIsSubmitting(false);
             return;
           }
-          // Validate duration is reasonable (max 10 years)
+          // Validate duration is reasonable (max 6 months)
           if (endTime > MAX_REASONABLE_SECONDS) {
             // Validation handled by DurationSelector constraints
-            console.error(`Duration validation failed: cannot be more than ${MAX_REASONABLE_YEARS} years`);
+            console.error(`Duration validation failed: cannot be more than ${MAX_REASONABLE_MONTHS} months`);
             setIsSubmitting(false);
             return;
           }
@@ -1128,10 +1128,10 @@ export default function CreateAuctionClient() {
             setIsSubmitting(false);
             return;
           }
-          // Validate endTime is reasonable (max 10 years from now)
+          // Validate endTime is reasonable (max 6 months from now)
           if (endTime > now + MAX_REASONABLE_SECONDS) {
             // Validation handled by DateSelector constraints
-            console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_YEARS} years in the future`);
+            console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_MONTHS} months in the future`);
             setIsSubmitting(false);
             return;
           }
