@@ -1001,7 +1001,7 @@ export default function CreateAuctionClient() {
       // Handle endTime based on listing type
       // CRITICAL: When startTime is 0 (starts on first interaction), the contract adds
       // block.timestamp to endTime. If endTime is max uint48, this causes an overflow!
-      // So we must use a duration (10 years) instead of max uint48 when startTime is 0.
+      // So we must use a duration (6 months) instead of max uint48 when startTime is 0.
       let endTime: number;
       const MAX_UINT48 = 281474976710655;
       const SAFE_DURATION_6_MONTHS = 15552000; // 6 months in seconds (180 days)
