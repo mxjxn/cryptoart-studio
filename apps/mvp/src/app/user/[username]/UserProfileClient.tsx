@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
@@ -71,7 +71,26 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'wallets' | 'artworks' | 'listings' | 'collections' | 'galleries'>('wallets');
+  const [activeTab, setActiveTab] = useState<'artworks' | 'listings' | 'collections' | 'galleries'>('artworks');
+  const [showWalletsDropdown, setShowWalletsDropdown] = useState(false);
+  const walletsDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (walletsDropdownRef.current && !walletsDropdownRef.current.contains(event.target as Node)) {
+        setShowWalletsDropdown(false);
+      }
+    }
+    
+    if (showWalletsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showWalletsDropdown]);
   const [followersCount, setFollowersCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -209,8 +228,58 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
                 <p className="text-sm text-[#999999]">{profileData.user.ensName}</p>
               )}
               
-              {/* Follower/Following counts */}
-              <div className="flex gap-4 mt-3">
+              {/* Verified wallets count and Follower/Following counts */}
+              <div className="flex gap-4 mt-3 items-center">
+                {walletsToShow.length > 0 && (
+                  <div className="relative" ref={walletsDropdownRef}>
+                    <button
+                      onClick={() => setShowWalletsDropdown(!showWalletsDropdown)}
+                      className="text-sm text-[#999999] hover:text-white transition-colors"
+                    >
+                      <span className="font-medium text-white">{walletsToShow.length}</span> verified {walletsToShow.length === 1 ? 'wallet' : 'wallets'}
+                    </button>
+                    {showWalletsDropdown && (
+                      <div className="absolute top-full left-0 mt-2 bg-[#1a1a1a] border border-[#333333] rounded-lg shadow-lg z-50 min-w-[300px] max-h-[400px] overflow-y-auto">
+                        <div className="p-4">
+                          <h3 className="text-sm font-medium mb-3">Verified Wallets</h3>
+                          <div className="space-y-3">
+                            {walletsToShow.map((wallet) => {
+                              const walletUser = profileData.user?.ethAddress.toLowerCase() === wallet.toLowerCase()
+                                ? profileData.user
+                                : null;
+                              const walletUsername = walletUser?.username;
+                              
+                              return (
+                                <div
+                                  key={wallet}
+                                  className="p-3 bg-[#0a0a0a] border border-[#333333] rounded"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="font-mono text-xs">{wallet}</p>
+                                      {walletUsername && (
+                                        <Link
+                                          href={`/user/${walletUsername}`}
+                                          className="text-xs text-[#999999] hover:text-[#cccccc] mt-1"
+                                          onClick={() => setShowWalletsDropdown(false)}
+                                        >
+                                          @{walletUsername}
+                                        </Link>
+                                      )}
+                                    </div>
+                                    {wallet.toLowerCase() === profileData.primaryAddress.toLowerCase() && (
+                                      <span className="text-xs text-[#999999]">Primary</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => setShowFollowersModal(true)}
                   className="text-sm text-[#999999] hover:text-white transition-colors"
@@ -230,16 +299,6 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
 
           {/* Tabs */}
           <div className="flex gap-4 border-b border-[#333333] mb-6">
-            <button
-              onClick={() => setActiveTab('wallets')}
-              className={`pb-2 px-2 text-sm ${
-                activeTab === 'wallets'
-                  ? 'border-b-2 border-white text-white'
-                  : 'text-[#999999] hover:text-[#cccccc]'
-              }`}
-            >
-              Wallets ({walletsToShow.length})
-            </button>
             <button
               onClick={() => setActiveTab('artworks')}
               className={`pb-2 px-2 text-sm ${
@@ -286,42 +345,6 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'wallets' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-light mb-4">Verified Wallets</h2>
-            {walletsToShow.map((wallet, index) => {
-              const walletUser = profileData.user?.ethAddress.toLowerCase() === wallet.toLowerCase()
-                ? profileData.user
-                : null;
-              const walletUsername = walletUser?.username;
-              
-              return (
-                <div
-                  key={wallet}
-                  className="p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-mono text-sm">{wallet}</p>
-                      {walletUsername && (
-                        <Link
-                          href={`/user/${walletUsername}`}
-                          className="text-xs text-[#999999] hover:text-[#cccccc] mt-1"
-                        >
-                          @{walletUsername}
-                        </Link>
-                      )}
-                    </div>
-                    {wallet.toLowerCase() === profileData.primaryAddress.toLowerCase() && (
-                      <span className="text-xs text-[#999999]">Primary</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         {activeTab === 'artworks' && (
           <div>
             <h2 className="text-lg font-light mb-4">Artworks Created</h2>

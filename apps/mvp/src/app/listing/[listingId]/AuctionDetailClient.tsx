@@ -751,6 +751,12 @@ export default function AuctionDetailClient({
       return;
     }
     
+    // Check for invalid contract state before attempting
+    if (hasInvalidContractEndTime) {
+      console.error("Cannot finalize: Contract endTime is set way in the future:", contractEndTime, "This indicates a contract bug.");
+      return;
+    }
+    
     try {
       await finalizeAuction({
         address: MARKETPLACE_ADDRESS,
@@ -759,7 +765,7 @@ export default function AuctionDetailClient({
         chainId: CHAIN_ID,
         args: [Number(listingId)],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error finalizing auction:", err);
     }
   };
@@ -1328,9 +1334,34 @@ export default function AuctionDetailClient({
   const canCancel = isOwnAuction && bidCount === 0 && isActive && !isCancelled;
   const isCancelLoading = isCancelling || isConfirmingCancel;
   
+  // Check contract state for potential issues
+  const contractEndTime = listingData?.details?.endTime 
+    ? Number(listingData.details.endTime) 
+    : null;
+  const contractStartTime = listingData?.details?.startTime 
+    ? Number(listingData.details.startTime) 
+    : null;
+  const nowTimestamp = Math.floor(Date.now() / 1000);
+  
+  // Detect if contract endTime is way in the future (bug where absolute timestamp was treated as duration)
+  // This happens when startTime=0 and frontend sent endTime as absolute timestamp instead of duration
+  // Contract adds block.timestamp to endTime on first bid, causing endTime = original_abs_timestamp + block.timestamp
+  const hasInvalidContractEndTime = contractEndTime && contractEndTime > nowTimestamp + 365 * 24 * 60 * 60 * 10; // More than 10 years
+  const subgraphEndTime = endTime; // From subgraph (original endTime, not updated by contract changes)
+  
+  // Detect mismatch: subgraph shows reasonable endTime but contract shows way in future
+  // This indicates the bug where absolute timestamp was treated as duration
+  const hasMismatch = hasInvalidContractEndTime && subgraphEndTime && subgraphEndTime < nowTimestamp + 365 * 24 * 60 * 60;
+  
+  // For finalization, use subgraph endTime if there's a mismatch (subgraph has the correct original endTime)
+  // Otherwise trust contract state as source of truth
+  const effectiveEndTime = hasMismatch ? subgraphEndTime : (contractEndTime || subgraphEndTime);
+  const effectiveEnded = effectiveEndTime ? effectiveEndTime <= nowTimestamp : isEnded;
+  
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
   // Both seller and winner can finalize when auction has ended
-  const canFinalize = isConnected && isEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner);
+  // Note: Contract's finalize() function will fail if contract endTime hasn't passed, so we check both
+  const canFinalize = isConnected && effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && !hasInvalidContractEndTime;
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
@@ -1670,28 +1701,72 @@ export default function AuctionDetailClient({
         )}
 
         {/* Finalize Auction Button (for ended auctions) - Hidden if cancelled */}
-        {canFinalize && !isCancelled && (
+        {isEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && (
           <div className="mb-4">
-            <button
-              onClick={handleFinalize}
-              disabled={isFinalizeLoading}
-              className="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label={isFinalizeLoading ? "Finalizing auction" : "Finalize this auction"}
-              aria-busy={isFinalizeLoading}
-            >
-              {isFinalizeLoading
-                ? isConfirmingFinalize
-                  ? "Confirming..."
-                  : "Finalizing..."
-                : isWinner
-                ? "Finalize & Claim NFT"
-                : "Finalize Auction"}
-            </button>
-            {finalizeError && (
-              <p className="text-xs text-red-400 mt-2">
-                {finalizeError.message || "Failed to finalize auction"}
-              </p>
+            {hasInvalidContractEndTime && (
+              <div className="mb-3 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded text-sm">
+                <p className="text-yellow-400 font-medium mb-1">⚠️ Cannot Finalize</p>
+                <p className="text-yellow-300 text-xs mb-2">
+                  There's a mismatch between the contract and subgraph data. The contract shows an end time in year {new Date(contractEndTime! * 1000).getFullYear()}, 
+                  but the subgraph shows the auction ended on {new Date(subgraphEndTime * 1000).toLocaleString()}.
+                </p>
+                <p className="text-yellow-300 text-xs">
+                  This occurred because the listing was created with startTime=0 and an absolute endTime timestamp, 
+                  but the contract treats endTime as a duration when startTime=0 and adds block.timestamp to it. 
+                  The contract's finalize() function will reject because it requires endTime to be in the past. 
+                  Please contact support for assistance.
+                </p>
+              </div>
             )}
+            {!hasInvalidContractEndTime && (
+              <button
+                onClick={handleFinalize}
+                disabled={isFinalizeLoading || !canFinalize}
+                className="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium tracking-[0.5px] hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={isFinalizeLoading ? "Finalizing auction" : "Finalize this auction"}
+                aria-busy={isFinalizeLoading}
+              >
+                {isFinalizeLoading
+                  ? isConfirmingFinalize
+                    ? "Confirming..."
+                    : "Finalizing..."
+                  : isWinner
+                  ? "Finalize & Claim NFT"
+                  : "Finalize Auction"}
+              </button>
+            )}
+            {!hasInvalidContractEndTime && finalizeError && (() => {
+              const errorMessage = finalizeError.message || String(finalizeError);
+              const errorData = (finalizeError as any)?.data || (finalizeError as any)?.error?.data;
+              
+              // Use contract state from outer scope to provide better error message
+              
+              let displayMessage = errorMessage;
+              
+              // Provide specific error messages for known issues
+              if (
+                errorMessage.includes('Invalid state') || 
+                errorMessage.includes('Invalid listing') ||
+                errorData?.message?.includes('Invalid state') ||
+                errorData?.message?.includes('Invalid listing')
+              ) {
+                if (contractStartTime === 0) {
+                  displayMessage = "Cannot finalize: Auction start time not set. This may indicate the auction never received a bid.";
+                } else if (contractEndTime && contractEndTime > nowTimestamp) {
+                  displayMessage = `Cannot finalize: Auction end time (${new Date(contractEndTime * 1000).toLocaleString()}) has not passed yet according to the contract.`;
+                } else {
+                  displayMessage = "Cannot finalize auction. The contract state may be invalid. Please contact support if this persists.";
+                }
+              } else if (errorMessage.includes('already finalized') || errorMessage.includes('finalized')) {
+                displayMessage = "This auction has already been finalized.";
+              }
+              
+              return (
+                <p className="text-xs text-red-400 mt-2">
+                  {displayMessage}
+                </p>
+              );
+            })()}
           </div>
         )}
 

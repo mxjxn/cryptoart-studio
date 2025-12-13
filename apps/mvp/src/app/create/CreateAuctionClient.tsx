@@ -937,6 +937,8 @@ export default function CreateAuctionClient() {
     const overrides = {
       listingType: "FIXED_PRICE" as const,
       fixedPrice: data.price,
+      totalAvailable: "1", // ERC721 is always 1
+      totalPerSale: "1", // ERC721 is always 1
       paymentType: data.paymentType,
       erc20Address: data.erc20Address,
       startTime: data.startTime || "",
@@ -1024,7 +1026,29 @@ export default function CreateAuctionClient() {
           console.log('[CreateListing] Using MAX_UINT48 for open-ended FIXED_PRICE with startTime set');
         }
       } else if (effectiveFormData.endTime) {
-        endTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+        // CRITICAL FIX: When startTime=0, endTime must be a DURATION, not an absolute timestamp!
+        // If user provides an endTime date, convert it to a duration from now
+        const absoluteEndTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+        
+        if (startTime === 0) {
+          // startTime=0 means auction starts on first bid
+          // Contract treats endTime as a duration that gets added to block.timestamp on first bid
+          // So we need to calculate: duration = desired_end_time - now
+          // But since we don't know when first bid will be placed, use a reasonable estimate
+          // or better yet, calculate duration from now (which is when listing is created)
+          endTime = Math.max(0, absoluteEndTime - now);
+          
+          // Safety check: if duration is unreasonably large (> 10 years), cap it
+          if (endTime > SAFE_DURATION_10_YEARS) {
+            console.warn(`[CreateListing] Duration calculated from endTime (${endTime}s) exceeds safe limit. Capping to ${SAFE_DURATION_10_YEARS}s (10 years)`);
+            endTime = SAFE_DURATION_10_YEARS;
+          }
+          
+          console.log(`[CreateListing] startTime=0 with endTime provided: Converting absolute timestamp ${absoluteEndTime} to duration ${endTime}s (${Math.floor(endTime / 86400)} days)`);
+        } else {
+          // startTime is set, so endTime is an absolute timestamp
+          endTime = absoluteEndTime;
+        }
       } else {
         // For other listing types without endTime, use a safe duration
         if (startTime === 0) {
@@ -1051,6 +1075,9 @@ export default function CreateAuctionClient() {
         // FIXED_PRICE: endTime can be max uint48 (never expires) or a future timestamp
         if (endTime === MAX_UINT48) {
           // Never-expiring is allowed for FIXED_PRICE
+        } else if (startTime === 0 && endTime === SAFE_DURATION_10_YEARS) {
+          // When startTime is 0 and no timeframe is selected, endTime is a duration, not a timestamp
+          // This is valid - skip timestamp validation
         } else if (endTime <= now) {
           // Validation handled by DateSelector constraints
           console.error("End time validation failed: must be in the future");

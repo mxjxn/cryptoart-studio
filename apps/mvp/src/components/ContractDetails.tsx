@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Address } from "viem";
 import { useContractName } from "~/hooks/useContractName";
 import { useArtistName } from "~/hooks/useArtistName";
+import { fetchFloorPriceFromAlchemy, type FloorPriceInfo } from "~/lib/contract-info";
 
 interface ContractDetailsProps {
   contractAddress: Address;
@@ -14,6 +15,8 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
   const { contractName, isLoading: contractNameLoading } = useContractName(contractAddress);
   const [deploymentBlock, setDeploymentBlock] = useState<number | null>(null);
   const [deploymentLoading, setDeploymentLoading] = useState(false);
+  const [floorPrice, setFloorPrice] = useState<FloorPriceInfo | null>(null);
+  const [floorPriceLoading, setFloorPriceLoading] = useState(false);
 
   // Fetch deployment block from API
   useEffect(() => {
@@ -40,6 +43,34 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
     };
 
     fetchDeploymentBlock();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [contractAddress]);
+
+  // Fetch floor price from Alchemy
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchFloorPrice = async () => {
+      setFloorPriceLoading(true);
+      setFloorPrice(null);
+      try {
+        const floorPriceData = await fetchFloorPriceFromAlchemy(contractAddress);
+        if (isMounted && floorPriceData) {
+          setFloorPrice(floorPriceData);
+        }
+      } catch (error) {
+        console.error("Error fetching floor price:", error);
+      } finally {
+        if (isMounted) {
+          setFloorPriceLoading(false);
+        }
+      }
+    };
+
+    fetchFloorPrice();
 
     return () => {
       isMounted = false;
@@ -145,6 +176,36 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
             </dd>
           </div>
         )}
+
+        {/* Floor Price */}
+        {floorPriceLoading ? (
+          <div className="flex items-center gap-2">
+            <dt className="text-[#999999] min-w-[100px]">floor price:</dt>
+            <dd>
+              <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-label="Loading floor price" aria-busy="true"></div>
+            </dd>
+          </div>
+        ) : floorPrice ? (
+          <div className="flex items-start gap-2">
+            <dt className="text-[#999999] min-w-[100px]">floor price:</dt>
+            <dd>
+              <span className="text-[#cccccc] font-mono">
+                {floorPrice.floorPrice.toFixed(4)} {floorPrice.priceCurrency}
+              </span>
+              {floorPrice.collectionUrl && (
+                <a
+                  href={floorPrice.collectionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 text-[#999999] hover:text-[#cccccc] hover:underline text-xs"
+                  aria-label="View collection on marketplace"
+                >
+                  (view)
+                </a>
+              )}
+            </dd>
+          </div>
+        ) : null}
       </dl>
     </div>
   );

@@ -112,6 +112,77 @@ export async function fetchContractInfoFromAlchemy(
 }
 
 /**
+ * Floor price information interface
+ */
+export interface FloorPriceInfo {
+  floorPrice: number;
+  priceCurrency: string;
+  collectionUrl?: string;
+  retrievedAt?: string;
+}
+
+/**
+ * Fetches floor price for an NFT collection from Alchemy API
+ * Returns null if no floor price is available or if there's an error
+ */
+export async function fetchFloorPriceFromAlchemy(
+  contractAddress: string
+): Promise<FloorPriceInfo | null> {
+  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+  if (!apiKey) {
+    console.log('[FloorPrice] No Alchemy API key configured');
+    return null;
+  }
+
+  console.log(`[FloorPrice] Fetching floor price from Alchemy for contract: ${contractAddress}`);
+
+  try {
+    // Use v2 API endpoint for getFloorPrice (as per Alchemy docs)
+    const url = `https://base-mainnet.g.alchemy.com/nft/v2/${apiKey}/getFloorPrice?contractAddress=${contractAddress}`;
+    console.log(`[FloorPrice] Fetching from: ${url}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.log(`[FloorPrice] API request failed with status: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('[FloorPrice] API response:', data);
+    
+    // Check if we have marketplace data with floor price
+    if (data.nftMarketplace) {
+      const marketplace = data.nftMarketplace;
+      
+      // Check for error in response
+      if (marketplace.error) {
+        console.log(`[FloorPrice] Marketplace returned error: ${marketplace.error}`);
+        return null;
+      }
+      
+      // Check if floor price exists and is valid
+      if (marketplace.floorPrice !== undefined && marketplace.floorPrice !== null) {
+        const result: FloorPriceInfo = {
+          floorPrice: marketplace.floorPrice,
+          priceCurrency: marketplace.priceCurrency || 'ETH',
+          collectionUrl: marketplace.collectionUrl,
+          retrievedAt: marketplace.retrievedAt,
+        };
+        console.log(`[FloorPrice] Found floor price: ${result.floorPrice} ${result.priceCurrency}`);
+        return result;
+      }
+    }
+
+    console.log('[FloorPrice] No floor price found in response');
+    return null;
+  } catch (error) {
+    console.error('[FloorPrice] Error fetching floor price from Alchemy:', error);
+    return null;
+  }
+}
+
+/**
  * ABI for reading name and owner from contracts
  */
 export const CONTRACT_INFO_ABI = [
