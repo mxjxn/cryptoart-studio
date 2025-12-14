@@ -9,6 +9,7 @@ import { processMediaForImage } from "~/lib/server/media-processor";
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
+import sharp from 'sharp';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
@@ -114,6 +115,36 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Pr
     promise,
     new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
   ]);
+}
+
+/**
+ * Convert WebP data URL to PNG data URL
+ * ImageResponse (Satori) doesn't support WebP, only PNG/JPEG
+ */
+async function convertWebPDataUrlToPNG(webpDataUrl: string): Promise<string> {
+  try {
+    // Extract base64 data from data URL
+    const base64Data = webpDataUrl.split(',')[1];
+    if (!base64Data) {
+      throw new Error('Invalid data URL format');
+    }
+    
+    // Convert base64 to buffer
+    const webpBuffer = Buffer.from(base64Data, 'base64');
+    
+    // Convert WebP to PNG using sharp
+    const pngBuffer = await sharp(webpBuffer)
+      .png({ compressionLevel: 6 })
+      .toBuffer();
+    
+    // Convert back to data URL
+    const pngBase64 = pngBuffer.toString('base64');
+    return `data:image/png;base64,${pngBase64}`;
+  } catch (error) {
+    console.error(`[OG Image] Error converting WebP to PNG:`, error instanceof Error ? error.message : String(error));
+    // Return original if conversion fails (better than crashing)
+    return webpDataUrl;
+  }
 }
 
 export async function GET(
@@ -488,12 +519,24 @@ export async function GET(
               }
               
               // For optimized Vercel Blob thumbnails (WebP, already resized), skip processing
-              // Just convert directly to data URL - they're already optimized
+              // Convert to PNG data URL since ImageResponse doesn't support WebP
               if (urlIsOptimizedThumbnail && contentType === 'image/webp') {
-                const base64 = buffer.toString('base64');
-                artworkImageDataUrl = `data:image/webp;base64,${base64}`;
-                fetchedContentType = 'image/webp';
-                console.log(`[OG Image] Using optimized Vercel Blob thumbnail directly (no processing needed), size: ${buffer.length} bytes`);
+                // Convert WebP buffer to PNG using sharp
+                try {
+                  const pngBuffer = await sharp(buffer)
+                    .png({ compressionLevel: 6 })
+                    .toBuffer();
+                  const base64 = pngBuffer.toString('base64');
+                  artworkImageDataUrl = `data:image/png;base64,${base64}`;
+                  fetchedContentType = 'image/png';
+                  console.log(`[OG Image] Converted optimized Vercel Blob WebP thumbnail to PNG, original: ${buffer.length} bytes, PNG: ${pngBuffer.length} bytes`);
+                } catch (conversionError) {
+                  console.warn(`[OG Image] Failed to convert WebP thumbnail to PNG, using WebP (may fail in ImageResponse):`, conversionError instanceof Error ? conversionError.message : String(conversionError));
+                  // Fallback to WebP - will be converted later if needed
+                  const base64 = buffer.toString('base64');
+                  artworkImageDataUrl = `data:image/webp;base64,${base64}`;
+                  fetchedContentType = 'image/webp';
+                }
               } else {
                 // Process media (handles images, videos, and GIFs)
                 // This will scale down large images to appropriate size for OG images
@@ -628,6 +671,18 @@ export async function GET(
   if (artworkImageDataUrl && !artworkImageDataUrl.startsWith('data:image/')) {
     console.warn(`[OG Image] [Listing ${listingId}] Invalid data URL format, skipping image. URL starts with: ${artworkImageDataUrl.substring(0, 20)}`);
     artworkImageDataUrl = null;
+  }
+
+  // Convert WebP data URLs to PNG - ImageResponse (Satori) doesn't support WebP
+  if (artworkImageDataUrl && artworkImageDataUrl.startsWith('data:image/webp;base64,')) {
+    console.log(`[OG Image] [Listing ${listingId}] Converting WebP data URL to PNG for ImageResponse compatibility...`);
+    try {
+      artworkImageDataUrl = await convertWebPDataUrlToPNG(artworkImageDataUrl);
+      console.log(`[OG Image] [Listing ${listingId}] Successfully converted WebP to PNG, new size: ${artworkImageDataUrl.length} bytes`);
+    } catch (error) {
+      console.error(`[OG Image] [Listing ${listingId}] Failed to convert WebP to PNG:`, error instanceof Error ? error.message : String(error));
+      // Continue with WebP - might work or might fail, but better than crashing
+    }
   }
 
   // Log before creating ImageResponse to help debug
