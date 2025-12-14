@@ -580,14 +580,23 @@ export async function GET(
   };
   
   // Only add fonts property if we have font data (don't include it at all if no font)
-  if (fontData) {
-    imageResponseOptions.fonts = [
-      {
-        name: 'MEK-Mono',
-        data: fontData,
-        style: 'normal' as const,
-      },
-    ];
+  // Ensure fontData is a valid ArrayBuffer before using it
+  if (fontData && fontData instanceof ArrayBuffer && fontData.byteLength > 0) {
+    try {
+      imageResponseOptions.fonts = [
+        {
+          name: 'MEK-Mono',
+          data: fontData,
+          style: 'normal' as const,
+        },
+      ];
+      console.log(`[OG Image] [Listing ${listingId}] Added font to ImageResponse (size: ${fontData.byteLength} bytes)`);
+    } catch (fontError) {
+      console.error(`[OG Image] [Listing ${listingId}] Error adding font to ImageResponse:`, fontError);
+      // Continue without font - don't fail the entire request
+    }
+  } else {
+    console.log(`[OG Image] [Listing ${listingId}] No valid font data, using system font`);
   }
 
   // Validate artworkImageDataUrl before using it
