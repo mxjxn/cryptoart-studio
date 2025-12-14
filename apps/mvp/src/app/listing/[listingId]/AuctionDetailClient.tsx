@@ -1982,35 +1982,46 @@ export default function AuctionDetailClient({
                   <p className="text-xs text-[#cccccc]">
                     Please connect your wallet to purchase.
                   </p>
-                ) : !auctionHasStarted ? (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg opacity-50">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm text-[#cccccc]">Price Per Copy</span>
-                        <span className="text-lg font-medium text-white flex items-center gap-1.5">
-                          {formatPrice(auction.initialAmount)} 
-                          <TokenImage tokenAddress={auction.erc20} size={20} className="ml-0.5" />
-                          <span>{paymentSymbol}</span>
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      disabled
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
-                    >
-                      Buy Now
-                    </button>
-                    <p className="text-xs text-[#cccccc]">
-                      {startTime === 0 
-                        ? "Listing will start when the first purchase is made."
-                        : `Listing starts ${new Date(startTime * 1000).toLocaleString()}.`}
-                    </p>
-                  </div>
                 ) : isOwnAuction ? (
                   <p className="text-xs text-[#cccccc]">
                     You cannot purchase your own listing.
                   </p>
-                ) : (
+                ) : (() => {
+                  // For FIXED_PRICE listings, check if listing hasn't started yet
+                  // Fixed price listings with startTime > 0 need to wait until startTime
+                  // Fixed price listings with startTime = 0 are immediately purchasable
+                  const hasNotStartedForFixedPrice = startTime > 0 && now < startTime;
+                  
+                  if (hasNotStartedForFixedPrice) {
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg opacity-50">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm text-[#cccccc]">Price Per Copy</span>
+                            <span className="text-lg font-medium text-white flex items-center gap-1.5">
+                              {formatPrice(auction.initialAmount)} 
+                              <TokenImage tokenAddress={auction.erc20} size={20} className="ml-0.5" />
+                              <span>{paymentSymbol}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          disabled
+                          className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                        >
+                          Buy Now
+                        </button>
+                        <p className="text-xs text-[#cccccc]">
+                          {startTime === 0 
+                            ? "Listing will start when the first purchase is made."
+                            : `Listing starts ${new Date(startTime * 1000).toLocaleString()}.`}
+                        </p>
+                      </div>
+                    );
+                  }
+                  
+                  // Listing has started or has no startTime - show active buy button
+                  return (
                   <>
                     <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg">
                       <div className="flex justify-between items-center mb-1">
@@ -2105,7 +2116,8 @@ export default function AuctionDetailClient({
                       </p>
                     )}
                   </>
-                )}
+                  );
+                })()}
                 </div>
               );
             })()}

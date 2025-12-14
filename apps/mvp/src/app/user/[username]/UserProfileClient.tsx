@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
@@ -68,12 +69,28 @@ const gradients = [
 
 export default function UserProfileClient({ username }: UserProfileClientProps) {
   const { isAdmin } = useIsAdmin();
+  const searchParams = useSearchParams();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'artworks' | 'listings' | 'collections' | 'galleries'>('artworks');
+  
+  // Get initial tab from URL query params
+  const tabParam = searchParams.get('tab');
+  const initialTab = (tabParam === 'artworks' || tabParam === 'listings' || tabParam === 'collections' || tabParam === 'galleries')
+    ? tabParam
+    : 'artworks';
+  
+  const [activeTab, setActiveTab] = useState<'artworks' | 'listings' | 'collections' | 'galleries'>(initialTab);
   const [showWalletsDropdown, setShowWalletsDropdown] = useState(false);
   const walletsDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Update tab when URL changes
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'artworks' || tabParam === 'listings' || tabParam === 'collections' || tabParam === 'galleries') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
   
   // Close dropdown when clicking outside
   useEffect(() => {

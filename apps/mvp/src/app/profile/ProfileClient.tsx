@@ -436,7 +436,78 @@ export default function ProfileClient() {
                   <>
                     {/* Purchased Artworks */}
                     <div>
-                      <h2 className="text-lg font-light mb-4">Collection</h2>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-light">Collection</h2>
+                        {userAddress && purchases.length > 0 && (
+                          <button
+                            onClick={async () => {
+                              // Try to get username for better share link
+                              let shareIdentifier = userAddress;
+                              try {
+                                if (context?.user?.username) {
+                                  shareIdentifier = context.user.username;
+                                } else if (ensName) {
+                                  // Try to resolve ENS to username
+                                  const response = await fetch(`/api/user/${encodeURIComponent(userAddress)}`);
+                                  if (response.ok) {
+                                    const data = await response.json();
+                                    if (data.user?.username) {
+                                      shareIdentifier = data.user.username;
+                                    }
+                                  }
+                                }
+                              } catch (error) {
+                                console.error("Error resolving username for share:", error);
+                              }
+                              
+                              const shareUrl = `${window.location.origin}/share/collector/${encodeURIComponent(shareIdentifier)}`;
+                              
+                              // Try to use Web Share API if available
+                              if (navigator.share) {
+                                try {
+                                  await navigator.share({
+                                    title: `My Collector Profile`,
+                                    text: `Check out my collection on cryptoart.social`,
+                                    url: shareUrl,
+                                  });
+                                  return;
+                                } catch (err) {
+                                  // User cancelled or error - fall through to clipboard
+                                }
+                              }
+                              
+                              // Fallback to clipboard
+                              try {
+                                await navigator.clipboard.writeText(shareUrl);
+                                alert("Share link copied to clipboard!");
+                              } catch (err) {
+                                console.error("Failed to copy to clipboard:", err);
+                                // Last resort: show the URL
+                                prompt("Copy this link:", shareUrl);
+                              }
+                            }}
+                            className="px-4 py-2 text-sm bg-white text-black rounded-lg font-medium hover:bg-[#cccccc] transition-colors flex items-center gap-2"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="18" cy="5" r="3" />
+                              <circle cx="6" cy="12" r="3" />
+                              <circle cx="18" cy="19" r="3" />
+                              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                            </svg>
+                            Share Profile
+                          </button>
+                        )}
+                      </div>
                       {purchases.length === 0 ? (
                         <p className="text-[#999999]">No artworks collected yet.</p>
                       ) : (
