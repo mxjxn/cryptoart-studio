@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prerenderListingOGImage } from '~/lib/server/og-image-prerender';
 import { prerenderListingCardData } from '~/lib/server/listing-card-prerender';
 
+export const runtime = 'nodejs'; // Required for prerenderListingCardData (uses processMediaForImage)
+
 /**
  * POST /api/listings/[listingId]/prerender
  * Pre-render OG image and listing card data for a listing
