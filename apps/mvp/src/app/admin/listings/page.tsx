@@ -44,6 +44,7 @@ export default function AllListingsPage() {
   const [listings, setListings] = useState<ListingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideCancelled, setHideCancelled] = useState(true);
 
   useEffect(() => {
     async function fetchListings() {
@@ -115,12 +116,28 @@ export default function AllListingsPage() {
     );
   }
 
+  // Filter out cancelled listings if checkbox is checked
+  const filteredListings = hideCancelled
+    ? listings.filter((listing) => listing.status !== 'CANCELLED')
+    : listings;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-[var(--color-text)]">
-          All Listings ({listings.length})
+          All Listings ({filteredListings.length})
         </h2>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hideCancelled}
+            onChange={(e) => setHideCancelled(e.target.checked)}
+            className="w-4 h-4 cursor-pointer"
+          />
+          <span className="text-sm text-[var(--color-text)]">
+            Hide Cancelled
+          </span>
+        </label>
       </div>
 
       <div className="overflow-x-auto">
@@ -139,7 +156,7 @@ export default function AllListingsPage() {
             </tr>
           </thead>
           <tbody>
-            {listings.map((listing) => (
+            {filteredListings.map((listing) => (
               <tr
                 key={listing.listingId}
                 className="border-b border-[var(--color-border)] hover:bg-[var(--color-background-hover)]"
