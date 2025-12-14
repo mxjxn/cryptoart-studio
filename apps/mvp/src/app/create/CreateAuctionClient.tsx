@@ -1006,12 +1006,19 @@ export default function CreateAuctionClient() {
       const MAX_UINT48 = 281474976710655;
       const SAFE_DURATION_6_MONTHS = 15552000; // 6 months in seconds (180 days)
       
-      // Check if "no timeframe" option was selected (for FIXED_PRICE listings)
-      // This is indicated by empty endTime AND empty startTime (or explicit noTimeframe flag)
-      const isNoTimeframe = effectiveFormData.listingType === "FIXED_PRICE" && 
-        (!effectiveFormData.endTime || effectiveFormData.endTime === "");
-      
-      if (effectiveFormData.listingType === "FIXED_PRICE" && isNoTimeframe) {
+      // OFFERS_ONLY listings are always open-ended (no expiration)
+      // Sellers can accept or cancel offers at any time
+      if (effectiveFormData.listingType === "OFFERS_ONLY") {
+        // Always use MAX_UINT48 for OFFERS_ONLY (never expires)
+        // Ignore any endTime provided - sellers control when to accept/cancel
+        endTime = MAX_UINT48;
+        console.log('[CreateListing] OFFERS_ONLY listing - using MAX_UINT48 (open-ended, no expiration)');
+      } else if (effectiveFormData.listingType === "FIXED_PRICE" && 
+        (!effectiveFormData.endTime || effectiveFormData.endTime === "") &&
+        (!effectiveFormData.startTime || effectiveFormData.startTime === "")) {
+        // Check if "no timeframe" option was selected (for FIXED_PRICE listings)
+        // This is indicated by empty endTime AND empty startTime (or explicit noTimeframe flag)
+        const isNoTimeframe = true;
         // For FIXED_PRICE with "no timeframe" option:
         // If startTime is 0 (start on first purchase), endTime is treated as a DURATION
         // that gets added to block.timestamp on first purchase.
@@ -1026,6 +1033,7 @@ export default function CreateAuctionClient() {
           console.log('[CreateListing] Using MAX_UINT48 for open-ended FIXED_PRICE with startTime set');
         }
       } else if (effectiveFormData.endTime) {
+        // OFFERS_ONLY listings are already handled above - this branch is for other types
         // CRITICAL FIX: When startTime=0, endTime must be a DURATION, not an absolute timestamp!
         // If user provides an endTime date, convert it to a duration from now
         const absoluteEndTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
@@ -1050,7 +1058,7 @@ export default function CreateAuctionClient() {
           endTime = absoluteEndTime;
         }
       } else {
-        // For other listing types without endTime, use a safe duration
+        // For other listing types without endTime (OFFERS_ONLY already handled above)
         if (startTime === 0) {
           // IMPORTANT: If startTime is 0, endTime becomes a duration added to block.timestamp
           // Use 6 months as a safe duration
@@ -1090,16 +1098,20 @@ export default function CreateAuctionClient() {
           return;
         }
       } else {
-        // For INDIVIDUAL_AUCTION and OFFERS_ONLY, never-expiring is not allowed
-        if (endTime === MAX_UINT48 || endTime >= MAX_UINT48) {
+        // For INDIVIDUAL_AUCTION, never-expiring is not allowed
+        // OFFERS_ONLY can be open-ended (MAX_UINT48)
+        if (effectiveFormData.listingType === "INDIVIDUAL_AUCTION" && (endTime === MAX_UINT48 || endTime >= MAX_UINT48)) {
           // Validation handled by DateSelector constraints
-          console.error("End time validation failed: auctions and offers-only listings must have an expiration date");
+          console.error("End time validation failed: auctions must have an expiration date");
           setIsSubmitting(false);
           return;
         }
         
-        // For other listing types
-        if (startTime === 0) {
+        // Skip endTime validation for OFFERS_ONLY when it's MAX_UINT48 (open-ended)
+        if (effectiveFormData.listingType === "OFFERS_ONLY" && endTime === MAX_UINT48) {
+          // Open-ended OFFERS_ONLY listing - no endTime validation needed
+          console.log('[CreateListing] Open-ended OFFERS_ONLY listing - skipping endTime validation');
+        } else if (startTime === 0) {
           // If startTime is 0, endTime represents duration from first bid/purchase
           if (!endTime || endTime <= 0) {
             // Validation handled by DurationSelector constraints
@@ -1129,7 +1141,8 @@ export default function CreateAuctionClient() {
             return;
           }
           // Validate endTime is reasonable (max 6 months from now)
-          if (endTime > now + MAX_REASONABLE_SECONDS) {
+          // Skip for OFFERS_ONLY with MAX_UINT48 (open-ended)
+          if (effectiveFormData.listingType !== "OFFERS_ONLY" && endTime > now + MAX_REASONABLE_SECONDS) {
             // Validation handled by DateSelector constraints
             console.error(`End time validation failed: cannot be more than ${MAX_REASONABLE_MONTHS} months in the future`);
             setIsSubmitting(false);

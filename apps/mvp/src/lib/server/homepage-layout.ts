@@ -22,7 +22,8 @@ type SectionType =
   | 'collector'
   | 'listing'
   | 'featured_carousel'
-  | 'custom_section';
+  | 'custom_section'
+  | 'recent_listings';
 
 export interface HomepageSection {
   id: string;
@@ -91,6 +92,8 @@ async function resolveSectionListings(sectionType: SectionType, config?: Record<
       return getFeaturedCarouselListings();
     case 'custom_section':
       return getCustomSectionListings(config?.sectionId, config?.limit);
+    case 'recent_listings':
+      return getRecentListings(config?.limit ?? 6);
     default:
       return [];
   }
@@ -526,6 +529,43 @@ async function getCustomSectionListings(sectionId?: string, limit?: number) {
     return listings.filter(Boolean).slice(0, finalLimit) as EnrichedAuctionData[];
   } catch (error) {
     console.error('[Homepage] Failed to get custom section listings', error);
+    return [];
+  }
+}
+
+async function getRecentListings(limit: number): Promise<EnrichedAuctionData[]> {
+  try {
+    // Get the most recent active listings ordered by creation date
+    const { listings } = await browseListings({
+      first: limit,
+      skip: 0,
+      orderBy: 'createdAt',
+      orderDirection: 'desc',
+      enrich: true,
+    });
+    
+    // Filter to only active, non-finalized listings
+    const now = Math.floor(Date.now() / 1000);
+    const MAX_UINT48 = 281474976710655;
+    const hiddenAddresses = await getHiddenUserAddresses();
+    
+    return listings
+      .filter((listing) => {
+        // Filter out cancelled listings only
+        if (listing.status === 'CANCELLED') {
+          return false;
+        }
+        
+        // Filter out hidden users
+        if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+          return false;
+        }
+        
+        return true;
+      })
+      .slice(0, limit);
+  } catch (error) {
+    console.error('[Homepage] Failed to get recent listings', error);
     return [];
   }
 }

@@ -329,18 +329,16 @@ export default function UserProfileClient({ username }: UserProfileClientProps) 
             >
               Collected ({profileData.purchases.length})
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => setActiveTab('galleries')}
-                className={`pb-2 px-2 text-sm ${
-                  activeTab === 'galleries'
-                    ? 'border-b-2 border-white text-white'
-                    : 'text-[#999999] hover:text-[#cccccc]'
-                }`}
-              >
-                Galleries
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('galleries')}
+              className={`pb-2 px-2 text-sm ${
+                activeTab === 'galleries'
+                  ? 'border-b-2 border-white text-white'
+                  : 'text-[#999999] hover:text-[#cccccc]'
+              }`}
+            >
+              Galleries
+            </button>
           </div>
         </div>
 

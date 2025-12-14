@@ -5,6 +5,7 @@ import { FeaturedSectionCarousel } from "~/components/FeaturedSectionCarousel";
 import { FeaturedSectionGrid } from "~/components/FeaturedSectionGrid";
 import { SingleListingSection } from "~/components/sections/SingleListingSection";
 import { FeaturedArtistSection } from "~/components/sections/FeaturedArtistSection";
+import { RecentListingsSection } from "~/components/sections/RecentListingsSection";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 type SectionType =
@@ -15,7 +16,8 @@ type SectionType =
   | "gallery"
   | "collector"
   | "listing"
-  | "custom_section";
+  | "custom_section"
+  | "recent_listings";
 
 interface HomepageSection {
   id: string;
@@ -87,6 +89,18 @@ export function HomepageLayout() {
           );
         }
 
+        // Recent Listings Section
+        if (section.sectionType === "recent_listings") {
+          return (
+            <RecentListingsSection
+              key={section.id}
+              title={section.title || getDefaultTitle(section.sectionType)}
+              description={section.description}
+              listings={section.listings}
+            />
+          );
+        }
+
         // Show sections even if they have no listings (with empty state message)
         if (section.listings.length === 0) {
           return (
@@ -143,6 +157,8 @@ function getDefaultTitle(sectionType: SectionType) {
       return "Gallery";
     case "collector":
       return "Collector Highlights";
+    case "recent_listings":
+      return "Recent Listings";
     case "custom_section":
       return "Featured";
     default:
