@@ -205,7 +205,7 @@ export async function browseListings(
   // Get hidden user addresses for filtering
   const hiddenAddresses = await getHiddenUserAddresses();
   
-  // Filter out cancelled listings and hidden users
+  // Filter out cancelled listings, hidden users, and problematic auctions
   // Include finalized and sold-out listings in recent listings
   const activeListings = data.listings.filter(listing => {
     // Exclude cancelled listings
@@ -216,6 +216,19 @@ export async function browseListings(
     // Exclude listings from hidden users
     if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
       console.log(`[Browse Listings] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
+      return false;
+    }
+    
+    // Exclude start-on-first-bid auctions with duration > 1 month (problematic 180-day auctions)
+    // These are auctions that were created with the bug before the fix
+    const startTime = parseInt(listing.startTime || "0", 10);
+    const endTime = parseInt(listing.endTime || "0", 10);
+    const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 2592000 seconds
+    
+    if (listing.listingType === "INDIVIDUAL_AUCTION" && 
+        startTime === 0 && 
+        endTime > ONE_MONTH_IN_SECONDS) {
+      console.log(`[Browse Listings] Filtering out listing ${listing.listingId}: start-on-first-bid auction with duration > 1 month (${Math.floor(endTime / 86400)} days)`);
       return false;
     }
     
@@ -444,12 +457,26 @@ export async function* browseListingsStreaming(
   }
   
   const hiddenAddresses = await getHiddenUserAddresses();
+  const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 2592000 seconds
+  
   const activeListings = data.listings.filter(listing => {
     if (listing.status === "CANCELLED") return false;
     if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
       console.log(`[Browse Listings Streaming] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
       return false;
     }
+    
+    // Exclude start-on-first-bid auctions with duration > 1 month (problematic 180-day auctions)
+    const startTime = parseInt(listing.startTime || "0", 10);
+    const endTime = parseInt(listing.endTime || "0", 10);
+    
+    if (listing.listingType === "INDIVIDUAL_AUCTION" && 
+        startTime === 0 && 
+        endTime > ONE_MONTH_IN_SECONDS) {
+      console.log(`[Browse Listings Streaming] Filtering out listing ${listing.listingId}: start-on-first-bid auction with duration > 1 month (${Math.floor(endTime / 86400)} days)`);
+      return false;
+    }
+    
     return true;
   });
 
