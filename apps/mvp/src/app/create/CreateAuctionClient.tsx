@@ -1005,6 +1005,7 @@ export default function CreateAuctionClient() {
       let endTime: number;
       const MAX_UINT48 = 281474976710655;
       const SAFE_DURATION_6_MONTHS = 15552000; // 6 months in seconds (180 days)
+      const DEFAULT_AUCTION_DURATION = 604800; // 7 days in seconds (reasonable default for auctions)
       
       // OFFERS_ONLY listings are always open-ended (no expiration)
       // Sellers can accept or cancel offers at any time
@@ -1034,36 +1035,55 @@ export default function CreateAuctionClient() {
         }
       } else if (effectiveFormData.endTime) {
         // OFFERS_ONLY listings are already handled above - this branch is for other types
-        // CRITICAL FIX: When startTime=0, endTime must be a DURATION, not an absolute timestamp!
-        // If user provides an endTime date, convert it to a duration from now
-        const absoluteEndTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+        // Check if endTime is already a duration (number string) or a date string
+        // When useDuration=true, endTime is set to String(durationSeconds), which is a number
+        const endTimeAsNumber = parseInt(effectiveFormData.endTime, 10);
+        const isDurationString = !isNaN(endTimeAsNumber) && endTimeAsNumber > 0 && endTimeAsNumber < 100000000; // Less than ~3 years in seconds
         
         if (startTime === 0) {
           // startTime=0 means auction starts on first bid
-          // Contract treats endTime as a duration that gets added to block.timestamp on first bid
-          // So we need to calculate: duration = desired_end_time - now
-          // But since we don't know when first bid will be placed, use a reasonable estimate
-          // or better yet, calculate duration from now (which is when listing is created)
-          endTime = Math.max(0, absoluteEndTime - now);
-          
-          // Safety check: if duration is unreasonably large (> 6 months), cap it
-          if (endTime > SAFE_DURATION_6_MONTHS) {
-            console.warn(`[CreateListing] Duration calculated from endTime (${endTime}s) exceeds safe limit. Capping to ${SAFE_DURATION_6_MONTHS}s (6 months)`);
-            endTime = SAFE_DURATION_6_MONTHS;
+          if (isDurationString) {
+            // endTime is already a duration (from DurationSelector when useDuration=true)
+            endTime = endTimeAsNumber;
+            console.log(`[CreateListing] startTime=0 with duration provided: Using duration ${endTime}s (${Math.floor(endTime / 86400)} days)`);
+          } else {
+            // endTime is a date string - convert it to a duration from now
+            const absoluteEndTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+            endTime = Math.max(0, absoluteEndTime - now);
+            
+            // Safety check: if duration is unreasonably large (> 6 months), cap it
+            if (endTime > SAFE_DURATION_6_MONTHS) {
+              console.warn(`[CreateListing] Duration calculated from endTime (${endTime}s) exceeds safe limit. Capping to ${SAFE_DURATION_6_MONTHS}s (6 months)`);
+              endTime = SAFE_DURATION_6_MONTHS;
+            }
+            
+            console.log(`[CreateListing] startTime=0 with endTime date provided: Converting absolute timestamp ${absoluteEndTime} to duration ${endTime}s (${Math.floor(endTime / 86400)} days)`);
           }
-          
-          console.log(`[CreateListing] startTime=0 with endTime provided: Converting absolute timestamp ${absoluteEndTime} to duration ${endTime}s (${Math.floor(endTime / 86400)} days)`);
         } else {
-          // startTime is set, so endTime is an absolute timestamp
-          endTime = absoluteEndTime;
+          // startTime is set, so endTime should be an absolute timestamp
+          if (isDurationString) {
+            // This shouldn't happen when startTime is set, but handle it gracefully
+            // Convert duration to absolute timestamp by adding to startTime
+            endTime = startTime + endTimeAsNumber;
+            console.warn(`[CreateListing] startTime set but endTime is duration string - converting to timestamp: ${endTime}`);
+          } else {
+            // endTime is a date string - use it as absolute timestamp
+            endTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+          }
         }
       } else {
         // For other listing types without endTime (OFFERS_ONLY already handled above)
         if (startTime === 0) {
           // IMPORTANT: If startTime is 0, endTime becomes a duration added to block.timestamp
-          // Use 6 months as a safe duration
-          endTime = SAFE_DURATION_6_MONTHS;
-          console.log('[CreateListing] Using safe duration (6 months) for listing with startTime=0');
+          // For auctions, use a reasonable default (7 days) instead of 6 months
+          if (effectiveFormData.listingType === "INDIVIDUAL_AUCTION") {
+            endTime = DEFAULT_AUCTION_DURATION;
+            console.log('[CreateListing] Using default auction duration (7 days) for start-on-first-bid auction');
+          } else {
+            // For FIXED_PRICE, use 6 months as safe duration (already handled above, but keeping for safety)
+            endTime = SAFE_DURATION_6_MONTHS;
+            console.log('[CreateListing] Using safe duration (6 months) for listing with startTime=0');
+          }
         } else {
           endTime = 0;
         }
