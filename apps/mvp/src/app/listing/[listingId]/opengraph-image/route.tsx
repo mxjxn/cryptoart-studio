@@ -588,7 +588,26 @@ export async function GET(
     ];
   }
 
-  return new ImageResponse(
+  // Validate artworkImageDataUrl before using it
+  // ImageResponse has limits on data URL size - if too large, skip the image
+  const MAX_DATA_URL_SIZE = 2 * 1024 * 1024; // 2MB limit for data URLs in ImageResponse
+  if (artworkImageDataUrl && artworkImageDataUrl.length > MAX_DATA_URL_SIZE) {
+    console.warn(`[OG Image] [Listing ${listingId}] Artwork image data URL too large (${artworkImageDataUrl.length} bytes), skipping image in OG`);
+    artworkImageDataUrl = null;
+  }
+
+  // Log before creating ImageResponse to help debug
+  console.log(`[OG Image] [Listing ${listingId}] Creating ImageResponse with:`, {
+    hasArtworkImage: !!artworkImageDataUrl,
+    artworkImageLength: artworkImageDataUrl ? artworkImageDataUrl.length : 0,
+    hasFont: !!fontData,
+    listingType,
+    titleLength: title.length,
+    listingDetailsCount: listingDetails.length,
+  });
+
+  try {
+    const imageResponse = new ImageResponse(
     (
       <div
         style={{
@@ -717,6 +736,18 @@ export async function GET(
     ),
     imageResponseOptions
   );
+    console.log(`[OG Image] [Listing ${listingId}] ImageResponse created successfully`);
+    return imageResponse;
+  } catch (imageResponseError) {
+    // Log the specific error from ImageResponse creation
+    console.error(`[OG Image] [Listing ${listingId}] Error creating ImageResponse:`, imageResponseError);
+    if (imageResponseError instanceof Error) {
+      console.error(`[OG Image] [Listing ${listingId}] ImageResponse error message:`, imageResponseError.message);
+      console.error(`[OG Image] [Listing ${listingId}] ImageResponse error stack:`, imageResponseError.stack);
+    }
+    // Re-throw to be caught by outer catch block
+    throw imageResponseError;
+  }
   } catch (error) {
     console.error(`[OG Image] Fatal error in listing OG image route:`, error);
     if (error instanceof Error) {
