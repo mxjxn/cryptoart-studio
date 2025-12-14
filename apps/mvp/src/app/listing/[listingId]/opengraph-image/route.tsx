@@ -726,6 +726,7 @@ export async function GET(
             paddingLeft: '20px',
             alignItems: 'center',
             justifyContent: 'center',
+            backgroundColor: artworkImageDataUrl ? 'transparent' : '#0a0a0a',
           }}
         >
           {artworkImageDataUrl ? (
@@ -739,9 +740,14 @@ export async function GET(
                 height: '100%',
                 objectFit: 'contain',
                 borderRadius: '8px',
+                display: 'flex',
               }}
             />
-          ) : null}
+          ) : (
+            <div style={{ display: 'flex', fontSize: 48, opacity: 0.5, color: 'white' }}>
+              No Image
+            </div>
+          )}
         </div>
       </div>
     ),
