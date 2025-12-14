@@ -437,7 +437,7 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
         if (imageUrl && listing.status !== "CANCELLED") {
           try {
             const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
-            thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+            thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'homepage');
           } catch (error) {
             thumbnailUrl = imageUrl; // Fall back to original image
           }

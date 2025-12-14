@@ -15,12 +15,12 @@ import { getDatabase } from '@cryptoart/db';
  * 
  * @param imageUrl - The original image URL
  * @param listingId - The listing ID (for logging/tracking)
- * @param sizes - Array of thumbnail sizes to generate (default: ['small', 'medium'])
+ * @param sizes - Array of thumbnail sizes to generate (default: ['small', 'homepage', 'medium'])
  */
 export async function generateThumbnailsBackground(
   imageUrl: string,
   listingId?: string,
-  sizes: string[] = ['small', 'medium']
+  sizes: string[] = ['small', 'homepage', 'medium']
 ): Promise<void> {
   if (!imageUrl) {
     return;
@@ -65,7 +65,7 @@ export async function generateThumbnailsForListings(
   const jobs = listings
     .filter((listing) => listing.imageUrl)
     .map((listing) =>
-      generateThumbnailsBackground(listing.imageUrl!, listing.listingId, ['small', 'medium'])
+      generateThumbnailsBackground(listing.imageUrl!, listing.listingId, ['small', 'homepage', 'medium'])
     );
 
   // Run all jobs in parallel, but don't await (fire and forget)

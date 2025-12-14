@@ -278,7 +278,7 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
               listing.tokenSpec
             );
             if (metadata?.image) {
-              await generateThumbnailsBackground(metadata.image, listing.listingId, ['small', 'medium']);
+              await generateThumbnailsBackground(metadata.image, listing.listingId, ['small', 'homepage', 'medium']);
             }
           } catch (error) {
             // Don't log errors - this is background work

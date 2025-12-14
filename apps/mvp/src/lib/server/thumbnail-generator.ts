@@ -353,7 +353,7 @@ async function resizeImage(
         fit: 'inside', // Maintain aspect ratio, fit within dimensions
         withoutEnlargement: true, // Don't enlarge small images
       })
-      .webp({ quality: 85 }) // WebP format with 85% quality
+      .webp({ quality: 92 }) // WebP format with 92% quality (increased from 85% for better art quality)
       .toBuffer();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

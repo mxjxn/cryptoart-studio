@@ -11,9 +11,42 @@ import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { normalizeListingType, getHiddenUserAddresses, getAuctionServer } from "~/lib/server/auction";
 import { getDatabase, featuredListings, asc } from "@cryptoart/db";
+import sharp from 'sharp';
+import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
+import { isDataURI } from "~/lib/media-utils";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
+
+/**
+ * Convert WebP data URL to PNG data URL
+ * ImageResponse (Satori) doesn't support WebP, only PNG/JPEG
+ */
+async function convertWebPDataUrlToPNG(webpDataUrl: string): Promise<string> {
+  try {
+    // Extract base64 data from data URL
+    const base64Data = webpDataUrl.split(',')[1];
+    if (!base64Data) {
+      throw new Error('Invalid data URL format');
+    }
+    
+    // Convert base64 to buffer
+    const webpBuffer = Buffer.from(base64Data, 'base64');
+    
+    // Convert WebP to PNG using sharp
+    const pngBuffer = await sharp(webpBuffer)
+      .png({ compressionLevel: 6 })
+      .toBuffer();
+    
+    // Convert back to data URL
+    const pngBase64 = pngBuffer.toString('base64');
+    return `data:image/png;base64,${pngBase64}`;
+  } catch (error) {
+    console.error(`[OG Image] Error converting WebP to PNG:`, error instanceof Error ? error.message : String(error));
+    // Return original if conversion fails (better than crashing)
+    return webpDataUrl;
+  }
+}
 
 // In-memory cache for featured listings to reduce repeated database calls
 type CachedListings = { data: EnrichedAuctionData[]; expiresAt: number };
@@ -318,10 +351,31 @@ export async function GET(request: NextRequest) {
         console.log(`[OG Image] Processing image for listing ${listing.listingId}: ${imageUrl.substring(0, 100)}...`);
         console.log(`[OG Image] Full image URL for listing ${listing.listingId}: ${imageUrl}`);
 
+        // Handle data URIs directly - no need to cache or fetch
+        if (isDataURI(imageUrl)) {
+          console.log(`[OG Image] Using data URI directly for listing ${listing.listingId}`);
+          // Convert WebP to PNG if needed
+          if (imageUrl.startsWith('data:image/webp;base64,')) {
+            return await convertWebPDataUrlToPNG(imageUrl);
+          }
+          return imageUrl;
+        }
+
+        // Helper to detect if URL is a Vercel Blob thumbnail (already optimized)
+        const isVercelBlobThumbnail = (url: string): boolean => {
+          return url.includes('.public.blob.vercel-storage.com') || 
+                 url.includes('vercel-storage.com') ||
+                 (url.includes('/thumbnails/') && url.includes('.webp'));
+        };
+
         // Check cache first using the original imageUrl (normalization happens inside getCachedImage)
         const cached = await getCachedImage(imageUrl);
         if (cached) {
           console.log(`[OG Image] Cache hit for listing ${listing.listingId}`);
+          // Convert WebP to PNG if cached image is WebP
+          if (cached.startsWith('data:image/webp;base64,')) {
+            return await convertWebPDataUrlToPNG(cached);
+          }
           return cached;
         }
         
@@ -330,6 +384,7 @@ export async function GET(request: NextRequest) {
         // Convert IPFS URLs to HTTP gateway URLs
         // Note: fetchNFTMetadata may already return gateway URLs, so we handle both cases
         let httpUrl = imageUrl;
+        const isOptimizedThumbnail = isVercelBlobThumbnail(imageUrl);
         if (imageUrl.startsWith('ipfs://')) {
           const hash = imageUrl.replace('ipfs://', '');
           const gateway = process.env.IPFS_GATEWAY_URL || process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://cloudflare-ipfs.com';
@@ -354,8 +409,8 @@ export async function GET(request: NextRequest) {
             "https://gateway.pinata.cloud",
           ];
           
-          // Maximum media size: 10MB for videos/GIFs, 2MB for images
-          const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+          // Maximum media size: 10MB for videos/GIFs, 5MB for images
+          const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
           const MAX_MEDIA_SIZE = 10 * 1024 * 1024; // 10MB for videos/GIFs
           
           // Build list of URLs to try
@@ -393,9 +448,15 @@ export async function GET(request: NextRequest) {
               // Accept images, videos, and GIFs (we'll process them)
               if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) continue;
               
+              // For optimized Vercel Blob thumbnails, use more lenient size limits
+              // They're already optimized WebP files, so they should be small
+              const urlIsOptimizedThumbnail = isVercelBlobThumbnail(url);
+              const maxSize = urlIsOptimizedThumbnail 
+                ? 5 * 1024 * 1024 // 5MB for optimized thumbnails (should be much smaller)
+                : (contentType.startsWith('video/') ? MAX_MEDIA_SIZE : MAX_IMAGE_SIZE);
+              
               // Check Content-Length header before downloading
               const contentLength = response.headers.get('content-length');
-              const maxSize = contentType.startsWith('video/') ? MAX_MEDIA_SIZE : MAX_IMAGE_SIZE;
               if (contentLength) {
                 const size = parseInt(contentLength, 10);
                 if (size > maxSize) {
@@ -413,16 +474,49 @@ export async function GET(request: NextRequest) {
                 continue;
               }
               
+              // For optimized Vercel Blob thumbnails (WebP, already resized), convert to PNG
+              // ImageResponse doesn't support WebP, so we need to convert
+              if (urlIsOptimizedThumbnail && contentType === 'image/webp') {
+                // Convert WebP buffer to PNG using sharp
+                try {
+                  const pngBuffer = await sharp(buffer)
+                    .png({ compressionLevel: 6 })
+                    .toBuffer();
+                  const base64 = pngBuffer.toString('base64');
+                  const dataUrl = `data:image/png;base64,${base64}`;
+                  
+                  // Cache the converted image
+                  try {
+                    await cacheImage(imageUrl, dataUrl, 'image/png');
+                  } catch (cacheError) {
+                    console.warn(`[OG Image] Failed to cache converted thumbnail (non-fatal):`, cacheError instanceof Error ? cacheError.message : String(cacheError));
+                  }
+                  
+                  console.log(`[OG Image] Converted optimized Vercel Blob WebP thumbnail to PNG for listing ${listing.listingId}, original: ${buffer.length} bytes, PNG: ${pngBuffer.length} bytes`);
+                  return dataUrl;
+                } catch (conversionError) {
+                  console.warn(`[OG Image] Failed to convert WebP thumbnail to PNG, will process normally:`, conversionError instanceof Error ? conversionError.message : String(conversionError));
+                  // Fall through to normal processing
+                }
+              }
+              
               // Process media (handles images, videos, and GIFs)
+              // This will scale down large images to appropriate size for OG images
               const processed = await processMediaForImage(buffer, contentType, url);
               if (!processed) {
                 console.warn(`[OG Image] Failed to process media for listing ${listing.listingId} from ${url}`);
                 continue;
               }
               
+              // Convert WebP data URL to PNG if needed (processMediaForImage might return WebP for optimized thumbnails)
+              let finalDataUrl = processed.dataUrl;
+              if (processed.dataUrl.startsWith('data:image/webp;base64,')) {
+                finalDataUrl = await convertWebPDataUrlToPNG(processed.dataUrl);
+              }
+              
               // Cache the processed image using the original imageUrl
               try {
-                await cacheImage(imageUrl, processed.dataUrl, 'image/png'); // Processed images are always PNG
+                await cacheImage(imageUrl, finalDataUrl, 'image/png'); // All cached images should be PNG
                 console.log(`[OG Image] Successfully cached processed image for listing ${listing.listingId} (original type: ${processed.originalType})`);
               } catch (cacheError) {
                 // Don't fail the request if caching fails
@@ -430,7 +524,7 @@ export async function GET(request: NextRequest) {
               }
               
               console.log(`[OG Image] Successfully processed media for listing ${listing.listingId} from ${url} (${processed.originalType} -> ${processed.processedType})`);
-              return processed.dataUrl;
+              return finalDataUrl;
             } catch (error) {
               console.warn(`[OG Image] Error fetching from ${url} for listing ${listing.listingId}:`, error instanceof Error ? error.message : String(error));
               continue;
@@ -459,6 +553,38 @@ export async function GET(request: NextRequest) {
       fonts.push({ name: 'MEKSans-Regular', data: mekSansFont, style: 'normal' as const });
     }
 
+    // Validate and convert WebP data URLs to PNG before using in ImageResponse
+    const MAX_DATA_URL_SIZE = 2 * 1024 * 1024; // 2MB limit for data URLs in ImageResponse
+    const validatedImages = await Promise.all(
+      listingImages.map(async (imageUrl) => {
+        if (!imageUrl) return null;
+        
+        // Validate data URL format - must start with data:image/
+        if (!imageUrl.startsWith('data:image/')) {
+          console.warn(`[OG Image] Invalid data URL format, skipping. URL starts with: ${imageUrl.substring(0, 20)}`);
+          return null;
+        }
+        
+        // Check size limit
+        if (imageUrl.length > MAX_DATA_URL_SIZE) {
+          console.warn(`[OG Image] Data URL too large (${imageUrl.length} bytes), skipping`);
+          return null;
+        }
+        
+        // Convert WebP to PNG if needed
+        if (imageUrl.startsWith('data:image/webp;base64,')) {
+          try {
+            return await convertWebPDataUrlToPNG(imageUrl);
+          } catch (error) {
+            console.error(`[OG Image] Error converting WebP to PNG:`, error);
+            return null;
+          }
+        }
+        
+        return imageUrl;
+      })
+    );
+
     // Determine listing details for each card
     const now = Math.floor(Date.now() / 1000);
     const cardData = recentListings.map((listing, index) => {
@@ -475,7 +601,7 @@ export async function GET(request: NextRequest) {
         artist: artistDisplay,
         listingType,
         isActive,
-        image: listingImages[index] || null,
+        image: validatedImages[index] || null,
       };
     });
 
@@ -721,8 +847,7 @@ export async function GET(request: NextRequest) {
         height: 630,
         fonts: fonts.length > 0 ? fonts : undefined,
         headers: {
-          // Cache for 6 hours (21600 seconds)
-          'Cache-Control': 'public, max-age=21600, s-maxage=21600, immutable',
+          'Cache-Control': OG_IMAGE_CACHE_CONTROL_SUCCESS,
         },
       }
     );
@@ -868,7 +993,7 @@ export async function GET(request: NextRequest) {
         height: 630,
         fonts: fallbackFonts.length > 0 ? fallbackFonts : undefined,
         headers: {
-          'Cache-Control': 'public, max-age=300, s-maxage=300',
+          'Cache-Control': OG_IMAGE_CACHE_CONTROL_ERROR,
         },
       }
     );
