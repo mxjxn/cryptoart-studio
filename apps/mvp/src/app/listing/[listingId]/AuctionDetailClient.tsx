@@ -1373,6 +1373,8 @@ export default function AuctionDetailClient({
   // Only consider ended if auction has started AND endTime has passed
   const isEnded = auctionHasStarted && endTime <= now && auction.status === "ACTIVE" && !isCancelled;
   const isActive = auctionHasStarted && endTime > now && auction.status === "ACTIVE";
+  // Show controls if auction is active OR if it hasn't started yet (so users can see what they'll be able to do)
+  const showControls = (isActive || !auctionHasStarted) && !isEnded && auction.status === "ACTIVE" && !isCancelled;
   
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
@@ -1803,13 +1805,41 @@ export default function AuctionDetailClient({
         {/* Action Buttons - Conditional based on listing type */}
         {!isCancelled && (
           <>
-            {/* INDIVIDUAL_AUCTION - Place Bid (only show if active and not at-risk) */}
-            {auction.listingType === "INDIVIDUAL_AUCTION" && isActive && !isEnded && !isAtRiskListing && (
+            {/* INDIVIDUAL_AUCTION - Place Bid (show if active or not started yet, and not at-risk) */}
+            {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && (
               <div className="mb-4">
                 {!isConnected ? (
                   <p className="text-xs text-[#cccccc]">
                     Please connect your wallet to place a bid.
                   </p>
+                ) : !auctionHasStarted ? (
+                  <div className="space-y-3">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      disabled
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                      placeholder={
+                        auction.highestBid
+                          ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
+                          : `Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`
+                      }
+                    />
+                    <button
+                      onClick={handleBid}
+                      disabled
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                    >
+                      Place Bid
+                    </button>
+                    <p className="text-xs text-[#cccccc]">
+                      {startTime === 0 
+                        ? "Auction will start when the first bid is placed."
+                        : `Auction starts ${new Date(startTime * 1000).toLocaleString()}.`}
+                    </p>
+                  </div>
                 ) : isOwnAuction ? (
                   <div className="space-y-3">
                     <input
@@ -1874,7 +1904,7 @@ export default function AuctionDetailClient({
             )}
 
             {/* FIXED_PRICE - Purchase */}
-            {auction.listingType === "FIXED_PRICE" && isActive && (() => {
+            {auction.listingType === "FIXED_PRICE" && showControls && (() => {
               // Check if ERC721 is sold out
               const isERC721SoldOut = auction.tokenSpec === "ERC721" && 
                 parseInt(auction.totalSold || "0") >= parseInt(auction.totalAvailable || "1");
@@ -1926,6 +1956,30 @@ export default function AuctionDetailClient({
                   <p className="text-xs text-[#cccccc]">
                     Please connect your wallet to purchase.
                   </p>
+                ) : !auctionHasStarted ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg opacity-50">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm text-[#cccccc]">Price Per Copy</span>
+                        <span className="text-lg font-medium text-white flex items-center gap-1.5">
+                          {formatPrice(auction.initialAmount)} 
+                          <TokenImage tokenAddress={auction.erc20} size={20} className="ml-0.5" />
+                          <span>{paymentSymbol}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      disabled
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                    >
+                      Buy Now
+                    </button>
+                    <p className="text-xs text-[#cccccc]">
+                      {startTime === 0 
+                        ? "Listing will start when the first purchase is made."
+                        : `Listing starts ${new Date(startTime * 1000).toLocaleString()}.`}
+                    </p>
+                  </div>
                 ) : isOwnAuction ? (
                   <p className="text-xs text-[#cccccc]">
                     You cannot purchase your own listing.
@@ -2031,12 +2085,36 @@ export default function AuctionDetailClient({
             })()}
 
             {/* OFFERS_ONLY - Make Offer */}
-            {auction.listingType === "OFFERS_ONLY" && isActive && (
+            {auction.listingType === "OFFERS_ONLY" && showControls && (
               <div className="mb-4 space-y-4">
                 {!isConnected ? (
                   <p className="text-xs text-[#cccccc]">
                     Please connect your wallet to make an offer.
                   </p>
+                ) : !auctionHasStarted ? (
+                  <div className="space-y-3">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={offerAmount}
+                      onChange={(e) => setOfferAmount(e.target.value)}
+                      disabled
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                      placeholder={`Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`}
+                    />
+                    <button
+                      onClick={handleMakeOffer}
+                      disabled
+                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                    >
+                      Make Offer
+                    </button>
+                    <p className="text-xs text-[#cccccc]">
+                      {startTime === 0 
+                        ? "Listing will start when the first offer is made."
+                        : `Listing starts ${new Date(startTime * 1000).toLocaleString()}.`}
+                    </p>
+                  </div>
                 ) : isOwnAuction ? (
                   <p className="text-xs text-[#cccccc]">
                     You cannot make an offer on your own listing.
