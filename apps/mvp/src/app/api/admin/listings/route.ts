@@ -48,9 +48,9 @@ const ALL_LISTINGS_QUERY = gql`
   }
 `;
 
-export async function GET(request: Request) {
+export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '1000', 10);
     
     const endpoint = getSubgraphEndpoint();
