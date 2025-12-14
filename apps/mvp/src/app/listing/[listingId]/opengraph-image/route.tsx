@@ -182,14 +182,6 @@ export async function GET(
     // If there was an error fetching (not just not found), show error image instead of "not found"
     if (auctionFetchError) {
       console.error(`[OG Image] [Listing ${listingId}] Auction fetch error - returning error image`);
-      const errorFonts = fontData ? [
-        {
-          name: 'MEK-Mono',
-          data: fontData,
-          style: 'normal' as const,
-        },
-      ] : undefined;
-      
       const errorOptions: {
         width: number;
         height: number;
@@ -203,8 +195,15 @@ export async function GET(
         },
       };
       
-      if (errorFonts && errorFonts.length > 0) {
-        errorOptions.fonts = errorFonts;
+      // Only add fonts property if we have font data
+      if (fontData) {
+        errorOptions.fonts = [
+          {
+            name: 'MEK-Mono',
+            data: fontData,
+            style: 'normal' as const,
+          },
+        ];
       }
       
       return new ImageResponse(
@@ -238,14 +237,6 @@ export async function GET(
     if (!auction) {
       console.warn(`[OG Image] [Listing ${listingId}] Auction not found - returning 'Listing Not Found' image`);
       // Return default image if listing not found
-      const notFoundFonts = fontData ? [
-        {
-          name: 'MEK-Mono',
-          data: fontData,
-          style: 'normal' as const,
-        },
-      ] : undefined;
-      
       const notFoundOptions: {
         width: number;
         height: number;
@@ -259,8 +250,15 @@ export async function GET(
         },
       };
       
-      if (notFoundFonts && notFoundFonts.length > 0) {
-        notFoundOptions.fonts = notFoundFonts;
+      // Only add fonts property if we have font data
+      if (fontData) {
+        notFoundOptions.fonts = [
+          {
+            name: 'MEK-Mono',
+            data: fontData,
+            style: 'normal' as const,
+          },
+        ];
       }
       
       return new ImageResponse(
@@ -565,17 +563,7 @@ export async function GET(
     ];
   }
 
-  // Build font array conditionally - only include if we have font data
-  // Next.js ImageResponse expects fonts to be an array of font objects or undefined
-  const fonts = fontData ? [
-    {
-      name: 'MEK-Mono',
-      data: fontData,
-      style: 'normal' as const,
-    },
-  ] : undefined;
-
-  // Build ImageResponse options - only include fonts if we have them
+  // Build ImageResponse options - conditionally include fonts only if we have font data
   const imageResponseOptions: {
     width: number;
     height: number;
@@ -589,9 +577,15 @@ export async function GET(
     },
   };
   
-  // Only add fonts if we have font data
-  if (fonts && fonts.length > 0) {
-    imageResponseOptions.fonts = fonts;
+  // Only add fonts property if we have font data (don't include it at all if no font)
+  if (fontData) {
+    imageResponseOptions.fonts = [
+      {
+        name: 'MEK-Mono',
+        data: fontData,
+        style: 'normal' as const,
+      },
+    ];
   }
 
   return new ImageResponse(

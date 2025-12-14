@@ -173,6 +173,22 @@ export function ShareImageCookingModal({
       const result = await processImageForShare(artworkUrl, 30000);
       
       if (result.success && result.thumbnailUrl) {
+        // If shareUrl is an OG image URL, verify it's ready before allowing share
+        if (shareUrl.includes('/opengraph-image') || shareUrl.includes('/opengraph-image')) {
+          setProcessingStep('Verifying embed...');
+          try {
+            // Check if OG image is ready by making a HEAD request
+            const ogImageUrl = shareUrl.replace(/\/opengraph-image.*$/, '/opengraph-image');
+            const headResponse = await fetch(ogImageUrl, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+            if (!headResponse.ok && headResponse.status !== 200) {
+              console.warn(`[ShareImageCookingModal] OG image not ready yet (status: ${headResponse.status}), but continuing anyway`);
+            }
+          } catch (error) {
+            // Don't block sharing if OG image check fails - it might be ready by the time the cast is posted
+            console.warn(`[ShareImageCookingModal] Could not verify OG image readiness:`, error);
+          }
+        }
+        
         setProcessingStep('Ready!');
         await new Promise(resolve => setTimeout(resolve, 500));
         setThumbnailUrl(result.thumbnailUrl);
