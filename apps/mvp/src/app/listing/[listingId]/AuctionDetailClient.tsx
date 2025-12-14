@@ -31,6 +31,7 @@ import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
 import { UpdateListingForm } from "~/components/UpdateListingForm";
+import { Fix180DayDurationForm } from "~/components/Fix180DayDurationForm";
 import { TokenImage } from "~/components/TokenImage";
 import { AdminContextMenu } from "~/components/AdminContextMenu";
 import { MetadataViewer } from "~/components/MetadataViewer";
@@ -770,6 +771,37 @@ export default function AuctionDetailClient({
     }
   };
 
+  const handleFix180DayDuration = async (durationSeconds: number) => {
+    if (!isConnected || !auction) {
+      return;
+    }
+
+    try {
+      // Use current initialAmount (don't change it)
+      const initialAmount = BigInt(auction.initialAmount || "0");
+      
+      // For startTime=0 auctions, endTime must be a duration in seconds
+      const startTime48 = 0; // Keep startTime as 0 (start on first bid)
+      const endTime48 = durationSeconds; // Duration in seconds
+
+      await modifyListing({
+        address: MARKETPLACE_ADDRESS,
+        abi: MARKETPLACE_ABI,
+        functionName: 'modifyListing',
+        chainId: CHAIN_ID,
+        args: [
+          Number(listingId),
+          initialAmount,
+          startTime48,
+          endTime48,
+        ],
+      });
+    } catch (error: any) {
+      console.error('[Fix180DayDuration] Error updating listing:', error);
+      alert(`Failed to fix duration: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   const handleUpdateListing = async (startTime: number | null, endTime: number | null) => {
     if (!isConnected || !auction) {
       return;
@@ -925,12 +957,15 @@ export default function AuctionDetailClient({
   }, [isFinalizeConfirmed, router, listingId, refetchAuction]);
 
   // Refresh after successful modification and close form
+  // Refetch auction data after successful modification
   useEffect(() => {
     if (isModifyConfirmed) {
+      // Refetch to get updated listing data (especially endTime for 180-day fix)
+      refetchAuction();
       router.refresh();
       setShowUpdateForm(false);
     }
-  }, [isModifyConfirmed, router]);
+  }, [isModifyConfirmed, router, refetchAuction]);
 
   // Create notifications after successful bid and update UI immediately
   useEffect(() => {
@@ -1322,6 +1357,7 @@ export default function AuctionDetailClient({
   const bidCount = auction?.bidCount || 0;
   const nowTimestamp = Math.floor(Date.now() / 1000);
   const oneYearInSeconds = 365 * 24 * 60 * 60;
+  const SAFE_DURATION_6_MONTHS = 15552000; // 180 days in seconds
   const hasStarted = auction?.listingType === "INDIVIDUAL_AUCTION" 
     ? bidCount > 0 || !!auction?.highestBid
     : parseInt(auction?.totalSold || "0") > 0;
@@ -1333,6 +1369,16 @@ export default function AuctionDetailClient({
   const isOwnAuctionForRisk = isConnected && address && auction?.seller && 
     address.toLowerCase() === auction.seller.toLowerCase();
   const canUpdateAtRisk = isOwnAuctionForRisk && isAtRiskListing && auction?.status !== "CANCELLED";
+  
+  // Detect 180-day duration issue: startTime=0 and endTime=180 days (15552000 seconds)
+  // This happens when auctions were created with the bug before the fix
+  const has180DayIssue = auction?.listingType === "INDIVIDUAL_AUCTION" &&
+    startTime === 0 &&
+    endTime === SAFE_DURATION_6_MONTHS &&
+    !hasStarted; // Only show fix if auction hasn't started yet
+  const isOwnAuction = isConnected && address && auction?.seller && 
+    address.toLowerCase() === auction.seller.toLowerCase();
+  const canFix180DayIssue = isOwnAuction && has180DayIssue && auction?.status !== "CANCELLED";
 
   // Auto-show update form for at-risk listings (seller needs to fix it)
   // MUST be called before any conditional returns to avoid hook order violations
@@ -1430,11 +1476,8 @@ export default function AuctionDetailClient({
   const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && auction.status === "ACTIVE" && !isCancelled;
   const isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now) && auction.status === "ACTIVE";
   // Show controls if auction is active OR if it hasn't started yet (so users can see what they'll be able to do)
-  const showControls = (isActive || !auctionHasStarted) && !isEnded && auction.status === "ACTIVE" && !isCancelled;
-  
-  // Check if the current user is the auction seller
-  const isOwnAuction = isConnected && address && auction.seller && 
-    address.toLowerCase() === auction.seller.toLowerCase();
+  // BUT disable if there's a 180-day issue (bidding should be disabled until fixed)
+  const showControls = (isActive || !auctionHasStarted) && !isEnded && auction.status === "ACTIVE" && !isCancelled && !has180DayIssue;
   
   // Check if current user is the winner (highest bidder)
   const isWinner = isConnected && address && auction.highestBid?.bidder &&
@@ -1866,11 +1909,39 @@ export default function AuctionDetailClient({
           </div>
         )}
 
+        {/* 180-Day Duration Fix Form (for sellers) */}
+        {!isCancelled && canFix180DayIssue && (
+          <div className="mb-4">
+            <Fix180DayDurationForm
+              listingId={listingId}
+              onSubmit={handleFix180DayDuration}
+              isLoading={isModifyLoading}
+            />
+            {modifyError && (
+              <p className="text-xs text-red-400 mt-2">
+                {modifyError.message || "Failed to fix duration"}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Warning message for non-sellers when 180-day issue exists */}
+        {!isCancelled && has180DayIssue && !isOwnAuction && (
+          <div className="mb-4 p-4 bg-red-900/20 border border-red-700/50 rounded-lg">
+            <p className="text-sm text-red-400 font-medium mb-1">
+              Bidding Temporarily Disabled
+            </p>
+            <p className="text-xs text-red-300">
+              This auction has a configuration issue that needs to be fixed by the seller before bidding can begin.
+            </p>
+          </div>
+        )}
+
         {/* Action Buttons - Conditional based on listing type */}
         {!isCancelled && (
           <>
-            {/* INDIVIDUAL_AUCTION - Place Bid (show if active or not started yet, and not at-risk) */}
-            {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && (
+            {/* INDIVIDUAL_AUCTION - Place Bid (show if active or not started yet, and not at-risk, and not 180-day issue) */}
+            {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && !has180DayIssue && (
               <div className="mb-4">
                 {!isConnected ? (
                   <p className="text-xs text-[#cccccc]">
