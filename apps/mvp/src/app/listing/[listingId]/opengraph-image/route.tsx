@@ -581,6 +581,10 @@ export async function GET(
   
   // Only add fonts property if we have font data (don't include it at all if no font)
   // Ensure fontData is a valid ArrayBuffer before using it
+  // NOTE: Temporarily disabling custom fonts to debug "u2 is not iterable" error
+  // The error might be related to how Next.js handles fonts in nodejs runtime
+  // TODO: Re-enable fonts once the streaming issue is resolved
+  /*
   if (fontData && fontData instanceof ArrayBuffer && fontData.byteLength > 0) {
     try {
       imageResponseOptions.fonts = [
@@ -598,6 +602,8 @@ export async function GET(
   } else {
     console.log(`[OG Image] [Listing ${listingId}] No valid font data, using system font`);
   }
+  */
+  console.log(`[OG Image] [Listing ${listingId}] Using system font (custom fonts temporarily disabled for debugging)`);
 
   // Validate artworkImageDataUrl before using it
   // ImageResponse has limits on data URL size - if too large, skip the image
