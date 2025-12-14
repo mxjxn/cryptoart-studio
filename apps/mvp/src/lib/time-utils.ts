@@ -222,12 +222,31 @@ export function getListingDisplayStatus(
       }
     }
 
+    // For FIXED_PRICE listings with startTime = 0, endTime is a duration (not a timestamp)
+    // The listing is active immediately, and endTime represents duration from creation
+    // We can't determine if it's ended without knowing the creation timestamp
+    // So we default to "active" for safety
+    if (listing.listingType === "FIXED_PRICE" && startTime === 0) {
+      // endTime is a duration, not a timestamp, so we can't compare it directly to currentTime
+      // If endTime is MAX_UINT48 or very large, it's never-expiring
+      // Otherwise, we'd need the listing creation timestamp to calculate actual end time
+      // For now, treat as active (the listing page will show correct status)
+      if (isNeverExpiring(endTime)) {
+        return "active";
+      }
+      // Heuristic: if endTime is very small (< 1 day), it might be a bug, but still show as active
+      // If endTime is reasonable (duration), we can't determine end without creation time
+      // Default to active for safety
+      return "active";
+    }
+
     // For listings with fixed start time
     if (currentTime < startTime) {
       return "not started";
     }
 
     // Check if ended (but not finalized)
+    // For FIXED_PRICE with fixed startTime, endTime is a timestamp
     if (endTime <= currentTime && !isNeverExpiring(endTime)) {
       return "concluded";
     }
