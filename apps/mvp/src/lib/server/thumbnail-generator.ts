@@ -80,35 +80,10 @@ class VercelBlobBackend implements StorageBackend {
     // Use try-catch to handle case where @vercel/blob is not installed
     try {
       // @ts-ignore - @vercel/blob is optional and may not be installed
-      const blobModule = await import('@vercel/blob');
-      const { put } = blobModule;
-      const head = blobModule.head; // head might not exist in all versions
+      const { put } = await import('@vercel/blob');
       
-      // Check if blob already exists first (if head function is available)
-      // This is optional - if it fails for any reason, we'll just upload
-      if (head && typeof head === 'function') {
-        try {
-          // Add timeout to head check (1 second max to avoid blocking)
-          const headPromise = head(key);
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Head check timeout')), 1000)
-          );
-          
-          const existingBlob = await Promise.race([headPromise, timeoutPromise]) as any;
-          if (existingBlob && existingBlob.url) {
-            // Blob already exists, return its URL
-            return existingBlob.url;
-          }
-        } catch (headError: any) {
-          // Blob doesn't exist or head check failed - silently continue to upload
-          // head() throws BlobNotFoundError when blob doesn't exist, which is expected
-          // Any other error (timeout, network, etc.) - also continue to upload
-          // Don't log or throw - just proceed with upload
-        }
-      }
-      
-      // Blob doesn't exist or head check failed, upload it
-      // Use allowOverwrite: true to handle race conditions and existing blobs
+      // Upload blob with allowOverwrite: true to handle existing blobs gracefully
+      // This avoids the "already exists" error and handles race conditions
       const blob = await put(key, buffer, {
         access: 'public',
         contentType,
@@ -122,23 +97,9 @@ class VercelBlobBackend implements StorageBackend {
           if (error.message.includes('Cannot find module') || error.message.includes("Can't resolve")) {
             throw new Error('@vercel/blob package is not installed. Run: npm install @vercel/blob');
           }
-          // If blob already exists error, try to get its URL using head
+          // If blob already exists error (shouldn't happen with allowOverwrite: true, but handle it)
           if (error.message.includes('already exists') || error.message.includes('This blob already exists')) {
-            try {
-              // @ts-ignore
-              const blobModule = await import('@vercel/blob');
-              const head = blobModule.head;
-              if (head && typeof head === 'function') {
-                const existingBlob = await head(key);
-                if (existingBlob && existingBlob.url) {
-                  return existingBlob.url;
-                }
-              }
-            } catch (headError) {
-              // If head fails, fall back to constructing URL
-              console.warn(`[VercelBlob] Failed to get existing blob URL (using constructed URL): ${headError}`);
-            }
-            // Fallback: construct URL from key
+            // Construct URL from key - blob exists, we just need its URL
             return this.getUrl(key);
           }
           throw new Error(`Vercel Blob upload failed: ${error.message}`);
