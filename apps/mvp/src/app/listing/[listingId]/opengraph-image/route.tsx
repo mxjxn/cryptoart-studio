@@ -657,7 +657,7 @@ export async function GET(
                 letterSpacing: '3px',
               }}
             >
-              {title.length > 50 ? `${title.slice(0, 47)}...` : title}
+              {title && title.length > 50 ? `${String(title).slice(0, 47)}...` : String(title || 'Untitled')}
             </div>
             
             {collectionName ? (
@@ -670,7 +670,7 @@ export async function GET(
                   lineHeight: '1.1',
                 }}
               >
-                {collectionName}
+                {String(collectionName)}
               </div>
             ) : null}
             
@@ -683,12 +683,12 @@ export async function GET(
                 lineHeight: '1.1',
               }}
             >
-              by {artistDisplay}
+              by {String(artistDisplay || '—')}
             </div>
           </div>
 
           {/* Bottom section: Listing details */}
-          {listingDetails.length > 0 ? (
+          {listingDetails && listingDetails.length > 0 ? (
             <div
               style={{
                 display: 'flex',
@@ -697,21 +697,26 @@ export async function GET(
                 marginTop: 'auto',
               }}
             >
-              {listingDetails.map((detail, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: 48, // 2/3 of 72
-                    letterSpacing: '1px',
-                  }}
-                >
-                  <span style={{ display: 'flex', opacity: 0.6 }}>{detail.label}:</span>
-                  <span style={{ display: 'flex', fontWeight: 'bold', opacity: 0.9 }}>{detail.value}</span>
-                </div>
-              ))}
+              {listingDetails.map((detail, index) => {
+                if (!detail || !detail.label || !detail.value) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: 48, // 2/3 of 72
+                      letterSpacing: '1px',
+                    }}
+                  >
+                    <span style={{ display: 'flex', opacity: 0.6 }}>{String(detail.label)}:</span>
+                    <span style={{ display: 'flex', fontWeight: 'bold', opacity: 0.9 }}>{String(detail.value)}</span>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </div>
@@ -726,10 +731,10 @@ export async function GET(
             justifyContent: 'center',
           }}
         >
-          {artworkImageDataUrl && (
+          {artworkImageDataUrl ? (
             <img
               src={artworkImageDataUrl}
-              alt={title}
+              alt={title || "Artwork"}
               width={520}
               height={640}
               style={{
@@ -739,7 +744,7 @@ export async function GET(
                 borderRadius: '8px',
               }}
             />
-          )}
+          ) : null}
         </div>
       </div>
     ),
@@ -747,17 +752,8 @@ export async function GET(
     );
     console.log(`[OG Image] [Listing ${listingId}] ImageResponse created successfully, returning response...`);
     
-    // Try to return the response - if this fails, it means there's an issue with streaming
-    try {
-      return imageResponse;
-    } catch (returnError) {
-      console.error(`[OG Image] [Listing ${listingId}] Error returning ImageResponse:`, returnError);
-      if (returnError instanceof Error) {
-        console.error(`[OG Image] [Listing ${listingId}] Return error message:`, returnError.message);
-        console.error(`[OG Image] [Listing ${listingId}] Return error stack:`, returnError.stack);
-      }
-      throw returnError;
-    }
+    // Return the response - Next.js will handle the rendering/streaming
+    return imageResponse;
   } catch (imageResponseError) {
     // Log the specific error from ImageResponse creation
     console.error(`[OG Image] [Listing ${listingId}] Error creating ImageResponse:`, imageResponseError);
