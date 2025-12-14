@@ -580,30 +580,11 @@ export async function GET(
   };
   
   // Only add fonts property if we have font data (don't include it at all if no font)
-  // Ensure fontData is a valid ArrayBuffer before using it
-  // NOTE: Temporarily disabling custom fonts to debug "u2 is not iterable" error
-  // The error might be related to how Next.js handles fonts in nodejs runtime
-  // TODO: Re-enable fonts once the streaming issue is resolved
-  /*
-  if (fontData && fontData instanceof ArrayBuffer && fontData.byteLength > 0) {
-    try {
-      imageResponseOptions.fonts = [
-        {
-          name: 'MEK-Mono',
-          data: fontData,
-          style: 'normal' as const,
-        },
-      ];
-      console.log(`[OG Image] [Listing ${listingId}] Added font to ImageResponse (size: ${fontData.byteLength} bytes)`);
-    } catch (fontError) {
-      console.error(`[OG Image] [Listing ${listingId}] Error adding font to ImageResponse:`, fontError);
-      // Continue without font - don't fail the entire request
-    }
-  } else {
-    console.log(`[OG Image] [Listing ${listingId}] No valid font data, using system font`);
-  }
-  */
-  console.log(`[OG Image] [Listing ${listingId}] Using system font (custom fonts temporarily disabled for debugging)`);
+  // NOTE: Fonts are disabled because they cause "u2 is not iterable" error in nodejs runtime
+  // This appears to be a Next.js/ImageResponse issue with ArrayBuffer fonts in nodejs runtime
+  // Using system-ui font instead - fonts can be re-enabled if Next.js fixes this or we find a workaround
+  // For now, system-ui provides good fallback typography
+  console.log(`[OG Image] [Listing ${listingId}] Using system-ui font (custom fonts disabled due to nodejs runtime compatibility)`);
 
   // Validate artworkImageDataUrl before using it
   // ImageResponse has limits on data URL size - if too large, skip the image
@@ -623,8 +604,9 @@ export async function GET(
   console.log(`[OG Image] [Listing ${listingId}] Creating ImageResponse with:`, {
     hasArtworkImage: !!artworkImageDataUrl,
     artworkImageLength: artworkImageDataUrl ? artworkImageDataUrl.length : 0,
-    artworkImagePrefix: artworkImageDataUrl ? artworkImageDataUrl.substring(0, 30) : null,
-    hasFont: !!fontData,
+    artworkImagePrefix: artworkImageDataUrl ? artworkImageDataUrl.substring(0, 50) : null,
+    artworkImageIsValid: artworkImageDataUrl ? artworkImageDataUrl.startsWith('data:image/') : false,
+    hasFont: false, // Fonts disabled
     listingType,
     titleLength: title.length,
     listingDetailsCount: listingDetails.length,
