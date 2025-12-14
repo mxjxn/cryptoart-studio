@@ -1838,34 +1838,6 @@ export default function AuctionDetailClient({
                   <p className="text-xs text-[#cccccc]">
                     Please connect your wallet to place a bid.
                   </p>
-                ) : !auctionHasStarted ? (
-                  <div className="space-y-3">
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      disabled
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
-                      placeholder={
-                        auction.highestBid
-                          ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
-                          : `Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`
-                      }
-                    />
-                    <button
-                      onClick={handleBid}
-                      disabled
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
-                    >
-                      Place Bid
-                    </button>
-                    <p className="text-xs text-[#cccccc]">
-                      {startTime === 0 
-                        ? "Auction will start when the first bid is placed."
-                        : `Auction starts ${new Date(startTime * 1000).toLocaleString()}.`}
-                    </p>
-                  </div>
                 ) : isOwnAuction ? (
                   <div className="space-y-3">
                     <input
@@ -1892,40 +1864,78 @@ export default function AuctionDetailClient({
                       You cannot bid on your own auction.
                     </p>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label htmlFor="bid-amount-input" className="sr-only">
-                        Bid amount in {paymentSymbol}
-                      </label>
-                      <input
-                        id="bid-amount-input"
-                        type="number"
-                        step="0.001"
-                        min={formatPrice(calculateMinBid.toString())}
-                        value={bidAmount}
-                        onChange={(e) => setBidAmount(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
-                        placeholder={`Min: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
-                        aria-label={`Bid amount in ${paymentSymbol}. Minimum: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
-                        aria-describedby="bid-balance-info"
-                      />
-                      {/* Show user balance */}
-                      {!userBalance.isLoading && (
-                        <p id="bid-balance-info" className="text-xs text-[#666666] mt-1" aria-live="polite">
-                          Your balance: {userBalance.formatted} {paymentSymbol}
+                ) : (() => {
+                  // Check if auction has a future startTime (not start-on-first-bid)
+                  // For start-on-first-bid (startTime = 0), allow bidding immediately
+                  const hasFutureStartTime = startTime > 0 && now < startTime;
+                  
+                  if (hasFutureStartTime) {
+                    return (
+                      <div className="space-y-3">
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                          disabled
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                          placeholder={
+                            auction.highestBid
+                              ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
+                              : `Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`
+                          }
+                        />
+                        <button
+                          onClick={handleBid}
+                          disabled
+                          className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] opacity-50 cursor-not-allowed"
+                        >
+                          Place Bid
+                        </button>
+                        <p className="text-xs text-[#cccccc]">
+                          Auction starts {new Date(startTime * 1000).toLocaleString()}.
                         </p>
-                      )}
+                      </div>
+                    );
+                  }
+                  
+                  // Auction has started or is start-on-first-bid - show active bid button
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <label htmlFor="bid-amount-input" className="sr-only">
+                          Bid amount in {paymentSymbol}
+                        </label>
+                        <input
+                          id="bid-amount-input"
+                          type="number"
+                          step="0.001"
+                          min={formatPrice(calculateMinBid.toString())}
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                          placeholder={`Min: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
+                          aria-label={`Bid amount in ${paymentSymbol}. Minimum: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
+                          aria-describedby="bid-balance-info"
+                        />
+                        {/* Show user balance */}
+                        {!userBalance.isLoading && (
+                          <p id="bid-balance-info" className="text-xs text-[#666666] mt-1" aria-live="polite">
+                            Your balance: {userBalance.formatted} {paymentSymbol}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleBid}
+                        disabled={isBidding || isConfirmingBid}
+                        className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label={`Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
+                      >
+                        {isBidding || isConfirmingBid ? "Processing..." : "Place Bid"}
+                      </button>
                     </div>
-                    <button
-                      onClick={handleBid}
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
-                      aria-label={`Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
-                    >
-                      Place Bid
-                    </button>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
