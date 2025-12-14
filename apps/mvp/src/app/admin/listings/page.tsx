@@ -81,11 +81,11 @@ export default function AllListingsPage() {
           return row;
         });
 
-        // Sort by listingId (already sorted from API, but ensure it)
+        // Sort by listingId descending (latest first)
         formatted.sort((a: ListingRow, b: ListingRow) => {
           const aId = parseInt(a.listingId || '0', 10);
           const bId = parseInt(b.listingId || '0', 10);
-          return aId - bId;
+          return bId - aId; // Reverse order: highest ID first
         });
 
         setListings(formatted);
