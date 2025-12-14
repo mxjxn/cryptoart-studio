@@ -482,7 +482,11 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
         ) : null}
       </div>
       {/* Listing Card Menu - Below the card (includes Gallery + Admin options) */}
-      <div className="mt-2 flex justify-end pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className="mt-2 flex justify-end pointer-events-auto relative z-10" 
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <ListingCardMenu 
           listingId={auction.listingId}
           sellerAddress={auction.seller}

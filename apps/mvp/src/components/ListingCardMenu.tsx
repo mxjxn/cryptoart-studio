@@ -305,6 +305,9 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
               e.stopPropagation();
               setIsOpen(!isOpen);
             }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
             className="bg-black border border-[#333333] text-white px-2 py-1 rounded text-xs hover:border-[#666666] transition-colors"
             title="Gallery Options"
           >

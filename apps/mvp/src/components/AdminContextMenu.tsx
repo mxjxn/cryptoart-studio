@@ -293,6 +293,9 @@ export function AdminContextMenu({
             e.stopPropagation();
             setIsOpen(!isOpen);
           }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
           className="bg-black border-2 border-red-500 text-white px-2 py-1 rounded text-xs hover:bg-[#1a1a1a] transition-colors"
           disabled={isLoading || isCancelLoading}
           title="Admin Options"
