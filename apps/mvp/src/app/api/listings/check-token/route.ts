@@ -34,6 +34,7 @@ const CHECK_TOKEN_LISTING_QUERY = gql`
       totalSold
       status
       finalized
+      endTime
     }
   }
 `;
@@ -83,20 +84,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           totalSold: number;
           status: string;
           finalized: boolean;
+          endTime: string | number;
         }>;
       }>(endpoint, CHECK_TOKEN_LISTING_QUERY, {
         tokenAddress: tokenAddress.toLowerCase(),
         tokenId: tokenId,
       });
 
-      const activeListings = data.listings || [];
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Filter out listings that have ended (endTime has passed)
+      // This allows re-listing after auctions end, even if they haven't been finalized
+      const activeListings = (data.listings || []).filter((listing) => {
+        const endTime = typeof listing.endTime === 'string' ? parseInt(listing.endTime) : listing.endTime;
+        return endTime > now; // Only consider listings that haven't ended yet
+      });
       
       // Check if any listing is sold out
       const isSold = activeListings.some(
         (listing) => listing.totalSold >= listing.totalAvailable
       );
 
-      // Check if there are any active listings
+      // Check if there are any active listings (not ended and not finalized)
       const isListed = activeListings.length > 0;
 
       return NextResponse.json({
