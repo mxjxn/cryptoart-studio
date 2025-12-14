@@ -172,13 +172,30 @@ export async function GET(
 
     if (!auction) {
       // Return default image if listing not found
-      const fonts = fontData ? [
+      const notFoundFonts = fontData ? [
         {
           name: 'MEK-Mono',
           data: fontData,
           style: 'normal' as const,
         },
-      ] : [];
+      ] : undefined;
+      
+      const notFoundOptions: {
+        width: number;
+        height: number;
+        fonts?: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }>;
+        headers: { 'Cache-Control': string };
+      } = {
+        width: 1200,
+        height: 800,
+        headers: {
+          'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
+        },
+      };
+      
+      if (notFoundFonts && notFoundFonts.length > 0) {
+        notFoundOptions.fonts = notFoundFonts;
+      }
       
       return new ImageResponse(
         (
@@ -217,14 +234,7 @@ export async function GET(
             </div>
           </div>
         ),
-        {
-          width: 1200,
-          height: 800,
-          fonts,
-          headers: {
-            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
-          },
-        }
+        notFoundOptions
       );
     }
 
@@ -489,14 +499,34 @@ export async function GET(
     ];
   }
 
-  // Build font array conditionally
+  // Build font array conditionally - only include if we have font data
+  // Next.js ImageResponse expects fonts to be an array of font objects or undefined
   const fonts = fontData ? [
     {
       name: 'MEK-Mono',
       data: fontData,
       style: 'normal' as const,
     },
-  ] : [];
+  ] : undefined;
+
+  // Build ImageResponse options - only include fonts if we have them
+  const imageResponseOptions: {
+    width: number;
+    height: number;
+    fonts?: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }>;
+    headers: { 'Cache-Control': string };
+  } = {
+    width: 1200,
+    height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
+    headers: {
+      'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
+    },
+  };
+  
+  // Only add fonts if we have font data
+  if (fonts && fonts.length > 0) {
+    imageResponseOptions.fonts = fonts;
+  }
 
   return new ImageResponse(
     (
@@ -625,14 +655,7 @@ export async function GET(
         </div>
       </div>
     ),
-        {
-          width: 1200,
-          height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
-          fonts,
-          headers: {
-            'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
-          },
-        }
+    imageResponseOptions
   );
   } catch (error) {
     console.error(`[OG Image] Fatal error in listing OG image route:`, error);
