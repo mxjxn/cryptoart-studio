@@ -67,6 +67,44 @@ const LISTING_BY_ID_QUERY = gql`
   }
 `;
 
+const LISTING_BY_LISTING_ID_QUERY = gql`
+  query ListingByListingId($listingId: BigInt!) {
+    listings(
+      where: { listingId: $listingId }
+      first: 1
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      erc20
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
 const ACTIVE_LISTINGS_QUERY = gql`
   query ActiveListings($first: Int!, $skip: Int!) {
     listings(
@@ -259,21 +297,82 @@ export async function getAuctionServer(
     const endpoint = getSubgraphEndpoint();
     console.log(`[OG Image] [getAuctionServer] Using subgraph endpoint: ${endpoint.replace(/\/graphql.*$/, '/graphql')}`);
 
-    const data = await request<{ listing: any | null }>(
+    // Try querying by entity id first
+    let data = await request<{ listing: any | null }>(
       endpoint,
       LISTING_BY_ID_QUERY,
       { id: listingId },
       getSubgraphHeaders()
     );
 
-    if (!data.listing) {
+    let listing = data.listing;
+    
+    // Validate that the returned listing actually matches the requested listingId
+    // This prevents issues where old cancelled listings might be returned for the same NFT
+    if (listing) {
+      const returnedListingId = String(listing.listingId || listing.id || '');
+      const requestedListingId = String(listingId);
+      
+      if (returnedListingId !== requestedListingId) {
+        console.warn(`[OG Image] [getAuctionServer] Listing ID mismatch with entity id query! Requested: ${requestedListingId}, Got: ${returnedListingId}, Entity ID: ${listing.id}, Status: ${listing.status}`);
+        // Try querying by listingId field instead
+        const listingIdNum = parseInt(listingId);
+        if (!isNaN(listingIdNum)) {
+          const listingData = await request<{ listings: any[] }>(
+            endpoint,
+            LISTING_BY_LISTING_ID_QUERY,
+            { listingId: listingIdNum },
+            getSubgraphHeaders()
+          );
+          
+          if (listingData.listings && listingData.listings.length > 0) {
+            listing = listingData.listings[0];
+            const newReturnedListingId = String(listing.listingId || listing.id || '');
+            if (newReturnedListingId === requestedListingId) {
+              console.log(`[OG Image] [getAuctionServer] Found correct listing using listingId query: listingId=${listing.listingId}, status=${listing.status}`);
+            } else {
+              console.error(`[OG Image] [getAuctionServer] Still got wrong listing! Requested: ${requestedListingId}, Got: ${newReturnedListingId}`);
+              return null;
+            }
+          } else {
+            console.warn(`[OG Image] [getAuctionServer] No listing found using listingId query for: ${listingId}`);
+            return null;
+          }
+        } else {
+          console.error(`[OG Image] [getAuctionServer] Invalid listingId format: ${listingId}`);
+          return null;
+        }
+      }
+    }
+
+    if (!listing) {
       console.warn(`[OG Image] [getAuctionServer] No listing found for ID: ${listingId}`);
-      return null;
+      // Try fallback query by listingId field
+      const listingIdNum = parseInt(listingId);
+      if (!isNaN(listingIdNum)) {
+        try {
+          const listingData = await request<{ listings: any[] }>(
+            endpoint,
+            LISTING_BY_LISTING_ID_QUERY,
+            { listingId: listingIdNum },
+            getSubgraphHeaders()
+          );
+          
+          if (listingData.listings && listingData.listings.length > 0) {
+            listing = listingData.listings[0];
+            console.log(`[OG Image] [getAuctionServer] Found listing using listingId query fallback: listingId=${listing.listingId}, status=${listing.status}`);
+          }
+        } catch (error) {
+          console.error(`[OG Image] [getAuctionServer] Fallback query also failed:`, error);
+        }
+      }
+      
+      if (!listing) {
+        return null;
+      }
     }
     
-    console.log(`[OG Image] [getAuctionServer] Listing found: status=${data.listing.status}, tokenAddress=${data.listing.tokenAddress}`);
-
-    const listing = data.listing;
+    console.log(`[OG Image] [getAuctionServer] Listing found: listingId=${listing.listingId}, status=${listing.status}, tokenAddress=${listing.tokenAddress}`);
     const bidCount = listing.bids?.length || 0;
     const highestBid =
       listing.bids && listing.bids.length > 0

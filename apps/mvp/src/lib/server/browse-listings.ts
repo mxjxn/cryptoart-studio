@@ -126,6 +126,10 @@ export interface BrowseListingsResult {
   subgraphDown?: boolean; // Whether the subgraph is down/unavailable
 }
 
+export type StreamingListingEvent = 
+  | { type: 'listing'; data: EnrichedAuctionData }
+  | { type: 'metadata'; subgraphReturnedFullCount?: boolean; subgraphDown?: boolean };
+
 /**
  * Fetch and enrich listings from the subgraph
  * This is the core logic used by both the API route and server components
@@ -238,8 +242,15 @@ export async function browseListings(
       discoverAndCacheUserBackground(address);
     });
 
-    enrichedListings = await Promise.all(
-      activeListings.map(async (listing) => {
+    // Process listings in smaller batches to allow incremental progress
+    // This prevents one slow listing from blocking all others
+    const BATCH_SIZE = 5; // Process 5 listings at a time
+    const batches: EnrichedAuctionData[] = [];
+    
+    for (let i = 0; i < activeListings.length; i += BATCH_SIZE) {
+      const batch = activeListings.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (listing) => {
         const bidCount = listing.bids?.length || 0;
         const highestBid =
           listing.bids && listing.bids.length > 0
@@ -317,26 +328,52 @@ export async function browseListings(
           }
         }
 
-        return {
-          ...listing,
-          listingType: normalizeListingType(listing.listingType, listing),
-          bidCount,
-          highestBid: highestBid
-            ? {
-                amount: highestBid.amount,
-                bidder: highestBid.bidder,
-                timestamp: highestBid.timestamp,
-              }
-            : undefined,
-          title: metadata?.title || metadata?.name,
-          artist: metadata?.artist || metadata?.creator,
-          image: metadata?.image,
-          description: metadata?.description,
-          thumbnailUrl,
-          metadata,
-        };
-      })
-    );
+          return {
+            ...listing,
+            listingType: normalizeListingType(listing.listingType, listing),
+            bidCount,
+            highestBid: highestBid
+              ? {
+                  amount: highestBid.amount,
+                  bidder: highestBid.bidder,
+                  timestamp: highestBid.timestamp,
+                }
+              : undefined,
+            title: metadata?.title || metadata?.name,
+            artist: metadata?.artist || metadata?.creator,
+            image: metadata?.image,
+            description: metadata?.description,
+            thumbnailUrl,
+            metadata,
+          };
+        })
+      );
+      
+      // Process batch results - include successful enrichments, fallback to basic data for failures
+      batchResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          batches.push(result.value);
+        } else {
+          // If enrichment failed, return basic listing data
+          const listing = batch[index];
+          console.warn(`[Browse Listings] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
+          batches.push({
+            ...listing,
+            listingType: normalizeListingType(listing.listingType, listing),
+            bidCount: listing.bids?.length || 0,
+            highestBid: listing.bids && listing.bids.length > 0
+              ? {
+                  amount: listing.bids[0].amount,
+                  bidder: listing.bids[0].bidder,
+                  timestamp: listing.bids[0].timestamp,
+                }
+              : undefined,
+          });
+        }
+      });
+    }
+    
+    enrichedListings = batches;
   }
 
   // Check if subgraph returned the full amount we requested
@@ -353,5 +390,225 @@ export async function browseListings(
     subgraphReturnedFullCount,
     subgraphDown: false, // Subgraph is working if we got here
   };
+}
+
+/**
+ * Streaming version that yields listings as they're enriched
+ * This allows the client to start rendering listings before all are ready
+ */
+export async function* browseListingsStreaming(
+  options: BrowseListingsOptions = {}
+): AsyncGenerator<StreamingListingEvent, void, unknown> {
+  const {
+    first = 20,
+    skip = 0,
+    orderBy = "listingId",
+    orderDirection = "desc",
+    enrich = true,
+  } = options;
+
+  const endpoint = getSubgraphEndpoint();
+  const fetchCount = Math.min(Math.ceil(first * 1.5), 100);
+  
+  let data: { listings: any[] };
+  try {
+    console.log('[Browse Listings Streaming] Fetching from subgraph:', { endpoint, fetchCount, skip, orderBy, orderDirection });
+    
+    data = await retrySubgraphRequest(async () => {
+      return await request<{ listings: any[] }>(
+        endpoint,
+        BROWSE_LISTINGS_QUERY,
+        {
+          first: fetchCount,
+          skip,
+          orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
+          orderDirection: orderDirection === "asc" ? "asc" : "desc",
+        },
+        getSubgraphHeaders()
+      );
+    });
+    
+    console.log('[Browse Listings Streaming] Subgraph returned', data.listings?.length || 0, 'listings');
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    const isSubgraphDown = 
+      errorMessage.includes('bad indexers') ||
+      errorMessage.includes('BadResponse') ||
+      errorMessage.includes('ENOTFOUND') ||
+      errorMessage.includes('ECONNREFUSED') ||
+      errorMessage.includes('ETIMEDOUT') ||
+      errorMessage.includes('network');
+    
+    yield { type: 'metadata', subgraphDown: isSubgraphDown };
+    return;
+  }
+  
+  const hiddenAddresses = await getHiddenUserAddresses();
+  const activeListings = data.listings.filter(listing => {
+    if (listing.status === "CANCELLED") return false;
+    if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+      console.log(`[Browse Listings Streaming] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
+      return false;
+    }
+    return true;
+  });
+
+  // Yield metadata first
+  const subgraphReturnedFullCount = data.listings.length === fetchCount;
+  yield { type: 'metadata', subgraphReturnedFullCount, subgraphDown: false };
+
+  if (!enrich) {
+    // If not enriching, yield all listings immediately
+    for (const listing of activeListings.slice(0, first)) {
+      yield {
+        type: 'listing',
+        data: {
+          ...listing,
+          listingType: normalizeListingType(listing.listingType, listing),
+          bidCount: listing.bids?.length || 0,
+          highestBid: listing.bids && listing.bids.length > 0
+            ? {
+                amount: listing.bids[0].amount,
+                bidder: listing.bids[0].bidder,
+                timestamp: listing.bids[0].timestamp,
+              }
+            : undefined,
+        },
+      };
+    }
+    return;
+  }
+
+  // Collect addresses for user discovery (non-blocking)
+  const addressesToDiscover = new Set<string>();
+  activeListings.forEach(listing => {
+    if (listing.seller) {
+      addressesToDiscover.add(listing.seller.toLowerCase());
+    }
+  });
+  addressesToDiscover.forEach(address => {
+    discoverAndCacheUserBackground(address);
+  });
+
+  // Process and yield listings in batches as they're enriched
+  const BATCH_SIZE = 5;
+  let yieldedCount = 0;
+  
+  for (let i = 0; i < activeListings.length && yieldedCount < first; i += BATCH_SIZE) {
+    const batch = activeListings.slice(i, i + BATCH_SIZE);
+    
+    // Process batch in parallel
+    const batchPromises = batch.map(async (listing) => {
+      const bidCount = listing.bids?.length || 0;
+      const highestBid = listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
+
+      // Discover contract creator (non-blocking)
+      if (listing.tokenAddress && listing.tokenId) {
+        try {
+          const creatorResult = await getContractCreator(listing.tokenAddress, listing.tokenId);
+          if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
+            discoverAndCacheUserBackground(creatorResult.creator);
+          }
+        } catch {
+          // Ignore creator discovery errors
+        }
+      }
+
+      let metadata = null;
+      if (listing.tokenAddress && listing.tokenId) {
+        try {
+          metadata = await fetchNFTMetadata(
+            listing.tokenAddress as Address,
+            listing.tokenId,
+            listing.tokenSpec
+          );
+        } catch (error) {
+          console.warn(`[Browse Listings Streaming] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      let thumbnailUrl: string | undefined = undefined;
+      const imageUrl = metadata?.image;
+      
+      if (imageUrl && listing.status !== "CANCELLED") {
+        try {
+          const { getCachedThumbnail } = await import('./thumbnail-cache');
+          const { getThumbnailStatus } = await import('./background-thumbnails');
+          
+          const cached = await getCachedThumbnail(imageUrl, 'small');
+          if (cached) {
+            thumbnailUrl = cached;
+          } else {
+            const status = await getThumbnailStatus(imageUrl, 'small');
+            if (status === 'generating') {
+              thumbnailUrl = imageUrl;
+            } else {
+              try {
+                const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
+                thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
+              } catch (error) {
+                console.warn(`[Browse Listings Streaming] Failed to generate thumbnail for ${imageUrl}:`, error);
+                thumbnailUrl = imageUrl;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`[Browse Listings Streaming] Error checking thumbnail for ${imageUrl}:`, error);
+          thumbnailUrl = imageUrl;
+        }
+      }
+
+      return {
+        ...listing,
+        listingType: normalizeListingType(listing.listingType, listing),
+        bidCount,
+        highestBid: highestBid
+          ? {
+              amount: highestBid.amount,
+              bidder: highestBid.bidder,
+              timestamp: highestBid.timestamp,
+            }
+          : undefined,
+        title: metadata?.title || metadata?.name,
+        artist: metadata?.artist || metadata?.creator,
+        image: metadata?.image,
+        description: metadata?.description,
+        thumbnailUrl,
+        metadata,
+      };
+    });
+
+    // Wait for batch to complete and yield each listing as it's ready
+    const batchResults = await Promise.allSettled(batchPromises);
+    
+    for (const result of batchResults) {
+      if (yieldedCount >= first) break;
+      
+      if (result.status === 'fulfilled') {
+        yield { type: 'listing', data: result.value };
+        yieldedCount++;
+      } else {
+        // If enrichment failed, yield basic listing data
+        const listing = batch[batchResults.indexOf(result)];
+        console.warn(`[Browse Listings Streaming] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
+        yield {
+          type: 'listing',
+          data: {
+            ...listing,
+            listingType: normalizeListingType(listing.listingType, listing),
+            bidCount: listing.bids?.length || 0,
+            highestBid: listing.bids && listing.bids.length > 0
+              ? {
+                  amount: listing.bids[0].amount,
+                  bidder: listing.bids[0].bidder,
+                  timestamp: listing.bids[0].timestamp,
+                }
+              : undefined,
+          },
+        };
+        yieldedCount++;
+      }
+    }
+  }
 }
 

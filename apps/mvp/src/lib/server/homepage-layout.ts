@@ -107,6 +107,11 @@ async function getUpcomingAuctions(limit: number, _displayFormat?: string): Prom
     const now = Math.floor(Date.now() / 1000);
     return active
       .filter((listing) => {
+        // Filter out cancelled listings
+        if (listing.status === 'CANCELLED') {
+          return false;
+        }
+        
         const start = parseInt(String(listing.startTime || 0));
         const end = parseInt(String(listing.endTime || 0));
         const MAX_UINT48 = 281474976710655;
@@ -291,6 +296,12 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
     const MAX_UINT48 = 281474976710655;
     
     const filteredListings = data.listings.filter((listing) => {
+      // Filter out cancelled listings
+      if (listing.status === 'CANCELLED') {
+        console.log(`[getLiveBids] Listing ${listing.listingId} filtered: cancelled`);
+        return false;
+      }
+      
       // Verify bids actually exist (defensive check)
       const bidCount = listing.bids?.length || 0;
       const hasBidField = listing.hasBid === true;
@@ -441,7 +452,15 @@ async function getListingsBySeller(seller?: string, limit: number = DEFAULT_LIMI
       orderDirection: 'desc',
       enrich: true,
     });
-    return listings.filter((l) => l.seller?.toLowerCase() === seller.toLowerCase()).slice(0, limit);
+    return listings
+      .filter((l) => {
+        // Filter out cancelled listings
+        if (l.status === 'CANCELLED') {
+          return false;
+        }
+        return l.seller?.toLowerCase() === seller.toLowerCase();
+      })
+      .slice(0, limit);
   } catch (error) {
     console.error('[Homepage] Failed to get listings by seller', error);
     return [];
@@ -475,7 +494,13 @@ async function getCollectorListings(collector?: string, limit: number = DEFAULT_
       enrich: true,
     });
     return listings
-      .filter((listing) => listing.highestBid?.bidder?.toLowerCase() === collector.toLowerCase())
+      .filter((listing) => {
+        // Filter out cancelled listings
+        if (listing.status === 'CANCELLED') {
+          return false;
+        }
+        return listing.highestBid?.bidder?.toLowerCase() === collector.toLowerCase();
+      })
       .slice(0, limit);
   } catch (error) {
     console.error('[Homepage] Failed to get collector listings', error);

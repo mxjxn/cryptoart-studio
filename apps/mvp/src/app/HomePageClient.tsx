@@ -74,22 +74,120 @@ export default function HomePageClient() {
       const fetchCount = 20; // Fetch 20 to ensure we get enough ERC721 after filtering
       console.log('[HomePageClient] Fetching recent NFTs...', { fetchCount });
       const startTime = Date.now();
-      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true`);
-      const fetchTime = Date.now() - startTime;
-      console.log('[HomePageClient] NFT fetch completed in', fetchTime, 'ms, status:', response.status);
+      
+      // Use streaming mode for incremental loading
+      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const data = await response.json();
-      const allListings = data.listings || [];
-      // Filter for ERC721 only
-      const nftListings = allListings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
-      const isSubgraphDown = data.subgraphDown || false;
-      console.log('[HomePageClient] Received NFTs:', nftListings.length, 'from', allListings.length, 'total listings');
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
       
-      // Take only 6 for display
+      // Parse streaming JSON response
+      // The stream sends: {"success":true,"listings":[listing1,listing2,...],"count":...,...}
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let listings: EnrichedAuctionData[] = [];
+      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let listingsArrayStart = -1;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Find the start of the listings array
+        if (listingsArrayStart === -1) {
+          const arrayStart = buffer.indexOf('"listings":[');
+          if (arrayStart !== -1) {
+            listingsArrayStart = arrayStart + 11; // Length of '"listings":[' 
+          }
+        }
+        
+        if (listingsArrayStart !== -1) {
+          // Parse complete listing objects from the buffer
+          // Look for complete JSON objects (balanced braces)
+          let braceCount = 0;
+          let startIdx = -1;
+          const listingsPart = buffer.substring(listingsArrayStart);
+          
+          for (let i = 0; i < listingsPart.length; i++) {
+            const char = listingsPart[i];
+            
+            if (char === '{') {
+              if (braceCount === 0) startIdx = i;
+              braceCount++;
+            } else if (char === '}') {
+              braceCount--;
+              if (braceCount === 0 && startIdx !== -1) {
+                // Found a complete listing object
+                try {
+                  const listingJson = listingsPart.substring(startIdx, i + 1);
+                  const listing = JSON.parse(listingJson);
+                  if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                    listings.push(listing);
+                    // Filter for ERC721 and update state incrementally
+                    const nftListings = listings.filter((l: EnrichedAuctionData) => isERC721(l.tokenSpec));
+                    if (nftListings.length > 0) {
+                      setNftListings(nftListings.slice(0, displayCount));
+                    }
+                  }
+                } catch (e) {
+                  // Partial JSON, will be completed in next chunk
+                }
+                startIdx = -1;
+              }
+            } else if (char === ']' && braceCount === 0) {
+              // End of listings array - try to parse final metadata
+              const afterArray = buffer.substring(listingsArrayStart + i);
+              try {
+                const metaMatch = afterArray.match(/"count":(\d+)/);
+                if (metaMatch) metadata.count = parseInt(metaMatch[1]);
+                const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
+                if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+              } catch {
+                // Continue
+              }
+              break;
+            }
+          }
+          
+          // Keep the unprocessed part of the buffer (incomplete JSON objects)
+          if (startIdx !== -1 && startIdx < listingsPart.length) {
+            buffer = buffer.substring(0, listingsArrayStart + startIdx);
+          }
+        }
+      }
+      
+      // Final parse attempt for any remaining complete data
+      try {
+        const finalData = JSON.parse(buffer);
+        if (finalData.listings && Array.isArray(finalData.listings)) {
+          listings = finalData.listings;
+          const nftListings = listings.filter((l: EnrichedAuctionData) => isERC721(l.tokenSpec));
+          setNftListings(nftListings.slice(0, displayCount));
+        }
+        if (finalData.subgraphDown !== undefined) {
+          metadata.subgraphDown = finalData.subgraphDown;
+        }
+      } catch {
+        // Buffer might be incomplete, that's okay
+      }
+      
+      const fetchTime = Date.now() - startTime;
+      console.log('[HomePageClient] NFT fetch completed in', fetchTime, 'ms');
+      
+      // Filter for ERC721 only
+      const nftListings = listings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
+      const isSubgraphDown = metadata.subgraphDown || false;
+      console.log('[HomePageClient] Received NFTs:', nftListings.length, 'from', listings.length, 'total listings');
+      
+      // Take only displayCount for display
       setNftListings(nftListings.slice(0, displayCount));
       setNftSubgraphDown(isSubgraphDown);
     } catch (error) {
@@ -112,22 +210,118 @@ export default function HomePageClient() {
       const fetchCount = 20; // Fetch 20 to ensure we get enough ERC1155 after filtering
       console.log('[HomePageClient] Fetching recent Editions...', { fetchCount });
       const startTime = Date.now();
-      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true`);
-      const fetchTime = Date.now() - startTime;
-      console.log('[HomePageClient] Edition fetch completed in', fetchTime, 'ms, status:', response.status);
+      
+      // Use streaming mode for incremental loading
+      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const data = await response.json();
-      const allListings = data.listings || [];
-      // Filter for ERC1155 only
-      const editionListings = allListings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
-      const isSubgraphDown = data.subgraphDown || false;
-      console.log('[HomePageClient] Received Editions:', editionListings.length, 'from', allListings.length, 'total listings');
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
       
-      // Take only 6 for display
+      // Parse streaming JSON response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let listings: EnrichedAuctionData[] = [];
+      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let listingsArrayStart = -1;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Find the start of the listings array
+        if (listingsArrayStart === -1) {
+          const arrayStart = buffer.indexOf('"listings":[');
+          if (arrayStart !== -1) {
+            listingsArrayStart = arrayStart + 11; // Length of '"listings":[' 
+          }
+        }
+        
+        if (listingsArrayStart !== -1) {
+          // Parse complete listing objects from the buffer
+          let braceCount = 0;
+          let startIdx = -1;
+          const listingsPart = buffer.substring(listingsArrayStart);
+          
+          for (let i = 0; i < listingsPart.length; i++) {
+            const char = listingsPart[i];
+            
+            if (char === '{') {
+              if (braceCount === 0) startIdx = i;
+              braceCount++;
+            } else if (char === '}') {
+              braceCount--;
+              if (braceCount === 0 && startIdx !== -1) {
+                // Found a complete listing object
+                try {
+                  const listingJson = listingsPart.substring(startIdx, i + 1);
+                  const listing = JSON.parse(listingJson);
+                  if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                    listings.push(listing);
+                    // Filter for ERC1155 and update state incrementally
+                    const editionListings = listings.filter((l: EnrichedAuctionData) => isERC1155(l.tokenSpec));
+                    if (editionListings.length > 0) {
+                      setEditionListings(editionListings.slice(0, displayCount));
+                    }
+                  }
+                } catch (e) {
+                  // Partial JSON, will be completed in next chunk
+                }
+                startIdx = -1;
+              }
+            } else if (char === ']' && braceCount === 0) {
+              // End of listings array - try to parse final metadata
+              const afterArray = buffer.substring(listingsArrayStart + i);
+              try {
+                const metaMatch = afterArray.match(/"count":(\d+)/);
+                if (metaMatch) metadata.count = parseInt(metaMatch[1]);
+                const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
+                if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+              } catch {
+                // Continue
+              }
+              break;
+            }
+          }
+          
+          // Keep the unprocessed part of the buffer (incomplete JSON objects)
+          if (startIdx !== -1 && startIdx < listingsPart.length) {
+            buffer = buffer.substring(0, listingsArrayStart + startIdx);
+          }
+        }
+      }
+      
+      // Final parse attempt for any remaining complete data
+      try {
+        const finalData = JSON.parse(buffer);
+        if (finalData.listings && Array.isArray(finalData.listings)) {
+          listings = finalData.listings;
+          const editionListings = listings.filter((l: EnrichedAuctionData) => isERC1155(l.tokenSpec));
+          setEditionListings(editionListings.slice(0, displayCount));
+        }
+        if (finalData.subgraphDown !== undefined) {
+          metadata.subgraphDown = finalData.subgraphDown;
+        }
+      } catch {
+        // Buffer might be incomplete, that's okay
+      }
+      
+      const fetchTime = Date.now() - startTime;
+      console.log('[HomePageClient] Edition fetch completed in', fetchTime, 'ms');
+      
+      // Filter for ERC1155 only
+      const editionListings = listings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
+      const isSubgraphDown = metadata.subgraphDown || false;
+      console.log('[HomePageClient] Received Editions:', editionListings.length, 'from', listings.length, 'total listings');
+      
+      // Take only displayCount for display
       setEditionListings(editionListings.slice(0, displayCount));
       setEditionSubgraphDown(isSubgraphDown);
     } catch (error) {
@@ -145,6 +339,26 @@ export default function HomePageClient() {
     if (nftHasInitializedRef.current) return;
     nftHasInitializedRef.current = true;
     fetchRecentNFTs();
+    
+    // Refetch when page becomes visible (user switches back to tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchRecentNFTs();
+      }
+    };
+    
+    // Refetch on window focus (user switches back to window)
+    const handleFocus = () => {
+      fetchRecentNFTs();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchRecentNFTs]);
 
   // Initialize Editions section
@@ -152,6 +366,26 @@ export default function HomePageClient() {
     if (editionHasInitializedRef.current) return;
     editionHasInitializedRef.current = true;
     fetchRecentEditions();
+    
+    // Refetch when page becomes visible (user switches back to tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchRecentEditions();
+      }
+    };
+    
+    // Refetch on window focus (user switches back to window)
+    const handleFocus = () => {
+      fetchRecentEditions();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchRecentEditions]);
 
 

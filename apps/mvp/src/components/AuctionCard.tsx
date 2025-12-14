@@ -124,10 +124,19 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
   const endTime = parseInt(auction.endTime || "0");
   const hasBid = bidCount > 0 || !!auction.highestBid;
   const now = Math.floor(Date.now() / 1000);
-  const isEnded = endTime <= now && !isNeverExpiring(endTime);
   const isFinalized = auction.status === "FINALIZED";
   const isCancelled = auction.status === "CANCELLED";
   const isERC1155 = auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2";
+  
+  // Determine if auction has started
+  // For auctions with startTime = 0, they start on first bid
+  // For auctions with startTime > 0, they start when startTime is reached
+  const hasStarted = startTime === 0 
+    ? hasBid // startTime=0 auctions start on first bid
+    : now >= startTime; // startTime>0 auctions start when time is reached
+  
+  // Only consider ended if auction has started AND endTime has passed
+  const isEnded = hasStarted && endTime <= now && !isNeverExpiring(endTime) && auction.status === "ACTIVE";
   
   // Only use countdown hook for active auctions that aren't ended/finalized/cancelled
   // This prevents unnecessary intervals from running
