@@ -161,16 +161,82 @@ export async function GET(
   let contractName: string | null = null;
   let tokenSymbol = "ETH";
   let tokenDecimals = 18;
+  let auctionFetchError: Error | null = null;
 
   try {
-    // Add timeout to auction fetch (5 seconds max)
-    auction = await withTimeout(
-      getAuctionServer(listingId),
-      5000,
-      null
-    );
+    // Add timeout to auction fetch (10 seconds max - subgraph can be slow)
+    // Wrap in try-catch to handle any errors from getAuctionServer
+    try {
+      auction = await withTimeout(
+        getAuctionServer(listingId),
+        10000, // Increased to 10 seconds
+        null
+      );
+    } catch (error) {
+      // If getAuctionServer throws an error, log it and store the error
+      auctionFetchError = error instanceof Error ? error : new Error(String(error));
+      console.error(`[OG Image] Error fetching auction ${listingId}:`, auctionFetchError.message);
+      auction = null;
+    }
+
+    // If there was an error fetching (not just not found), show error image instead of "not found"
+    if (auctionFetchError) {
+      console.error(`[OG Image] [Listing ${listingId}] Auction fetch error - returning error image`);
+      const errorFonts = fontData ? [
+        {
+          name: 'MEK-Mono',
+          data: fontData,
+          style: 'normal' as const,
+        },
+      ] : undefined;
+      
+      const errorOptions: {
+        width: number;
+        height: number;
+        fonts?: Array<{ name: string; data: ArrayBuffer; style: 'normal' | 'italic' }>;
+        headers: { 'Cache-Control': string };
+      } = {
+        width: 1200,
+        height: 800,
+        headers: {
+          'Cache-Control': 'public, max-age=300, s-maxage=300', // Shorter cache for errors
+        },
+      };
+      
+      if (errorFonts && errorFonts.length > 0) {
+        errorOptions.fonts = errorFonts;
+      }
+      
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '80px',
+              color: 'white',
+              fontFamily: fontData ? 'MEK-Mono' : 'system-ui',
+            }}
+          >
+            <div style={{ display: 'flex', fontSize: 192, fontWeight: 'bold', marginBottom: '72px' }}>
+              Error Loading Listing
+            </div>
+            <div style={{ display: 'flex', fontSize: 96, opacity: 0.7 }}>
+              Listing #{listingId}
+            </div>
+          </div>
+        ),
+        errorOptions
+      );
+    }
 
     if (!auction) {
+      console.warn(`[OG Image] [Listing ${listingId}] Auction not found - returning 'Listing Not Found' image`);
       // Return default image if listing not found
       const notFoundFonts = fontData ? [
         {
