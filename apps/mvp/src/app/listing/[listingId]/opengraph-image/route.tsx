@@ -11,6 +11,7 @@ import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
 
 // ERC20 ABI for fetching token info
 const ERC20_ABI = [
