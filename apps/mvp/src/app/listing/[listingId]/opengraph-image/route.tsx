@@ -122,6 +122,7 @@ export async function GET(
   let fontData: ArrayBuffer | null = null;
   let listingId: string = '';
   
+  // Wrap entire function in try-catch to catch any errors during response streaming
   try {
     // Parse params first
     const resolvedParams = await params;
@@ -767,13 +768,17 @@ export async function GET(
     throw imageResponseError;
   }
   } catch (error) {
-    console.error(`[OG Image] Fatal error in listing OG image route:`, error);
+    // This catch should catch ALL errors, including streaming errors
+    console.error(`[OG Image] [Listing ${listingId || 'unknown'}] Fatal error in listing OG image route:`, error);
     if (error instanceof Error) {
-      console.error(`[OG Image] Error stack:`, error.stack);
+      console.error(`[OG Image] [Listing ${listingId || 'unknown'}] Fatal error message:`, error.message);
+      console.error(`[OG Image] [Listing ${listingId || 'unknown'}] Fatal error stack:`, error.stack);
+      console.error(`[OG Image] [Listing ${listingId || 'unknown'}] Fatal error name:`, error.name);
     }
     // Return a fallback image on any error
     const errorListingId = listingId || 'unknown';
-    return new ImageResponse(
+    try {
+      return new ImageResponse(
       (
         <div
           style={{
@@ -805,6 +810,12 @@ export async function GET(
         },
       }
     );
+    } catch (fallbackError) {
+      // If even the fallback fails, log it but we can't return anything else
+      console.error(`[OG Image] [Listing ${errorListingId}] Even fallback ImageResponse failed:`, fallbackError);
+      // Return a simple text response as last resort
+      return new Response('OG Image generation failed', { status: 500 });
+    }
   }
 }
 
