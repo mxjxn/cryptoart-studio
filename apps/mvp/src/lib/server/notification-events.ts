@@ -162,13 +162,10 @@ const ENDED_AUCTIONS_QUERY = gql`
       tokenSpec
       endTime
       hasBid
-      highestBid {
-        bidder
-        amount
-      }
       bids(orderBy: amount, orderDirection: desc, first: 1) {
         bidder
         amount
+        timestamp
       }
     }
   }
@@ -789,8 +786,8 @@ export async function processEndedAuctions(): Promise<void> {
         listing.tokenSpec
       );
       
-      // Get winning bid if exists (use highestBid or first bid from bids array)
-      const winningBid = listing.highestBid || (listing.bids && listing.bids.length > 0 ? listing.bids[0] : null);
+      // Get winning bid if exists (use first bid from bids array, which is highest due to ordering)
+      const winningBid = listing.bids && listing.bids.length > 0 ? listing.bids[0] : null;
       
       if (winningBid && listing.hasBid) {
         // Auction ended with bids - notify winner and seller
@@ -895,7 +892,7 @@ export async function processEndingSoonListings(): Promise<void> {
             tokenAddress
             tokenId
             tokenSpec
-            highestBid {
+            bids(orderBy: amount, orderDirection: desc, first: 1) {
               amount
             }
           }
@@ -953,11 +950,12 @@ export async function processEndingSoonListings(): Promise<void> {
         timeString = `${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''}`;
       }
       
-      // Format current bid
+      // Format current bid (use first bid from bids array, which is highest due to ordering)
       let bidInfo = '';
-      if (listing.highestBid && listing.highestBid.amount) {
+      const highestBid = listing.bids && listing.bids.length > 0 ? listing.bids[0] : null;
+      if (highestBid && highestBid.amount) {
         try {
-          const bidAmount = BigInt(listing.highestBid.amount);
+          const bidAmount = BigInt(highestBid.amount);
           const ethValue = Number(bidAmount) / 1e18;
           bidInfo = ` (current bid ${ethValue.toFixed(4)} ETH)`;
         } catch {
@@ -988,7 +986,7 @@ export async function processEndingSoonListings(): Promise<void> {
               seller: listing.seller,
               endTime: listing.endTime,
               timeRemaining,
-              currentBid: listing.highestBid?.amount || null,
+              currentBid: (listing.bids && listing.bids.length > 0 ? listing.bids[0].amount : null),
             },
           }
         );
