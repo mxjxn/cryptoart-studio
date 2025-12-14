@@ -68,6 +68,44 @@ const LISTING_BY_ID_QUERY = gql`
   }
 `;
 
+const LISTING_BY_LISTING_ID_QUERY = gql`
+  query ListingByListingId($listingId: BigInt!) {
+    listings(
+      where: { listingId: $listingId }
+      first: 1
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      erc20
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
 /**
  * Sleep for a given number of milliseconds
  */
@@ -152,7 +190,7 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
   const headers = getSubgraphHeaders();
   
   // Use retry logic with exponential backoff for rate limiting
-  const data = await retryWithBackoff(
+  let data = await retryWithBackoff(
     () => request<{ listing: any | null }>(
       endpoint,
       LISTING_BY_ID_QUERY,
@@ -163,11 +201,76 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     1000 // Start with 1 second delay
   );
 
-  if (!data.listing) {
-    return null;
+  let listing = data.listing;
+  
+  // Validate that the returned listing actually matches the requested listingId
+  // This prevents issues where old cancelled listings might be returned for the same NFT
+  if (listing) {
+    const returnedListingId = String(listing.listingId || listing.id || '');
+    const requestedListingId = String(listingId);
+    
+    if (returnedListingId !== requestedListingId) {
+      console.warn(`[fetchAuctionData] Listing ID mismatch with entity id query! Requested: ${requestedListingId}, Got: ${returnedListingId}, Entity ID: ${listing.id}, Status: ${listing.status}`);
+      // Try querying by listingId field instead
+      const listingIdNum = parseInt(listingId);
+      if (!isNaN(listingIdNum)) {
+        try {
+          const listingData = await request<{ listings: any[] }>(
+            endpoint,
+            LISTING_BY_LISTING_ID_QUERY,
+            { listingId: listingIdNum },
+            headers
+          );
+          
+          if (listingData.listings && listingData.listings.length > 0) {
+            listing = listingData.listings[0];
+            const newReturnedListingId = String(listing.listingId || listing.id || '');
+            if (newReturnedListingId === requestedListingId) {
+              console.log(`[fetchAuctionData] Found correct listing using listingId query: listingId=${listing.listingId}, status=${listing.status}`);
+            } else {
+              console.error(`[fetchAuctionData] Still got wrong listing! Requested: ${requestedListingId}, Got: ${newReturnedListingId}`);
+              return null;
+            }
+          } else {
+            console.warn(`[fetchAuctionData] No listing found using listingId query for: ${listingId}`);
+            return null;
+          }
+        } catch (error) {
+          console.error(`[fetchAuctionData] Fallback query failed:`, error);
+          return null;
+        }
+      } else {
+        console.error(`[fetchAuctionData] Invalid listingId format: ${listingId}`);
+        return null;
+      }
+    }
   }
 
-  const listing = data.listing;
+  if (!listing) {
+    // Try fallback query by listingId field
+    const listingIdNum = parseInt(listingId);
+    if (!isNaN(listingIdNum)) {
+      try {
+        const listingData = await request<{ listings: any[] }>(
+          endpoint,
+          LISTING_BY_LISTING_ID_QUERY,
+          { listingId: listingIdNum },
+          headers
+        );
+        
+        if (listingData.listings && listingData.listings.length > 0) {
+          listing = listingData.listings[0];
+          console.log(`[fetchAuctionData] Found listing using listingId query fallback: listingId=${listing.listingId}, status=${listing.status}`);
+        }
+      } catch (error) {
+        console.error(`[fetchAuctionData] Fallback query also failed:`, error);
+      }
+    }
+    
+    if (!listing) {
+      return null;
+    }
+  }
   
   const bidCount = listing.bids?.length || 0;
   const highestBid = listing.bids && listing.bids.length > 0 
