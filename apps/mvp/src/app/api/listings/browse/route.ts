@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     // Use no-cache headers if noCache param is set (for admin revalidation)
     // Otherwise use smart caching: 5 minute edge cache with stale-while-revalidate
-    const cacheHeaders = noCache
+    const cacheHeaders: Record<string, string> = noCache
       ? { 
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
           'Pragma': 'no-cache',
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     // If streaming is enabled, use streaming response
     if (stream && enrich) {
-      const stream = new ReadableStream({
+      const streamResponse = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
           
@@ -79,11 +79,13 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...cacheHeaders,
-        },
+      const streamHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...cacheHeaders,
+      };
+      
+      return new Response(streamResponse, {
+        headers: streamHeaders,
       });
     }
 
@@ -101,6 +103,11 @@ export async function GET(req: NextRequest) {
     const enrichedListings = result.listings;
     const hasMore = enrichedListings.length === first && result.subgraphReturnedFullCount;
     
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...cacheHeaders,
+    };
+    
     return new Response(JSON.stringify({
       success: true,
       listings: enrichedListings,
@@ -112,10 +119,7 @@ export async function GET(req: NextRequest) {
         hasMore,
       },
     }), {
-      headers: {
-        'Content-Type': 'application/json',
-        ...cacheHeaders,
-      },
+      headers: responseHeaders,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Failed to browse listings";
