@@ -289,14 +289,22 @@ export async function browseListings(
         let metadata = null;
         if (listing.tokenAddress && listing.tokenId) {
           try {
-            metadata = await fetchNFTMetadata(
+            // Add timeout to metadata fetching to prevent hanging
+            // Use Promise.race to timeout after 10 seconds
+            const metadataPromise = fetchNFTMetadata(
               listing.tokenAddress as Address,
               listing.tokenId,
               listing.tokenSpec
             );
+            const timeoutPromise = new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('Metadata fetch timeout after 10s')), 10000)
+            );
+            metadata = await Promise.race([metadataPromise, timeoutPromise]);
           } catch (error) {
             // Log but don't throw - metadata is optional
-            console.warn(`[Browse Listings] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error instanceof Error ? error.message : String(error));
+            // Include listing ID and status in error log for debugging
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            console.warn(`[Browse Listings] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}, status: ${listing.status}):`, errorMsg);
           }
         }
 
@@ -544,13 +552,22 @@ export async function* browseListingsStreaming(
       let metadata = null;
       if (listing.tokenAddress && listing.tokenId) {
         try {
-          metadata = await fetchNFTMetadata(
+          // Add timeout to metadata fetching to prevent hanging
+          // Use Promise.race to timeout after 10 seconds
+          const metadataPromise = fetchNFTMetadata(
             listing.tokenAddress as Address,
             listing.tokenId,
             listing.tokenSpec
           );
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Metadata fetch timeout after 10s')), 10000)
+          );
+          metadata = await Promise.race([metadataPromise, timeoutPromise]);
         } catch (error) {
-          console.warn(`[Browse Listings Streaming] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error instanceof Error ? error.message : String(error));
+          // Log but don't throw - metadata is optional
+          // Include listing ID and status in error log for debugging
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.warn(`[Browse Listings Streaming] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}, status: ${listing.status}):`, errorMsg);
         }
       }
 
