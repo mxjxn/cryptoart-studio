@@ -956,14 +956,25 @@ export default function AuctionDetailClient({
     }
   }, [isFinalizeConfirmed, router, listingId, refetchAuction]);
 
+  // Track if we've already handled the modification confirmation to prevent infinite loops
+  const hasHandledModifyRef = useRef(false);
+  
   // Refresh after successful modification and close form
   // Refetch auction data after successful modification
   useEffect(() => {
-    if (isModifyConfirmed) {
+    if (isModifyConfirmed && !hasHandledModifyRef.current) {
+      // Mark as handled immediately to prevent re-running
+      hasHandledModifyRef.current = true;
+      
       // Refetch to get updated listing data (especially endTime for 180-day fix)
       refetchAuction();
       router.refresh();
       setShowUpdateForm(false);
+    }
+    
+    // Reset the ref when isModifyConfirmed becomes false (new transaction started)
+    if (!isModifyConfirmed) {
+      hasHandledModifyRef.current = false;
     }
   }, [isModifyConfirmed, router, refetchAuction]);
 
