@@ -221,7 +221,7 @@ export async function GET(
               alignItems: 'center',
               padding: '80px',
               color: 'white',
-              fontFamily: fontData ? 'MEK-Mono' : 'system-ui',
+              fontFamily: 'system-ui', // Temporarily using system font to debug streaming issue
             }}
           >
             <div style={{ display: 'flex', fontSize: 192, fontWeight: 'bold', marginBottom: '72px' }}>
@@ -276,7 +276,7 @@ export async function GET(
               alignItems: 'center',
               padding: '80px',
               color: 'white',
-              fontFamily: fontData ? 'MEK-Mono' : 'system-ui',
+              fontFamily: 'system-ui', // Temporarily using system font to debug streaming issue
             }}
           >
             <div
@@ -642,7 +642,7 @@ export async function GET(
           flexDirection: 'row',
           padding: '80px 40px',
           color: 'white',
-          fontFamily: fontData ? 'MEK-Mono' : 'system-ui',
+          fontFamily: 'system-ui', // Temporarily using system font to debug streaming issue
         }}
       >
         {/* Left half: Text content */}
