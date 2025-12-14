@@ -115,6 +115,10 @@ function getDefaultEndTime(): string {
   return oneWeekFromNow.toISOString().slice(0, 16);
 }
 
+/**
+ * CreateAuctionClient - Allows anyone (free or member) to create auctions
+ * No subscription or membership required - only wallet connection is needed
+ */
 export default function CreateAuctionClient() {
   // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
   const { address, isConnected, isMiniApp: isMiniAppContext } = useEffectiveAddress();
