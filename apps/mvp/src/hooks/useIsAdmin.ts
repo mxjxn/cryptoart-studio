@@ -2,6 +2,7 @@ import { useAccount } from 'wagmi';
 import { useMiniApp } from '@neynar/react';
 import { ADMIN_CONFIG, ALL_ADMIN_ADDRESSES } from '~/lib/constants';
 import { usePrimaryWallet } from './usePrimaryWallet';
+import { useEffect, useState } from 'react';
 
 interface UseIsAdminResult {
   isAdmin: boolean;
@@ -21,9 +22,23 @@ export function useIsAdmin(): UseIsAdminResult {
   const { address: wagmiAddress, isConnecting, isReconnecting } = useAccount();
   const { context } = useMiniApp();
   const farcasterWallet = usePrimaryWallet();
+  const [connectionTimeout, setConnectionTimeout] = useState(false);
   
-  // Consider loading if wallet is still connecting
-  const isLoading = isConnecting || isReconnecting;
+  // Add timeout to prevent infinite loading if wallet connection is stuck
+  useEffect(() => {
+    if (isConnecting || isReconnecting) {
+      const timeout = setTimeout(() => {
+        setConnectionTimeout(true);
+      }, 5000); // 5 second timeout
+      
+      return () => clearTimeout(timeout);
+    } else {
+      setConnectionTimeout(false);
+    }
+  }, [isConnecting, isReconnecting]);
+  
+  // Consider loading if wallet is still connecting, but not if we've hit the timeout
+  const isLoading = (isConnecting || isReconnecting) && !connectionTimeout;
   
   // Get Farcaster user info
   const user = context?.user as { username?: string; fid?: number | string; custody_address?: string } | undefined;
