@@ -135,14 +135,45 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
     ? hasBid // startTime=0 auctions start on first bid
     : now >= startTime; // startTime>0 auctions start when time is reached
   
-  // Only consider ended if auction has started AND endTime has passed
-  const isEnded = hasStarted && endTime <= now && !isNeverExpiring(endTime) && auction.status === "ACTIVE";
+  // Calculate actual end timestamp for start-on-first-bid auctions
+  // When startTime = 0, endTime is a DURATION (in seconds), not a timestamp
+  // When the auction starts (first bid), the contract converts it: endTime += block.timestamp
+  let actualEndTime: number;
+  if (startTime === 0 && hasStarted) {
+    // For start-on-first-bid auctions that have started:
+    // The contract converts endTime to timestamp: endTime = duration + block.timestamp
+    // If endTime > now, it's already converted to a timestamp (use it directly)
+    // If endTime <= now or is a small number, it's still a duration (calculate it)
+    if (endTime > now) {
+      // Already converted to timestamp by contract
+      actualEndTime = endTime;
+    } else {
+      // Still a duration - contract hasn't converted it yet (subgraph not updated)
+      // Calculate end time from when auction started
+      const auctionStartTimestamp = auction.highestBid?.timestamp
+        ? parseInt(auction.highestBid.timestamp)
+        : now;
+      actualEndTime = auctionStartTimestamp + endTime;
+    }
+  } else if (startTime === 0 && !hasStarted) {
+    // Auction hasn't started yet, endTime is still a duration
+    // We can't calculate actual end time until auction starts
+    actualEndTime = 0;
+  } else {
+    // For auctions with startTime > 0, endTime is already a timestamp
+    actualEndTime = endTime;
+  }
+  
+  // Only consider ended if auction has started AND actual endTime has passed
+  const isEnded = hasStarted && actualEndTime > 0 && actualEndTime <= now && !isNeverExpiring(actualEndTime) && auction.status === "ACTIVE";
   
   // Only use countdown hook for active auctions that aren't ended/finalized/cancelled
   // This prevents unnecessary intervals from running
+  // Use actualEndTime for countdown (handles start-on-first-bid auctions correctly)
+  const countdownEndTime = actualEndTime > 0 ? actualEndTime : endTime;
   const shouldShowCountdown = !isEnded && !isFinalized && !isCancelled && 
-                              !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-  const countdown = useCountdown(shouldShowCountdown ? endTime : 0);
+                              !isNeverExpiring(countdownEndTime) && !isLongTermSale(countdownEndTime);
+  const countdown = useCountdown(shouldShowCountdown ? countdownEndTime : 0);
   
   // Calculate ERC1155 supply info
   let supplyDisplay: React.ReactElement | null = null;
