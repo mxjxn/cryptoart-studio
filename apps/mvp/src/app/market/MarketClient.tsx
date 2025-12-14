@@ -47,11 +47,11 @@ export default function MarketClient() {
         let url: string;
         
         if (tab === "recent") {
-          // Recent listings ordered by creation date
-          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=createdAt&orderDirection=desc`;
+          // Recent listings ordered by creation date - use streaming for faster load
+          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=createdAt&orderDirection=desc&stream=true`;
         } else {
-          // All listings ordered by listing ID
-          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc`;
+          // All listings ordered by listing ID - use streaming for faster load
+          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc&stream=true`;
         }
         
         console.log('[MarketClient] Fetching listings from:', url);
@@ -62,41 +62,130 @@ export default function MarketClient() {
           console.error('[MarketClient] Response error:', errorText);
           throw new Error(`Failed to fetch listings: ${response.status} ${response.statusText}`);
         }
-        const data = await response.json();
+
+        // Handle streaming response
+        if (!response.body) {
+          throw new Error('Response body is null');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let listings: EnrichedAuctionData[] = [];
+        let metadata: { subgraphDown?: boolean; count?: number; pagination?: { hasMore?: boolean } } = {};
+        let listingsArrayStart = -1;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Find the start of the listings array
+          if (listingsArrayStart === -1) {
+            const arrayStart = buffer.indexOf('"listings":[');
+            if (arrayStart !== -1) {
+              listingsArrayStart = arrayStart + 11; // Length of '"listings":[' 
+            }
+          }
+
+          if (listingsArrayStart !== -1) {
+            // Parse complete listing objects from the buffer
+            let braceCount = 0;
+            let startIdx = -1;
+            const listingsPart = buffer.substring(listingsArrayStart);
+            
+            for (let i = 0; i < listingsPart.length; i++) {
+              const char = listingsPart[i];
+              
+              if (char === '{') {
+                if (braceCount === 0) startIdx = i;
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0 && startIdx !== -1) {
+                  // Found a complete listing object
+                  try {
+                    const listingJson = listingsPart.substring(startIdx, i + 1);
+                    const listing = JSON.parse(listingJson);
+                    if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                      listings.push(listing);
+                      // Update state incrementally for first page
+                      if (page === 0) {
+                        setListings([...listings]);
+                      }
+                    }
+                  } catch (e) {
+                    // Partial JSON, will be completed in next chunk
+                  }
+                  startIdx = -1;
+                }
+              } else if (char === ']' && braceCount === 0) {
+                // End of listings array - try to parse final metadata
+                const afterArray = buffer.substring(listingsArrayStart + i);
+                try {
+                  const metaMatch = afterArray.match(/"count":(\d+)/);
+                  if (metaMatch) metadata.count = parseInt(metaMatch[1]);
+                  const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
+                  if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const hasMoreMatch = afterArray.match(/"hasMore":(true|false)/);
+                  if (hasMoreMatch) {
+                    metadata.pagination = { hasMore: hasMoreMatch[1] === 'true' };
+                  }
+                } catch {
+                  // Continue
+                }
+                break;
+              }
+            }
+            
+            // Keep the unprocessed part of the buffer (incomplete JSON objects)
+            if (startIdx !== -1 && startIdx < listingsPart.length) {
+              buffer = buffer.substring(0, listingsArrayStart + startIdx);
+            }
+          }
+        }
+
+        // Final parse attempt for any remaining complete data
+        try {
+          const finalData = JSON.parse(buffer);
+          if (finalData.listings && Array.isArray(finalData.listings)) {
+            listings = finalData.listings;
+            if (page === 0) {
+              setListings(listings);
+            }
+          }
+          if (finalData.subgraphDown !== undefined) {
+            metadata.subgraphDown = finalData.subgraphDown;
+          }
+          if (finalData.pagination) {
+            metadata.pagination = finalData.pagination;
+          }
+        } catch {
+          // Buffer might be incomplete, that's okay - we already parsed what we could
+        }
+
+        const isSubgraphDown = metadata.subgraphDown || false;
+
         console.log('[MarketClient] Received data:', {
-          success: data.success,
-          listingsCount: data.listings?.length || 0,
-          error: data.error,
-          hasMore: data.pagination?.hasMore,
+          success: true,
+          listingsCount: listings.length,
+          subgraphDown: isSubgraphDown,
+          hasMore: metadata.pagination?.hasMore,
         });
-        if (data.error) {
-          console.error('[MarketClient] API returned error:', data.error);
-          if (isInitialLoad) {
-            setError(data.error);
-          } else {
-            setLoadMoreError(data.error);
-          }
-        }
-        if (!data.success) {
-          const errorMsg = data.error || 'Failed to fetch listings';
-          if (isInitialLoad) {
-            setError(errorMsg);
-          } else {
-            setLoadMoreError(errorMsg);
-          }
-        }
+
         if (page === 0) {
-          setListings(data.listings || []);
-          setSubgraphDown(data.subgraphDown || false);
+          setListings(listings);
+          setSubgraphDown(isSubgraphDown);
         } else {
           // Deduplicate by listingId to prevent duplicates from pagination issues
           setListings((prev) => {
             const existingIds = new Set(prev.map((l: EnrichedAuctionData) => l.listingId));
-            const newListings = (data.listings || []).filter((l: EnrichedAuctionData) => !existingIds.has(l.listingId));
+            const newListings = listings.filter((l: EnrichedAuctionData) => !existingIds.has(l.listingId));
             return [...prev, ...newListings];
           });
         }
-        setHasMore(data.pagination?.hasMore || false);
+        setHasMore(metadata.pagination?.hasMore || false);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
         console.error("[MarketClient] Error fetching listings:", errorMessage, error);
