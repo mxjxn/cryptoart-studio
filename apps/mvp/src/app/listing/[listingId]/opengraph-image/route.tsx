@@ -596,10 +596,17 @@ export async function GET(
     artworkImageDataUrl = null;
   }
 
+  // Validate data URL format - must start with data:image/
+  if (artworkImageDataUrl && !artworkImageDataUrl.startsWith('data:image/')) {
+    console.warn(`[OG Image] [Listing ${listingId}] Invalid data URL format, skipping image. URL starts with: ${artworkImageDataUrl.substring(0, 20)}`);
+    artworkImageDataUrl = null;
+  }
+
   // Log before creating ImageResponse to help debug
   console.log(`[OG Image] [Listing ${listingId}] Creating ImageResponse with:`, {
     hasArtworkImage: !!artworkImageDataUrl,
     artworkImageLength: artworkImageDataUrl ? artworkImageDataUrl.length : 0,
+    artworkImagePrefix: artworkImageDataUrl ? artworkImageDataUrl.substring(0, 30) : null,
     hasFont: !!fontData,
     listingType,
     titleLength: title.length,
@@ -735,9 +742,20 @@ export async function GET(
       </div>
     ),
     imageResponseOptions
-  );
-    console.log(`[OG Image] [Listing ${listingId}] ImageResponse created successfully`);
-    return imageResponse;
+    );
+    console.log(`[OG Image] [Listing ${listingId}] ImageResponse created successfully, returning response...`);
+    
+    // Try to return the response - if this fails, it means there's an issue with streaming
+    try {
+      return imageResponse;
+    } catch (returnError) {
+      console.error(`[OG Image] [Listing ${listingId}] Error returning ImageResponse:`, returnError);
+      if (returnError instanceof Error) {
+        console.error(`[OG Image] [Listing ${listingId}] Return error message:`, returnError.message);
+        console.error(`[OG Image] [Listing ${listingId}] Return error stack:`, returnError.stack);
+      }
+      throw returnError;
+    }
   } catch (imageResponseError) {
     // Log the specific error from ImageResponse creation
     console.error(`[OG Image] [Listing ${listingId}] Error creating ImageResponse:`, imageResponseError);
