@@ -81,7 +81,7 @@ export default function AllListingsPage() {
         });
 
         // Sort by listingId (already sorted from API, but ensure it)
-        formatted.sort((a, b) => {
+        formatted.sort((a: ListingRow, b: ListingRow) => {
           const aId = parseInt(a.listingId || '0', 10);
           const bId = parseInt(b.listingId || '0', 10);
           return aId - bId;
