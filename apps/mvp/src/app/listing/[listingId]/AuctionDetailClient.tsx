@@ -1359,11 +1359,20 @@ export default function AuctionDetailClient({
   const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";
   // endTime, startTime already calculated above for at-risk detection
   // Use `now` state variable for isActive/isEnded to ensure countdown updates properly
-  const isActive = endTime > now && auction.status === "ACTIVE";
-  const isEnded = endTime <= now && auction.status === "ACTIVE" && !isCancelled;
   const title = auction.title || `Auction #${listingId}`;
   // bidCount already calculated above
   const hasBid = bidCount > 0 || !!auction.highestBid;
+  
+  // Determine if auction has started (recalculate with current `now` state for accuracy)
+  // For auctions with startTime = 0, they start on first bid
+  // For auctions with startTime > 0, they start when startTime is reached
+  const auctionHasStarted = startTime === 0 
+    ? hasBid // startTime=0 auctions start on first bid
+    : now >= startTime; // startTime>0 auctions start when time is reached
+  
+  // Only consider ended if auction has started AND endTime has passed
+  const isEnded = auctionHasStarted && endTime <= now && auction.status === "ACTIVE" && !isCancelled;
+  const isActive = auctionHasStarted && endTime > now && auction.status === "ACTIVE";
   
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
