@@ -31,6 +31,8 @@ export function ModelViewer({ src, poster, alt = "3D Model", className = "" }: M
   useEffect(() => {
     if (!scriptLoaded) return;
 
+    let cleanup: (() => void) | null = null;
+
     // Give the element time to render
     const timer = setTimeout(() => {
       const modelViewer = document.querySelector(`model-viewer[src="${src}"]`);
@@ -49,14 +51,21 @@ export function ModelViewer({ src, poster, alt = "3D Model", className = "" }: M
           setIsLoading(false);
         }
 
-        return () => {
+        // Store cleanup function
+        cleanup = () => {
           modelViewer.removeEventListener("load", handleLoad);
           modelViewer.removeEventListener("error", handleError);
         };
       }
     }, 100);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // Call cleanup if it was set
+      if (cleanup) {
+        cleanup();
+      }
+    };
   }, [scriptLoaded, src]);
 
   if (error) {

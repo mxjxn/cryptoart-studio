@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 
 interface LinkShareButtonProps {
@@ -14,6 +14,7 @@ interface LinkShareButtonProps {
 export function LinkShareButton({ url, className = "" }: LinkShareButtonProps) {
   const primaryWallet = usePrimaryWallet();
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleShare = useCallback(async () => {
     try {
@@ -36,11 +37,27 @@ export function LinkShareButton({ url, className = "" }: LinkShareButtonProps) {
       
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      
+      // Clear any existing timer
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      
+      // Set new timer
+      timerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy link:", error);
     }
   }, [url, primaryWallet]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <button

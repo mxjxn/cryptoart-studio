@@ -40,6 +40,7 @@ export function VideoPlayer({ src, poster, className = "", autoPlay = false }: V
   const playLockRef = useRef(false);
   const videoReadyRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
+  const playLockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Format time as MM:SS
   const formatTime = (time: number): string => {
@@ -108,11 +109,25 @@ export function VideoPlayer({ src, poster, className = "", autoPlay = false }: V
       setIsPlayPending(false);
     } finally {
       // Unlock after a short delay
-      setTimeout(() => {
+      // Clear any existing timer
+      if (playLockTimerRef.current) {
+        clearTimeout(playLockTimerRef.current);
+      }
+      playLockTimerRef.current = setTimeout(() => {
         playLockRef.current = false;
+        playLockTimerRef.current = null;
       }, 300);
     }
   }, [isPlaying]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (playLockTimerRef.current) {
+        clearTimeout(playLockTimerRef.current);
+      }
+    };
+  }, []);
 
   // Handle seeking via progress bar click
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {

@@ -220,9 +220,11 @@ export function AdminContextMenu({
       
       // Refresh router and navigate to home
       router.refresh();
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         router.push("/");
       }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [isCancelConfirmed, listingId, router, queryClient]);
 

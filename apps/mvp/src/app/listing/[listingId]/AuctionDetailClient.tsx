@@ -597,10 +597,12 @@ export default function AuctionDetailClient({
   // After approval is confirmed, refetch allowance and proceed with pending purchase if needed
   useEffect(() => {
     if (isApproveConfirmed && pendingPurchaseAfterApproval && !isPaymentETH && auction && address) {
+      let timer: NodeJS.Timeout | null = null;
+      
       // Refetch allowance to ensure it's updated
       refetchAllowance().then(() => {
         // Small delay to ensure allowance is updated
-        setTimeout(() => {
+        timer = setTimeout(() => {
           try {
             const price = auction.currentPrice || auction.initialAmount;
             const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
@@ -637,6 +639,10 @@ export default function AuctionDetailClient({
           }
         }, 1000);
       });
+      
+      return () => {
+        if (timer) clearTimeout(timer);
+      };
     }
   }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing, referrer]);
 
@@ -857,17 +863,25 @@ export default function AuctionDetailClient({
         }
       };
       
+      let timer1: NodeJS.Timeout | null = null;
+      let timer2: NodeJS.Timeout | null = null;
+      
       invalidateCache().then(() => {
         // Refetch auction data to get updated status before navigating
         refetchAuction();
         // Small delay to let refetch complete, then navigate
-        setTimeout(() => {
+        timer1 = setTimeout(() => {
           router.refresh();
-          setTimeout(() => {
+          timer2 = setTimeout(() => {
             router.push("/");
           }, 100);
         }, 200);
       });
+      
+      return () => {
+        if (timer1) clearTimeout(timer1);
+        if (timer2) clearTimeout(timer2);
+      };
     }
   }, [isCancelConfirmed, router, listingId, refetchAuction]);
 
@@ -888,17 +902,25 @@ export default function AuctionDetailClient({
         }
       };
       
+      let timer1: NodeJS.Timeout | null = null;
+      let timer2: NodeJS.Timeout | null = null;
+      
       invalidateCache().then(() => {
         // Refetch auction data to get updated status before navigating
         refetchAuction();
         // Small delay to let refetch complete, then navigate
-        setTimeout(() => {
+        timer1 = setTimeout(() => {
           router.refresh();
-          setTimeout(() => {
+          timer2 = setTimeout(() => {
             router.push("/");
           }, 100);
         }, 200);
       });
+      
+      return () => {
+        if (timer1) clearTimeout(timer1);
+        if (timer2) clearTimeout(timer2);
+      };
     }
   }, [isFinalizeConfirmed, router, listingId, refetchAuction]);
 
@@ -1028,12 +1050,14 @@ export default function AuctionDetailClient({
       
       // Refetch auction data from subgraph to get the latest state
       // Use a small delay to allow subgraph to index the new bid
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         refetchAuction();
       }, 2000);
       
       // Clear bid input - it will be repopulated with next minimum bid after refetch
       setBidAmount('');
+      
+      return () => clearTimeout(timer);
     }
   }, [isBidConfirmed, address, auction, listingId, bidAmount, bidHash, router, paymentSymbol, updateAuction, refetchAuction, paymentDecimals]);
 
@@ -1202,9 +1226,11 @@ export default function AuctionDetailClient({
       }
       
       router.refresh();
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         router.push("/");
       }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [isPurchaseConfirmed, router, address, auction, listingId, purchaseQuantity, updateAuction]);
 
