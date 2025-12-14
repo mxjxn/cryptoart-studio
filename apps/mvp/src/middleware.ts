@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Enable maintenance mode - redirect all traffic to maintenance page
-  // Allow the maintenance page itself and static assets to load
   const pathname = request.nextUrl.pathname;
   
+  // Handle /dev/ prefix - bypass maintenance mode and rewrite to actual route
+  if (pathname.startsWith('/dev/')) {
+    const actualPath = pathname.replace(/^\/dev/, '') || '/';
+    const url = request.nextUrl.clone();
+    url.pathname = actualPath;
+    return NextResponse.rewrite(url);
+  }
+  
+  // Check if maintenance mode is enabled via environment variable
+  const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
+  
+  // If maintenance mode is off, allow all requests through
+  if (!maintenanceMode) {
+    return NextResponse.next();
+  }
+  
+  // Maintenance mode is ON - redirect all traffic to maintenance page
+  // Allow the maintenance page itself and static assets to load
   // Don't redirect if already on maintenance page or if it's a static asset
   if (pathname === '/maintenance' || 
       pathname.startsWith('/_next') || 
