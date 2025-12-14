@@ -32,20 +32,41 @@ export function HomepageLayout() {
   const [sections, setSections] = useState<HomepageSection[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadSections = async () => {
+    try {
+      const res = await fetch("/api/homepage-layout");
+      if (!res.ok) throw new Error("Failed to load homepage layout");
+      const data = await res.json();
+      setSections(data.sections || []);
+    } catch (error) {
+      console.error("[HomepageLayout] failed to fetch layout", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/homepage-layout");
-        if (!res.ok) throw new Error("Failed to load homepage layout");
-        const data = await res.json();
-        setSections(data.sections || []);
-      } catch (error) {
-        console.error("[HomepageLayout] failed to fetch layout", error);
-      } finally {
-        setLoading(false);
+    loadSections();
+    
+    // Refetch when page becomes visible (user switches back to tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadSections();
       }
     };
-    load();
+    
+    // Refetch on window focus (user switches back to window)
+    const handleFocus = () => {
+      loadSections();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Show loading state instead of returning null
