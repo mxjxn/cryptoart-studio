@@ -199,10 +199,26 @@ export function getListingDisplayStatus(
         return "not started";
       } else {
         // Has started, check if ended
-        if (endTime <= currentTime) {
+        // For start-on-first-bid auctions, endTime can be either:
+        // 1. A duration (in seconds) if subgraph hasn't updated yet
+        // 2. A timestamp if contract has already converted it
+        // Heuristic: if endTime is less than 1 year (31536000 seconds), it's likely a duration
+        const ONE_YEAR_IN_SECONDS = 31536000;
+        
+        if (endTime > currentTime) {
+          // endTime is greater than current time, so it's likely a timestamp
+          // and the auction hasn't ended yet
+          return "active";
+        } else if (endTime <= ONE_YEAR_IN_SECONDS) {
+          // endTime is a small number (duration), and it's <= currentTime
+          // This means the subgraph hasn't updated yet, or it's a very short duration
+          // Without the auction start timestamp, we can't determine if it's ended
+          // Default to "active" for safety (the listing page will show correct status)
+          return "active";
+        } else {
+          // endTime is a large number (timestamp) and <= currentTime, so it's concluded
           return "concluded";
         }
-        return "active";
       }
     }
 
