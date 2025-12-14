@@ -7,6 +7,7 @@ import { TransitionLink } from '~/components/TransitionLink';
 
 const ADMIN_TABS = [
   { name: 'Featured', href: '/admin/featured' },
+  { name: 'Listings', href: '/admin/listings' },
   { name: 'Users', href: '/admin/users' },
   { name: 'Membership', href: '/admin/membership' },
   { name: 'Stats', href: '/admin/stats' },
