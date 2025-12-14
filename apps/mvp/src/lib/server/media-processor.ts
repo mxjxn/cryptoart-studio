@@ -124,13 +124,13 @@ function isAnimatedGif(buffer: Buffer): boolean {
 
 /**
  * Extract first frame from a video file using ffmpeg
- * Returns a PNG data URL
+ * Returns a PNG buffer (scaled down for OG images)
  */
 export async function extractVideoFrame(
   buffer: Buffer,
   contentType: string,
   ffmpegPath?: string
-): Promise<string | null> {
+): Promise<Buffer | null> {
   const ffmpeg = ffmpegPath || process.env.FFMPEG_PATH || 'ffmpeg';
   
   try {
@@ -147,14 +147,16 @@ export async function extractVideoFrame(
       // Write input file
       await fs.writeFile(inputFile, buffer);
       
-      // Extract first frame using ffmpeg
+      // Extract first frame using ffmpeg with scaling
       // -ss 0: seek to start
       // -vframes 1: extract 1 frame
+      // -vf scale=1200:1200:force_original_aspect_ratio=decrease: - scale down to max 1200px
       // -f image2: output as image
       await execFileAsync(ffmpeg, [
         '-i', inputFile,
         '-ss', '0',
         '-vframes', '1',
+        '-vf', 'scale=1200:1200:force_original_aspect_ratio=decrease',
         '-f', 'image2',
         '-y', // Overwrite output file
         outputFile,
@@ -165,15 +167,11 @@ export async function extractVideoFrame(
       // Read output frame
       const frameBuffer = await fs.readFile(outputFile);
       
-      // Convert to data URL
-      const base64 = frameBuffer.toString('base64');
-      const dataUrl = `data:image/png;base64,${base64}`;
-      
       // Clean up temp files
       await fs.unlink(inputFile).catch(() => {});
       await fs.unlink(outputFile).catch(() => {});
       
-      return dataUrl;
+      return frameBuffer;
     } catch (error) {
       // Clean up temp files on error
       await fs.unlink(inputFile).catch(() => {});
@@ -188,17 +186,20 @@ export async function extractVideoFrame(
 
 /**
  * Extract first frame from an animated GIF
- * Returns a PNG data URL
+ * Returns a PNG buffer (scaled down for OG images)
  */
-export async function extractGifFrame(buffer: Buffer): Promise<string | null> {
+export async function extractGifFrame(buffer: Buffer): Promise<Buffer | null> {
   try {
-    // Use sharp to extract first frame and convert to PNG
+    // Use sharp to extract first frame, scale down, and convert to PNG
     const pngBuffer = await sharp(buffer, { animated: false })
-      .png()
+      .resize(1200, 1200, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .png({ compressionLevel: 6 })
       .toBuffer();
     
-    const base64 = pngBuffer.toString('base64');
-    return `data:image/png;base64,${base64}`;
+    return pngBuffer;
   } catch (error) {
     console.error(`[Media Processor] Error extracting GIF frame:`, error instanceof Error ? error.message : String(error));
     return null;
@@ -206,8 +207,82 @@ export async function extractGifFrame(buffer: Buffer): Promise<string | null> {
 }
 
 /**
+ * Scale and compress an image buffer to appropriate size for OG images
+ * Target: max 1200px width/height, compressed to keep data URL under 2MB
+ */
+async function scaleImageForOG(
+  buffer: Buffer,
+  maxWidth: number = 1200,
+  maxHeight: number = 1200,
+  maxDataUrlSize: number = 2 * 1024 * 1024 // 2MB
+): Promise<Buffer> {
+  try {
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    
+    // Calculate target dimensions
+    let targetWidth = metadata.width || maxWidth;
+    let targetHeight = metadata.height || maxHeight;
+    
+    // Scale down if needed, maintaining aspect ratio
+    if (targetWidth > maxWidth || targetHeight > maxHeight) {
+      if (targetWidth > targetHeight) {
+        targetHeight = Math.round((targetHeight * maxWidth) / targetWidth);
+        targetWidth = maxWidth;
+      } else {
+        targetWidth = Math.round((targetWidth * maxHeight) / targetHeight);
+        targetHeight = maxHeight;
+      }
+    }
+    
+    // Resize and convert to PNG (for consistent format and better compression)
+    // PNG compression level: 0-9, where 9 is maximum compression
+    let compressionLevel = 6; // Start with moderate compression
+    let processedBuffer = await sharp(buffer)
+      .resize(targetWidth, targetHeight, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .png({ compressionLevel })
+      .toBuffer();
+    
+    // If still too large, increase compression progressively
+    while (processedBuffer.length > maxDataUrlSize && compressionLevel < 9) {
+      compressionLevel += 1;
+      processedBuffer = await sharp(buffer)
+        .resize(targetWidth, targetHeight, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png({ compressionLevel })
+        .toBuffer();
+    }
+    
+    // If still too large, reduce dimensions and use max compression
+    if (processedBuffer.length > maxDataUrlSize) {
+      targetWidth = Math.floor(targetWidth * 0.8);
+      targetHeight = Math.floor(targetHeight * 0.8);
+      processedBuffer = await sharp(buffer)
+        .resize(targetWidth, targetHeight, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+    }
+    
+    return processedBuffer;
+  } catch (error) {
+    console.error(`[Media Processor] Error scaling image:`, error instanceof Error ? error.message : String(error));
+    // Return original buffer if scaling fails
+    return buffer;
+  }
+}
+
+/**
  * Process media file and extract a static image frame if needed
  * Returns a data URL for the image (original or extracted frame)
+ * Images are scaled down to appropriate size for OG images (max 1200px)
  */
 export async function processMediaForImage(
   buffer: Buffer,
@@ -217,23 +292,26 @@ export async function processMediaForImage(
   try {
     const mediaType = await detectMediaType(contentType, buffer);
     
-    // If it's already a static image, return as-is
+    // If it's already a static image, scale it down
     if (mediaType === 'image') {
-      const base64 = buffer.toString('base64');
-      const mimeType = contentType || 'image/png';
+      const scaledBuffer = await scaleImageForOG(buffer);
+      const base64 = scaledBuffer.toString('base64');
       return {
-        dataUrl: `data:${mimeType};base64,${base64}`,
+        dataUrl: `data:image/png;base64,${base64}`,
         processedType: 'image',
         originalType: 'image',
       };
     }
     
-    // If it's a video, extract first frame
+    // If it's a video, extract first frame (already scaled by ffmpeg, but scale again to ensure size)
     if (mediaType === 'video') {
-      const frameDataUrl = await extractVideoFrame(buffer, contentType || 'video/mp4');
-      if (frameDataUrl) {
+      const frameBuffer = await extractVideoFrame(buffer, contentType || 'video/mp4');
+      if (frameBuffer) {
+        // Scale further if needed to ensure data URL size is under limit
+        const scaledBuffer = await scaleImageForOG(frameBuffer);
+        const scaledBase64 = scaledBuffer.toString('base64');
         return {
-          dataUrl: frameDataUrl,
+          dataUrl: `data:image/png;base64,${scaledBase64}`,
           processedType: 'image',
           originalType: 'video',
         };
@@ -241,12 +319,15 @@ export async function processMediaForImage(
       return null;
     }
     
-    // If it's an animated GIF, extract first frame
+    // If it's an animated GIF, extract first frame (already scaled, but scale again to ensure size)
     if (mediaType === 'gif') {
-      const frameDataUrl = await extractGifFrame(buffer);
-      if (frameDataUrl) {
+      const frameBuffer = await extractGifFrame(buffer);
+      if (frameBuffer) {
+        // Scale further if needed to ensure data URL size is under limit
+        const scaledBuffer = await scaleImageForOG(frameBuffer);
+        const scaledBase64 = scaledBuffer.toString('base64');
         return {
-          dataUrl: frameDataUrl,
+          dataUrl: `data:image/png;base64,${scaledBase64}`,
           processedType: 'image',
           originalType: 'gif',
         };

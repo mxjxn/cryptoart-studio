@@ -368,6 +368,13 @@ export async function GET(
   if (imageUrlToUse && auction?.status !== "CANCELLED") {
     console.log(`[OG Image] [Listing ${listingId}] Using ${auction?.thumbnailUrl ? 'thumbnail' : 'original'} image URL: ${imageUrlToUse.substring(0, 100)}...`);
     
+    // Helper to detect if URL is a Vercel Blob thumbnail (already optimized)
+    const isVercelBlobThumbnail = (url: string): boolean => {
+      return url.includes('.public.blob.vercel-storage.com') || 
+             url.includes('vercel-storage.com') ||
+             (url.includes('/thumbnails/') && url.includes('.webp'));
+    };
+    
     // Handle data URIs directly - no need to cache or fetch
     if (isDataURI(imageUrlToUse)) {
       artworkImageDataUrl = imageUrlToUse;
@@ -382,6 +389,7 @@ export async function GET(
         console.log(`[OG Image] [Listing ${listingId}] Cache miss, fetching image...`);
         // Not in cache, fetch and cache it
         let imageUrl = imageUrlToUse;
+        const isOptimizedThumbnail = isVercelBlobThumbnail(imageUrlToUse);
         
         // Convert IPFS URLs to HTTP gateway URLs
         // Note: If the URL is already a gateway URL (from fetchNFTMetadata), use it as-is
@@ -447,9 +455,16 @@ export async function GET(
                 continue;
               }
               
+              // For optimized Vercel Blob thumbnails, use more lenient size limits
+              // They're already optimized WebP files, so they should be small
+              // Check if this specific URL is an optimized thumbnail
+              const urlIsOptimizedThumbnail = isVercelBlobThumbnail(url);
+              const maxSize = urlIsOptimizedThumbnail 
+                ? 5 * 1024 * 1024 // 5MB for optimized thumbnails (should be much smaller)
+                : (contentType.startsWith('video/') ? MAX_MEDIA_SIZE : MAX_IMAGE_SIZE);
+              
               // Check Content-Length header before downloading
               const contentLength = response.headers.get('content-length');
-              const maxSize = contentType.startsWith('video/') ? MAX_MEDIA_SIZE : MAX_IMAGE_SIZE;
               if (contentLength) {
                 const size = parseInt(contentLength, 10);
                 if (size > maxSize) {
@@ -467,17 +482,32 @@ export async function GET(
                 continue;
               }
               
-              // Process media (handles images, videos, and GIFs)
-              const processed = await processMediaForImage(buffer, contentType, url);
-              if (!processed) {
-                console.warn(`[OG Image] Failed to process media for listing ${listingId} from ${url}`);
-                continue;
+              // For optimized thumbnails, validate they're actually small (should be < 500KB typically)
+              if (urlIsOptimizedThumbnail && buffer.length > 1024 * 1024) {
+                console.warn(`[OG Image] Optimized thumbnail unexpectedly large (${buffer.length} bytes), will process anyway but this is unusual`);
               }
               
-              fetchedContentType = 'image/png'; // Processed images are always PNG
-              artworkImageDataUrl = processed.dataUrl;
-              
-              console.log(`[OG Image] Media processed successfully from ${url}, size: ${buffer.length} bytes, original type: ${processed.originalType}, processed type: ${processed.processedType}`);
+              // For optimized Vercel Blob thumbnails (WebP, already resized), skip processing
+              // Just convert directly to data URL - they're already optimized
+              if (urlIsOptimizedThumbnail && contentType === 'image/webp') {
+                const base64 = buffer.toString('base64');
+                artworkImageDataUrl = `data:image/webp;base64,${base64}`;
+                fetchedContentType = 'image/webp';
+                console.log(`[OG Image] Using optimized Vercel Blob thumbnail directly (no processing needed), size: ${buffer.length} bytes`);
+              } else {
+                // Process media (handles images, videos, and GIFs)
+                // This will scale down large images to appropriate size for OG images
+                const processed = await processMediaForImage(buffer, contentType, url);
+                if (!processed) {
+                  console.warn(`[OG Image] Failed to process media for listing ${listingId} from ${url}`);
+                  continue;
+                }
+                
+                fetchedContentType = 'image/png'; // Processed images are always PNG
+                artworkImageDataUrl = processed.dataUrl;
+                
+                console.log(`[OG Image] Media processed successfully from ${url}, size: ${buffer.length} bytes, original type: ${processed.originalType}, processed type: ${processed.processedType}`);
+              }
               
               // Cache the processed image for future use
               try {
