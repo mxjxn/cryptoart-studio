@@ -119,15 +119,24 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ listingId: string }> }
 ) {
+  let fontData: ArrayBuffer | null = null;
+  let listingId: string = '';
+  
   try {
-    const { listingId } = await params;
+    // Parse params first
+    const resolvedParams = await params;
+    listingId = resolvedParams.listingId;
+    
+    if (!listingId) {
+      throw new Error('Missing listingId parameter');
+    }
+    
     const url = new URL(request.url);
     // Force HTTPS for font URL to avoid SSL errors
     const baseUrl = `https://${url.host}`;
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font from URL (edge runtime compatible)
-    let fontData: ArrayBuffer;
     try {
       const fontResponse = await fetch(fontUrl, {
         // Add timeout and proper headers
@@ -142,35 +151,8 @@ export async function GET(
       fontData = await fontResponse.arrayBuffer();
     } catch (error) {
       console.error(`[OG Image] Error loading font:`, error);
-      // Return a simple error image if font can't be loaded
-      return new ImageResponse(
-        (
-          <div
-            style={{
-              background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: '80px',
-              color: 'white',
-            }}
-          >
-            <div style={{ display: 'flex', fontSize: 192, fontWeight: 'bold' }}>
-              cryptoart.social
-            </div>
-            <div style={{ display: 'flex', fontSize: 96, marginTop: '72px' }}>
-              Listing #{listingId}
-            </div>
-          </div>
-        ),
-        {
-          width: 1200,
-          height: 800,
-        }
-      );
+      // Continue without font - we'll render without custom font
+      fontData = null;
     }
 
   // Fetch listing data with timeout to prevent hanging
@@ -190,6 +172,14 @@ export async function GET(
 
     if (!auction) {
       // Return default image if listing not found
+      const fonts = fontData ? [
+        {
+          name: 'MEK-Mono',
+          data: fontData,
+          style: 'normal' as const,
+        },
+      ] : [];
+      
       return new ImageResponse(
         (
           <div
@@ -203,7 +193,7 @@ export async function GET(
               alignItems: 'center',
               padding: '80px',
               color: 'white',
-              fontFamily: 'MEK-Mono',
+              fontFamily: fontData ? 'MEK-Mono' : 'system-ui',
             }}
           >
             <div
@@ -230,13 +220,7 @@ export async function GET(
         {
           width: 1200,
           height: 800,
-          fonts: [
-            {
-              name: 'MEK-Mono',
-              data: fontData,
-              style: 'normal',
-            },
-          ],
+          fonts,
           headers: {
             'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
           },
@@ -505,6 +489,15 @@ export async function GET(
     ];
   }
 
+  // Build font array conditionally
+  const fonts = fontData ? [
+    {
+      name: 'MEK-Mono',
+      data: fontData,
+      style: 'normal' as const,
+    },
+  ] : [];
+
   return new ImageResponse(
     (
       <div
@@ -516,7 +509,7 @@ export async function GET(
           flexDirection: 'row',
           padding: '80px 40px',
           color: 'white',
-          fontFamily: 'MEK-Mono',
+          fontFamily: fontData ? 'MEK-Mono' : 'system-ui',
         }}
       >
         {/* Left half: Text content */}
@@ -635,13 +628,7 @@ export async function GET(
         {
           width: 1200,
           height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
-          fonts: [
-            {
-              name: 'MEK-Mono',
-              data: fontData,
-              style: 'normal',
-            },
-          ],
+          fonts,
           headers: {
             'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
           },
@@ -653,6 +640,7 @@ export async function GET(
       console.error(`[OG Image] Error stack:`, error.stack);
     }
     // Return a fallback image on any error
+    const errorListingId = listingId || 'unknown';
     return new ImageResponse(
       (
         <div
@@ -666,13 +654,14 @@ export async function GET(
             alignItems: 'center',
             padding: '80px',
             color: 'white',
+            fontFamily: 'system-ui',
           }}
         >
           <div style={{ display: 'flex', fontSize: 192, fontWeight: 'bold' }}>
             cryptoart.social
           </div>
           <div style={{ display: 'flex', fontSize: 96, marginTop: '72px' }}>
-            Error loading listing
+            {errorListingId !== 'unknown' ? `Listing #${errorListingId}` : 'Error loading listing'}
           </div>
         </div>
       ),
