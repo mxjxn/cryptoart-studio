@@ -160,6 +160,7 @@ const ENDED_AUCTIONS_QUERY = gql`
       tokenAddress
       tokenId
       tokenSpec
+      startTime
       endTime
       hasBid
       bids(orderBy: amount, orderDirection: desc, first: 1) {
@@ -778,6 +779,64 @@ export async function processEndedAuctions(): Promise<void> {
       // Skip if already finalized (shouldn't happen with the query, but double-check)
       if (listing.finalized) {
         continue;
+      }
+      
+      // Filter out start-on-first-bid auctions that haven't actually ended
+      // For startTime=0 auctions, endTime is a duration, not a timestamp
+      // We need to check if the auction has actually ended by calculating actualEndTime
+      const startTime = parseInt(listing.startTime || "0", 10);
+      const endTime = parseInt(listing.endTime || "0", 10);
+      const hasBid = listing.hasBid || (listing.bids && listing.bids.length > 0);
+      
+      if (startTime === 0) {
+        // Start-on-first-bid auction
+        if (!hasBid) {
+          // Auction hasn't started yet - endTime is a duration, not a timestamp
+          // Skip this listing as it hasn't actually ended
+          console.log(`[notification-events] Skipping listing ${listing.listingId}: start-on-first-bid auction hasn't started yet (no bids)`);
+          continue;
+        }
+        
+        // Auction has started - need to calculate actual end time
+        // endTime could be either:
+        // 1. A duration (if subgraph hasn't updated yet) - need firstBidTimestamp + endTime
+        // 2. A timestamp (if contract has converted it) - use as-is
+        const ONE_YEAR_IN_SECONDS = 31536000;
+        let actualEndTime: number;
+        
+        if (endTime > now) {
+          // endTime is greater than now, so it's likely a timestamp and auction hasn't ended
+          console.log(`[notification-events] Skipping listing ${listing.listingId}: start-on-first-bid auction with endTime=${endTime} (timestamp) > now=${now}`);
+          continue;
+        } else if (endTime <= ONE_YEAR_IN_SECONDS) {
+          // endTime is a small number (duration), need to calculate from first bid
+          const firstBid = listing.bids && listing.bids.length > 0 ? listing.bids[0] : null;
+          if (firstBid && firstBid.timestamp) {
+            const firstBidTimestamp = parseInt(firstBid.timestamp, 10);
+            actualEndTime = firstBidTimestamp + endTime;
+          } else {
+            // Can't calculate without first bid timestamp - skip to be safe
+            console.log(`[notification-events] Skipping listing ${listing.listingId}: start-on-first-bid auction, can't determine actual end time (missing first bid timestamp)`);
+            continue;
+          }
+        } else {
+          // endTime is a large number (timestamp) and <= now, so it's actually ended
+          actualEndTime = endTime;
+        }
+        
+        // Check if auction has actually ended
+        if (actualEndTime > now) {
+          console.log(`[notification-events] Skipping listing ${listing.listingId}: start-on-first-bid auction hasn't ended yet (actualEndTime=${actualEndTime} > now=${now})`);
+          continue;
+        }
+      } else {
+        // Fixed start time auction - endTime is always a timestamp
+        // Query already filtered by endTime_lte: $now, so this should be correct
+        // But double-check to be safe
+        if (endTime > now) {
+          console.log(`[notification-events] Skipping listing ${listing.listingId}: fixed start time auction with endTime=${endTime} > now=${now} (shouldn't happen with query filter)`);
+          continue;
+        }
       }
       
       const artworkName = await getArtworkName(
