@@ -66,6 +66,25 @@ export const GALLERY_ACCESS_NFT_CONTRACT_ADDRESS = '0x96640349f9e87A2FE151d8114A
 // Maximum number of galleries a user can create
 export const MAX_GALLERIES_PER_USER = 3;
 
+// --- OG Image Cache Configuration ---
+// Cache-Control headers for OG images (Farcaster Mini App embeds)
+// Based on Farcaster docs: https://miniapps.farcaster.xyz/docs/guides/sharing
+// 
+// For dynamic listing images:
+// - max-age: Browser cache (1 hour = 3600s) - balances freshness with CDN efficiency
+// - s-maxage: CDN/shared cache (24 hours = 86400s) - longer for CDN efficiency
+// - immutable: Tells CDNs the content won't change, enabling aggressive caching
+// - no-transform: Prevents CDNs from modifying the image (transcoding, compression, etc.)
+// - stale-while-revalidate: Allows serving stale content while revalidating in background
+export const OG_IMAGE_CACHE_CONTROL_SUCCESS = 
+  'public, immutable, no-transform, max-age=3600, s-maxage=86400, stale-while-revalidate';
+
+// For error/fallback images:
+// - Very short cache to prevent error images from getting stuck in CDNs
+// - Farcaster recommends extremely short or 0 max-age for fallback images
+export const OG_IMAGE_CACHE_CONTROL_ERROR = 
+  'public, no-cache, no-transform, max-age=60, s-maxage=60';
+
 // --- Admin Configuration ---
 // Admin identity loaded from environment variables for security
 // Set ADMIN_WALLET_ADDRESS (or NEXT_PUBLIC_ADMIN_WALLET_ADDRESS for client-side),

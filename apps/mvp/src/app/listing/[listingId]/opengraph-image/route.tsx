@@ -10,6 +10,7 @@ import { createPublicClient, http, type Address, isAddress, zeroAddress } from "
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
 import sharp from 'sharp';
+import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
@@ -224,7 +225,7 @@ export async function GET(
         width: 1200,
         height: 800,
         headers: {
-          'Cache-Control': 'public, max-age=300, s-maxage=300', // Shorter cache for errors
+          'Cache-Control': OG_IMAGE_CACHE_CONTROL_ERROR,
         },
       };
       
@@ -279,7 +280,7 @@ export async function GET(
         width: 1200,
         height: 800,
         headers: {
-          'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
+          'Cache-Control': OG_IMAGE_CACHE_CONTROL_SUCCESS,
         },
       };
       
@@ -648,7 +649,7 @@ export async function GET(
     width: 1200,
     height: 800, // 3:2 aspect ratio required by Farcaster Mini App spec
     headers: {
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate',
+      'Cache-Control': OG_IMAGE_CACHE_CONTROL_SUCCESS,
     },
   };
   
@@ -891,7 +892,7 @@ export async function GET(
         width: 1200,
         height: 800,
         headers: {
-          'Cache-Control': 'public, max-age=300, s-maxage=300',
+          'Cache-Control': OG_IMAGE_CACHE_CONTROL_ERROR,
         },
       }
     );
