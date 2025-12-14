@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { browseListingsStreaming } from "~/lib/server/browse-listings";
+import { browseListings, browseListingsStreaming } from "~/lib/server/browse-listings";
 
 export async function GET(req: NextRequest) {
   try {
