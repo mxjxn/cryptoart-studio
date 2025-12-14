@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { TransitionLink } from "~/components/TransitionLink";
 import { useUsername } from "~/hooks/useUsername";
 import { getGalleryUrl } from "~/lib/gallery-url";
@@ -16,12 +15,6 @@ interface GalleryWithCount extends CurationData {
 }
 
 export function ProfileGalleriesSection({ userAddress }: ProfileGalleriesSectionProps) {
-  const { isAdmin } = useIsAdmin();
-
-  // Only show for admins
-  if (!isAdmin) {
-    return null;
-  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["curation", userAddress, "published"],
@@ -47,13 +40,7 @@ export function ProfileGalleriesSection({ userAddress }: ProfileGalleriesSection
   if (galleries.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-[#999999] mb-4">No published galleries yet</p>
-        <TransitionLink
-          href="/curate"
-          className="px-6 py-2.5 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors inline-block"
-        >
-          Create Your First Gallery
-        </TransitionLink>
+        <p className="text-[#999999]">No published galleries yet</p>
       </div>
     );
   }
