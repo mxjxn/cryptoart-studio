@@ -322,14 +322,47 @@ async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
       // Check if auction has ended - for ERC721 (1/1), if it ended with a bid, it's likely finalized
       // even if subgraph hasn't synced yet. This prevents showing finalized auctions that subgraph
       // hasn't updated yet.
+      const startTime = parseInt(listing.startTime || "0");
       const endTime = parseInt(listing.endTime || "0");
       const isERC721 = listing.tokenSpec === "ERC721" || String(listing.tokenSpec) === "1";
-      const hasEnded = endTime > 0 && endTime < now && endTime < MAX_UINT48;
+      
+      // For start-on-first-bid auctions (startTime = 0), endTime is a duration, not a timestamp
+      // We need to calculate the actual end timestamp from when the auction started (first bid)
+      let actualEndTime: number;
+      if (startTime === 0 && bidCount > 0) {
+        // Auction has started (has bids), so we need to calculate actual end time
+        // The contract converts endTime to timestamp: endTime = duration + block.timestamp
+        // If endTime > now, it's already converted to a timestamp (use it directly)
+        // If endTime <= now or is a small number, it's still a duration (calculate it)
+        const ONE_YEAR_IN_SECONDS = 31536000;
+        if (endTime > now) {
+          // Already converted to timestamp by contract
+          actualEndTime = endTime;
+        } else if (endTime <= ONE_YEAR_IN_SECONDS) {
+          // Still a duration - calculate from first bid timestamp
+          // Use the timestamp of the first bid (oldest bid) as auction start
+          const firstBidTimestamp = listing.bids && listing.bids.length > 0
+            ? parseInt(listing.bids[listing.bids.length - 1]?.timestamp || "0")
+            : now;
+          actualEndTime = firstBidTimestamp + endTime;
+        } else {
+          // Large number that's <= now, treat as timestamp
+          actualEndTime = endTime;
+        }
+      } else if (startTime === 0 && bidCount === 0) {
+        // Auction hasn't started yet, can't determine end time
+        actualEndTime = 0;
+      } else {
+        // For auctions with startTime > 0, endTime is already a timestamp
+        actualEndTime = endTime;
+      }
+      
+      const hasEnded = actualEndTime > 0 && actualEndTime < now && actualEndTime < MAX_UINT48;
       
       if (hasEnded && isERC721 && bidCount > 0) {
         // For 1/1 auctions that ended with bids, they're likely finalized even if subgraph hasn't synced
         // Only filter if it ended more than 1 hour ago to allow for finalization grace period
-        const endedAgo = now - endTime;
+        const endedAgo = now - actualEndTime;
         const oneHour = 60 * 60;
         if (endedAgo > oneHour) {
           console.log(`[getLiveBids] Listing ${listing.listingId} filtered: ERC721 auction ended ${Math.floor(endedAgo / 3600)} hours ago with bid, likely finalized`);
