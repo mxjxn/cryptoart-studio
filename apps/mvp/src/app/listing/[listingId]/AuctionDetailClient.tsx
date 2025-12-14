@@ -1398,15 +1398,25 @@ export default function AuctionDetailClient({
   
   // Calculate actual end timestamp
   // When startTime = 0, endTime is a DURATION (in seconds), not a timestamp
-  // When the auction starts (first bid), we need to add the duration to the start timestamp
+  // When the auction starts (first bid), the contract converts it: endTime += block.timestamp
+  // So we need to detect if endTime is already converted (timestamp) or still a duration
   let actualEndTime: number;
   if (startTime === 0 && auctionHasStarted) {
-    // For start-on-first-bid auctions, calculate end time from when auction started
-    // Use the highest bid timestamp if available, otherwise use current time as approximation
-    const auctionStartTimestamp = auction.highestBid?.timestamp 
-      ? parseInt(auction.highestBid.timestamp) 
-      : now;
-    actualEndTime = auctionStartTimestamp + endTime;
+    // For start-on-first-bid auctions that have started:
+    // The contract converts endTime to timestamp: endTime = duration + block.timestamp
+    // If endTime > now, it's already converted to a timestamp (use it directly)
+    // If endTime <= now or is a small number, it's still a duration (calculate it)
+    if (endTime > now) {
+      // Already converted to timestamp by contract
+      actualEndTime = endTime;
+    } else {
+      // Still a duration - contract hasn't converted it yet (subgraph not updated)
+      // Calculate end time from when auction started
+      const auctionStartTimestamp = auction.highestBid?.timestamp 
+        ? parseInt(auction.highestBid.timestamp) 
+        : now;
+      actualEndTime = auctionStartTimestamp + endTime;
+    }
   } else if (startTime === 0 && !auctionHasStarted) {
     // Auction hasn't started yet, endTime is still a duration
     // We can't calculate actual end time until auction starts
