@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { EnrichedAuctionData } from '~/lib/types';
 
 interface ListingRow extends EnrichedAuctionData {
@@ -162,7 +163,14 @@ export default function AllListingsPage() {
                 className="border-b border-[var(--color-border)] hover:bg-[var(--color-background-hover)]"
               >
                 <td className="p-2 text-[var(--color-text)] font-mono">
-                  {listing.listingId}
+                  <Link
+                    href={`/listing/${listing.listingId}`}
+                    className="text-blue-400 hover:text-blue-300 hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {listing.listingId}
+                  </Link>
                 </td>
                 <td className="p-2 text-[var(--color-text)]">
                   {listing.tokenSpec}
