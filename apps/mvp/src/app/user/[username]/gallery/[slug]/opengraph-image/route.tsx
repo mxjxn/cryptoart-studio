@@ -6,6 +6,7 @@ import { isDataURI } from "~/lib/media-utils";
 import { processMediaForImage } from "~/lib/server/media-processor";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
 
 // Helper to add timeout to promises
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {

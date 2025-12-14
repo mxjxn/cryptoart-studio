@@ -6,6 +6,7 @@ import { isDataURI } from "~/lib/media-utils";
 import { processMediaForImage } from "~/lib/server/media-processor";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
 
 /**
  * Format price with proper decimals

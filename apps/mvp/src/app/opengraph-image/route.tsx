@@ -13,6 +13,7 @@ import { normalizeListingType, getHiddenUserAddresses, getAuctionServer } from "
 import { getDatabase, featuredListings, asc } from "@cryptoart/db";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
 
 // In-memory cache for featured listings to reduce repeated database calls
 type CachedListings = { data: EnrichedAuctionData[]; expiresAt: number };
