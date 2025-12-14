@@ -589,9 +589,66 @@ export async function GET(
 
   // Determine listing type specific information
   const listingType = auction?.listingType || "INDIVIDUAL_AUCTION";
+  const startTime = auction?.startTime ? parseInt(auction.startTime) : 0;
   const endTime = auction?.endTime ? parseInt(auction.endTime) : 0;
   const now = Math.floor(Date.now() / 1000);
-  const isActive = endTime > now && auction?.status === "ACTIVE";
+  const hasBid = (auction?.bidCount && auction.bidCount > 0) || !!auction?.highestBid;
+  
+  // Calculate if auction has started and actual end time
+  // For auctions with startTime = 0, they start on first bid
+  // When startTime = 0, endTime is a DURATION (in seconds), not a timestamp
+  // When the auction starts (first bid), the contract converts it: endTime += block.timestamp
+  let auctionHasStarted = false;
+  let actualEndTime = endTime;
+  
+  if (listingType === "INDIVIDUAL_AUCTION") {
+    if (startTime === 0) {
+      // Auction starts on first bid
+      auctionHasStarted = hasBid;
+      
+      if (auctionHasStarted) {
+        // Auction has started - check if endTime is already converted to timestamp
+        // If endTime > now, it's likely already converted to a timestamp (use it directly)
+        // If endTime <= now or is a small number, it's still a duration (need to calculate)
+        if (endTime > now) {
+          // Already converted to timestamp by contract
+          actualEndTime = endTime;
+        } else if (endTime > 0 && auction?.highestBid?.timestamp) {
+          // Still a duration - calculate end time from when auction started (first bid timestamp)
+          const auctionStartTimestamp = parseInt(auction.highestBid.timestamp);
+          actualEndTime = auctionStartTimestamp + endTime;
+        } else {
+          // Can't determine actual end time, default to treating as active if status is ACTIVE
+          actualEndTime = 0;
+        }
+      } else {
+        // Auction hasn't started yet, endTime is still a duration
+        // We can't calculate actual end time until auction starts
+        actualEndTime = 0;
+      }
+    } else {
+      // Has fixed start time, endTime is already a timestamp
+      auctionHasStarted = now >= startTime;
+      actualEndTime = endTime;
+    }
+  } else {
+    // For FIXED_PRICE, OFFERS_ONLY, DYNAMIC_PRICE
+    // If startTime = 0, listing starts immediately, endTime is a duration
+    // For fixed startTime, endTime is a timestamp
+    if (startTime === 0) {
+      auctionHasStarted = true; // Fixed price listings are active immediately
+      // For startTime=0, endTime is a duration - we'd need creation timestamp to calculate
+      // For OG images, we'll assume it's still active if status is ACTIVE
+      // This is a limitation but better than showing "Ended" incorrectly
+      actualEndTime = endTime > now ? endTime : 0;
+    } else {
+      auctionHasStarted = now >= startTime;
+      actualEndTime = endTime;
+    }
+  }
+  
+  // Only consider ended if auction has started AND endTime has passed
+  const isActive = auction?.status === "ACTIVE" && auctionHasStarted && (actualEndTime === 0 || actualEndTime > now);
 
   // Build listing details based on type
   let listingDetails: Array<{ label: string; value: string }> = [];

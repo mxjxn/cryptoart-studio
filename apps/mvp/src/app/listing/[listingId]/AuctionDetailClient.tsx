@@ -917,9 +917,19 @@ export default function AuctionDetailClient({
     }
   }, [isCancelConfirmed, router, listingId, refetchAuction]);
 
-  // Redirect after successful finalization
+  // Handle successful finalization - optimistically update status and poll for subgraph update
   useEffect(() => {
-    if (isFinalizeConfirmed) {
+    if (isFinalizeConfirmed && auction) {
+      // Optimistically update the auction status to FINALIZED immediately
+      // This ensures the UI updates right away even before subgraph indexes
+      updateAuction((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: 'FINALIZED' as const,
+        };
+      });
+
       // Invalidate cache to ensure sold-out listings are removed from feeds
       const invalidateCache = async () => {
         try {
@@ -934,27 +944,48 @@ export default function AuctionDetailClient({
         }
       };
       
-      let timer1: NodeJS.Timeout | null = null;
-      let timer2: NodeJS.Timeout | null = null;
+      // Poll for subgraph update with retries (subgraph indexing can take a few seconds)
+      const pollForFinalizedStatus = async (maxRetries = 10, delayMs = 2000) => {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            await refetchAuction(true);
+            // refetchAuction will update the state if subgraph has indexed the finalization
+          } catch (error) {
+            console.error(`[Finalize] Polling attempt ${attempt + 1} failed:`, error);
+          }
+        }
+      };
       
       invalidateCache().then(() => {
-        // Refetch auction data to get updated status before navigating
-        refetchAuction();
-        // Small delay to let refetch complete, then navigate
-        timer1 = setTimeout(() => {
-          router.refresh();
-          timer2 = setTimeout(() => {
-            router.push("/");
-          }, 100);
-        }, 200);
+        // Start polling for subgraph update in background
+        pollForFinalizedStatus().catch(err => {
+          console.error('[Finalize] Polling failed:', err);
+        });
       });
       
-      return () => {
-        if (timer1) clearTimeout(timer1);
-        if (timer2) clearTimeout(timer2);
-      };
+      // Determine if user is buyer (winner) vs seller
+      const isOwnAuction = isConnected && address && auction.seller &&
+        address.toLowerCase() === auction.seller.toLowerCase();
+      const isWinner = isConnected && address && auction.highestBid?.bidder &&
+        address.toLowerCase() === auction.highestBid.bidder.toLowerCase();
+      
+      // Only redirect buyer (winner) - seller should stay on page to see finalized state
+      // Don't redirect immediately - give user time to see the finalized state
+      if (isWinner && !isOwnAuction) {
+        const redirectTimer = setTimeout(() => {
+          router.refresh();
+          setTimeout(() => {
+            router.push("/");
+          }, 100);
+        }, 3000); // 3 second delay so user can see the finalized state
+        
+        return () => {
+          clearTimeout(redirectTimer);
+        };
+      }
     }
-  }, [isFinalizeConfirmed, router, listingId, refetchAuction]);
+  }, [isFinalizeConfirmed, auction, listingId, refetchAuction, updateAuction, router, isConnected, address]);
 
   // Track if we've already handled the modification confirmation to prevent infinite loops
   const hasHandledModifyRef = useRef(false);

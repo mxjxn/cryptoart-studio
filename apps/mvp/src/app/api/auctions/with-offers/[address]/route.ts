@@ -111,7 +111,10 @@ async function fetchAuctionsWithOffers(
 
   const uniqueListings = Array.from(listingMap.values());
 
-  let enrichedAuctions: EnrichedAuctionData[] = uniqueListings;
+  // Filter out cancelled listings
+  const activeListings = uniqueListings.filter((listing) => listing.status !== "CANCELLED");
+
+  let enrichedAuctions: EnrichedAuctionData[] = activeListings;
 
   if (enrich) {
     // Enrich auctions with metadata and offer information
