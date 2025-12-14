@@ -80,24 +80,58 @@ class VercelBlobBackend implements StorageBackend {
     // Use try-catch to handle case where @vercel/blob is not installed
     try {
       // @ts-ignore - @vercel/blob is optional and may not be installed
-      const { put } = await import('@vercel/blob');
+      const { put, head } = await import('@vercel/blob');
       
-      // Vercel Blob reads token from BLOB_READ_WRITE_TOKEN env var automatically
+      // Check if blob already exists first
+      try {
+        const existingBlob = await head(key);
+        if (existingBlob) {
+          // Blob already exists, return its URL
+          return existingBlob.url;
+        }
+      } catch (headError: any) {
+        // Blob doesn't exist (404) or other error - continue to upload
+        // If it's a 404, that's expected and we'll upload
+        if (headError?.statusCode !== 404 && !headError?.message?.includes('not found')) {
+          // Log unexpected errors but continue to upload
+          console.warn(`[VercelBlob] Error checking if blob exists: ${headError.message}`);
+        }
+      }
+      
+      // Blob doesn't exist, upload it
+      // Use allowOverwrite: true to handle race conditions where multiple requests try to upload the same blob
       const blob = await put(key, buffer, {
         access: 'public',
         contentType,
+        allowOverwrite: true, // Allow overwriting if blob was created between head check and upload
       });
       
       return blob.url;
     } catch (error) {
-      // Provide more helpful error message
-      if (error instanceof Error) {
-        if (error.message.includes('Cannot find module') || error.message.includes("Can't resolve")) {
-          throw new Error('@vercel/blob package is not installed. Run: npm install @vercel/blob');
+        // Provide more helpful error message
+        if (error instanceof Error) {
+          if (error.message.includes('Cannot find module') || error.message.includes("Can't resolve")) {
+            throw new Error('@vercel/blob package is not installed. Run: npm install @vercel/blob');
+          }
+          // If blob already exists error, try to get its URL using head
+          if (error.message.includes('already exists') || error.message.includes('This blob already exists')) {
+            try {
+              // @ts-ignore
+              const { head } = await import('@vercel/blob');
+              const existingBlob = await head(key);
+              if (existingBlob) {
+                return existingBlob.url;
+              }
+            } catch (headError) {
+              // If head fails, fall back to constructing URL
+              console.warn(`[VercelBlob] Failed to get existing blob URL: ${headError}`);
+            }
+            // Fallback: construct URL from key
+            return this.getUrl(key);
+          }
+          throw new Error(`Vercel Blob upload failed: ${error.message}`);
         }
-        throw new Error(`Vercel Blob upload failed: ${error.message}`);
-      }
-      throw new Error('Vercel Blob upload failed: Unknown error');
+        throw new Error('Vercel Blob upload failed: Unknown error');
     }
   }
 
