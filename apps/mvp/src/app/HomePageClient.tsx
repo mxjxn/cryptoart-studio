@@ -111,55 +111,80 @@ export default function HomePageClient() {
         
         if (listingsArrayStart !== -1) {
           // Parse complete listing objects from the buffer
-          // Look for complete JSON objects (balanced braces)
+          // Look for complete JSON objects (balanced braces, accounting for strings)
           let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
           let startIdx = -1;
           const listingsPart = buffer.substring(listingsArrayStart);
           
           for (let i = 0; i < listingsPart.length; i++) {
             const char = listingsPart[i];
             
-            if (char === '{') {
-              if (braceCount === 0) startIdx = i;
-              braceCount++;
-            } else if (char === '}') {
-              braceCount--;
-              if (braceCount === 0 && startIdx !== -1) {
-                // Found a complete listing object
-                try {
-                  const listingJson = listingsPart.substring(startIdx, i + 1);
-                  const listing = JSON.parse(listingJson);
-                  if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
-                    listings.push(listing);
-                    // Filter for ERC721 and update state incrementally
-                    const nftListings = listings.filter((l: EnrichedAuctionData) => isERC721(l.tokenSpec));
-                    if (nftListings.length > 0) {
-                      setNftListings(nftListings.slice(0, displayCount));
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') {
+                if (braceCount === 0) startIdx = i;
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0 && startIdx !== -1) {
+                  // Found a complete listing object
+                  try {
+                    const listingJson = listingsPart.substring(startIdx, i + 1);
+                    const listing = JSON.parse(listingJson);
+                    if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                      listings.push(listing);
+                      // Filter for ERC721 and update state incrementally
+                      const nftListings = listings.filter((l: EnrichedAuctionData) => isERC721(l.tokenSpec));
+                      if (nftListings.length > 0) {
+                        setNftListings(nftListings.slice(0, displayCount));
+                      }
                     }
+                  } catch (e) {
+                    // Partial JSON, will be completed in next chunk
                   }
-                } catch (e) {
-                  // Partial JSON, will be completed in next chunk
+                  startIdx = -1;
                 }
-                startIdx = -1;
+              } else if (char === ']' && braceCount === 0) {
+                // End of listings array - try to parse final metadata
+                const afterArray = buffer.substring(listingsArrayStart + i);
+                try {
+                  const metaMatch = afterArray.match(/"count":(\d+)/);
+                  if (metaMatch) metadata.count = parseInt(metaMatch[1]);
+                  const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
+                  if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                } catch {
+                  // Continue
+                }
+                break;
               }
-            } else if (char === ']' && braceCount === 0) {
-              // End of listings array - try to parse final metadata
-              const afterArray = buffer.substring(listingsArrayStart + i);
-              try {
-                const metaMatch = afterArray.match(/"count":(\d+)/);
-                if (metaMatch) metadata.count = parseInt(metaMatch[1]);
-                const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
-                if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
-              } catch {
-                // Continue
-              }
-              break;
             }
           }
           
           // Keep the unprocessed part of the buffer (incomplete JSON objects)
           if (startIdx !== -1 && startIdx < listingsPart.length) {
             buffer = buffer.substring(0, listingsArrayStart + startIdx);
+          } else {
+            // Remove processed listings from buffer
+            const lastProcessedIdx = listingsPart.lastIndexOf('}');
+            if (lastProcessedIdx !== -1) {
+              buffer = buffer.substring(0, listingsArrayStart + lastProcessedIdx + 1);
+            }
           }
         }
       }
@@ -246,54 +271,80 @@ export default function HomePageClient() {
         
         if (listingsArrayStart !== -1) {
           // Parse complete listing objects from the buffer
+          // Look for complete JSON objects (balanced braces, accounting for strings)
           let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
           let startIdx = -1;
           const listingsPart = buffer.substring(listingsArrayStart);
           
           for (let i = 0; i < listingsPart.length; i++) {
             const char = listingsPart[i];
             
-            if (char === '{') {
-              if (braceCount === 0) startIdx = i;
-              braceCount++;
-            } else if (char === '}') {
-              braceCount--;
-              if (braceCount === 0 && startIdx !== -1) {
-                // Found a complete listing object
-                try {
-                  const listingJson = listingsPart.substring(startIdx, i + 1);
-                  const listing = JSON.parse(listingJson);
-                  if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
-                    listings.push(listing);
-                    // Filter for ERC1155 and update state incrementally
-                    const editionListings = listings.filter((l: EnrichedAuctionData) => isERC1155(l.tokenSpec));
-                    if (editionListings.length > 0) {
-                      setEditionListings(editionListings.slice(0, displayCount));
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') {
+                if (braceCount === 0) startIdx = i;
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0 && startIdx !== -1) {
+                  // Found a complete listing object
+                  try {
+                    const listingJson = listingsPart.substring(startIdx, i + 1);
+                    const listing = JSON.parse(listingJson);
+                    if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                      listings.push(listing);
+                      // Filter for ERC1155 and update state incrementally
+                      const editionListings = listings.filter((l: EnrichedAuctionData) => isERC1155(l.tokenSpec));
+                      if (editionListings.length > 0) {
+                        setEditionListings(editionListings.slice(0, displayCount));
+                      }
                     }
+                  } catch (e) {
+                    // Partial JSON, will be completed in next chunk
                   }
-                } catch (e) {
-                  // Partial JSON, will be completed in next chunk
+                  startIdx = -1;
                 }
-                startIdx = -1;
+              } else if (char === ']' && braceCount === 0) {
+                // End of listings array - try to parse final metadata
+                const afterArray = buffer.substring(listingsArrayStart + i);
+                try {
+                  const metaMatch = afterArray.match(/"count":(\d+)/);
+                  if (metaMatch) metadata.count = parseInt(metaMatch[1]);
+                  const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
+                  if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                } catch {
+                  // Continue
+                }
+                break;
               }
-            } else if (char === ']' && braceCount === 0) {
-              // End of listings array - try to parse final metadata
-              const afterArray = buffer.substring(listingsArrayStart + i);
-              try {
-                const metaMatch = afterArray.match(/"count":(\d+)/);
-                if (metaMatch) metadata.count = parseInt(metaMatch[1]);
-                const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
-                if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
-              } catch {
-                // Continue
-              }
-              break;
             }
           }
           
           // Keep the unprocessed part of the buffer (incomplete JSON objects)
           if (startIdx !== -1 && startIdx < listingsPart.length) {
             buffer = buffer.substring(0, listingsArrayStart + startIdx);
+          } else {
+            // Remove processed listings from buffer
+            const lastProcessedIdx = listingsPart.lastIndexOf('}');
+            if (lastProcessedIdx !== -1) {
+              buffer = buffer.substring(0, listingsArrayStart + lastProcessedIdx + 1);
+            }
           }
         }
       }
