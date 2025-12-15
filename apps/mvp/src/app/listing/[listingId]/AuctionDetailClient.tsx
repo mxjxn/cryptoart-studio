@@ -1492,10 +1492,16 @@ export default function AuctionDetailClient({
   if (startTime === 0 && auctionHasStarted) {
     // For start-on-first-bid auctions that have started:
     // The contract converts endTime to timestamp: endTime = duration + block.timestamp
-    // If endTime > now, it's already converted to a timestamp (use it directly)
-    // If endTime <= now or is a small number, it's still a duration (calculate it)
-    if (endTime > now) {
-      // Already converted to timestamp by contract
+    // We need to distinguish between:
+    // 1. A timestamp (large number, typically > year 2000 = 946684800)
+    // 2. A duration (small number, typically < 1 year = 31536000)
+    const ONE_YEAR_IN_SECONDS = 31536000;
+    const YEAR_2000_TIMESTAMP = 946684800;
+    
+    // If endTime looks like a timestamp (large number > year 2000), use it directly
+    // This works even if the auction has ended (endTime <= now)
+    if (endTime > YEAR_2000_TIMESTAMP) {
+      // Already converted to timestamp by contract (could be past or future)
       actualEndTime = endTime;
     } else {
       // Still a duration - contract hasn't converted it yet (subgraph not updated)
@@ -1517,9 +1523,27 @@ export default function AuctionDetailClient({
   // Only consider ended if auction has started AND endTime has passed
   const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && auction.status === "ACTIVE" && !isCancelled;
   const isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now) && auction.status === "ACTIVE";
+  
+  // For finalization, trust contract state as source of truth
+  // But for start-on-first-bid auctions, use our calculated actualEndTime
+  let effectiveEndTime: number | null;
+  if (startTime === 0 && auctionHasStarted && actualEndTime > 0) {
+    // For start-on-first-bid auctions that have started, use calculated end time
+    effectiveEndTime = actualEndTime;
+  } else {
+    // Otherwise use contract or subgraph end time
+    const contractEndTime = listingData?.details?.endTime 
+      ? Number(listingData.details.endTime) 
+      : null;
+    const subgraphEndTime = endTime; // From subgraph (original endTime, not updated by contract changes)
+    effectiveEndTime = contractEndTime || subgraphEndTime;
+  }
+  const effectiveEnded = effectiveEndTime ? effectiveEndTime <= nowTimestamp : isEnded;
+  
   // Show controls if auction is active OR if it hasn't started yet (so users can see what they'll be able to do)
   // BUT disable if there's a 180-day issue (bidding should be disabled until fixed)
-  const showControls = (isActive || !auctionHasStarted) && !isEnded && auction.status === "ACTIVE" && !isCancelled && !has180DayIssue;
+  // Use effectiveEnded to ensure we hide controls when auction has effectively ended
+  const showControls = (isActive || !auctionHasStarted) && !effectiveEnded && auction.status === "ACTIVE" && !isCancelled && !has180DayIssue;
   
   // Check if current user is the winner (highest bidder)
   const isWinner = isConnected && address && auction.highestBid?.bidder &&
@@ -1530,30 +1554,15 @@ export default function AuctionDetailClient({
   const isCancelLoading = isCancelling || isConfirmingCancel;
   
   // Check contract state for potential issues
-  const contractEndTime = listingData?.details?.endTime 
-    ? Number(listingData.details.endTime) 
-    : null;
   const contractStartTime = listingData?.details?.startTime 
     ? Number(listingData.details.startTime) 
     : null;
   // nowTimestamp already calculated above
-  
-  const subgraphEndTime = endTime; // From subgraph (original endTime, not updated by contract changes)
+  // contractEndTime already used in effectiveEndTime calculation above
   
   // hasStarted already calculated above for at-risk detection
   // isAtRiskListing already calculated above
-  
-  // For finalization, trust contract state as source of truth
-  // But for start-on-first-bid auctions, use our calculated actualEndTime
-  let effectiveEndTime: number | null;
-  if (startTime === 0 && auctionHasStarted && actualEndTime > 0) {
-    // For start-on-first-bid auctions that have started, use calculated end time
-    effectiveEndTime = actualEndTime;
-  } else {
-    // Otherwise use contract or subgraph end time
-    effectiveEndTime = contractEndTime || subgraphEndTime;
-  }
-  const effectiveEnded = effectiveEndTime ? effectiveEndTime <= nowTimestamp : isEnded;
+  // effectiveEndTime and effectiveEnded already calculated above (moved up for use in showControls)
   
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
   // Both seller and winner can finalize when auction has ended
@@ -1915,7 +1924,7 @@ export default function AuctionDetailClient({
         )}
 
         {/* Finalize Auction Button (for ended auctions) - Hidden if cancelled */}
-        {isEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && (
+        {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && (
           <div className="mb-4">
             <button
               onClick={handleFinalize}

@@ -865,25 +865,17 @@ export async function GET(
               fontWeight: 'bold',
               lineHeight: '1.1',
               letterSpacing: '2px',
-              marginBottom: '16px',
             }}
           >
-            {title && title.length > 60 ? `${String(title).slice(0, 57)}...` : String(title || 'Untitled')}
+            {(() => {
+              const artworkTitle = title || 'Untitled';
+              const displayTitle = artworkTitle.length > 50 ? `${artworkTitle.slice(0, 47)}...` : artworkTitle;
+              if (collectionName) {
+                return `${displayTitle} on ${collectionName}`;
+              }
+              return displayTitle;
+            })()}
           </div>
-          
-          {collectionName ? (
-            <div
-              style={{
-                display: 'flex',
-                fontSize: 48,
-                opacity: 0.9,
-                letterSpacing: '1.5px',
-                lineHeight: '1.1',
-              }}
-            >
-              {String(collectionName)}
-            </div>
-          ) : null}
         </div>
 
         {/* Bottom section: Listing details - two columns if needed */}
