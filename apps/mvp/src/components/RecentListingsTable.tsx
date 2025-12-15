@@ -129,8 +129,45 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
     ? totalSold >= totalAvailable && totalAvailable > 0
     : isERC721 && isFinalized;
   
+  // Determine if auction has started
+  // For auctions with startTime = 0, they start on first bid
+  // For auctions with startTime > 0, they start when startTime is reached
+  const hasStarted = startTime === 0 
+    ? hasBid // startTime=0 auctions start on first bid
+    : now >= startTime; // startTime>0 auctions start when time is reached
+  
+  // Calculate actual end timestamp for start-on-first-bid auctions
+  // When startTime = 0, endTime is a DURATION (in seconds), not a timestamp
+  // When the auction starts (first bid), the contract converts it: endTime += block.timestamp
+  let actualEndTime: number;
+  if (startTime === 0 && hasStarted) {
+    // For start-on-first-bid auctions that have started:
+    // The contract converts endTime to timestamp: endTime = duration + block.timestamp
+    // If endTime > now, it's already converted to a timestamp (use it directly)
+    // If endTime <= now or is a small number, it's still a duration (calculate it)
+    if (endTime > now) {
+      // Already converted to timestamp by contract
+      actualEndTime = endTime;
+    } else {
+      // Still a duration - contract hasn't converted it yet (subgraph not updated)
+      // Calculate end time from when auction started
+      const auctionStartTimestamp = auction.highestBid?.timestamp
+        ? parseInt(auction.highestBid.timestamp)
+        : now;
+      actualEndTime = auctionStartTimestamp + endTime;
+    }
+  } else if (startTime === 0 && !hasStarted) {
+    // Auction hasn't started yet, endTime is still a duration
+    // We can't calculate actual end time until auction starts
+    actualEndTime = 0;
+  } else {
+    // For auctions with startTime > 0, endTime is already a timestamp
+    actualEndTime = endTime;
+  }
+  
   // Check if auction has ended (but not finalized or cancelled)
-  const isEnded = !isNeverExpiring(endTime) && endTime <= now && !isFinalized && !isCancelled;
+  // Only consider ended if auction has started AND actual endTime has passed
+  const isEnded = hasStarted && actualEndTime > 0 && actualEndTime <= now && !isNeverExpiring(actualEndTime) && auction.status === "ACTIVE";
   
   let timeStatusDisplay: string | null = null;
   let statusDisplay: string | null = null;
