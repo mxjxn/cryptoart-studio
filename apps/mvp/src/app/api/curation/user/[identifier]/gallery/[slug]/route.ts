@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, curation, curationItems, eq, and, asc, desc } from '@cryptoart/db';
+import { getDatabase, curation, curationItems, userCache, eq, and, asc, desc, sql } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
-import { getUserFromCache } from '~/lib/server/user-cache';
 import { lookupNeynarByUsername } from '~/lib/artist-name-resolution';
 
 /**
@@ -25,10 +24,17 @@ export async function GET(
       curatorAddress = identifier.toLowerCase();
     } else {
       // It's a username, resolve it
-      const normalizedUsername = identifier.toLowerCase();
-      const user = await getUserFromCache(normalizedUsername);
-      if (user && user.ethAddress) {
-        curatorAddress = user.ethAddress.toLowerCase();
+      const normalizedUsername = decodeURIComponent(identifier).toLowerCase();
+      const db = getDatabase();
+      
+      // First try to find user by username in database (case-insensitive)
+      const [userByUsername] = await db.select()
+        .from(userCache)
+        .where(sql`lower(${userCache.username}) = ${normalizedUsername}`)
+        .limit(1);
+      
+      if (userByUsername && userByUsername.ethAddress) {
+        curatorAddress = userByUsername.ethAddress.toLowerCase();
       } else {
         // Fallback to Neynar lookup
         const neynarUser = await lookupNeynarByUsername(normalizedUsername);
@@ -65,14 +71,15 @@ export async function GET(
         gallery = allGalleries[index];
       }
     } else {
-      // Get gallery by slug
+      // Get gallery by slug (decode slug in case it's URL encoded)
+      const decodedSlug = decodeURIComponent(slug);
       const [foundGallery] = await db
         .select()
         .from(curation)
         .where(
           and(
             eq(curation.curatorAddress, curatorAddress),
-            eq(curation.slug, slug)
+            eq(curation.slug, decodedSlug)
           )
         )
         .limit(1);

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, curation, curationItems, eq, asc } from '@cryptoart/db';
+import { getDatabase, curation, curationItems, userCache, eq, asc, sql } from '@cryptoart/db';
 import { getAuctionServer } from '~/lib/server/auction';
-import { getUserFromCache } from '~/lib/server/user-cache';
 import { lookupNeynarByUsername } from '~/lib/artist-name-resolution';
 
 /**
@@ -19,16 +18,23 @@ export async function GET(
     
     // Resolve identifier to address (or use address directly if it's an address)
     let curatorAddress: string | null = null;
+    const db = getDatabase();
     
     // Check if it's already an address
     if (/^0x[a-fA-F0-9]{40}$/i.test(identifier)) {
       curatorAddress = identifier.toLowerCase();
     } else {
       // It's a username, resolve it
-      const normalizedUsername = identifier.toLowerCase();
-      const user = await getUserFromCache(normalizedUsername);
-      if (user && user.ethAddress) {
-        curatorAddress = user.ethAddress.toLowerCase();
+      const normalizedUsername = decodeURIComponent(identifier).toLowerCase();
+      
+      // First try to find user by username in database (case-insensitive)
+      const [userByUsername] = await db.select()
+        .from(userCache)
+        .where(sql`lower(${userCache.username}) = ${normalizedUsername}`)
+        .limit(1);
+      
+      if (userByUsername && userByUsername.ethAddress) {
+        curatorAddress = userByUsername.ethAddress.toLowerCase();
       } else {
         // Fallback to Neynar lookup
         const neynarUser = await lookupNeynarByUsername(normalizedUsername);
@@ -44,8 +50,6 @@ export async function GET(
         { status: 404 }
       );
     }
-    
-    const db = getDatabase();
     
     // Get gallery by UUID
     const [gallery] = await db

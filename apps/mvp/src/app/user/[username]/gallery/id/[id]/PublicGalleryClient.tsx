@@ -39,7 +39,7 @@ const gradients = [
 
 export default function PublicGalleryClient({ username, galleryId }: PublicGalleryClientProps) {
   // Fetch curator address from username
-  const { data: curatorData } = useQuery({
+  const { data: curatorData, isLoading: isLoadingCurator } = useQuery({
     queryKey: ["user", username],
     queryFn: async () => {
       const response = await fetch(`/api/user/${encodeURIComponent(username)}`);
@@ -52,7 +52,7 @@ export default function PublicGalleryClient({ username, galleryId }: PublicGalle
   const { username: curatorUsername } = useUsername(curatorAddress);
 
   // Fetch gallery data
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading: isLoadingGallery, error } = useQuery<GalleryData>({
     queryKey: ["curation", "user", username, "gallery", "id", galleryId],
     queryFn: async () => {
       const response = await fetch(`/api/curation/user/${encodeURIComponent(username)}/gallery/id/${encodeURIComponent(galleryId)}`);
@@ -64,6 +64,9 @@ export default function PublicGalleryClient({ username, galleryId }: PublicGalle
     },
     enabled: !!curatorAddress,
   });
+
+  // Show loading if curator is loading OR if gallery query is enabled and loading
+  const isLoading = isLoadingCurator || (!!curatorAddress && isLoadingGallery);
 
   if (isLoading) {
     return (
@@ -79,7 +82,8 @@ export default function PublicGalleryClient({ username, galleryId }: PublicGalle
     );
   }
 
-  if (error || !data) {
+  // Only show error if curator has loaded AND gallery query has run (enabled) AND there's an error
+  if (curatorAddress && error) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -94,6 +98,21 @@ export default function PublicGalleryClient({ username, galleryId }: PublicGalle
           <TransitionLink href="/" className="text-white hover:underline">
             ← Back to Home
           </TransitionLink>
+        </div>
+      </div>
+    );
+  }
+
+  // TypeScript guard: ensure data exists before accessing
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
+          <Logo />
+          <ProfileDropdown />
+        </header>
+        <div className="px-5 py-12 text-center">
+          <p className="text-[#cccccc]">Loading gallery...</p>
         </div>
       </div>
     );

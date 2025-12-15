@@ -147,17 +147,71 @@ export default function ProfileClient() {
             const data = await response.json();
             setPurchases(data.purchases || []);
             setCollectedFrom(data.collectedFrom || []);
+            setCollectedFetched(true);
           }
         } catch (error) {
           console.error('Error fetching collected:', error);
         } finally {
           setCollectedLoading(false);
-          setCollectedFetched(true);
         }
       }
       fetchCollected();
     }
   }, [activeTab, userAddress, collectedLoading, collectedFetched]);
+
+  // Update collected tab with finalized auction wins when activeBids loads
+  useEffect(() => {
+    if (activeTab === "collected" && userAddress && !loading && activeBids.length >= 0 && collectedFetched) {
+      // Get finalized auctions where user won (from activeBids data)
+      // Filter finalized auctions where user is the highest bidder
+      // activeBids is enriched data (enrich=true), so it includes highestBid
+      const finalizedWins = activeBids
+        .filter((auction) => {
+          const isFinalized = auction.status === "FINALIZED" || auction.finalized === true;
+          const isWinner = auction.highestBid?.bidder?.toLowerCase() === userAddress?.toLowerCase();
+          return isFinalized && isWinner;
+        })
+        .map((auction) => ({
+          id: `finalized-${auction.listingId}`,
+          listing: {
+            listingId: auction.listingId,
+            seller: auction.seller,
+            tokenAddress: auction.tokenAddress,
+            tokenId: auction.tokenId,
+            tokenSpec: auction.tokenSpec,
+            listingType: auction.listingType,
+          },
+          buyer: userAddress,
+          amount: auction.highestBid?.amount || auction.initialAmount || "0",
+          count: 1,
+          timestamp: auction.highestBid?.timestamp || auction.createdAt || String(Math.floor(Date.now() / 1000)),
+          metadata: {
+            title: auction.title || auction.metadata?.title,
+            name: auction.title || auction.metadata?.name,
+            artist: auction.artist || auction.metadata?.artist,
+            image: auction.image || auction.thumbnailUrl || auction.metadata?.image,
+          },
+        }));
+      
+      // Combine purchases and finalized auction wins
+      // We need to preserve existing purchases and add finalized wins
+      setPurchases((prevPurchases) => {
+        // Filter out any existing finalized wins to avoid duplicates
+        const existingFinalizedIds = new Set(
+          prevPurchases.filter(p => p.id?.startsWith('finalized-')).map(p => p.id)
+        );
+        const newFinalizedWins = finalizedWins.filter(w => !existingFinalizedIds.has(w.id));
+        
+        const allCollected = [...prevPurchases, ...newFinalizedWins].sort((a, b) => {
+          const timeA = parseInt(a.timestamp || "0");
+          const timeB = parseInt(b.timestamp || "0");
+          return timeB - timeA; // Most recent first
+        });
+        
+        return allCollected;
+      });
+    }
+  }, [activeTab, userAddress, loading, activeBids, collectedFetched]);
   
   // Saved listings state
   const [savedListings, setSavedListings] = useState<EnrichedAuctionData[]>([]);
@@ -583,24 +637,31 @@ export default function ProfileClient() {
                 )}
               </div>
             )}
-            {activeTab === "bids" && (
-              <div>
-                {activeBids.length === 0 ? (
-                  <p className="text-[#999999]">No active bids.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {activeBids.map((auction, index) => (
-                      <AuctionCard
-                        key={auction.id}
-                        auction={auction as any}
-                        gradient={gradients[index % gradients.length]}
-                        index={index}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {activeTab === "bids" && (() => {
+              // Filter out finalized auctions from active bids display
+              const nonFinalizedBids = activeBids.filter(auction => 
+                auction.status !== "FINALIZED" && auction.finalized !== true
+              );
+              
+              return (
+                <div>
+                  {nonFinalizedBids.length === 0 ? (
+                    <p className="text-[#999999]">No active bids.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {nonFinalizedBids.map((auction, index) => (
+                        <AuctionCard
+                          key={auction.id}
+                          auction={auction as any}
+                          gradient={gradients[index % gradients.length]}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {activeTab === "offers" && (
               <div>
                 {activeOffers.length === 0 ? (
