@@ -2,8 +2,10 @@ import { request, gql } from 'graphql-request';
 import { createNotification } from './notifications';
 import { lookupNeynarByAddress } from '~/lib/artist-name-resolution';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
-import { Address } from 'viem';
+import { Address, createPublicClient, http, isAddress, zeroAddress } from 'viem';
+import { base } from 'viem/chains';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
+import { formatPriceForShare } from '~/lib/share-moments';
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -72,6 +74,7 @@ const NEW_BIDS_QUERY = gql`
         tokenAddress
         tokenId
         tokenSpec
+        erc20
       }
       bidder
       amount
@@ -100,6 +103,7 @@ const NEW_PURCHASES_QUERY = gql`
         tokenAddress
         tokenId
         tokenSpec
+        erc20
       }
       buyer
       amount
@@ -127,6 +131,7 @@ const FINALIZED_LISTINGS_QUERY = gql`
       tokenAddress
       tokenId
       tokenSpec
+      erc20
       hasBid
       bids(orderBy: amount, orderDirection: desc, first: 1) {
         bidder
@@ -160,6 +165,7 @@ const ENDED_AUCTIONS_QUERY = gql`
       tokenAddress
       tokenId
       tokenSpec
+      erc20
       startTime
       endTime
       hasBid
@@ -225,6 +231,74 @@ async function getArtworkName(
     return metadata?.title || metadata?.name || `Token #${tokenId}`;
   } catch {
     return `Token #${tokenId}`;
+  }
+}
+
+/**
+ * Check if token address is ETH (zero address)
+ */
+function isETH(tokenAddress: string | undefined | null): boolean {
+  if (!tokenAddress) return true;
+  return tokenAddress.toLowerCase() === zeroAddress.toLowerCase();
+}
+
+/**
+ * Get ERC20 token info (symbol and decimals)
+ */
+async function getERC20TokenInfo(tokenAddress: string): Promise<{ symbol: string; decimals: number } | null> {
+  if (isETH(tokenAddress) || !isAddress(tokenAddress)) {
+    return { symbol: 'ETH', decimals: 18 };
+  }
+
+  try {
+    const publicClient = createPublicClient({
+      chain: base,
+      transport: http(
+        process.env.NEXT_PUBLIC_RPC_URL || 
+        process.env.RPC_URL || 
+        process.env.NEXT_PUBLIC_BASE_RPC_URL || 
+        "https://mainnet.base.org"
+      ),
+    });
+
+    const ERC20_ABI = [
+      {
+        type: "function",
+        name: "symbol",
+        inputs: [],
+        outputs: [{ name: "", type: "string" }],
+        stateMutability: "view",
+      },
+      {
+        type: "function",
+        name: "decimals",
+        inputs: [],
+        outputs: [{ name: "", type: "uint8" }],
+        stateMutability: "view",
+      },
+    ] as const;
+
+    const [symbol, decimals] = await Promise.all([
+      publicClient.readContract({
+        address: tokenAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "symbol",
+      }),
+      publicClient.readContract({
+        address: tokenAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "decimals",
+      }),
+    ]);
+
+    return {
+      symbol: symbol as string,
+      decimals: decimals as number,
+    };
+  } catch (error) {
+    console.error(`[Notification Events] Error fetching ERC20 token info for ${tokenAddress}:`, error);
+    // Default to ETH if we can't fetch token info
+    return { symbol: 'ETH', decimals: 18 };
   }
 }
 
@@ -380,7 +454,12 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         listing.tokenSpec
       );
       const bidderName = await getUserName(bid.bidder);
-      const amount = BigInt(bid.amount).toString();
+      
+      // Get token info for formatting the bid amount
+      const tokenInfo = await getERC20TokenInfo(listing.erc20 || null);
+      const tokenSymbol = tokenInfo?.symbol || 'ETH';
+      const tokenDecimals = tokenInfo?.decimals || 18;
+      const formattedAmount = formatPriceForShare(bid.amount, tokenDecimals);
       
       // Notify seller
       const sellerNeynar = await lookupNeynarByAddress(listing.seller);
@@ -388,7 +467,7 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         listing.seller,
         'NEW_BID',
         'New Bid',
-        `New bid on ${artworkName} from ${bidderName} for ${amount}`,
+        `New bid on ${artworkName} from ${bidderName} for ${formattedAmount} ${tokenSymbol}`,
         {
           fid: sellerNeynar?.fid,
           listingId: listing.listingId,
@@ -425,18 +504,8 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
           .from(favorites)
           .where(eq(favorites.listingId, listing.listingId));
         
-        // Format amount for display
-        const formatAmount = (amount: string): string => {
-          try {
-            const value = BigInt(amount);
-            const ethValue = Number(value) / 1e18;
-            return ethValue.toFixed(4);
-          } catch {
-            return amount;
-          }
-        };
-        
-        const formattedAmount = formatAmount(bid.amount);
+        // Get token info for formatting (already fetched above)
+        const favoritedFormattedAmount = formatPriceForShare(bid.amount, tokenDecimals);
         
         for (const favorite of favoritedUsers) {
           // Don't notify the bidder or seller (they already got notifications)
@@ -450,7 +519,7 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
             favorite.userAddress,
             'FAVORITE_NEW_BID',
             'New Bid on Favorited Listing',
-            `${artworkName} received a new bid: ${formattedAmount} ETH`,
+            `${artworkName} received a new bid: ${favoritedFormattedAmount} ${tokenSymbol}`,
             {
               fid: favoriterNeynar?.fid,
               listingId: listing.listingId,
@@ -512,14 +581,15 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
           // Discover previous bidder in background
           discoverAndCacheUserBackground(previousHighestBid.bidder);
           const previousBidderNeynar = await lookupNeynarByAddress(previousHighestBid.bidder);
-          const newBidAmountStr = newBidAmount.toString();
-          const previousBidAmountStr = BigInt(previousHighestBid.amount).toString();
+          // Use token info already fetched above
+          const newBidFormatted = formatPriceForShare(bid.amount, tokenDecimals);
+          const previousBidFormatted = formatPriceForShare(previousHighestBid.amount, tokenDecimals);
           
           await createNotification(
             previousHighestBid.bidder,
             'OUTBID',
             'You\'ve Been Outbid',
-            `You've been outbid on ${artworkName}. New highest bid: ${newBidAmountStr} (your bid: ${previousBidAmountStr})`,
+            `You've been outbid on ${artworkName}. New highest bid: ${newBidFormatted} ${tokenSymbol} (your bid: ${previousBidFormatted} ${tokenSymbol})`,
             {
               fid: previousBidderNeynar?.fid,
               listingId: listing.listingId,
@@ -574,7 +644,13 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
         listing.tokenSpec
       );
       const buyerName = await getUserName(purchase.buyer);
-      const amount = BigInt(purchase.amount).toString();
+      
+      // Get token info for formatting the purchase amount
+      const tokenInfo = await getERC20TokenInfo(listing.erc20 || null);
+      const tokenSymbol = tokenInfo?.symbol || 'ETH';
+      const tokenDecimals = tokenInfo?.decimals || 18;
+      const formattedAmount = formatPriceForShare(purchase.amount, tokenDecimals);
+      
       const isERC1155 = listing.tokenSpec === 'ERC1155' || listing.tokenSpec === 2;
       
       // Notify seller
@@ -583,7 +659,7 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
         listing.seller,
         'BUY_NOW_SALE',
         'Sale Completed',
-        `New sale on ${artworkName} to ${buyerName} for ${amount}`,
+        `New sale on ${artworkName} to ${buyerName} for ${formattedAmount} ${tokenSymbol}`,
         {
           fid: sellerNeynar?.fid,
           listingId: listing.listingId,
@@ -718,7 +794,12 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
         discoverAndCacheUserBackground(listing.seller);
         
         const winnerName = await getUserName(winningBid.bidder);
-        const amount = BigInt(winningBid.amount).toString();
+        
+        // Get token info for formatting the bid amount
+        const tokenInfo = await getERC20TokenInfo(listing.erc20 || null);
+        const tokenSymbol = tokenInfo?.symbol || 'ETH';
+        const tokenDecimals = tokenInfo?.decimals || 18;
+        const formattedAmount = formatPriceForShare(winningBid.amount, tokenDecimals);
         
         // Notify winner
         const winnerNeynar = await lookupNeynarByAddress(winningBid.bidder);
@@ -726,7 +807,7 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
           winningBid.bidder,
           'AUCTION_WON',
           'Auction Won',
-          `Auction ${artworkName} won by ${winnerName} for ${amount}`,
+          `Auction ${artworkName} won by ${winnerName} for ${formattedAmount} ${tokenSymbol}`,
           {
             fid: winnerNeynar?.fid,
             listingId: listing.listingId,
@@ -857,7 +938,12 @@ export async function processEndedAuctions(): Promise<void> {
         discoverAndCacheUserBackground(listing.seller);
         
         const winnerName = await getUserName(winnerAddress);
-        const amount = BigInt(winningBid.amount).toString();
+        
+        // Get token info for formatting the bid amount
+        const tokenInfo = await getERC20TokenInfo(listing.erc20 || null);
+        const tokenSymbol = tokenInfo?.symbol || 'ETH';
+        const tokenDecimals = tokenInfo?.decimals || 18;
+        const formattedAmount = formatPriceForShare(winningBid.amount, tokenDecimals);
         
         // Notify winner - auction ended, they won
         const winnerNeynar = await lookupNeynarByAddress(winnerAddress);
@@ -865,7 +951,7 @@ export async function processEndedAuctions(): Promise<void> {
           winnerAddress,
           'AUCTION_ENDED_WON',
           'Auction Ended - You Won!',
-          `Auction for ${artworkName} has ended. You won with a bid of ${amount}! Finalize to claim your NFT.`,
+          `Auction for ${artworkName} has ended. You won with a bid of ${formattedAmount} ${tokenSymbol}! Finalize to claim your NFT.`,
           {
             fid: winnerNeynar?.fid,
             listingId: listing.listingId,
@@ -882,7 +968,7 @@ export async function processEndedAuctions(): Promise<void> {
           listing.seller,
           'AUCTION_ENDED_READY_TO_FINALIZE',
           'Auction Ended - Ready to Finalize',
-          `Auction for ${artworkName} has ended. ${winnerName} won with a bid of ${amount}. Finalize to complete the sale.`,
+          `Auction for ${artworkName} has ended. ${winnerName} won with a bid of ${formattedAmount} ${tokenSymbol}. Finalize to complete the sale.`,
           {
             fid: sellerNeynar?.fid,
             listingId: listing.listingId,
