@@ -12,7 +12,7 @@ import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 
@@ -29,22 +29,267 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
 export default function HomePageClient() {
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>([]);
+  const [nftExpandedListings, setNftExpandedListings] = useState<EnrichedAuctionData[]>([]);
   const [nftLoading, setNftLoading] = useState(true);
+  const [nftLoadingMore, setNftLoadingMore] = useState(false);
   const [nftError, setNftError] = useState<string | null>(null);
   const [nftSubgraphDown, setNftSubgraphDown] = useState(false);
+  const [nftHasMore, setNftHasMore] = useState(true);
   const nftLoadingRef = useRef(true);
   const nftHasInitializedRef = useRef(false);
+  const nftExpandedRef = useRef(false);
 
   // Recent Editions (ERC1155) state
   const [editionListings, setEditionListings] = useState<EnrichedAuctionData[]>([]);
+  const [editionExpandedListings, setEditionExpandedListings] = useState<EnrichedAuctionData[]>([]);
   const [editionLoading, setEditionLoading] = useState(true);
+  const [editionLoadingMore, setEditionLoadingMore] = useState(false);
   const [editionError, setEditionError] = useState<string | null>(null);
   const [editionSubgraphDown, setEditionSubgraphDown] = useState(false);
+  const [editionHasMore, setEditionHasMore] = useState(true);
   const editionLoadingRef = useRef(true);
   const editionHasInitializedRef = useRef(false);
+  const editionExpandedRef = useRef(false);
 
   const pageSize = 4; // Show 4 listings per section on homepage
-  const displayCount = 4; // Display exactly 4 items
+  const displayCount = 4; // Display exactly 4 items initially
+  const loadMoreCount = 20; // Load 20 more items when expanding
+
+  // Load more NFTs inline
+  const loadMoreNFTs = useCallback(async () => {
+    if (nftLoadingMore || !nftHasMore || nftExpandedRef.current) return;
+    
+    setNftLoadingMore(true);
+    nftExpandedRef.current = true;
+    
+    try {
+      const skip = displayCount; // Skip the ones we already have
+      const response = await fetch(`/api/listings/browse?first=${loadMoreCount}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+      
+      // Parse streaming JSON response (same logic as fetchRecentNFTs)
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let listings: EnrichedAuctionData[] = [];
+      let listingsArrayStart = -1;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        if (listingsArrayStart === -1) {
+          const arrayStart = buffer.indexOf('"listings":[');
+          if (arrayStart !== -1) {
+            listingsArrayStart = arrayStart + 11;
+          }
+        }
+        
+        if (listingsArrayStart !== -1) {
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
+          let startIdx = -1;
+          const listingsPart = buffer.substring(listingsArrayStart);
+          
+          for (let i = 0; i < listingsPart.length; i++) {
+            const char = listingsPart[i];
+            
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') {
+                if (braceCount === 0) startIdx = i;
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0 && startIdx !== -1) {
+                  try {
+                    const listingJson = listingsPart.substring(startIdx, i + 1);
+                    const listing = JSON.parse(listingJson);
+                    if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                      listings.push(listing);
+                      const nftListings = listings.filter((l: EnrichedAuctionData) => isERC721(l.tokenSpec));
+                      setNftExpandedListings(nftListings);
+                    }
+                  } catch (e) {
+                    // Partial JSON, will be completed in next chunk
+                  }
+                  startIdx = -1;
+                }
+              } else if (char === ']' && braceCount === 0) {
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Final parse attempt
+      try {
+        const finalData = JSON.parse(buffer);
+        if (finalData.listings && Array.isArray(finalData.listings)) {
+          listings = finalData.listings;
+          const nftListings = listings.filter((l: EnrichedAuctionData) => isERC721(l.tokenSpec));
+          setNftExpandedListings(nftListings);
+        }
+      } catch {
+        // Buffer might be incomplete, that's okay
+      }
+      
+      const nftListings = listings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
+      setNftExpandedListings(nftListings);
+      
+      // Check if we have more to load
+      if (nftListings.length < loadMoreCount) {
+        setNftHasMore(false);
+      }
+    } catch (error) {
+      console.error('[HomePageClient] Error loading more NFTs:', error);
+    } finally {
+      setNftLoadingMore(false);
+    }
+  }, [displayCount, loadMoreCount, nftHasMore, nftLoadingMore]);
+
+  // Load more Editions inline
+  const loadMoreEditions = useCallback(async () => {
+    if (editionLoadingMore || !editionHasMore || editionExpandedRef.current) return;
+    
+    setEditionLoadingMore(true);
+    editionExpandedRef.current = true;
+    
+    try {
+      const skip = displayCount; // Skip the ones we already have
+      const response = await fetch(`/api/listings/browse?first=${loadMoreCount}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+      
+      // Parse streaming JSON response (same logic as fetchRecentEditions)
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let listings: EnrichedAuctionData[] = [];
+      let listingsArrayStart = -1;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        if (listingsArrayStart === -1) {
+          const arrayStart = buffer.indexOf('"listings":[');
+          if (arrayStart !== -1) {
+            listingsArrayStart = arrayStart + 11;
+          }
+        }
+        
+        if (listingsArrayStart !== -1) {
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
+          let startIdx = -1;
+          const listingsPart = buffer.substring(listingsArrayStart);
+          
+          for (let i = 0; i < listingsPart.length; i++) {
+            const char = listingsPart[i];
+            
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+            
+            if (!inString) {
+              if (char === '{') {
+                if (braceCount === 0) startIdx = i;
+                braceCount++;
+              } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0 && startIdx !== -1) {
+                  try {
+                    const listingJson = listingsPart.substring(startIdx, i + 1);
+                    const listing = JSON.parse(listingJson);
+                    if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
+                      listings.push(listing);
+                      const editionListings = listings.filter((l: EnrichedAuctionData) => isERC1155(l.tokenSpec));
+                      setEditionExpandedListings(editionListings);
+                    }
+                  } catch (e) {
+                    // Partial JSON, will be completed in next chunk
+                  }
+                  startIdx = -1;
+                }
+              } else if (char === ']' && braceCount === 0) {
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Final parse attempt
+      try {
+        const finalData = JSON.parse(buffer);
+        if (finalData.listings && Array.isArray(finalData.listings)) {
+          listings = finalData.listings;
+          const editionListings = listings.filter((l: EnrichedAuctionData) => isERC1155(l.tokenSpec));
+          setEditionExpandedListings(editionListings);
+        }
+      } catch {
+        // Buffer might be incomplete, that's okay
+      }
+      
+      const editionListings = listings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
+      setEditionExpandedListings(editionListings);
+      
+      // Check if we have more to load
+      if (editionListings.length < loadMoreCount) {
+        setEditionHasMore(false);
+      }
+    } catch (error) {
+      console.error('[HomePageClient] Error loading more Editions:', error);
+    } finally {
+      setEditionLoadingMore(false);
+    }
+  }, [displayCount, loadMoreCount, editionHasMore, editionLoadingMore]);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
@@ -52,8 +297,6 @@ export default function HomePageClient() {
   const { isConnected } = useEffectiveAddress();
   const { openConnectModal } = useConnectModal();
   const router = useRouter();
-  const pathname = usePathname();
-  const [navigatingToMarket, setNavigatingToMarket] = useState<string | null>(null);
   const gradients = [
     "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
@@ -65,18 +308,6 @@ export default function HomePageClient() {
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-
-  // Reset navigation state when pathname changes (navigation occurred) or after timeout
-  useEffect(() => {
-    if (navigatingToMarket) {
-      // Reset after navigation completes (pathname changes) or timeout after 3 seconds
-      const timeout = setTimeout(() => {
-        setNavigatingToMarket(null);
-      }, 3000);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [pathname, navigatingToMarket]);
 
   // Fetch recent NFTs (ERC721) - homepage only shows 6
   const fetchRecentNFTs = useCallback(async () => {
@@ -601,25 +832,39 @@ export default function HomePageClient() {
                 />
               ))}
             </div>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={() => {
-                  if (navigatingToMarket) return; // Prevent multiple clicks
-                  setNavigatingToMarket("nfts");
-                  router.push("/market?tab=recent&tokenSpec=ERC721");
-                }}
-                disabled={navigatingToMarket === "nfts"}
-                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>[</span>
-                <span>—</span>
-                <span>&gt;</span>
-                <span>]</span>
-                {navigatingToMarket === "nfts" && (
-                  <span className="ml-1 w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                )}
-              </button>
-            </div>
+            
+            {/* Expanded listings - loaded inline with lazy image loading */}
+            {nftExpandedListings.length > 0 && (
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                {nftExpandedListings.map((auction, index) => (
+                  <AuctionCard
+                    key={auction.id}
+                    auction={auction}
+                    gradient={gradients[(nftListings.length + index) % gradients.length]}
+                    index={nftListings.length + index + 100} // Use high index to ensure lazy loading (priority only for first 6)
+                  />
+                ))}
+              </div>
+            )}
+            
+            {/* Load more button - bigger and loads inline */}
+            {!nftExpandedRef.current && (
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={loadMoreNFTs}
+                  disabled={nftLoadingMore || !nftHasMore}
+                  className="text-lg px-4 py-2 text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[1px] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-[#333333] hover:border-[#555555] rounded"
+                >
+                  <span>[</span>
+                  <span>—</span>
+                  <span>&gt;</span>
+                  <span>]</span>
+                  {nftLoadingMore && (
+                    <span className="ml-2 w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -697,25 +942,39 @@ export default function HomePageClient() {
                 />
               ))}
             </div>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={() => {
-                  if (navigatingToMarket) return; // Prevent multiple clicks
-                  setNavigatingToMarket("editions");
-                  router.push("/market?tab=recent&tokenSpec=ERC1155");
-                }}
-                disabled={navigatingToMarket === "editions"}
-                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>[</span>
-                <span>—</span>
-                <span>&gt;</span>
-                <span>]</span>
-                {navigatingToMarket === "editions" && (
-                  <span className="ml-1 w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                )}
-              </button>
-            </div>
+            
+            {/* Expanded listings - loaded inline with lazy image loading */}
+            {editionExpandedListings.length > 0 && (
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                {editionExpandedListings.map((auction, index) => (
+                  <AuctionCard
+                    key={auction.id}
+                    auction={auction}
+                    gradient={gradients[(editionListings.length + index) % gradients.length]}
+                    index={editionListings.length + index + 100} // Use high index to ensure lazy loading (priority only for first 6)
+                  />
+                ))}
+              </div>
+            )}
+            
+            {/* Load more button - bigger and loads inline */}
+            {!editionExpandedRef.current && (
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={loadMoreEditions}
+                  disabled={editionLoadingMore || !editionHasMore}
+                  className="text-lg px-4 py-2 text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[1px] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-[#333333] hover:border-[#555555] rounded"
+                >
+                  <span>[</span>
+                  <span>—</span>
+                  <span>&gt;</span>
+                  <span>]</span>
+                  {editionLoadingMore && (
+                    <span className="ml-2 w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
