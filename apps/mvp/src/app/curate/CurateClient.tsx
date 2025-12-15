@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
@@ -28,13 +28,16 @@ export default function CurateClient() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
+  const hasRedirectedRef = useRef(false);
 
-  // Redirect non-admins
+  // Redirect non-admins (only once)
   useEffect(() => {
-    if (!isAdminLoading && !isAdmin) {
+    if (!isAdminLoading && !isAdmin && !hasRedirectedRef.current) {
+      hasRedirectedRef.current = true;
       router.replace("/");
     }
-  }, [isAdmin, isAdminLoading, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, isAdminLoading]); // router.replace is stable, don't include router in deps
 
   if (isAdminLoading) {
     return (

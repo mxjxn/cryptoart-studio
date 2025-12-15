@@ -1544,6 +1544,10 @@ export default function AuctionDetailClient({
   if (startTime === 0 && auctionHasStarted && actualEndTime > 0) {
     // For start-on-first-bid auctions that have started, use calculated end time
     effectiveEndTime = actualEndTime;
+  } else if (startTime === 0 && !auctionHasStarted) {
+    // For start-on-first-bid auctions that haven't started yet, endTime is a duration, not a timestamp
+    // We can't determine if it's ended until the auction starts (first bid)
+    effectiveEndTime = null;
   } else {
     // Otherwise use contract or subgraph end time
     const contractEndTime = listingData?.details?.endTime 
@@ -1552,7 +1556,10 @@ export default function AuctionDetailClient({
     const subgraphEndTime = endTime; // From subgraph (original endTime, not updated by contract changes)
     effectiveEndTime = contractEndTime || subgraphEndTime;
   }
-  const effectiveEnded = effectiveEndTime ? effectiveEndTime <= nowTimestamp : isEnded;
+  // Only consider ended if we have an effective end time AND auction has started
+  const effectiveEnded = effectiveEndTime && effectiveEndTime > 0 && auctionHasStarted 
+    ? effectiveEndTime <= nowTimestamp 
+    : isEnded;
   
   // Show controls if auction is active OR if it hasn't started yet (so users can see what they'll be able to do)
   // BUT disable if there's a 180-day issue (bidding should be disabled until fixed)
