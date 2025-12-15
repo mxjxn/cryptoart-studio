@@ -806,27 +806,39 @@ export async function GET(
           />
         )}
 
-        {/* Top gradient overlay - opaque at top, transparent in middle */}
+        {/* Full-image 30% black overlay for better text readability */}
         <div
           style={{
             position: 'absolute',
             top: 0,
             left: 0,
             width: '100%',
-            height: '33.33%',
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)',
+            height: '100%',
+            backgroundColor: 'rgba(0,0,0,0.3)',
           }}
         />
 
-        {/* Bottom gradient overlay - transparent in middle, opaque at bottom */}
+        {/* Top gradient overlay - darker, extends further into middle */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '50%',
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.3) 100%)',
+          }}
+        />
+
+        {/* Bottom gradient overlay - darker, extends further into middle */}
         <div
           style={{
             position: 'absolute',
             bottom: 0,
             left: 0,
             width: '100%',
-            height: '33.33%',
-            background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)',
+            height: '50%',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.3) 100%)',
           }}
         />
 
