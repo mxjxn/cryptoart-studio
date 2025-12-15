@@ -174,6 +174,7 @@ export function getListingDisplayStatus(
     hasBid?: boolean;
     bidCount?: number;
     bids?: Array<{ id: string; bidder: string; amount: string; timestamp: string }>;
+    finalized?: boolean; // Subgraph also has a finalized boolean field
   },
   now?: number
 ): "cancelled" | "not started" | "active" | "concluded" | "finalized" {
@@ -194,8 +195,9 @@ export function getListingDisplayStatus(
     return "cancelled";
   }
 
-  // Check finalized
-  if (listing.status === "FINALIZED") {
+  // Check finalized - check both status field and finalized boolean field
+  // The finalized boolean is more reliable as it's set directly by the contract
+  if (listing.status === "FINALIZED" || listing.finalized === true) {
     return "finalized";
   }
 

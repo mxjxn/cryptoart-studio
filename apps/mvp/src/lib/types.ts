@@ -19,6 +19,7 @@ export interface AuctionData {
   endTime: string;
   lazy: boolean;
   status: "ACTIVE" | "FINALIZED" | "CANCELLED";
+  finalized?: boolean; // Boolean flag from subgraph (more reliable than status field)
   totalSold: string;
   currentPrice?: string;
   createdAt: string;
@@ -68,6 +69,7 @@ export interface EnrichedAuctionData extends AuctionData {
   endTime: string;
   lazy: boolean;
   status: "ACTIVE" | "FINALIZED" | "CANCELLED";
+  finalized?: boolean; // Boolean flag from subgraph (more reliable than status field)
   totalSold: string;
   currentPrice?: string;
   createdAt: string;
