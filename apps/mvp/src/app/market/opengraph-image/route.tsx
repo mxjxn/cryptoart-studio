@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
+    const refresh = url.searchParams.get('refresh') === 'true';
     
     // Load logo
     let logoDataUrl: string | null = null;
@@ -117,13 +118,15 @@ export async function GET(request: NextRequest) {
                  (url.includes('/thumbnails/') && url.includes('.webp'));
         };
 
-        // Check cache first
-        const cached = await getCachedImage(imageUrl);
-        if (cached) {
-          if (cached.startsWith('data:image/webp;base64,')) {
-            return await convertWebPDataUrlToPNG(cached);
+        // Check cache first (skip if refresh=true)
+        if (!refresh) {
+          const cached = await getCachedImage(imageUrl);
+          if (cached) {
+            if (cached.startsWith('data:image/webp;base64,')) {
+              return await convertWebPDataUrlToPNG(cached);
+            }
+            return cached;
           }
-          return cached;
         }
 
         // Convert IPFS URLs to HTTP gateway URLs

@@ -212,6 +212,13 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
+    const refresh = url.searchParams.get('refresh') === 'true';
+    
+    // Clear in-memory cache if refresh requested
+    if (refresh) {
+      FEATURED_LISTINGS_CACHE.value = null;
+      console.log('[OG Image] Refresh requested - cleared in-memory featured listings cache');
+    }
     
     // Load all three fonts and logo
     const [mekMonoFont, medodicaFont, mekSansFont, logoResponse] = await Promise.all([
@@ -368,18 +375,20 @@ export async function GET(request: NextRequest) {
                  (url.includes('/thumbnails/') && url.includes('.webp'));
         };
 
-        // Check cache first using the original imageUrl (normalization happens inside getCachedImage)
-        const cached = await getCachedImage(imageUrl);
-        if (cached) {
-          console.log(`[OG Image] Cache hit for listing ${listing.listingId}`);
-          // Convert WebP to PNG if cached image is WebP
-          if (cached.startsWith('data:image/webp;base64,')) {
-            return await convertWebPDataUrlToPNG(cached);
+        // Check cache first (skip if refresh=true)
+        if (!refresh) {
+          const cached = await getCachedImage(imageUrl);
+          if (cached) {
+            console.log(`[OG Image] Cache hit for listing ${listing.listingId}`);
+            // Convert WebP to PNG if cached image is WebP
+            if (cached.startsWith('data:image/webp;base64,')) {
+              return await convertWebPDataUrlToPNG(cached);
+            }
+            return cached;
           }
-          return cached;
         }
         
-        console.log(`[OG Image] Cache miss for listing ${listing.listingId}, fetching...`);
+        console.log(`[OG Image] Cache miss for listing ${listing.listingId}${refresh ? ' (refresh requested)' : ''}, fetching...`);
 
         // Convert IPFS URLs to HTTP gateway URLs
         // Note: fetchNFTMetadata may already return gateway URLs, so we handle both cases
@@ -847,7 +856,10 @@ export async function GET(request: NextRequest) {
         height: 630,
         fonts: fonts.length > 0 ? fonts : undefined,
         headers: {
-          'Cache-Control': OG_IMAGE_CACHE_CONTROL_SUCCESS,
+          // Use no-cache when refresh=true to prevent CDN caching of refreshed images
+          'Cache-Control': refresh 
+            ? 'public, no-cache, no-transform, max-age=0, s-maxage=0'
+            : OG_IMAGE_CACHE_CONTROL_SUCCESS,
         },
       }
     );

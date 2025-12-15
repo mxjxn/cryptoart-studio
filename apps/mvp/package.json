@@ -10,7 +10,8 @@
     "lint": "next lint",
     "clean": "rm -rf .next node_modules/.cache",
     "backfill-thumbnails": "tsx scripts/backfill-thumbnails.ts",
-    "cleanup-cancelled-images": "tsx scripts/cleanup-cancelled-listings-images.ts"
+    "cleanup-cancelled-images": "tsx scripts/cleanup-cancelled-listings-images.ts",
+    "clear-image-cache": "tsx scripts/clear-image-cache.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.946.0",

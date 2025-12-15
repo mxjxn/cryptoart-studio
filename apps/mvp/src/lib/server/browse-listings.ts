@@ -257,7 +257,8 @@ export async function browseListings(
 
     // Process listings in smaller batches to allow incremental progress
     // This prevents one slow listing from blocking all others
-    const BATCH_SIZE = 5; // Process 5 listings at a time
+    // Reduced batch size for faster initial results
+    const BATCH_SIZE = 3; // Process 3 listings at a time for faster streaming
     const batches: EnrichedAuctionData[] = [];
     
     for (let i = 0; i < activeListings.length; i += BATCH_SIZE) {
@@ -271,12 +272,19 @@ export async function browseListings(
             : undefined;
 
         // Discover contract creator if we have token info
+        // OPTIMIZED: Run with timeout to avoid blocking on slow onchain calls
+        // getContractCreator already checks cache first, so this should be fast
         if (listing.tokenAddress && listing.tokenId) {
           try {
-            const creatorResult = await getContractCreator(
+            // Add timeout to avoid blocking on slow onchain calls
+            const creatorPromise = getContractCreator(
               listing.tokenAddress,
               listing.tokenId
             );
+            const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) => 
+              setTimeout(() => resolve({ creator: null, source: null }), 3000) // 3 second timeout
+            );
+            const creatorResult = await Promise.race([creatorPromise, timeoutPromise]);
             if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
               // Discover creator in background (non-blocking)
               discoverAndCacheUserBackground(creatorResult.creator);
@@ -290,25 +298,30 @@ export async function browseListings(
         if (listing.tokenAddress && listing.tokenId) {
           try {
             // Add timeout to metadata fetching to prevent hanging
-            // Use Promise.race to timeout after 10 seconds
+            // Reduced timeout to 5 seconds for faster page loads
+            // Use Promise.race to timeout after 5 seconds
             const metadataPromise = fetchNFTMetadata(
               listing.tokenAddress as Address,
               listing.tokenId,
               listing.tokenSpec
             );
             const timeoutPromise = new Promise<never>((_, reject) => 
-              setTimeout(() => reject(new Error('Metadata fetch timeout after 10s')), 10000)
+              setTimeout(() => reject(new Error('Metadata fetch timeout after 5s')), 5000)
             );
             metadata = await Promise.race([metadataPromise, timeoutPromise]);
           } catch (error) {
             // Log but don't throw - metadata is optional
             // Include listing ID and status in error log for debugging
             const errorMsg = error instanceof Error ? error.message : String(error);
-            console.warn(`[Browse Listings] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}, status: ${listing.status}):`, errorMsg);
+            // Only log timeout errors at debug level to reduce noise
+            if (!errorMsg.includes('timeout')) {
+              console.warn(`[Browse Listings] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}):`, errorMsg);
+            }
           }
         }
 
         // Check for thumbnail - use cached if available, otherwise use original image
+        // OPTIMIZATION: Skip on-demand generation to avoid blocking page load
         // Background generation should have created thumbnails by the time users view listings
         // If not ready yet, we use the original image to avoid blocking page load
         // Skip thumbnail generation for cancelled listings
@@ -318,33 +331,20 @@ export async function browseListings(
         if (imageUrl && listing.status !== "CANCELLED") {
           try {
             const { getCachedThumbnail } = await import('./thumbnail-cache');
-            const { getThumbnailStatus } = await import('./background-thumbnails');
             
-            // Check if thumbnail is already cached (ready)
+            // OPTIMIZED: Only check cache - skip on-demand generation to avoid blocking
+            // This ensures fast page loads even if thumbnails aren't ready yet
+            // The original image will be used temporarily, and thumbnails will be ready on next load
             const cached = await getCachedThumbnail(imageUrl, 'small');
             if (cached) {
               thumbnailUrl = cached;
             } else {
-              // Check if thumbnail is being generated
-              const status = await getThumbnailStatus(imageUrl, 'small');
-              if (status === 'generating') {
-                // Thumbnail is being generated in background, use original image for now
-                thumbnailUrl = imageUrl;
-              } else {
-                // Not cached and not generating - try to generate on-demand (fallback)
-                // This handles cases where background generation failed or hasn't run yet
-                try {
-                  thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
-                } catch (error) {
-                  // If generation fails, fall back to original image
-                  console.warn(`[Browse Listings] Failed to generate thumbnail for ${imageUrl}:`, error);
-                  thumbnailUrl = imageUrl;
-                }
-              }
+              // Not cached - use original image to avoid blocking page load
+              // Background generation will create thumbnail for next load
+              thumbnailUrl = imageUrl;
             }
           } catch (error) {
             // If anything fails, use original image
-            console.warn(`[Browse Listings] Error checking thumbnail for ${imageUrl}:`, error);
             thumbnailUrl = imageUrl;
           }
         }
@@ -537,10 +537,16 @@ export async function* browseListingsStreaming(
       const bidCount = listing.bids?.length || 0;
       const highestBid = listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
 
-      // Discover contract creator (non-blocking)
+      // Discover contract creator (non-blocking with timeout)
+      // OPTIMIZED: Add timeout to avoid blocking on slow onchain calls
+      // getContractCreator already checks cache first, so this should be fast
       if (listing.tokenAddress && listing.tokenId) {
         try {
-          const creatorResult = await getContractCreator(listing.tokenAddress, listing.tokenId);
+          const creatorPromise = getContractCreator(listing.tokenAddress, listing.tokenId);
+          const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) => 
+            setTimeout(() => resolve({ creator: null, source: null }), 3000) // 3 second timeout
+          );
+          const creatorResult = await Promise.race([creatorPromise, timeoutPromise]);
           if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
             discoverAndCacheUserBackground(creatorResult.creator);
           }
@@ -553,51 +559,47 @@ export async function* browseListingsStreaming(
       if (listing.tokenAddress && listing.tokenId) {
         try {
           // Add timeout to metadata fetching to prevent hanging
-          // Use Promise.race to timeout after 10 seconds
+          // Reduced timeout to 5 seconds for faster page loads
+          // Use Promise.race to timeout after 5 seconds
           const metadataPromise = fetchNFTMetadata(
             listing.tokenAddress as Address,
             listing.tokenId,
             listing.tokenSpec
           );
           const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Metadata fetch timeout after 10s')), 10000)
+            setTimeout(() => reject(new Error('Metadata fetch timeout after 5s')), 5000)
           );
           metadata = await Promise.race([metadataPromise, timeoutPromise]);
         } catch (error) {
           // Log but don't throw - metadata is optional
-          // Include listing ID and status in error log for debugging
+          // Only log non-timeout errors to reduce noise
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.warn(`[Browse Listings Streaming] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}, status: ${listing.status}):`, errorMsg);
+          if (!errorMsg.includes('timeout')) {
+            console.warn(`[Browse Listings Streaming] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}):`, errorMsg);
+          }
         }
       }
 
+      // OPTIMIZED: Only check cache - skip on-demand generation to avoid blocking
+      // This ensures fast streaming even if thumbnails aren't ready yet
       let thumbnailUrl: string | undefined = undefined;
       const imageUrl = metadata?.image;
       
       if (imageUrl && listing.status !== "CANCELLED") {
         try {
           const { getCachedThumbnail } = await import('./thumbnail-cache');
-          const { getThumbnailStatus } = await import('./background-thumbnails');
           
+          // Only check cache - skip on-demand generation to avoid blocking
           const cached = await getCachedThumbnail(imageUrl, 'small');
           if (cached) {
             thumbnailUrl = cached;
           } else {
-            const status = await getThumbnailStatus(imageUrl, 'small');
-            if (status === 'generating') {
-              thumbnailUrl = imageUrl;
-            } else {
-              try {
-                const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
-                thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
-              } catch (error) {
-                console.warn(`[Browse Listings Streaming] Failed to generate thumbnail for ${imageUrl}:`, error);
-                thumbnailUrl = imageUrl;
-              }
-            }
+            // Not cached - use original image to avoid blocking
+            // Background generation will create thumbnail for next load
+            thumbnailUrl = imageUrl;
           }
         } catch (error) {
-          console.warn(`[Browse Listings Streaming] Error checking thumbnail for ${imageUrl}:`, error);
+          // If anything fails, use original image
           thumbnailUrl = imageUrl;
         }
       }
