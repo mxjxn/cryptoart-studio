@@ -12,7 +12,7 @@ import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 
@@ -52,6 +52,8 @@ export default function HomePageClient() {
   const { isConnected } = useEffectiveAddress();
   const { openConnectModal } = useConnectModal();
   const router = useRouter();
+  const pathname = usePathname();
+  const [navigatingToMarket, setNavigatingToMarket] = useState<string | null>(null);
   const gradients = [
     "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
@@ -63,6 +65,18 @@ export default function HomePageClient() {
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
+
+  // Reset navigation state when pathname changes (navigation occurred) or after timeout
+  useEffect(() => {
+    if (navigatingToMarket) {
+      // Reset after navigation completes (pathname changes) or timeout after 3 seconds
+      const timeout = setTimeout(() => {
+        setNavigatingToMarket(null);
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [pathname, navigatingToMarket]);
 
   // Fetch recent NFTs (ERC721) - homepage only shows 6
   const fetchRecentNFTs = useCallback(async () => {
@@ -588,16 +602,23 @@ export default function HomePageClient() {
               ))}
             </div>
             <div className="flex justify-end mt-4">
-              <TransitionLink
-                href="/market?tab=recent&tokenSpec=ERC721"
-                prefetch={false}
-                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1"
+              <button
+                onClick={() => {
+                  if (navigatingToMarket) return; // Prevent multiple clicks
+                  setNavigatingToMarket("nfts");
+                  router.push("/market?tab=recent&tokenSpec=ERC721");
+                }}
+                disabled={navigatingToMarket === "nfts"}
+                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>[</span>
                 <span>—</span>
                 <span>&gt;</span>
                 <span>]</span>
-              </TransitionLink>
+                {navigatingToMarket === "nfts" && (
+                  <span className="ml-1 w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                )}
+              </button>
             </div>
           </div>
         )}
@@ -677,16 +698,23 @@ export default function HomePageClient() {
               ))}
             </div>
             <div className="flex justify-end mt-4">
-              <TransitionLink
-                href="/market?tab=recent&tokenSpec=ERC1155"
-                prefetch={false}
-                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1"
+              <button
+                onClick={() => {
+                  if (navigatingToMarket) return; // Prevent multiple clicks
+                  setNavigatingToMarket("editions");
+                  router.push("/market?tab=recent&tokenSpec=ERC1155");
+                }}
+                disabled={navigatingToMarket === "editions"}
+                className="text-xs text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>[</span>
                 <span>—</span>
                 <span>&gt;</span>
                 <span>]</span>
-              </TransitionLink>
+                {navigatingToMarket === "editions" && (
+                  <span className="ml-1 w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                )}
+              </button>
             </div>
           </div>
         )}
