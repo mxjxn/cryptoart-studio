@@ -861,7 +861,7 @@ export async function GET(
           <div
             style={{
               display: 'flex',
-              fontSize: 96,
+              fontSize: 64,
               fontWeight: 'bold',
               lineHeight: '1.1',
               letterSpacing: '2px',
@@ -875,7 +875,7 @@ export async function GET(
             <div
               style={{
                 display: 'flex',
-                fontSize: 64,
+                fontSize: 48,
                 opacity: 0.9,
                 letterSpacing: '1.5px',
                 lineHeight: '1.1',
