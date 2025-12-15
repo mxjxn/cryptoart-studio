@@ -917,9 +917,15 @@ export default function AuctionDetailClient({
     }
   }, [isCancelConfirmed, router, listingId, refetchAuction]);
 
+  // Track if we've already handled the finalization confirmation to prevent infinite loops
+  const hasHandledFinalizeRef = useRef(false);
+  
   // Handle successful finalization - optimistically update status and poll for subgraph update
   useEffect(() => {
-    if (isFinalizeConfirmed && auction) {
+    if (isFinalizeConfirmed && auction && !hasHandledFinalizeRef.current) {
+      // Mark as handled immediately to prevent re-running
+      hasHandledFinalizeRef.current = true;
+      
       // Optimistically update the auction status to FINALIZED immediately
       // This ensures the UI updates right away even before subgraph indexes
       updateAuction((prev) => {
@@ -945,12 +951,15 @@ export default function AuctionDetailClient({
       };
       
       // Poll for subgraph update with retries (subgraph indexing can take a few seconds)
+      // Stop polling once we confirm the status is FINALIZED from subgraph
       const pollForFinalizedStatus = async (maxRetries = 10, delayMs = 2000) => {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             await new Promise(resolve => setTimeout(resolve, delayMs));
             await refetchAuction(true);
-            // refetchAuction will update the state if subgraph has indexed the finalization
+            // refetchAuction updates the auction state, which will cause a re-render
+            // The button will hide automatically when auction.status === 'FINALIZED'
+            // We don't need to check the return value - just poll until max retries
           } catch (error) {
             console.error(`[Finalize] Polling attempt ${attempt + 1} failed:`, error);
           }
@@ -985,7 +994,12 @@ export default function AuctionDetailClient({
         };
       }
     }
-  }, [isFinalizeConfirmed, auction, listingId, refetchAuction, updateAuction, router, isConnected, address]);
+    
+    // Reset the ref when isFinalizeConfirmed becomes false (new transaction started)
+    if (!isFinalizeConfirmed) {
+      hasHandledFinalizeRef.current = false;
+    }
+  }, [isFinalizeConfirmed, listingId, refetchAuction, updateAuction, router, isConnected, address]);
 
   // Track if we've already handled the modification confirmation to prevent infinite loops
   const hasHandledModifyRef = useRef(false);
