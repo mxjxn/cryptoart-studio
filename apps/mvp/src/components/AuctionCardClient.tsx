@@ -291,16 +291,36 @@ export function AuctionCardClient({
     }
   } else if (auction && auction.listingType === "FIXED_PRICE") {
     const timeStatus = getFixedPriceTimeStatus(endTime, now);
-    if (isERC1155) {
-      const totalAvailable = parseInt(auction.totalAvailable || "0");
-      const totalSold = parseInt(auction.totalSold || "0");
-      const remaining = Math.max(0, totalAvailable - totalSold);
-      const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
-      
+    const totalAvailable = parseInt(auction.totalAvailable || "0");
+    const totalSold = parseInt(auction.totalSold || "0");
+    const remaining = Math.max(0, totalAvailable - totalSold);
+    const isSoldOut = remaining === 0 && totalAvailable > 0;
+    const isEndedForFixed = endTime > 0 && endTime <= now && !isNeverExpiring(endTime);
+    const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+    const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+    
+    if (isSoldOut) {
+      stateDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          Sold Out
+        </div>
+      );
+    } else if (isEndedForFixed) {
+      stateDisplay = (
+        <div className="text-xs text-[#999999] mt-1">
+          Sale Ended
+        </div>
+      );
+    } else if (isERC1155) {
       if (remaining > 0) {
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight space-y-0.5">
-            <div>{remaining} left</div>
+            <div>
+              {remaining} left out of {totalAvailable}
+              {totalSupply !== null && totalSupply !== totalAvailable && (
+                <span className="text-[#999999]"> ({totalSupply} in total)</span>
+              )}
+            </div>
             {showTime && timeStatus.timeRemaining && (
               <div>{timeStatus.timeRemaining}</div>
             )}
@@ -308,7 +328,6 @@ export function AuctionCardClient({
         );
       }
     } else {
-      const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
       if (showTime && timeStatus.timeRemaining) {
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1 leading-tight">

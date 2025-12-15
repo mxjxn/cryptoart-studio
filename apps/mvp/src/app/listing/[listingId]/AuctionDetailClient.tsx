@@ -29,7 +29,7 @@ import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
-import { getAuctionTimeStatus, getFixedPriceTimeStatus } from "~/lib/time-utils";
+import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
 import { UpdateListingForm } from "~/components/UpdateListingForm";
 import { Fix180DayDurationForm } from "~/components/Fix180DayDurationForm";
 import { TokenImage } from "~/components/TokenImage";
@@ -1905,8 +1905,8 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Auction Ended Message */}
-        {isEnded && !isCancelled && (
+        {/* Auction Ended Message - Only for INDIVIDUAL_AUCTION */}
+        {isEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && (
           <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
             <p className="text-sm text-white font-medium mb-2">Auction Ended</p>
             {auction.highestBid && hasBid ? (
@@ -1944,8 +1944,8 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Finalize Auction Button (for ended auctions) - Hidden if cancelled */}
-        {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && (
+        {/* Finalize Auction Button (for ended auctions) - Only for INDIVIDUAL_AUCTION, Hidden if cancelled */}
+        {effectiveEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && (
           <div className="mb-4">
             <button
               onClick={handleFinalize}
@@ -2532,8 +2532,21 @@ export default function AuctionDetailClient({
 
             {auction.listingType === "FIXED_PRICE" && (() => {
               const timeStatus = getFixedPriceTimeStatus(endTime, now);
-              const remaining = Math.max(0, parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0"));
-              const isSoldOut = remaining === 0;
+              const totalAvailable = parseInt(auction.totalAvailable || "0");
+              const totalSold = parseInt(auction.totalSold || "0");
+              const remaining = Math.max(0, totalAvailable - totalSold);
+              const isSoldOut = remaining === 0 && totalAvailable > 0;
+              const isEnded = endTime > 0 && endTime <= now && !isNeverExpiring(endTime);
+              const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+              
+              // Determine status: Sold Out takes precedence over Sale Ended
+              let statusText = "Active";
+              if (isSoldOut) {
+                statusText = "Sold Out";
+              } else if (isEnded) {
+                statusText = "Sale Ended";
+              }
+              
               return (
                 <>
                   {/* Compact fixed price info row */}
@@ -2547,16 +2560,16 @@ export default function AuctionDetailClient({
                       <>
                         <span className="text-[#444]">•</span>
                         <span>
-                          {remaining}/{parseInt(auction.totalAvailable)} available
-                          {auction.erc1155TotalSupply && (
-                            <span className="text-[#999999]"> (of {auction.erc1155TotalSupply} total)</span>
+                          {remaining} left out of {totalAvailable}
+                          {totalSupply !== null && totalSupply !== totalAvailable && (
+                            <span className="text-[#999999]"> ({totalSupply} in total)</span>
                           )}
                         </span>
                       </>
                     )}
                     <span className="text-[#444]">•</span>
-                    <span>{isSoldOut ? "Sold Out" : "Active"}</span>
-                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                    <span>{statusText}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && !isSoldOut && !isEnded && (
                       <>
                         <span className="text-[#444]">•</span>
                         <span>{timeStatus.timeRemaining}</span>
@@ -2593,15 +2606,54 @@ export default function AuctionDetailClient({
             })()}
 
             {auction.listingType === "OFFERS_ONLY" && (() => {
-              const timeStatus = getFixedPriceTimeStatus(endTime, now);
+              // Calculate actual end time for OFFERS_ONLY (same logic as auctions)
+              // For startTime=0, endTime is a duration; for startTime>0, endTime is a timestamp
+              let actualEndTimeForOffers: number;
+              if (startTime === 0) {
+                // For startTime=0, endTime is a duration - we'd need creation timestamp to calculate
+                // For now, treat as active if status is ACTIVE
+                actualEndTimeForOffers = endTime > now ? endTime : 0;
+              } else {
+                actualEndTimeForOffers = endTime;
+              }
+              
+              const timeStatus = getFixedPriceTimeStatus(actualEndTimeForOffers, now);
+              const isEndedForOffers = actualEndTimeForOffers > 0 && actualEndTimeForOffers <= now && !isNeverExpiring(actualEndTimeForOffers);
+              const isActiveForOffers = !isEndedForOffers && auction.status === "ACTIVE";
+              
+              // ERC1155 supply display
+              const totalAvailable = parseInt(auction.totalAvailable || "0");
+              const totalSold = parseInt(auction.totalSold || "0");
+              const remaining = Math.max(0, totalAvailable - totalSold);
+              const isSoldOut = remaining === 0 && totalAvailable > 0;
+              const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+              
+              let statusText = "Active";
+              if (isSoldOut) {
+                statusText = "Sold Out";
+              } else if (isEndedForOffers) {
+                statusText = "Sale Ended";
+              }
+              
               return (
                 <>
                   {/* Compact offers info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
                     <span>Offers Only</span>
+                    {auction.tokenSpec === "ERC1155" && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>
+                          {remaining} left out of {totalAvailable}
+                          {totalSupply !== null && totalSupply !== totalAvailable && (
+                            <span className="text-[#999999]"> ({totalSupply} in total)</span>
+                          )}
+                        </span>
+                      </>
+                    )}
                     <span className="text-[#444]">•</span>
-                    <span>{isActive ? "Active" : "Ended"}</span>
-                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                    <span>{statusText}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && !isSoldOut && !isEndedForOffers && (
                       <>
                         <span className="text-[#444]">•</span>
                         <span>{timeStatus.timeRemaining}</span>
@@ -2635,15 +2687,54 @@ export default function AuctionDetailClient({
             })()}
 
             {auction.listingType === "DYNAMIC_PRICE" && (() => {
-              const timeStatus = getFixedPriceTimeStatus(endTime, now);
+              // Calculate actual end time for DYNAMIC_PRICE (same logic as auctions)
+              // For startTime=0, endTime is a duration; for startTime>0, endTime is a timestamp
+              let actualEndTimeForDynamic: number;
+              if (startTime === 0) {
+                // For startTime=0, endTime is a duration - we'd need creation timestamp to calculate
+                // For now, treat as active if status is ACTIVE
+                actualEndTimeForDynamic = endTime > now ? endTime : 0;
+              } else {
+                actualEndTimeForDynamic = endTime;
+              }
+              
+              const timeStatus = getFixedPriceTimeStatus(actualEndTimeForDynamic, now);
+              const isEndedForDynamic = actualEndTimeForDynamic > 0 && actualEndTimeForDynamic <= now && !isNeverExpiring(actualEndTimeForDynamic);
+              const isActiveForDynamic = !isEndedForDynamic && auction.status === "ACTIVE";
+              
+              // ERC1155 supply display
+              const totalAvailable = parseInt(auction.totalAvailable || "0");
+              const totalSold = parseInt(auction.totalSold || "0");
+              const remaining = Math.max(0, totalAvailable - totalSold);
+              const isSoldOut = remaining === 0 && totalAvailable > 0;
+              const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+              
+              let statusText = "Active";
+              if (isSoldOut) {
+                statusText = "Sold Out";
+              } else if (isEndedForDynamic) {
+                statusText = "Sale Ended";
+              }
+              
               return (
                 <>
                   {/* Compact dynamic price info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
                     <span>Dynamic Price</span>
+                    {auction.tokenSpec === "ERC1155" && (
+                      <>
+                        <span className="text-[#444]">•</span>
+                        <span>
+                          {remaining} left out of {totalAvailable}
+                          {totalSupply !== null && totalSupply !== totalAvailable && (
+                            <span className="text-[#999999]"> ({totalSupply} in total)</span>
+                          )}
+                        </span>
+                      </>
+                    )}
                     <span className="text-[#444]">•</span>
-                    <span>{isActive ? "Active" : "Ended"}</span>
-                    {!timeStatus.neverExpires && timeStatus.timeRemaining && (
+                    <span>{statusText}</span>
+                    {!timeStatus.neverExpires && timeStatus.timeRemaining && !isSoldOut && !isEndedForDynamic && (
                       <>
                         <span className="text-[#444]">•</span>
                         <span>{timeStatus.timeRemaining}</span>

@@ -181,8 +181,9 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
     // Auction or fixed price listing has ended
     if (auction.listingType === "INDIVIDUAL_AUCTION") {
       statusDisplay = "Ended";
-    } else if (auction.listingType === "FIXED_PRICE") {
-      statusDisplay = "Ended";
+    } else {
+      // FIXED_PRICE, OFFERS_ONLY, DYNAMIC_PRICE show "Sale Ended"
+      statusDisplay = "Sale Ended";
     }
   } else if (isFinalized && isERC721) {
     // ERC721 finalized (sold)

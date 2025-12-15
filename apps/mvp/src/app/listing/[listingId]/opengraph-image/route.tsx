@@ -11,6 +11,7 @@ import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
 import sharp from 'sharp';
 import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
+import { getListingDisplayStatus } from "~/lib/time-utils";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
@@ -647,19 +648,37 @@ export async function GET(
     }
   }
   
-  // Determine if auction is active
-  // For auctions with startTime=0 that haven't started yet (no bid), they're active (waiting for first bid)
-  // For auctions that have started, check if endTime has passed
-  let isActive = false;
-  if (auction?.status === "ACTIVE") {
-    if (listingType === "INDIVIDUAL_AUCTION" && startTime === 0 && !auctionHasStarted) {
-      // Auction with startTime=0 that hasn't started yet is active (waiting for first bid)
-      isActive = true;
-    } else {
-      // Auction has started (or has fixed startTime), check if endTime has passed
-      isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now);
+  // Get proper display status using getListingDisplayStatus
+  const displayStatus = auction ? getListingDisplayStatus({
+    status: auction.status,
+    listingType: auction.listingType,
+    startTime: auction.startTime,
+    endTime: auction.endTime,
+    hasBid: hasBid,
+    bidCount: auction.bidCount,
+    bids: auction.bids,
+    finalized: auction.finalized,
+  }, now) : "active";
+
+  // Map display status to user-friendly text
+  const getStatusText = (status: ReturnType<typeof getListingDisplayStatus>): string => {
+    switch (status) {
+      case "cancelled":
+        return "Cancelled";
+      case "not started":
+        return "Not started";
+      case "active":
+        return "Active";
+      case "concluded":
+        return "Ended";
+      case "finalized":
+        return "Finalized";
+      default:
+        return "Active";
     }
-  }
+  };
+
+  const statusText = getStatusText(displayStatus);
 
   // Build listing details based on type
   let listingDetails: Array<{ label: string; value: string }> = [];
@@ -678,33 +697,90 @@ export async function GET(
         value: currentBid ? `${currentBid} ${tokenSymbol}` : "No bids",
       },
       { label: "Bids", value: bidCount.toString() },
-      { label: "Status", value: isActive ? "Active" : "Ended" },
+      { label: "Status", value: statusText },
     ];
   } else if (listingType === "FIXED_PRICE") {
     const price = auction?.initialAmount ? formatPrice(auction.initialAmount, tokenDecimals) : "0";
     const totalAvailable = auction?.totalAvailable ? parseInt(auction.totalAvailable) : 0;
     const totalSold = auction?.totalSold ? parseInt(auction.totalSold) : 0;
     const remaining = Math.max(0, totalAvailable - totalSold);
-    const isSoldOut = remaining === 0;
+    const isSoldOut = remaining === 0 && totalAvailable > 0;
+    const totalSupply = auction?.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+    
+    // Determine status: Sold Out takes precedence over Sale Ended
+    let fixedPriceStatusText = statusText;
+    if (isSoldOut) {
+      fixedPriceStatusText = "Sold Out";
+    } else if (statusText === "Ended" || statusText === "concluded") {
+      fixedPriceStatusText = "Sale Ended";
+    }
 
     listingDetails = [
       { label: "Buy Now", value: `${price} ${tokenSymbol}` },
       {
         label: "Available",
-        value: auction?.tokenSpec === "ERC1155" ? `${remaining} copies` : "1",
+        value: auction?.tokenSpec === "ERC1155" 
+          ? `${remaining} left out of ${totalAvailable}${totalSupply !== null && totalSupply !== totalAvailable ? ` (${totalSupply} in total)` : ""}`
+          : "1",
       },
-      { label: "Status", value: isSoldOut ? "Sold Out" : isActive ? "Active" : "Ended" },
+      { label: "Status", value: fixedPriceStatusText },
     ];
   } else if (listingType === "OFFERS_ONLY") {
-    listingDetails = [
+    const totalAvailable = auction?.totalAvailable ? parseInt(auction.totalAvailable) : 0;
+    const totalSold = auction?.totalSold ? parseInt(auction.totalSold) : 0;
+    const remaining = Math.max(0, totalAvailable - totalSold);
+    const isSoldOut = remaining === 0 && totalAvailable > 0;
+    const totalSupply = auction?.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+    
+    let offersStatusText = statusText;
+    if (isSoldOut) {
+      offersStatusText = "Sold Out";
+    } else if (statusText === "Ended" || statusText === "concluded") {
+      offersStatusText = "Sale Ended";
+    }
+    
+    const details: Array<{ label: string; value: string }> = [
       { label: "Type", value: "Offers Only" },
-      { label: "Status", value: isActive ? "Active" : "Ended" },
     ];
+    
+    if (auction?.tokenSpec === "ERC1155") {
+      details.push({
+        label: "Supply",
+        value: `${remaining} left out of ${totalAvailable}${totalSupply !== null && totalSupply !== totalAvailable ? ` (${totalSupply} in total)` : ""}`,
+      });
+    }
+    
+    details.push({ label: "Status", value: offersStatusText });
+    
+    listingDetails = details;
   } else if (listingType === "DYNAMIC_PRICE") {
-    listingDetails = [
+    const totalAvailable = auction?.totalAvailable ? parseInt(auction.totalAvailable) : 0;
+    const totalSold = auction?.totalSold ? parseInt(auction.totalSold) : 0;
+    const remaining = Math.max(0, totalAvailable - totalSold);
+    const isSoldOut = remaining === 0 && totalAvailable > 0;
+    const totalSupply = auction?.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
+    
+    let dynamicStatusText = statusText;
+    if (isSoldOut) {
+      dynamicStatusText = "Sold Out";
+    } else if (statusText === "Ended" || statusText === "concluded") {
+      dynamicStatusText = "Sale Ended";
+    }
+    
+    const details: Array<{ label: string; value: string }> = [
       { label: "Type", value: "Dynamic Price" },
-      { label: "Status", value: isActive ? "Active" : "Ended" },
     ];
+    
+    if (auction?.tokenSpec === "ERC1155") {
+      details.push({
+        label: "Supply",
+        value: `${remaining} left out of ${totalAvailable}${totalSupply !== null && totalSupply !== totalAvailable ? ` (${totalSupply} in total)` : ""}`,
+      });
+    }
+    
+    details.push({ label: "Status", value: dynamicStatusText });
+    
+    listingDetails = details;
   }
 
   // Build ImageResponse options - conditionally include fonts only if we have font data
