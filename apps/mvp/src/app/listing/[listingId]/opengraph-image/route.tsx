@@ -647,8 +647,19 @@ export async function GET(
     }
   }
   
-  // Only consider ended if auction has started AND endTime has passed
-  const isActive = auction?.status === "ACTIVE" && auctionHasStarted && (actualEndTime === 0 || actualEndTime > now);
+  // Determine if auction is active
+  // For auctions with startTime=0 that haven't started yet (no bid), they're active (waiting for first bid)
+  // For auctions that have started, check if endTime has passed
+  let isActive = false;
+  if (auction?.status === "ACTIVE") {
+    if (listingType === "INDIVIDUAL_AUCTION" && startTime === 0 && !auctionHasStarted) {
+      // Auction with startTime=0 that hasn't started yet is active (waiting for first bid)
+      isActive = true;
+    } else {
+      // Auction has started (or has fixed startTime), check if endTime has passed
+      isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now);
+    }
+  }
 
   // Build listing details based on type
   let listingDetails: Array<{ label: string; value: string }> = [];
