@@ -771,84 +771,149 @@ export async function GET(
     (
       <div
         style={{
-          background: 'linear-gradient(to bottom right, #000000, #1a1a1a)',
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'row',
-          padding: '80px 40px',
-          color: 'white',
-          fontFamily: 'system-ui', // Temporarily using system font to debug streaming issue
+          position: 'relative',
+          backgroundColor: '#000000',
         }}
       >
-        {/* Left half: Text content */}
+        {/* Full-width background image - centered vertically, cropped top/bottom if needed */}
+        {artworkImageDataUrl ? (
+          <img
+            src={artworkImageDataUrl}
+            alt={title || "Artwork"}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#0a0a0a',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+            }}
+          />
+        )}
+
+        {/* Full-image 30% black overlay for better text readability */}
         <div
           style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+          }}
+        />
+
+        {/* Top gradient overlay - darker, extends further into middle */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '50%',
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.3) 100%)',
+          }}
+        />
+
+        {/* Bottom gradient overlay - darker, extends further into middle */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '50%',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.3) 100%)',
+          }}
+        />
+
+        {/* Top section: Title and Collection Name */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '33.33%',
             display: 'flex',
             flexDirection: 'column',
-            width: '50%',
-            paddingRight: '20px',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-start',
+            padding: '60px 80px',
+            color: 'white',
+            fontFamily: 'system-ui',
           }}
         >
-          {/* Top section: Title, Collection, Artist */}
           <div
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
+              fontSize: 64,
+              fontWeight: 'bold',
+              lineHeight: '1.1',
+              letterSpacing: '2px',
+              marginBottom: '16px',
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                fontSize: 85, // 2/3 of 128
-                fontWeight: 'bold',
-                lineHeight: '1.1',
-                letterSpacing: '3px',
-              }}
-            >
-              {title && title.length > 50 ? `${String(title).slice(0, 47)}...` : String(title || 'Untitled')}
-            </div>
-            
-            {collectionName ? (
-              <div
-                style={{
-                  display: 'flex',
-                  fontSize: 64, // 2/3 of 96
-                  opacity: 0.8,
-                  letterSpacing: '2px',
-                  lineHeight: '1.1',
-                }}
-              >
-                {String(collectionName)}
-              </div>
-            ) : null}
-            
-            <div
-              style={{
-                display: 'flex',
-                fontSize: 56, // 2/3 of 84
-                opacity: 0.7,
-                letterSpacing: '2px',
-                lineHeight: '1.1',
-              }}
-            >
-              by {String(artistDisplay || '—')}
-            </div>
+            {title && title.length > 60 ? `${String(title).slice(0, 57)}...` : String(title || 'Untitled')}
           </div>
+          
+          {collectionName ? (
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 48,
+                opacity: 0.9,
+                letterSpacing: '1.5px',
+                lineHeight: '1.1',
+              }}
+            >
+              {String(collectionName)}
+            </div>
+          ) : null}
+        </div>
 
-          {/* Bottom section: Listing details */}
-          {listingDetails && listingDetails.length > 0 ? (
+        {/* Bottom section: Listing details - two columns if needed */}
+        {listingDetails && listingDetails.length > 0 ? (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              width: '100%',
+              height: '33.33%',
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              padding: '60px 80px',
+              color: 'white',
+              fontFamily: 'system-ui',
+            }}
+          >
+            {/* Left column */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '24px', // 2/3 of 36px
-                marginTop: 'auto',
+                gap: '20px',
+                flex: 1,
+                paddingRight: '40px',
               }}
             >
-              {listingDetails.map((detail, index) => {
+              {listingDetails.slice(0, Math.ceil(listingDetails.length / 2)).map((detail, index) => {
                 if (!detail || !detail.label || !detail.value) {
                   return null;
                 }
@@ -859,50 +924,53 @@ export async function GET(
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      fontSize: 48, // 2/3 of 72
+                      fontSize: 48,
                       letterSpacing: '1px',
                     }}
                   >
-                    <span style={{ display: 'flex', opacity: 0.6 }}>{String(detail.label)}:</span>
-                    <span style={{ display: 'flex', fontWeight: 'bold', opacity: 0.9 }}>{String(detail.value)}</span>
+                    <span style={{ display: 'flex', opacity: 0.7 }}>{String(detail.label)}:</span>
+                    <span style={{ display: 'flex', fontWeight: 'bold', opacity: 1 }}>{String(detail.value)}</span>
                   </div>
                 );
               })}
             </div>
-          ) : null}
-        </div>
 
-        {/* Right half: Artwork image */}
-        <div
-          style={{
-            display: 'flex',
-            width: '50%',
-            paddingLeft: '20px',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: artworkImageDataUrl ? 'transparent' : '#0a0a0a',
-          }}
-        >
-          {artworkImageDataUrl ? (
-            <img
-              src={artworkImageDataUrl}
-              alt={title || "Artwork"}
-              width={520}
-              height={640}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                borderRadius: '8px',
-                display: 'flex',
-              }}
-            />
-          ) : (
-            <div style={{ display: 'flex', fontSize: 48, opacity: 0.5, color: 'white' }}>
-              No Image
-            </div>
-          )}
-        </div>
+            {/* Right column (if more than 2 details) */}
+            {listingDetails.length > 2 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '20px',
+                  flex: 1,
+                  paddingLeft: '40px',
+                }}
+              >
+                {listingDetails.slice(Math.ceil(listingDetails.length / 2)).map((detail, index) => {
+                  if (!detail || !detail.label || !detail.value) {
+                    return null;
+                  }
+                  const actualIndex = Math.ceil(listingDetails.length / 2) + index;
+                  return (
+                    <div
+                      key={actualIndex}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: 48,
+                        letterSpacing: '1px',
+                      }}
+                    >
+                      <span style={{ display: 'flex', opacity: 0.7 }}>{String(detail.label)}:</span>
+                      <span style={{ display: 'flex', fontWeight: 'bold', opacity: 1 }}>{String(detail.value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     ),
     imageResponseOptions
