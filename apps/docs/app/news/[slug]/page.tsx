@@ -55,3 +55,4 @@ export default function NewsPostPage({ params }: { params: { slug: string } }) {
   );
 }
 
+

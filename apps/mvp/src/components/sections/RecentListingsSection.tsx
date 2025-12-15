@@ -67,3 +67,4 @@ function RecentListingRow({ listing }: RecentListingRowProps) {
     </TransitionLink>
   );
 }
+
