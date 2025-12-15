@@ -173,13 +173,21 @@ export function getListingDisplayStatus(
     endTime: string | number;
     hasBid?: boolean;
     bidCount?: number;
+    bids?: Array<{ id: string; bidder: string; amount: string; timestamp: string }>;
   },
   now?: number
 ): "cancelled" | "not started" | "active" | "concluded" | "finalized" {
   const currentTime = now || Math.floor(Date.now() / 1000);
   const startTime = typeof listing.startTime === "string" ? parseInt(listing.startTime) : listing.startTime;
   const endTime = typeof listing.endTime === "string" ? parseInt(listing.endTime) : listing.endTime;
-  const hasBid = listing.hasBid || (listing.bidCount && listing.bidCount > 0) || false;
+  // For start-on-first-bid auctions, prioritize actual bid data over subgraph hasBid field
+  // The subgraph hasBid field can be stale, so we check bidCount and bids array first
+  // If bidCount is 0 or bids array is empty, the auction hasn't started regardless of hasBid
+  const actualBidCount = listing.bidCount ?? listing.bids?.length;
+  // If we have bid data (bidCount or bids array), use that as the source of truth
+  // If actualBidCount is 0, hasBid is definitely false (auction hasn't started)
+  // Otherwise fall back to listing.hasBid if we don't have bid count data
+  const hasBid = actualBidCount !== undefined ? actualBidCount > 0 : (listing.hasBid || false);
 
   // Check cancelled first
   if (listing.status === "CANCELLED") {

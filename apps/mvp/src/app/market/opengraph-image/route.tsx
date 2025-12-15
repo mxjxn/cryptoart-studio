@@ -79,13 +79,11 @@ export async function GET(request: NextRequest) {
     // Fetch recent listings from browse API
     let recentListings: EnrichedAuctionData[] = [];
     try {
-      const hiddenAddresses = await getHiddenUserAddresses();
       const result = await browseListings({
         first: 5,
         skip: 0,
         orderBy: 'createdAt',
         orderDirection: 'desc',
-        hiddenUserAddresses: hiddenAddresses,
         enrich: true,
       });
       recentListings = result.listings.slice(0, 5);
