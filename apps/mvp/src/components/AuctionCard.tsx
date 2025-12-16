@@ -383,207 +383,205 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
   };
 
   return (
-    <TransitionLink
-      href={listingUrl}
-      className="relative w-full cursor-pointer group block touch-manipulation"
-      onClick={handleClick}
-    >
-      <div
-        className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
-        style={{
-          background: (auction.thumbnailUrl || auction.image)
-            ? undefined
-            : gradient,
-        }}
+    <div className="w-full">
+      <TransitionLink
+        href={listingUrl}
+        className="relative w-full cursor-pointer group block touch-manipulation"
+        onClick={handleClick}
       >
-        {(auction.thumbnailUrl || auction.image) && !imageError && !isCancelled ? (
-          <>
-            {imageLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
-              </div>
-            )}
-            <Image
-              src={(auction.thumbnailUrl || auction.image) ?? ''}
-              alt={title}
-              fill
-              className={`object-contain transition-opacity duration-200 pointer-events-none ${
-                imageLoading ? 'opacity-0' : 'opacity-100'
-              }`}
-              style={{
-                objectFit: 'contain',
-                pointerEvents: 'none',
-              }}
-              priority={index < 6} // Prioritize first 6 images (above the fold)
-              onLoad={() => setImageLoading(false)}
-              onError={() => {
-                setImageError(true);
-                setImageLoading(false);
-              }}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            />
-          </>
-        ) : null}
-        <div data-no-click>
-          <ListingChips auction={auction} />
-        </div>
-        {/* FavoriteButton hidden - will reconsider placement later */}
-        {/* <div className="absolute top-2 left-2">
-          <FavoriteButton listingId={auction.listingId} />
-        </div> */}
-        {/* Overlay with gradient and data - visible on hover (desktop) or when expanded (mobile) */}
-        <div 
-          className={`absolute bottom-0 left-0 right-0 h-[33.33%] transition-opacity duration-300 pointer-events-none ${
-            isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          }`}
+        <div
+          className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
+          style={{
+            background: (auction.thumbnailUrl || auction.image)
+              ? undefined
+              : gradient,
+          }}
         >
-          {/* Gradient background - semi-translucent to less-translucent */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent pointer-events-none"></div>
-          {/* Content overlay - pointer events none so clicks pass through to link */}
-          <div className="absolute bottom-0 left-0 right-0 p-5 z-10 pointer-events-none">
-            {/* Title and creator with 40% opacity black background */}
-            <div className="bg-black/40 px-2 py-1.5 -mx-2 -mt-2 mb-2 rounded-sm">
-              <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
-              {contractName && (
-                <div className="text-xs text-[#999999] mb-1 line-clamp-1">
-                  {!isERC1155 && auction.tokenId && auction.erc721TotalSupply !== undefined && auction.erc721TotalSupply !== null
-                    ? `${contractName} #${auction.tokenId} out of ${auction.erc721TotalSupply}`
-                    : !isERC1155 && auction.tokenId
-                      ? `${contractName} #${auction.tokenId}`
-                      : contractName}
+          {(auction.thumbnailUrl || auction.image) && !imageError && !isCancelled ? (
+            <>
+              {imageLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                  <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
                 </div>
               )}
-              {showArtist ? (
-                <div className="text-xs text-[#cccccc] pointer-events-auto">
-                  by{" "}
-                  {creatorUsername ? (
+              <Image
+                src={(auction.thumbnailUrl || auction.image) ?? ''}
+                alt={title}
+                fill
+                className={`object-contain transition-opacity duration-200 pointer-events-none ${
+                  imageLoading ? 'opacity-0' : 'opacity-100'
+                }`}
+                style={{
+                  objectFit: 'contain',
+                  pointerEvents: 'none',
+                }}
+                priority={index < 6} // Prioritize first 6 images (above the fold)
+                onLoad={() => setImageLoading(false)}
+                onError={() => {
+                  setImageError(true);
+                  setImageLoading(false);
+                }}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              />
+            </>
+          ) : null}
+          <div data-no-click>
+            <ListingChips auction={auction} />
+          </div>
+          {/* FavoriteButton hidden - will reconsider placement later */}
+          {/* <div className="absolute top-2 left-2">
+            <FavoriteButton listingId={auction.listingId} />
+          </div> */}
+          {/* Overlay with gradient and data - visible on hover (desktop) or when expanded (mobile) */}
+          <div 
+            className={`absolute bottom-0 left-0 right-0 h-[33.33%] transition-opacity duration-300 pointer-events-none ${
+              isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            {/* Gradient background - semi-translucent to less-translucent */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/40 to-transparent pointer-events-none"></div>
+            {/* Content overlay - pointer events none so clicks pass through to link */}
+            <div className="absolute bottom-0 left-0 right-0 p-5 z-10 pointer-events-none">
+              {/* Title and creator with 40% opacity black background */}
+              <div className="bg-black/40 px-2 py-1.5 -mx-2 -mt-2 mb-2 rounded-sm">
+                <div className="text-lg font-normal mb-1 line-clamp-1">{title}</div>
+                {contractName && (
+                  <div className="text-xs text-[#999999] mb-1 line-clamp-1">
+                    {!isERC1155 && auction.tokenId && auction.erc721TotalSupply !== undefined && auction.erc721TotalSupply !== null
+                      ? `${contractName} #${auction.tokenId} out of ${auction.erc721TotalSupply}`
+                      : !isERC1155 && auction.tokenId
+                        ? `${contractName} #${auction.tokenId}`
+                        : contractName}
+                  </div>
+                )}
+                {showArtist ? (
+                  <div className="text-xs text-[#cccccc] pointer-events-auto">
+                    by{" "}
+                    {creatorUsername ? (
+                      <TransitionLink
+                        href={`/user/${creatorUsername}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline"
+                      >
+                        {displayArtist}
+                      </TransitionLink>
+                    ) : addressToShow ? (
+                      <TransitionLink
+                        href={`/user/${addressToShow}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline"
+                      >
+                        {displayArtist}
+                      </TransitionLink>
+                    ) : (
+                      displayArtist
+                    )}
+                  </div>
+                ) : addressToShow && !artistNameLoading ? (
+                  <div className="text-xs text-[#cccccc] flex items-center gap-1.5 pointer-events-auto">
                     <TransitionLink
-                      href={`/user/${creatorUsername}`}
+                      href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="hover:underline"
+                      className="font-mono text-[10px] hover:underline"
                     >
-                      {displayArtist}
+                      {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
                     </TransitionLink>
-                  ) : addressToShow ? (
-                    <TransitionLink
-                      href={`/user/${addressToShow}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:underline"
-                    >
-                      {displayArtist}
-                    </TransitionLink>
-                  ) : (
-                    displayArtist
-                  )}
-                </div>
-              ) : addressToShow && !artistNameLoading ? (
-                <div className="text-xs text-[#cccccc] flex items-center gap-1.5 pointer-events-auto">
-                  <TransitionLink
-                    href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="font-mono text-[10px] hover:underline"
-                  >
-                    {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
-                  </TransitionLink>
-                  <CopyButton text={addressToShow} size="sm" />
-                </div>
-              ) : null}
-            </div>
-            {supplyDisplay}
-            <div className="mb-1">
-              <div className="text-xs text-[#999999] leading-tight">
-                {priceLabel}
+                    <CopyButton text={addressToShow} size="sm" />
+                  </div>
+                ) : null}
               </div>
-              <div className="text-base font-medium leading-tight">
-                {currentPrice} {currentPrice !== "—" && tokenSymbol}
-              </div>
-              {/* Show bidder info for high bids - Only for INDIVIDUAL_AUCTION */}
-              {auction.listingType === "INDIVIDUAL_AUCTION" && auction.highestBid && buyerAddress && (
-                <div className="text-xs text-[#999999] mt-0.5 leading-tight pointer-events-auto">
-                  by{" "}
-                  {buyerUsername ? (
-                    <TransitionLink
-                      href={`/user/${buyerUsername}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:text-white transition-colors"
-                    >
-                      @{buyerUsername}
-                    </TransitionLink>
-                  ) : buyerEnsName ? (
-                    <TransitionLink
-                      href={`/user/${buyerAddress}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:text-white transition-colors"
-                    >
-                      {buyerEnsName}
-                    </TransitionLink>
-                  ) : (
-                    <TransitionLink
-                      href={`/user/${buyerAddress}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-mono text-[10px] hover:text-white transition-colors"
-                    >
-                      {`${buyerAddress.slice(0, 6)}...${buyerAddress.slice(-4)}`}
-                    </TransitionLink>
-                  )}
+              {supplyDisplay}
+              <div className="mb-1">
+                <div className="text-xs text-[#999999] leading-tight">
+                  {priceLabel}
                 </div>
-              )}
+                <div className="text-base font-medium leading-tight">
+                  {currentPrice} {currentPrice !== "—" && tokenSymbol}
+                </div>
+                {/* Show bidder info for high bids - Only for INDIVIDUAL_AUCTION */}
+                {auction.listingType === "INDIVIDUAL_AUCTION" && auction.highestBid && buyerAddress && (
+                  <div className="text-xs text-[#999999] mt-0.5 leading-tight pointer-events-auto">
+                    by{" "}
+                    {buyerUsername ? (
+                      <TransitionLink
+                        href={`/user/${buyerUsername}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-white transition-colors"
+                      >
+                        @{buyerUsername}
+                      </TransitionLink>
+                    ) : buyerEnsName ? (
+                      <TransitionLink
+                        href={`/user/${buyerAddress}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-white transition-colors"
+                      >
+                        {buyerEnsName}
+                      </TransitionLink>
+                    ) : (
+                      <TransitionLink
+                        href={`/user/${buyerAddress}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-mono text-[10px] hover:text-white transition-colors"
+                      >
+                        {`${buyerAddress.slice(0, 6)}...${buyerAddress.slice(-4)}`}
+                      </TransitionLink>
+                    )}
+                  </div>
+                )}
+              </div>
+              {stateDisplay}
             </div>
-            {stateDisplay}
           </div>
         </div>
-      </div>
-      {/* Title and Artist - Always visible below image */}
-      <div className="mt-2 px-1">
-        <div className="text-xs font-normal text-white line-clamp-1 mb-0.5">{title}</div>
-        {showArtist ? (
-          <div className="text-[10px] text-[#999999] line-clamp-1">
-            by{" "}
-            {creatorUsername ? (
+        {/* Title and Artist - Always visible below image */}
+        <div className="mt-2 px-1">
+          <div className="text-xs font-normal text-white line-clamp-1 mb-0.5">{title}</div>
+          {showArtist ? (
+            <div className="text-[10px] text-[#999999] line-clamp-1">
+              by{" "}
+              {creatorUsername ? (
+                <TransitionLink
+                  href={`/user/${creatorUsername}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:text-white transition-colors"
+                >
+                  {displayArtist}
+                </TransitionLink>
+              ) : addressToShow ? (
+                <TransitionLink
+                  href={`/user/${addressToShow}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:text-white transition-colors"
+                >
+                  {displayArtist}
+                </TransitionLink>
+              ) : (
+                displayArtist
+              )}
+            </div>
+          ) : addressToShow && !artistNameLoading ? (
+            <div className="text-[10px] text-[#999999] flex items-center gap-1.5">
               <TransitionLink
-                href={`/user/${creatorUsername}`}
+                href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
                 onClick={(e) => e.stopPropagation()}
-                className="hover:text-white transition-colors"
+                className="font-mono hover:text-white transition-colors"
               >
-                {displayArtist}
+                {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
               </TransitionLink>
-            ) : addressToShow ? (
-              <TransitionLink
-                href={`/user/${addressToShow}`}
-                onClick={(e) => e.stopPropagation()}
-                className="hover:text-white transition-colors"
-              >
-                {displayArtist}
-              </TransitionLink>
-            ) : (
-              displayArtist
-            )}
-          </div>
-        ) : addressToShow && !artistNameLoading ? (
-          <div className="text-[10px] text-[#999999] flex items-center gap-1.5">
-            <TransitionLink
-              href={creatorUsername ? `/user/${creatorUsername}` : `/user/${addressToShow}`}
-              onClick={(e) => e.stopPropagation()}
-              className="font-mono hover:text-white transition-colors"
-            >
-              {`${addressToShow.slice(0, 6)}...${addressToShow.slice(-4)}`}
-            </TransitionLink>
-            <CopyButton text={addressToShow} size="sm" />
-          </div>
-        ) : null}
-      </div>
-      {/* Listing Card Menu - Below the card (includes Gallery + Admin options) */}
-      <div 
-        className="mt-2 flex justify-end pointer-events-auto relative z-10" 
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+              <CopyButton text={addressToShow} size="sm" />
+            </div>
+          ) : null}
+        </div>
+      </TransitionLink>
+      {/* Listing Card Menu - Below the card (NOT part of the clickable link) */}
+      <div className="mt-2 flex justify-end relative z-10">
         <ListingCardMenu 
           listingId={auction.listingId}
           sellerAddress={auction.seller}
         />
       </div>
-    </TransitionLink>
+    </div>
   );
 }
 
