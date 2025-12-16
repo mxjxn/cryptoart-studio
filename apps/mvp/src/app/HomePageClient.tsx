@@ -12,7 +12,7 @@ import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
 
 
@@ -50,6 +50,13 @@ export default function HomePageClient() {
   const editionLoadingRef = useRef(true);
   const editionHasInitializedRef = useRef(false);
   const editionExpandedRef = useRef(false);
+
+  // Loading modal state for listing navigation
+  const [loadingListing, setLoadingListing] = useState<{
+    listingId: string;
+    image: string | null;
+    title: string;
+  } | null>(null);
 
   const pageSize = 4; // Show 4 listings per section on homepage
   const displayCount = 4; // Display exactly 4 items initially
@@ -302,6 +309,28 @@ export default function HomePageClient() {
   const { isConnected } = useEffectiveAddress();
   const { openConnectModal } = useConnectModal();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Hide loading modal when route changes away from homepage (navigation completes)
+  useEffect(() => {
+    if (loadingListing) {
+      // If we're no longer on the homepage, hide the modal
+      // pathname will be /listing/[id] when navigation completes
+      if (pathname && pathname !== '/' && pathname.startsWith('/listing/')) {
+        // Small delay to allow page transition to complete
+        const timer = setTimeout(() => {
+          setLoadingListing(null);
+        }, 300);
+        return () => clearTimeout(timer);
+      } else {
+        // Fallback: hide modal after 5 seconds if navigation doesn't happen
+        const fallbackTimer = setTimeout(() => {
+          setLoadingListing(null);
+        }, 5000);
+        return () => clearTimeout(fallbackTimer);
+      }
+    }
+  }, [pathname, loadingListing]);
   const gradients = [
     "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
@@ -833,6 +862,7 @@ export default function HomePageClient() {
                   auction={auction}
                   gradient={gradients[index % gradients.length]}
                   index={index}
+                  onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
                 />
               ))}
             </div>
@@ -846,6 +876,7 @@ export default function HomePageClient() {
                     auction={auction}
                     gradient={gradients[(nftListings.length + index) % gradients.length]}
                     index={nftListings.length + index + 100} // Use high index to ensure lazy loading (priority only for first 6)
+                    onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
                   />
                 ))}
               </div>
@@ -943,6 +974,7 @@ export default function HomePageClient() {
                   auction={auction}
                   gradient={gradients[index % gradients.length]}
                   index={index}
+                  onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
                 />
               ))}
             </div>
@@ -956,6 +988,7 @@ export default function HomePageClient() {
                     auction={auction}
                     gradient={gradients[(editionListings.length + index) % gradients.length]}
                     index={editionListings.length + index + 100} // Use high index to ensure lazy loading (priority only for first 6)
+                    onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
                   />
                 ))}
               </div>
@@ -986,6 +1019,37 @@ export default function HomePageClient() {
 
       {/* Admin Tools Panel - Only visible when admin mode is enabled */}
       <AdminToolsPanel />
+
+      {/* Loading Listing Modal - Shows when navigating to a listing */}
+      {loadingListing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="relative max-w-md w-full mx-4 bg-[#1a1a1a] border border-[#333333] rounded-lg overflow-hidden">
+            {/* Image */}
+            {loadingListing.image ? (
+              <div className="relative w-full aspect-square bg-black">
+                <img
+                  src={loadingListing.image}
+                  alt={loadingListing.title}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="relative w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2]" />
+            )}
+            
+            {/* Content */}
+            <div className="p-6">
+              <h3 className="text-lg font-normal text-white mb-2 line-clamp-2">
+                {loadingListing.title}
+              </h3>
+              <div className="flex items-center justify-center gap-2 text-[#999999] text-sm">
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <span>Loading listing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -24,9 +24,10 @@ interface AuctionCardProps {
   gradient: string;
   index: number;
   referralAddress?: string | null;
+  onNavigate?: (listingId: string, image: string | null, title: string) => void;
 }
 
-export function AuctionCard({ auction, gradient, index, referralAddress }: AuctionCardProps) {
+export function AuctionCard({ auction, gradient, index, referralAddress, onNavigate }: AuctionCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -372,10 +373,20 @@ export function AuctionCard({ auction, gradient, index, referralAddress }: Aucti
     ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
     : `/listing/${auction.listingId}`;
 
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Call onNavigate callback if provided (for showing loading modal)
+    // Use setTimeout to ensure state updates immediately before navigation
+    if (onNavigate) {
+      // Call immediately to show modal right away
+      onNavigate(auction.listingId, auction.thumbnailUrl || auction.image || null, title);
+    }
+  };
+
   return (
     <TransitionLink
       href={listingUrl}
-      className="relative w-full cursor-pointer group block"
+      className="relative w-full cursor-pointer group block touch-manipulation"
+      onClick={handleClick}
     >
       <div
         className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
