@@ -69,6 +69,7 @@ const LISTINGS_BY_SELLER_QUERY = gql`
       createdAt
       createdAtBlock
       updatedAt
+      erc20
       bids(orderBy: amount, orderDirection: desc, first: 1000) {
         id
         bidder
@@ -110,6 +111,7 @@ const PURCHASES_BY_BUYER_QUERY = gql`
         createdAt
         createdAtBlock
         updatedAt
+        erc20
       }
       buyer
       amount

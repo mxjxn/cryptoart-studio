@@ -397,6 +397,8 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
               : gradient,
           }}
         >
+          {/* 25% opaque black overlay on hover */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none z-[5]"></div>
           {(auction.thumbnailUrl || auction.image) && !imageError && !isCancelled ? (
             <>
               {imageLoading && (
@@ -490,8 +492,12 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
                   </div>
                 ) : null}
               </div>
-              {supplyDisplay}
-              <div className="mb-1">
+              {supplyDisplay && (
+                <div className="bg-black/40 px-2 py-1.5 -mx-2 mb-2 rounded-sm">
+                  {supplyDisplay}
+                </div>
+              )}
+              <div className="mb-1 bg-black/40 px-2 py-1.5 -mx-2 rounded-sm">
                 <div className="text-xs text-[#999999] leading-tight">
                   {priceLabel}
                 </div>
@@ -530,7 +536,11 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
                   </div>
                 )}
               </div>
-              {stateDisplay}
+              {stateDisplay && (
+                <div className="bg-black/40 px-2 py-1.5 -mx-2 rounded-sm">
+                  {stateDisplay}
+                </div>
+              )}
             </div>
           </div>
         </div>
