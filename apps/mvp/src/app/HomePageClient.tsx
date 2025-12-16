@@ -53,6 +53,7 @@ export default function HomePageClient() {
 
   const pageSize = 4; // Show 4 listings per section on homepage
   const displayCount = 4; // Display exactly 4 items initially
+  const initialFetchCount = 20; // Fetch 20 initially to account for filtering
   const loadMoreCount = 20; // Load 20 more items when expanding
 
   // Load more NFTs inline
@@ -63,7 +64,9 @@ export default function HomePageClient() {
     nftExpandedRef.current = true;
     
     try {
-      const skip = displayCount; // Skip the ones we already have
+      // Skip the initial fetch count since we fetched that many listings initially
+      // This ensures we don't get duplicates when filtering client-side
+      const skip = initialFetchCount;
       const response = await fetch(`/api/listings/browse?first=${loadMoreCount}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
       
       if (!response.ok) {
@@ -171,7 +174,7 @@ export default function HomePageClient() {
     } finally {
       setNftLoadingMore(false);
     }
-  }, [displayCount, loadMoreCount, nftHasMore, nftLoadingMore]);
+  }, [initialFetchCount, loadMoreCount, nftHasMore, nftLoadingMore]);
 
   // Load more Editions inline
   const loadMoreEditions = useCallback(async () => {
@@ -181,7 +184,9 @@ export default function HomePageClient() {
     editionExpandedRef.current = true;
     
     try {
-      const skip = displayCount; // Skip the ones we already have
+      // Skip the initial fetch count since we fetched that many listings initially
+      // This ensures we don't get duplicates when filtering client-side
+      const skip = initialFetchCount;
       const response = await fetch(`/api/listings/browse?first=${loadMoreCount}&skip=${skip}&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
       
       if (!response.ok) {
@@ -289,7 +294,7 @@ export default function HomePageClient() {
     } finally {
       setEditionLoadingMore(false);
     }
-  }, [displayCount, loadMoreCount, editionHasMore, editionLoadingMore]);
+  }, [initialFetchCount, loadMoreCount, editionHasMore, editionLoadingMore]);
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
@@ -316,12 +321,11 @@ export default function HomePageClient() {
     setNftError(null);
     try {
       // Fetch more than needed to account for filtering
-      const fetchCount = 20; // Fetch 20 to ensure we get enough ERC721 after filtering
-      console.log('[HomePageClient] Fetching recent NFTs...', { fetchCount });
+      console.log('[HomePageClient] Fetching recent NFTs...', { fetchCount: initialFetchCount });
       const startTime = Date.now();
       
       // Use streaming mode for incremental loading
-      const response = await fetch(`/api/listings/browse?first=${fetchCount}&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
+      const response = await fetch(`/api/listings/browse?first=${initialFetchCount}&skip=0&orderBy=createdAt&orderDirection=desc&enrich=true&stream=true`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -468,7 +472,7 @@ export default function HomePageClient() {
       setNftLoading(false);
       nftLoadingRef.current = false;
     }
-  }, [displayCount]);
+  }, [displayCount, initialFetchCount]);
 
   // Fetch recent Editions (ERC1155) - homepage only shows 6
   const fetchRecentEditions = useCallback(async () => {
@@ -628,7 +632,7 @@ export default function HomePageClient() {
       setEditionLoading(false);
       editionLoadingRef.current = false;
     }
-  }, [displayCount]);
+  }, [displayCount, initialFetchCount]);
 
   // Initialize NFTs section
   useEffect(() => {
