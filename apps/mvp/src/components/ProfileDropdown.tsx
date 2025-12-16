@@ -15,6 +15,8 @@ import { HueSlider } from "~/components/HueSlider";
 import { useColorScheme } from "~/contexts/ColorSchemeContext";
 import { useAdminMode } from "~/hooks/useAdminMode";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
+import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
+import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 
 function ProfileIcon({ pfpUrl, imageError, setImageError, isMember }: { 
   pfpUrl: string | undefined; 
@@ -103,6 +105,10 @@ export function ProfileDropdown() {
   const isMember = isPro; // Alias for clarity
   const { mode } = useColorScheme();
   const { isAdmin } = useIsAdmin();
+  const { hasAccess: hasNFTAccess, loading: isNFTLoading } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
+  
+  // User has gallery access if they're admin OR have NFT access (members)
+  const hasGalleryAccess = isAdmin || hasNFTAccess;
   const [isOpen, setIsOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -210,7 +216,7 @@ export function ProfileDropdown() {
               View Profile
             </TransitionLink>
             
-            {isAdmin && (
+            {hasGalleryAccess && !isNFTLoading && (
               <TransitionLink
                 href="/curate"
                 onClick={() => setIsOpen(false)}

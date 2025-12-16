@@ -5,13 +5,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
+import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useUsername } from "~/hooks/useUsername";
 import { getGalleryUrl } from "~/lib/gallery-url";
 import type { CurationData } from "@cryptoart/db";
-import { MAX_GALLERIES_PER_USER } from "~/lib/constants";
+import { MAX_GALLERIES_PER_USER, STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 
 type FilterTab = "all" | "published" | "drafts";
 
@@ -22,6 +23,7 @@ interface GalleryWithCount extends CurationData {
 export default function CurateClient() {
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const { hasAccess: hasNFTAccess, loading: isNFTLoading } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
@@ -30,16 +32,20 @@ export default function CurateClient() {
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
   const hasRedirectedRef = useRef(false);
 
-  // Redirect non-admins (only once)
+  // User has gallery access if they're admin OR have NFT access (members)
+  const hasGalleryAccess = isAdmin || hasNFTAccess;
+  const isLoadingAccess = isAdminLoading || isNFTLoading;
+
+  // Redirect users without gallery access (only once)
   useEffect(() => {
-    if (!isAdminLoading && !isAdmin && !hasRedirectedRef.current) {
+    if (!isLoadingAccess && !hasGalleryAccess && !hasRedirectedRef.current) {
       hasRedirectedRef.current = true;
       router.replace("/");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, isAdminLoading]); // router.replace is stable, don't include router in deps
+  }, [hasGalleryAccess, isLoadingAccess]); // router.replace is stable, don't include router in deps
 
-  if (isAdminLoading) {
+  if (isLoadingAccess) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -53,7 +59,7 @@ export default function CurateClient() {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasGalleryAccess) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -61,7 +67,7 @@ export default function CurateClient() {
           <ProfileDropdown />
         </header>
         <div className="px-5 py-12 text-center">
-          <p className="text-[#cccccc]">Unauthorized</p>
+          <p className="text-[#cccccc]">Gallery features are available to members only.</p>
         </div>
       </div>
     );

@@ -116,6 +116,10 @@ export default function ProfileClient() {
   
   const { createdAuctions, activeBids, activeOffers, loading } = useUserAuctions();
   
+  // Public profile username (for linking to public profile)
+  const [publicProfileUsername, setPublicProfileUsername] = useState<string | null>(null);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  
   // Collected artworks state
   const [purchases, setPurchases] = useState<Array<{
     id: string;
@@ -136,6 +140,36 @@ export default function ProfileClient() {
   const [collectedLoading, setCollectedLoading] = useState(false);
   const [collectedFetched, setCollectedFetched] = useState(false);
   
+  // Fetch public profile username for linking
+  useEffect(() => {
+    if (userAddress && !usernameLoading) {
+      // Use username from context if available (mini-app)
+      if (context?.user?.username) {
+        setPublicProfileUsername(context.user.username);
+        return;
+      }
+      
+      // Otherwise fetch from API
+      async function fetchUsername() {
+        setUsernameLoading(true);
+        try {
+          const response = await fetch(`/api/user/${encodeURIComponent(userAddress)}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.user?.username) {
+              setPublicProfileUsername(data.user.username);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching username:', error);
+        } finally {
+          setUsernameLoading(false);
+        }
+      }
+      fetchUsername();
+    }
+  }, [userAddress, usernameLoading, context?.user?.username]);
+  
   // Fetch collected data when tab is active
   useEffect(() => {
     if (activeTab === "collected" && userAddress && !collectedLoading && !collectedFetched) {
@@ -147,6 +181,10 @@ export default function ProfileClient() {
             const data = await response.json();
             setPurchases(data.purchases || []);
             setCollectedFrom(data.collectedFrom || []);
+            // Also store username for public profile link
+            if (data.user?.username) {
+              setPublicProfileUsername(data.user.username);
+            }
             setCollectedFetched(true);
           }
         } catch (error) {
@@ -355,6 +393,16 @@ export default function ProfileClient() {
               )}
               {ensName && (
                 <p className="text-sm text-[#999999]">{ensName}</p>
+              )}
+              
+              {/* View Public Profile Link */}
+              {(publicProfileUsername || userAddress) && (
+                <TransitionLink
+                  href={publicProfileUsername ? `/user/${publicProfileUsername}` : `/user/${userAddress}`}
+                  className="inline-block mt-2 text-sm text-[#999999] hover:text-white transition-colors"
+                >
+                  View Public Profile →
+                </TransitionLink>
               )}
               
               {/* Farcaster Handles Status Chips */}
