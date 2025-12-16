@@ -290,14 +290,35 @@ export function AuctionCardClient({
       }
     }
   } else if (auction && auction.listingType === "FIXED_PRICE") {
-    const timeStatus = getFixedPriceTimeStatus(endTime, now);
+    // Calculate actual end time for FIXED_PRICE (same logic as auctions)
+    // For startTime=0, endTime is a duration; for startTime>0, endTime is a timestamp
+    let actualEndTimeForFixed: number;
+    const YEAR_2000_TIMESTAMP = 946684800;
+    
+    if (startTime === 0) {
+      // For startTime=0, endTime is a duration
+      // Use heuristic: if endTime > YEAR_2000_TIMESTAMP, it's likely a timestamp
+      // Otherwise, it's a duration and we can't determine if ended without creation timestamp
+      if (endTime > YEAR_2000_TIMESTAMP) {
+        // Looks like a timestamp, use it directly
+        actualEndTimeForFixed = endTime;
+      } else {
+        // It's a duration, can't determine if ended without creation timestamp
+        actualEndTimeForFixed = 0;
+      }
+    } else {
+      // For startTime > 0, endTime is already a timestamp
+      actualEndTimeForFixed = endTime;
+    }
+    
+    const timeStatus = getFixedPriceTimeStatus(actualEndTimeForFixed, now);
     const totalAvailable = parseInt(auction.totalAvailable || "0");
     const totalSold = parseInt(auction.totalSold || "0");
     const remaining = Math.max(0, totalAvailable - totalSold);
     const isSoldOut = remaining === 0 && totalAvailable > 0;
-    const isEndedForFixed = endTime > 0 && endTime <= now && !isNeverExpiring(endTime);
+    const isEndedForFixed = actualEndTimeForFixed > 0 && actualEndTimeForFixed <= now && !isNeverExpiring(actualEndTimeForFixed);
     const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
-    const showTime = !isNeverExpiring(endTime) && !isLongTermSale(endTime);
+    const showTime = !isNeverExpiring(actualEndTimeForFixed) && !isLongTermSale(actualEndTimeForFixed);
     
     if (isSoldOut) {
       stateDisplay = (
