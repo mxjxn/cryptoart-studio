@@ -177,6 +177,18 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
     statusDisplay = "Cancelled";
   } else if (isSoldOut) {
     statusDisplay = "Sold out";
+  } else if (isFinalized) {
+    // Finalized listings: only show "Sold" if actually sold out
+    // For FIXED_PRICE listings, finalized doesn't mean sold - seller can finalize to reclaim unsold items
+    if (isSoldOut) {
+      statusDisplay = "Sold";
+    } else if (auction.listingType === "INDIVIDUAL_AUCTION") {
+      // For auctions, finalized usually means sold (winner claimed)
+      statusDisplay = "Sold";
+    } else {
+      // For FIXED_PRICE, OFFERS_ONLY, DYNAMIC_PRICE - finalized but not sold out
+      statusDisplay = "Finalized";
+    }
   } else if (isEnded) {
     // Auction or fixed price listing has ended
     if (auction.listingType === "INDIVIDUAL_AUCTION") {
@@ -185,9 +197,6 @@ function RecentListingRow({ auction }: RecentListingRowProps) {
       // FIXED_PRICE, OFFERS_ONLY, DYNAMIC_PRICE show "Sale Ended"
       statusDisplay = "Sale Ended";
     }
-  } else if (isFinalized && isERC721) {
-    // ERC721 finalized (sold)
-    statusDisplay = "Sold";
   } else {
     // Show time status only if not sold out, not ended, and not long-term sale
     if (auction.listingType === "INDIVIDUAL_AUCTION") {

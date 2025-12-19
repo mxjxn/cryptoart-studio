@@ -2569,12 +2569,15 @@ export default function AuctionDetailClient({
               const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0 && totalAvailable > 0;
               const isEnded = actualEndTimeForFixed > 0 && actualEndTimeForFixed <= now && !isNeverExpiring(actualEndTimeForFixed);
+              const isFinalized = auction.status === "FINALIZED";
               const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
               
-              // Determine status: Sold Out takes precedence over Sale Ended
+              // Determine status: Sold Out takes precedence, then Finalized, then Sale Ended
               let statusText = "Active";
               if (isSoldOut) {
                 statusText = "Sold Out";
+              } else if (isFinalized) {
+                statusText = "Finalized";
               } else if (isEnded) {
                 statusText = "Sale Ended";
               }
@@ -2668,11 +2671,14 @@ export default function AuctionDetailClient({
               const totalSold = parseInt(auction.totalSold || "0");
               const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0 && totalAvailable > 0;
+              const isFinalized = auction.status === "FINALIZED";
               const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
               
               let statusText = "Active";
               if (isSoldOut) {
                 statusText = "Sold Out";
+              } else if (isFinalized) {
+                statusText = "Finalized";
               } else if (isEndedForOffers) {
                 statusText = "Sale Ended";
               }
@@ -2759,11 +2765,14 @@ export default function AuctionDetailClient({
               const totalSold = parseInt(auction.totalSold || "0");
               const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0 && totalAvailable > 0;
+              const isFinalized = auction.status === "FINALIZED";
               const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
               
               let statusText = "Active";
               if (isSoldOut) {
                 statusText = "Sold Out";
+              } else if (isFinalized) {
+                statusText = "Finalized";
               } else if (isEndedForDynamic) {
                 statusText = "Sale Ended";
               }
