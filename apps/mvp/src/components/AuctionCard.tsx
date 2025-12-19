@@ -234,20 +234,36 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
       // ERC1155 finalized - supply display already handled above
       stateDisplay = null;
     } else {
-      // 1/1 FINALIZED: Show "Sold to [buyer] for [amount]"
-      const buyer = auction.highestBid?.bidder;
-      const finalPrice = auction.highestBid?.amount || auction.initialAmount || "0";
-      if (buyer) {
-        const buyerDisplay = buyerUsername || `${buyer.slice(0, 6)}...${buyer.slice(-4)}`;
-        stateDisplay = (
-          <div className="text-xs text-[#999999] mt-1">
-            Sold to {buyerDisplay} for {formatPrice(finalPrice)} {tokenSymbol}
-          </div>
-        );
+      // Check if actually sold out (for ERC721 or FIXED_PRICE)
+      const totalAvailable = parseInt(auction.totalAvailable || "1");
+      const totalSold = parseInt(auction.totalSold || "0");
+      const isSoldOut = totalSold >= totalAvailable && totalAvailable > 0;
+      
+      // For FIXED_PRICE listings, finalized doesn't mean sold - seller can finalize to reclaim unsold items
+      // Only show "Sold" if actually sold out, or if it's an INDIVIDUAL_AUCTION (which means winner claimed)
+      if (isSoldOut || auction.listingType === "INDIVIDUAL_AUCTION") {
+        // Show "Sold to [buyer] for [amount]" if there's a buyer
+        const buyer = auction.highestBid?.bidder;
+        const finalPrice = auction.highestBid?.amount || auction.initialAmount || "0";
+        if (buyer) {
+          const buyerDisplay = buyerUsername || `${buyer.slice(0, 6)}...${buyer.slice(-4)}`;
+          stateDisplay = (
+            <div className="text-xs text-[#999999] mt-1">
+              Sold to {buyerDisplay} for {formatPrice(finalPrice)} {tokenSymbol}
+            </div>
+          );
+        } else {
+          stateDisplay = (
+            <div className="text-xs text-[#999999] mt-1">
+              Sold
+            </div>
+          );
+        }
       } else {
+        // FIXED_PRICE finalized but not sold out
         stateDisplay = (
           <div className="text-xs text-[#999999] mt-1">
-            Sold
+            Finalized
           </div>
         );
       }
