@@ -93,7 +93,8 @@ export function ERC721AuctionConfigPage({
   const handleQuickEndTime = (hours: number) => {
     if (!startTime) return;
     const start = new Date(startTime);
-    start.setHours(start.getHours() + hours);
+    // Use setTime to properly handle month/year boundaries when adding large hour values
+    start.setTime(start.getTime() + hours * 60 * 60 * 1000);
     const year = start.getFullYear();
     const month = String(start.getMonth() + 1).padStart(2, "0");
     const day = String(start.getDate()).padStart(2, "0");
@@ -289,6 +290,13 @@ export function ERC721AuctionConfigPage({
                   className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
                 >
                   2wk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickEndTime(24 * 30)}
+                  className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
+                >
+                  1mo
                 </button>
               </div>
             </div>

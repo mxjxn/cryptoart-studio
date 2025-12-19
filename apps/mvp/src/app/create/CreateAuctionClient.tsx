@@ -995,9 +995,23 @@ export default function CreateAuctionClient() {
     try {
       const now = Math.floor(Date.now() / 1000);
       
+      // Helper function to convert datetime-local string to UTC timestamp
+      // datetime-local format is "YYYY-MM-DDTHH:mm" (no timezone info)
+      // We need to parse it as local time and convert to UTC timestamp
+      const parseDateTimeLocal = (dateTimeLocal: string): number => {
+        // datetime-local format: "YYYY-MM-DDTHH:mm"
+        // JavaScript's Date constructor interprets this as local time
+        // getTime() converts to UTC milliseconds, which is what we want
+        const date = new Date(dateTimeLocal);
+        if (isNaN(date.getTime())) {
+          throw new Error(`Invalid date format: ${dateTimeLocal}`);
+        }
+        return Math.floor(date.getTime() / 1000);
+      };
+      
       // Convert datetime-local to Unix timestamp (seconds)
       const startTime = effectiveFormData.startTime 
-        ? Math.floor(new Date(effectiveFormData.startTime).getTime() / 1000)
+        ? parseDateTimeLocal(effectiveFormData.startTime)
         : effectiveFormData.listingType === "OFFERS_ONLY" 
           ? now + 60 // OFFERS_ONLY requires startTime in future, default to 1 minute from now
           : 0; // 0 means start immediately on first bid/purchase
@@ -1052,7 +1066,7 @@ export default function CreateAuctionClient() {
             console.log(`[CreateListing] startTime=0 with duration provided: Using duration ${endTime}s (${Math.floor(endTime / 86400)} days)`);
           } else {
             // endTime is a date string - convert it to a duration from now
-            const absoluteEndTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+            const absoluteEndTime = parseDateTimeLocal(effectiveFormData.endTime);
             endTime = Math.max(0, absoluteEndTime - now);
             
             // Safety check: if duration is unreasonably large (> 6 months), cap it
@@ -1072,7 +1086,17 @@ export default function CreateAuctionClient() {
             console.warn(`[CreateListing] startTime set but endTime is duration string - converting to timestamp: ${endTime}`);
           } else {
             // endTime is a date string - use it as absolute timestamp
-            endTime = Math.floor(new Date(effectiveFormData.endTime).getTime() / 1000);
+            endTime = parseDateTimeLocal(effectiveFormData.endTime);
+            
+            // Log the conversion for debugging
+            const duration = endTime - startTime;
+            const durationDays = duration / 86400;
+            console.log(`[CreateListing] Parsed dates - startTime: ${startTime} (${new Date(startTime * 1000).toISOString()}), endTime: ${endTime} (${new Date(endTime * 1000).toISOString()}), duration: ${duration} seconds (${durationDays.toFixed(2)} days)`);
+            
+            // Warn if duration seems suspiciously short (less than 1 hour) when user likely intended longer
+            if (duration > 0 && duration < 3600) {
+              console.warn(`[CreateListing] WARNING: End time is only ${Math.floor(duration / 60)} minutes after start time. This might be a date entry error.`);
+            }
           }
         }
       } else {
