@@ -1586,8 +1586,13 @@ export default function AuctionDetailClient({
   // effectiveEndTime and effectiveEnded already calculated above (moved up for use in showControls)
   
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
-  // Both seller and winner can finalize when auction has ended
-  const canFinalize = isConnected && effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (isOwnAuction || isWinner);
+  // For INDIVIDUAL_AUCTION: Both seller and winner can finalize when auction has ended
+  // For FIXED_PRICE: Seller can finalize when listing has ended to reclaim unsold items
+  const canFinalize = isConnected && effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (
+    auction.listingType === "INDIVIDUAL_AUCTION" 
+      ? (isOwnAuction || isWinner)  // Auctions: seller or winner
+      : isOwnAuction  // Fixed price: only seller
+  );
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
 
   // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
@@ -1944,8 +1949,11 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Finalize Auction Button (for ended auctions) - Only for INDIVIDUAL_AUCTION, Hidden if cancelled */}
-        {effectiveEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && auction.status !== "FINALIZED" && (isOwnAuction || isWinner) && (
+        {/* Finalize Button (for ended listings) - For INDIVIDUAL_AUCTION (seller or winner) and FIXED_PRICE (seller only), Hidden if cancelled */}
+        {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (
+          (auction.listingType === "INDIVIDUAL_AUCTION" && (isOwnAuction || isWinner)) ||
+          (auction.listingType === "FIXED_PRICE" && isOwnAuction)
+        ) && (
           <div className="mb-4">
             <button
               onClick={handleFinalize}
@@ -1958,8 +1966,10 @@ export default function AuctionDetailClient({
                 ? isConfirmingFinalize
                   ? "Confirming..."
                   : "Finalizing..."
-                : isWinner
+                : auction.listingType === "INDIVIDUAL_AUCTION" && isWinner
                 ? "Finalize & Claim NFT"
+                : auction.listingType === "FIXED_PRICE"
+                ? "Finalize Listing"
                 : "Finalize Auction"}
             </button>
             {finalizeError && (() => {

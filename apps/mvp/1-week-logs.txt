@@ -1,0 +1,2362 @@
+commit 6d8ad31e4bd7f55450b5ce2fe97148a791375817
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 14:24:15 2025 -0500
+
+    fix finalize button showing for unstarted auctions and curate page infinite loop
+    
+    - Fix finalize auction button incorrectly showing for startTime=0 auctions with no bids
+    - Set effectiveEndTime to null for unstarted start-on-first-bid auctions
+    - Only show finalize button when auction has started AND ended
+    - Fix React error #310 infinite loop on curate page in mini-app
+    - Remove router from useEffect dependencies (router.replace is stable)
+    - Add useRef guard to prevent multiple redirects
+
+commit 48bf2ac1d6babfa40e86e1e08ef7ed537d102560
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 13:29:37 2025 -0500
+
+    fix gallery loading state and finalized auctions in collected tab
+    
+    - Fix gallery pages showing 'gallery not found' flash by properly handling loading states
+    - Filter finalized auctions out of active bids tab
+    - Add finalized auction wins to collected tab
+    - Fix API routes to properly resolve usernames to addresses for gallery lookups
+    - Add URL decoding for gallery slugs and identifiers
+    - Fix TypeScript errors with proper type assertions
+
+commit ec5265f4896082ad34bc042299b958d08fc6daae
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 13:08:41 2025 -0500
+
+    fix finalized auction status in profile active bids and redesign gallery OG image
+    
+    - Fix getListingDisplayStatus to check both status field and finalized boolean flag
+    - Add finalized field to AuctionData and EnrichedAuctionData type definitions
+    - Redesign gallery OG image with 3-image closeup layout (full height, side by side)
+    - Apply listing page image processing lessons: WebP to PNG conversion, Vercel Blob handling, caching
+    - Add double gradient overlays (top/bottom) with 30% base overlay for text readability
+    - Images flow to edges with 2px black margins between them
+
+commit d1f83513ee72024bee24da4e4204538174a36d5d
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 12:53:48 2025 -0500
+
+    format price in notifications
+
+commit 372afef99fc0ac8614ea85f6b238a9b81a3ab17c
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 12:46:51 2025 -0500
+
+    finalize state shows after finalization
+
+commit dba75c9bf0dd27d347adbb792ca8a3dd0582ebe2
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 12:41:02 2025 -0500
+
+    finalizing time bug for embeds
+
+commit 663b71be6575a061db94ed1dfd2b93813a3c410b
+Merge: 266cfb0 0b1db3d
+Author: Max Jackson <modulations@gmail.com>
+Date:   Mon Dec 15 11:02:20 2025 -0500
+
+    Merge pull request #42 from mxjxn/better-opengraph-image-1
+    
+    Better opengraph image 1
+
+commit 0b1db3d67c6b26ffbd145942f1f440a8aea941a0
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 10:53:38 2025 -0500
+
+    fontsize change
+
+commit e2ce3bac43d4734ba49abf1a8ebac8a8df80e3ad
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 10:50:09 2025 -0500
+
+    og-image layout change for lstings
+
+commit 605c552b8b8c45f80ac9369da8f699f265dfe35e
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 10:42:36 2025 -0500
+
+    redesigning og-image for listings
+
+commit b30f2e7c38c2cfa81d583277832a5c798aeb0a14
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 10:33:17 2025 -0500
+
+    chore: add trailing newlines (formatter)
+
+commit 266cfb0c21bd90ff92a352f792ae00768b10a628
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 10:31:26 2025 -0500
+
+    Fix OG image auction status for startTime=0 auctions
+
+commit 4ed485b6df930be65f7c5491ceec65e69350b409
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 08:42:58 2025 -0500
+
+    Fix market page navigation button issues
+    
+    - Replace TransitionLink with button + router.push to avoid view transition flash
+    - Add loading state to prevent multiple clicks
+    - Add visual feedback (spinner) during navigation
+    - Add timeout to reset navigation state if navigation fails
+
+commit 9f9040e448dc2331636675a6139d27b34d3da3e9
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 08:39:24 2025 -0500
+
+    Fix market page status for start-on-first-bid auctions
+    
+    Fix isEnded calculation in RecentListingsTable to properly handle start-on-first-bid auctions where endTime is a duration, not a timestamp. Only check if auction has ended after it has started.
+
+commit c650bc2506639cb82522d4f4a9939a291274cffc
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 08:30:26 2025 -0500
+
+    Fix start-on-first-bid status and OG listing fetch
+
+commit 332ba37ea031a8370984fac3c70e16da7ba8bbe0
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 15 08:09:05 2025 -0500
+
+    Add OG image cache invalidation and refresh support
+    
+    - Add ?refresh=true query parameter to homepage and market OG image routes
+    - When refresh=true: bypasses in-memory cache, database image cache, and CDN caching
+    - Create clear-image-cache.ts script to clear both image_cache and thumbnail_cache tables
+    - Add npm script 'clear-image-cache' with options for selective clearing
+    - Allows on-demand OG image regeneration without breaking caching system
+
+commit 6c23888157d8837d4869db968567b1806460b625
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 18:48:01 2025 -0500
+
+    Add market page OG image route with all optimizations
+    
+    - Create OG image route for /market page
+    - Apply all learnings from listing/homepage OG images:
+      - WebP to PNG conversion for ImageResponse compatibility
+      - Vercel Blob thumbnail detection and conversion
+      - Proper cache headers from constants
+      - Data URL validation before use
+      - Image scaling via processMediaForImage
+      - Better error handling and fallback images
+    - Fetches recent listings from browse API
+    - Displays 5 listing cards in OG image
+    - Uses system-ui font (fonts disabled for nodejs runtime compatibility)
+
+commit 8b44c607996fc16c9d4f57b66cdd18ba19fcae27
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 18:42:20 2025 -0500
+
+    Improve homepage image quality and fix homepage OG image embed
+    
+    - Add 'homepage' thumbnail size (800x800px) for better quality on homepage cards
+    - Increase 'small' thumbnail size from 200x200 to 400x400px
+    - Increase WebP quality from 85% to 92% for better art quality
+    - Update homepage to use 'homepage' size thumbnails
+    - Fix homepage OG image embed with WebP to PNG conversion
+    - Add Vercel Blob thumbnail detection and conversion
+    - Use proper cache headers from constants
+    - Validate data URLs before using in ImageResponse
+    - Increase MAX_IMAGE_SIZE to 5MB (matching listing page)
+    - Handle data URIs directly without fetching
+
+commit 7151244f3fadc6dbe7616f8bf5e972cd4acfc883
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 18:34:55 2025 -0500
+
+    Fix auction finalization UI and OG image status calculation
+    
+    - Optimistically update auction status to FINALIZED after transaction confirmation
+    - Poll subgraph for finalization status update (handles indexing delays)
+    - Fix OG image status calculation for startTime=0 auctions (handle duration vs timestamp)
+    - Correctly calculate actualEndTime for auctions that start on first bid
+    - Fixes seller seeing finalize button after successfully finalizing
+    - Fixes OG images incorrectly showing auctions as Ended when they're still active
+
+commit 373e6f64dab251fc813e2d81194e22626e3a019e
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 18:07:36 2025 -0500
+
+    Optimize OG image cache headers per Farcaster recommendations
+    
+    - Add OG_IMAGE_CACHE_CONTROL_SUCCESS and OG_IMAGE_CACHE_CONTROL_ERROR constants
+    - Add 'immutable' and 'no-transform' directives for better CDN caching
+    - Reduce error image cache from 5min to 60s to prevent stuck error images
+    - Centralize cache configuration in constants.ts for easier maintenance
+    - Follow Farcaster Mini App sharing best practices
+
+commit b246d7f1d9a3393373cdff7ae8ce7835b871b193
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:55:26 2025 -0500
+
+    Fix OG image 500 errors: Convert WebP data URLs to PNG for ImageResponse compatibility
+    
+    - ImageResponse (Satori) doesn't support WebP data URLs, only PNG/JPEG
+    - Add convertWebPDataUrlToPNG function to convert WebP to PNG using sharp
+    - Convert WebP thumbnails to PNG when fetching from Vercel Blob
+    - Convert cached WebP images to PNG before using in ImageResponse
+    - Fixes 500 errors when rendering OG images with WebP thumbnails
+
+commit 8cb17bde01fbe8431adfa307602cb05c515f896c
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:43:31 2025 -0500
+
+    Optimize OG image generation: scale images and use Vercel Blob thumbnails efficiently
+    
+    - Add image scaling to processMediaForImage to ensure images are max 1200px for OG images
+    - Scale images progressively with compression to keep data URLs under 2MB limit
+    - Detect and use Vercel Blob thumbnail URLs directly without re-processing
+    - Skip unnecessary scaling for already-optimized WebP thumbnails
+    - Update extractVideoFrame and extractGifFrame to return buffers and scale during extraction
+    - Fixes 500 errors for listings with large images (27MB+) by scaling before data URL conversion
+
+commit 6e802634a1ef86c421caf31f15cfd97f31de1d01
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:30:39 2025 -0500
+
+    Improve image rendering in OG image and add fallback
+    
+    - Add display: flex to img style to ensure it renders
+    - Add fallback 'No Image' text if artworkImageDataUrl is missing
+    - Add background color to image container for better visibility
+    - This should help debug why the NFT image isn't showing
+
+commit 102b91ee58a7a8c3e37c9dabf9d9cf93bcbc2f7e
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:30:24 2025 -0500
+
+    Keep fonts disabled and improve image debugging
+    
+    - Keep custom fonts disabled (causes 'u2 is not iterable' error in nodejs runtime)
+    - Add more detailed logging for artwork image to debug why it's not showing
+    - Log image data URL prefix and validity check
+    - This will help identify if the image data URL is the issue
+
+commit 6fb1b978dfad74e30d611336b87c92344abe7663
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:16:23 2025 -0500
+
+    Update all fontFamily references to use system-ui
+    
+    - Replace all MEK-Mono font references with system-ui
+    - This completes the font disabling for debugging the streaming error
+
+commit e5b8e2b9f87f77b999392de57f77eeaed61e4ae5
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:16:15 2025 -0500
+
+    Temporarily disable custom fonts to debug OG image streaming error
+    
+    - Disable MEK-Mono font loading to test if fonts are causing 'u2 is not iterable' error
+    - Use system-ui font instead
+    - This will help isolate if the error is font-related or something else
+    - Fonts can be re-enabled once the root cause is identified
+
+commit cca45656990918620ebdc1b1841e3314b40eafc0
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:15:57 2025 -0500
+
+    Add font ArrayBuffer validation and error handling
+    
+    - Validate fontData is a valid ArrayBuffer with byteLength > 0 before using
+    - Wrap font addition in try-catch to prevent font errors from breaking the entire response
+    - Add logging to help debug font-related issues
+    - This may help fix the 'u2 is not iterable' error if it's related to font handling
+
+commit ad65b4d2d5d1af720da5195a8aa5adf31becc9c4
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 17:15:30 2025 -0500
+
+    Add defensive checks and string conversion for OG image JSX
+    
+    - Ensure all JSX values are properly converted to strings
+    - Add null checks for listingDetails array and items
+    - Simplify conditional rendering to avoid potential iteration issues
+    - This may help fix the 'u2 is not iterable' error during ImageResponse streaming
+
+commit 45cbae5ab1b29a25832dee214ca411d951df865f
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 16:58:27 2025 -0500
+
+    Fix ended auction notifications for start-on-first-bid auctions
+    
+    - Add startTime to ENDED_AUCTIONS_QUERY to detect start-on-first-bid auctions
+    - Filter out start-on-first-bid auctions that haven't started (startTime=0, no bids)
+    - Calculate actualEndTime for start-on-first-bid auctions that have started:
+      - If endTime is a duration (<= 1 year), calculate from firstBidTimestamp + endTime
+      - If endTime is a timestamp (> 1 year), use it directly
+    - Only send notifications for auctions that have actually ended
+    - This fixes false notifications for start-on-first-bid auctions that haven't ended yet
+
+commit 828c8fafaa7def57f1053587e34d0222d56871cd
+Merge: a4b9856 f940766
+Author: Max Jackson <modulations@gmail.com>
+Date:   Sun Dec 14 16:55:50 2025 -0500
+
+    Merge pull request #41 from mxjxn/copilot/investigate-og-image-issue
+    
+    Fix og-image 500 errors: add nodejs runtime to routes using media processing
+
+commit f940766d8568c0ede1f9c5c0c11f545e9dc61d6c
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Sun Dec 14 20:01:03 2025 +0000
+
+    Fix: Add nodejs runtime to prerender API route for consistency
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 4efd22e41a3a4890efbee1a50bd49d8b7f881035
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Sun Dec 14 19:58:32 2025 +0000
+
+    Fix: Add nodejs runtime to all og-image routes using media processing
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 4c4d7c98c06bcdf6145c04772b8ba66b1e3c55d1
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Sun Dec 14 19:57:13 2025 +0000
+
+    Fix: Add nodejs runtime to listing og-image route to support media processing
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 3f8d55195f6d6a526581a875898ed2a90f8810da
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Sun Dec 14 19:49:50 2025 +0000
+
+    Initial plan
+
+commit a4b98562f6b6e2bc0fb1447af7da0fd8e6304753
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 14:37:13 2025 -0500
+
+    Fix GraphQL query: Remove non-existent highestBid field from subgraph queries
+    
+    - Removed highestBid field from ENDED_AUCTIONS_QUERY (field doesn't exist in subgraph)
+    - Updated code to use bids[0] instead of highestBid (bids are ordered by amount desc)
+    - Fixed processEndedAuctions to get winning bid from bids array
+    - Fixed processFavoriteEndingSoon to use bids array for current bid
+    - Added timestamp field to bids query for consistency
+    - This fixes the 'Type Listing has no field highestBid' error in cron jobs
+
+commit 6e0c88db9a3a3a4344e3b5f2d5249d03e4ee9cc2
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 14:25:35 2025 -0500
+
+    Improve error handling and logging for OG image streaming errors
+    
+    - Add more detailed error logging in outer catch block with error name
+    - Wrap fallback ImageResponse in try-catch to handle cascading failures
+    - Add listingId to all error logs for better debugging
+    - This should help identify if errors are happening during ImageResponse streaming/rendering
+
+commit 485027485d55c6f34ee10b3690c7b67cd3eeee4c
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 14:17:03 2025 -0500
+
+    Add data URL validation and return error handling for OG images
+    
+    - Validate data URL format (must start with 'data:image/')
+    - Add logging for data URL prefix to help debug format issues
+    - Add try-catch around ImageResponse return to catch streaming errors
+    - This should help identify if the error is during ImageResponse creation or streaming
+
+commit 8ff9fd2c744ee47369d479b2fc379ae08cda94e4
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 13:41:31 2025 -0500
+
+    Add detailed error handling and logging for OG image ImageResponse
+    
+    - Add validation to check if data URL is too large (>2MB) before using in ImageResponse
+    - Add detailed logging before ImageResponse creation with all relevant data
+    - Add specific try-catch around ImageResponse creation with detailed error logging
+    - Add success log after ImageResponse is created
+    - This will help identify exactly where the 500 error is occurring
+
+commit d7045b9a690add88fe19a774f4bb2c45d966cccd
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 13:26:47 2025 -0500
+
+    Fix FIXED_PRICE listing status for startTime=0
+    
+    - For FIXED_PRICE listings with startTime=0, endTime is a duration, not a timestamp
+    - Cannot determine if listing has ended without creation timestamp
+    - Default to 'active' for safety (listing page has more info to show correct status)
+    - This fixes the issue where buy-now listings show 'ended' chip incorrectly
+
+commit eca943a4128e7706be1dd59b452bfdbfb9129c6a
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 13:18:41 2025 -0500
+
+    Fix OG image fonts array handling and add OG image readiness check
+    
+    - Only include fonts property in ImageResponse options when font data exists
+    - Don't pass undefined or empty arrays - omit the property entirely
+    - This should fix the 'u2 is not iterable' error in Next.js ImageResponse
+    - Added OG image readiness check in ShareImageCookingModal before allowing share
+    - Improved error handling to distinguish fetch errors from 'not found'
+    - Increased timeout to 10 seconds for slow subgraph responses
+
+commit b49dc8e8993b96ccf21c4e8ce8ad854f1d0c08b1
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 13:14:20 2025 -0500
+
+    Improve OG image error handling and timeout
+    
+    - Increased auction fetch timeout from 5s to 10s (subgraph can be slow)
+    - Added explicit error handling for getAuctionServer errors
+    - Distinguish between 'fetch error' and 'not found' - show error image for fetch errors
+    - Added better logging to debug 'Listing Not Found' issues
+    - This should fix cases where listing exists but fetch fails or times out
+
+commit 1e2f3da46201d8b17d9e96cddb5e55d5620ecc0b
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 13:04:21 2025 -0500
+
+    Fix OG image embed rendering error - fonts array handling
+    
+    - Changed fonts from empty array [] to undefined when no font data
+    - Only include fonts option in ImageResponse when font data exists
+    - Made ImageResponse options type-safe with explicit typing
+    - This should fix the 'u2 is not iterable' error in Next.js ImageResponse
+    - Applied fix to both main response and 'Listing Not Found' response
+
+commit 3f6173de6a54db6f3c4137078c950c1e7cc0c3d0
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:53:31 2025 -0500
+
+    Fix infinite render loop after updating listing from 180-day issue
+    
+    - Added useRef to track if modification confirmation has been handled
+    - Prevents useEffect from running multiple times when isModifyConfirmed is true
+    - The issue was that refetchAuction function reference changes on every render
+    - This caused the useEffect to re-run repeatedly, creating an infinite loop
+    - Now the effect only runs once per modification confirmation
+    - Resets the ref when isModifyConfirmed becomes false for new transactions
+
+commit 48c4d0006290e395d31b62f9f4b41796a8cc3b5d
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:50:53 2025 -0500
+
+    Fix listing OG image embeds not rendering
+    
+    - Fixed error handling to ensure listingId is accessible in error handler
+    - Made font loading non-blocking - route continues even if font fails to load
+    - Use system-ui as fallback font if custom font can't be loaded
+    - Fixed TypeScript error where fontData could be null
+    - Improved error messages to include listing ID when available
+    - OG images should now render properly even if font loading fails
+
+commit 814467e225724a3ada12ce55adf09756c5309e21
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:40:18 2025 -0500
+
+    Fix live bids section not showing active start-on-first-bid auctions
+    
+    - Fixed endTime comparison logic in getLiveBids function
+    - For start-on-first-bid auctions (startTime=0), endTime is a duration, not a timestamp
+    - Added actualEndTime calculation similar to AuctionCard and AuctionDetailClient
+    - This prevents active auctions from being incorrectly filtered out as 'ended'
+    - Live bids section should now show all active auctions with bids
+
+commit daa0e07644c2ef4ab5f912b07778ed18b20be120
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:35:23 2025 -0500
+
+    Fix admin dashboard stuck in loading state
+    
+    - Added 5-second timeout to useIsAdmin hook to prevent infinite loading
+    - If wallet connection is stuck in connecting/reconnecting state, timeout will allow admin check to proceed
+    - This prevents the admin dashboard from being stuck on 'Loading...' forever
+    - Admin check will proceed even if wagmi connection state is stuck
+
+commit a2f599ffd63f2438fc594837133bc679be20aa24
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:31:39 2025 -0500
+
+    Document that anyone (free or member) can create auctions
+    
+    - Added comment to CreateAuctionClient documenting that no subscription or membership is required
+    - Verified that only wallet connection is needed to create auctions
+    - Anyone can create auctions regardless of subscription status
+
+commit 53b85c454709db97c6070a15839f7954989c0e29
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:26:40 2025 -0500
+
+    Add timeout and improved error logging for metadata fetching
+    
+    - Add 10-second timeout to metadata fetching to prevent hanging
+    - Improve error logging to include listing ID and status for debugging
+    - Applied to both regular and streaming browse listings
+    - This should help identify why concluded auctions might not be loading images
+    - Timeout prevents metadata fetching from blocking other listings
+
+commit e031efee5b7d62c45bc77d394b4dcd893258f994
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:21:24 2025 -0500
+
+    Fix homepage showing 'Ended' chip for active start-on-first-bid auctions
+    
+    - getListingDisplayStatus was incorrectly comparing duration (endTime) to timestamp (currentTime)
+    - For start-on-first-bid auctions that have started, endTime can be either:
+      1. A duration (in seconds) if subgraph hasn't updated yet
+      2. A timestamp if contract has already converted it
+    - Added heuristic: if endTime <= 1 year, treat as duration and default to 'active'
+    - If endTime > currentTime, treat as timestamp and return 'active'
+    - If endTime > 1 year and <= currentTime, treat as timestamp and return 'concluded'
+    - This matches the logic in AuctionDetailClient and AuctionCard
+
+commit ce2cb6c947cc190c0c6f485965db8376a27cf312
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:15:38 2025 -0500
+
+    Filter out problematic 180-day auctions from homepage
+    
+    - Exclude start-on-first-bid auctions (startTime=0) with duration > 1 month
+    - These are the problematic auctions created with the bug before the fix
+    - Applied to both regular and streaming browse listings
+    - Prevents these auctions from appearing on homepage until sellers fix them
+
+commit ffaba094db741278b54a4ef16e0b6283400da908
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:10:19 2025 -0500
+
+    Simplify blob upload to use allowOverwrite instead of head check
+    
+    - Remove head() check that may be causing blocking issues
+    - Use allowOverwrite: true to handle existing blobs gracefully
+    - This avoids 'already exists' errors without needing to check first
+    - Simpler and more reliable approach
+    - Should fix homepage not loading NFTs/editions
+
+commit bf6bff218913781fb75d5d01db96de90ca3a7dea
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:08:53 2025 -0500
+
+    Make blob head check more defensive to prevent blocking
+    
+    - Check if head function exists before using it
+    - Add 1 second timeout to head check to prevent blocking
+    - Silently continue to upload if head check fails (expected for new blobs)
+    - Remove error logging for expected not-found errors
+    - Ensure head check never breaks the upload flow
+    - Fixes potential issue where head check could block homepage loading
+
+commit 81199cafce507fb99ab96177fddb5595fa979cc4
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 12:04:34 2025 -0500
+
+    Fix thumbnail generation checking blob storage first
+    
+    - Check if blob already exists in Vercel Blob using head() before uploading
+    - Return existing blob URL if found, avoiding duplicate upload errors
+    - Use allowOverwrite: true to handle race conditions
+    - Fallback to head() in error handler if upload fails with 'already exists'
+    - Fixes homepage not loading NFTs due to blob upload failures
+
+commit c8b0df9ff49be9a94687c57bce7af5dbeb027e0d
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 11:51:20 2025 -0500
+
+    Fix AuctionCard showing 180-day auctions as ended
+    
+    - Apply same duration vs timestamp logic as AuctionDetailClient
+    - For start-on-first-bid auctions (startTime=0), endTime is a duration, not timestamp
+    - Calculate actualEndTime by adding duration to auction start timestamp
+    - Use actualEndTime for isEnded check and countdown to prevent false 'Ended' status
+    - Fixes home page incorrectly showing 180-day auctions as ended
+
+commit 516f6dd72151726f95a3248db131537f752900c3
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 11:12:03 2025 -0500
+
+    Add UI to fix 180-day duration issue for sellers
+    
+    - Detect auctions with startTime=0 and endTime=180 days (15552000 seconds)
+    - Disable bid buttons when 180-day issue is detected
+    - Show Fix180DayDurationForm for sellers with quick options (1, 2, 3 days, 1 week)
+    - Show warning message for buyers when bidding is disabled
+    - Submit duration in seconds to modifyListing contract function
+    - Auto-refetch auction data after successful fix to re-enable bidding
+    - Clear feedback and straightforward UI for sellers to fix their listings
+
+commit d0e1de534b31e1dfaac897188c6e727428a4df21
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 10:59:52 2025 -0500
+
+    Fix auction creation default duration and duration string handling
+    
+    - Change default duration for start-on-first-bid auctions from 180 days to 7 days
+    - Fix handling when endTime is already a duration string (from DurationSelector)
+    - Detect if endTime is a number string (duration) vs date string
+    - Use duration directly when provided as number string instead of parsing as date
+    - Prevents 180-day default when user selects 'Begin on first bid' with duration
+
+commit 7a4c50c85b13bb58568d36e2cc70ee178f58a91c
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 10:51:58 2025 -0500
+
+    Fix end time detection for start-on-first-bid auctions
+    
+    - Detect if endTime is already converted to timestamp by contract
+    - When startTime=0 and auction has started, check if endTime > now
+    - If endTime > now, use it directly (contract already converted it)
+    - If endTime <= now, calculate it (subgraph not updated yet)
+    - Fixes issue where auction showed 180 days remaining incorrectly
+
+commit 3d5262b21b321ff03408c38635084933b005af7a
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 10:43:11 2025 -0500
+
+    Fix end time calculation for start-on-first-bid auctions
+    
+    - When startTime=0, endTime is a duration (seconds), not a timestamp
+    - Calculate actualEndTime by adding duration to auction start timestamp
+    - Use highest bid timestamp if available, otherwise current time
+    - Fixes issue where auction incorrectly showed as ended immediately after first bid
+    - Update isEnded, isActive, and time status display to use calculated end time
+    - Update finalization logic to use calculated end time
+
+commit 9ca3b3b46a382c77673b6b35c544e996952d1f7c
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 10:34:18 2025 -0500
+
+    Fix bid button for start-on-first-bid auctions
+    
+    - Enable bid button for start-on-first-bid auctions (startTime = 0)
+    - Previously disabled button incorrectly when auction hadn't started
+    - Now allows users to place first bid to start the auction
+    - Only disables button for auctions with future startTime (startTime > 0 && now < startTime)
+
+commit 6af8a2a00931ab716fd84015f83a016eab8007fa
+Author: MXJXN <modulations@gmail.com>
+Date:   Sun Dec 14 10:25:57 2025 -0500
+
+    Add collector profile share link feature and fix Buy Now button for fixed price listings
+    
+    - Add collector profile share route with OG image generation
+    - Add share button to collected tab in profile
+    - Generate OG images showing collector stats (items purchased, total spent, artists supported)
+    - Support tab query param in user profile for direct linking to collections
+    - Fix Buy Now button being disabled for fixed price listings (was incorrectly using auction start logic)
+    - Handle user resolution (username vs address) with fallbacks
+
+commit 9395250d9cecab2b5dffbb9371a421bb66a439d9
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 23:56:30 2025 -0500
+
+    Fix memory leaks: add cleanup for setTimeout calls and event listeners
+    
+    - Fix setTimeout leaks in AuctionDetailClient (approval, cancel, finalize, bid, purchase effects)
+    - Fix setTimeout leak in LinkShareButton using useRef
+    - Fix setTimeout leak in VideoPlayer using useRef
+    - Fix setTimeout leak in AdminContextMenu
+    - Fix cleanup issue in ModelViewer where cleanup was returned from inside setTimeout
+
+commit 1e0bed97bf772bdcefef4c0e58a04a22c3579641
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 23:44:33 2025 -0500
+
+    feat: add clickable link to listing ID on admin/listings page
+    
+    - Make listing ID a clickable link to the listing detail page
+    - Opens in new tab for easy navigation
+    - Styled as blue link with hover effects
+    - Improves admin UX for quick access to listing details
+
+commit 9841747ce08547019ae482bd78ec575a970d439a
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 23:42:38 2025 -0500
+
+    feat: sort admin listings by latest first (descending order)
+    
+    - Change sort order from ascending to descending by listingId
+    - Latest listings (highest ID) now appear at the top
+    - Makes it easier to see most recent listings first
+
+commit 86eae2bb2b3c90cba7041ed03cd46461437f8205
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 23:40:49 2025 -0500
+
+    feat: add checkbox to filter out cancelled listings on admin/listings page
+    
+    - Add 'Hide Cancelled' checkbox that filters out CANCELLED listings
+    - Checkbox is checked by default to hide cancelled listings
+    - Update listing count to reflect filtered results
+    - Improves admin UX by reducing clutter from cancelled listings
+
+commit 6ac5e998e99e7eda98364f4821ba84fa92b46c6f
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 23:26:25 2025 -0500
+
+    fix: properly handle strings in streaming JSON parser
+    
+    - Track when parser is inside a string to avoid counting braces in strings
+    - Handle escape sequences properly in JSON strings
+    - Fixes issue where NFTs and Editions weren't loading on homepage
+    - Parser now correctly identifies complete JSON objects even with complex strings
+
+commit e618c50b8df887b85cf1c10dd4bf8bcf7eda9230
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 23:04:22 2025 -0500
+
+    fix: use streaming API for market page to improve load time
+    
+    - Enable streaming mode for market page listings fetch
+    - Parse listings incrementally as they arrive instead of waiting for all
+    - Significantly improves perceived load time, especially for first page
+    - Uses same streaming approach as homepage for consistency
+
+commit f2d665295620385351e44f550509e95a1a337584
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:55:30 2025 -0500
+
+    fix: show auction controls even when auction hasn't started
+    
+    - Show bid/purchase/offer controls even when auction hasn't started yet
+    - Display disabled controls with helpful messages about when auction starts
+    - Fixes issue where controls were completely missing when logged in on web
+    - Controls now visible for all active listings, not just those that have started
+
+commit 6890253a1a35c0218dbcf03c39246d5d4d347228
+Merge: 72819d8 bf4ef64
+Author: Max Jackson <modulations@gmail.com>
+Date:   Sat Dec 13 22:51:37 2025 -0500
+
+    Merge pull request #40 from mxjxn/feature/streaming-listings-and-cache-fixes
+    
+    Feature/streaming listings and cache fixes
+
+commit bf4ef64e98437b628f3f3cea50c8919d14ac3397
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:51:09 2025 -0500
+
+    fix: validate listingId match and add fallback query
+    
+    - Add validation to ensure returned listing matches requested listingId
+    - Prevents old cancelled listings from being returned for new listings
+    - Add fallback query by listingId field if entity id query fails/mismatches
+    - Fix isEnded logic to check if auction has started first
+    - Prevents newly created listings from showing as 'ended' before they start
+
+commit 0e9d0ac9af30846231b143c35c7d82063ffe4712
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:46:00 2025 -0500
+
+    fix: check if auction has started before marking as ended
+    
+    - Fix bug where newly created listings show as 'ended' before they start
+    - Only consider auction ended if it has actually started
+    - For startTime=0 auctions, check if there's a bid
+    - For startTime>0 auctions, check if startTime has passed
+    - Fixes issue where cancelling and recreating listing shows wrong status
+
+commit a7e24e13c04039c3685f819bdb8e9dd80b0475f1
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:43:17 2025 -0500
+
+    fix: add missing browseListings import
+
+commit 8193c82ae4b1a0fdf66e0b590a636ea8a8aaabef
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:41:00 2025 -0500
+
+    fix: TypeScript error in headers type for streaming response
+
+commit ba65680a7d2e251962badf61bbec1f3a9f8a3e41
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:39:06 2025 -0500
+
+    feat: streaming listings, cache improvements, and bug fixes
+    
+    - Add streaming API for incremental listing loading
+    - Update client to render listings as they arrive
+    - Increase cache to 5 minutes for faster loads
+    - Fix cancelled listings appearing in homepage sections
+    - Remove 'cannot finalize' bug notice code
+    - Fix menu click area overlap on cards
+    - Add visibility/focus refetch for fresh data
+
+commit 72819d8eaddfe9baae6d9bec39eb6cf8bf6cb80f
+Merge: 89f7651 1f10f5b
+Author: Max Jackson <modulations@gmail.com>
+Date:   Sat Dec 13 22:10:28 2025 -0500
+
+    Merge pull request #39 from mxjxn/admin-all-listings-view
+    
+    Admin all listings view
+
+commit 1f10f5ba9d973b597081de8741ceaff9f809e4fc
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 22:09:26 2025 -0500
+
+    event propagation error on menu click
+
+commit b649d0051eb15adabeca1df11448639e132788e5
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 21:58:50 2025 -0500
+
+    Add recent listings section type to homepage
+    
+    - Add 'recent_listings' section type to homepage layout system
+    - Create RecentListingsSection component showing latest 6 listings
+    - Display format: listing title and 'by @creator' for each item
+    - Includes 'View all' button linking to /market
+    - Filter out only cancelled listings (includes finalized listings)
+    - Filter out hidden users
+
+commit 27ab38be896d0413236b151979212440a0169df7
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 21:28:36 2025 -0500
+
+    Add galleries tab to public profile pages
+    
+    - Remove admin-only restriction from ProfileGalleriesSection component
+    - Make galleries tab visible to all users on profile pages
+    - Update empty state message to be neutral for public viewing
+    - Galleries tab now shows all published galleries for any user
+
+commit 89f7651989851684121c9b6df3bc299b7f6b0ad5
+Merge: eec8ed8 095706f
+Author: Max Jackson <modulations@gmail.com>
+Date:   Sat Dec 13 21:02:09 2025 -0500
+
+    Merge pull request #38 from mxjxn/admin-all-listings-view
+    
+    Admin all listings view
+
+commit 095706f33c9fbcfad9e158b5f5d7a9b217c56cb4
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 21:01:23 2025 -0500
+
+    Fix: Allow re-listing NFTs after auctions end
+    
+    - Added endTime to check-token query to filter out ended listings
+    - Users can now re-list NFTs after auction endTime has passed, even if listing hasn't been finalized
+    - Fixes issue where users were blocked from re-listing their NFTs
+
+commit 0a4d0ad3ee37f5635c6e96422cd262a4695450ae
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 20:18:17 2025 -0500
+
+    Fix naming conflict: rename request parameter to req
+
+commit 3015c25fd9e1242b206bcb830f93171e72f00fa8
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 20:17:44 2025 -0500
+
+    Add /dev/ prefix to bypass maintenance mode
+    
+    - Allow /dev/ routes to bypass maintenance mode
+    - Rewrite /dev/* to /* to serve actual pages
+    - Useful for developers to access site during maintenance
+
+commit a7f0747cac24f6726736d7637b0ef2d50a2d9f75
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 19:49:06 2025 -0500
+
+    Fix TypeScript error: add explicit types to sort function
+
+commit 244c7b25cc5b524965d80cd7f9f10294eb3e4215
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 19:46:08 2025 -0500
+
+    Add admin all-listings view with table display
+    
+    - Create API route to fetch all listings from subgraph ordered by listingId
+    - Add admin page displaying listings in table format
+    - Show listingId, NFT type, listing type, start date, duration/end date
+    - Handle date formatting: if startTime is 0, endTime is duration; otherwise both are timestamps
+    - Add Listings tab to admin navigation
+
+commit eec8ed89e9c27ffb34ca2b3091dbdf79a7e4fca8
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 18:59:03 2025 -0500
+
+    Enable maintenance mode - redirect all pages to maintenance
+
+commit 2ea7518df7eabac9a72184e29775ca442414627d
+Author: MXJXN <modulations@gmail.com>
+Date:   Sat Dec 13 18:52:01 2025 -0500
+
+    Add maintenance mode page with logo
+
+commit 48c131227f5006acc5c9716e85848b0afa98bee4
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 23:13:50 2025 -0500
+
+    Fix time display for start-on-first-bid auctions
+    
+    - Detect when endTime is an absolute timestamp (bug case) vs duration
+    - Don't display time remaining for startTime=0 auctions that haven't started (can't know when auction starts)
+    - Don't display misleading time remaining for buggy endTimes (> 10 years in future)
+    - Prevents displaying '50+ years remaining' for auctions with startTime=0 and absolute timestamps
+
+commit c0a33641b9ff0ec832234296efbd061cdc5756bd
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 23:00:05 2025 -0500
+
+    Fix React Hooks order violation in AuctionDetailClient
+    
+    - Move at-risk listing detection and useEffect hook before early returns
+    - Ensure all hooks are called in consistent order on every render
+    - Fix 'Rendered more hooks than during the previous render' error
+    - Calculate at-risk status early to avoid conditional hook execution
+
+commit 6427098a15b74b58fb09d3e9fd2a4fb365cbe141
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 22:33:31 2025 -0500
+
+    Update comment to reflect 6-month limit
+
+commit 227f512ec506f4b877c7bf11f0cef385cc27e596
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 22:33:21 2025 -0500
+
+    Change maximum auction duration from 10 years to 6 months
+    
+    - Updated SAFE_DURATION_10_YEARS to SAFE_DURATION_6_MONTHS (15,552,000 seconds)
+    - Changed MAX_REASONABLE_YEARS to MAX_REASONABLE_MONTHS (6 months)
+    - Updated all validation messages and warnings to reflect 6-month limit
+    - Updated comments and user-facing messages
+
+commit b2b5de548d58e7d6fe9564981271cd1940785c8d
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 22:28:42 2025 -0500
+
+    Add special fix for at-risk listings (startTime=0 with absolute endTime)
+    
+    - Detect at-risk listings: startTime=0, endTime > 1 year (absolute timestamp), no bids
+    - Disable bidding tools for at-risk listings to prevent bug from triggering
+    - Auto-show UpdateListingForm for sellers of at-risk listings
+    - Hide cancel button in update form for at-risk listings (must fix)
+    - Convert absolute timestamps to durations in handleUpdateListing when startTime=0
+    - Show warning message explaining the issue and required fix
+    - UpdateListingForm already enforces 10-year maximum limit
+    
+    This prevents the bug where absolute timestamps are treated as durations,
+    causing endTime to become way in the future when first bid is placed.
+
+commit 64df2716a58f4f056d218126dcf12881f14890bf
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 22:01:09 2025 -0500
+
+    Fix detection logic in affected listings script
+
+commit 6a6596390026a0b77531592d85eb50d920218607
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 22:00:00 2025 -0500
+
+    Add script and report for affected listings (startTime=0 bug)
+    
+    - Created script to identify listings affected by the startTime=0 endTime bug
+    - Found 1 affected listing: listing 6
+    - Report documents the issue and provides details for each affected listing
+
+commit 509d0f58375900a423de605140b4755e3dc5176d
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 21:54:18 2025 -0500
+
+    Fix critical bug: convert endTime to duration when startTime=0
+    
+    - When startTime=0 (starts on first bid), contract treats endTime as duration
+    - Frontend was sending absolute timestamp, causing contract to add block.timestamp to an already-absolute value
+    - This created invalid endTime values (e.g., year 2081) preventing finalization
+    - Now converts user-provided endTime to duration (endTime - now) when startTime=0
+    - Also improved error handling in AuctionDetailClient to detect and explain this issue
+    - Added warning UI when contract/subgraph endTime mismatch is detected
+
+commit 5c3dbf3c37011cd604b94906811cea491e399330
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 16:34:17 2025 -0500
+
+    lock
+
+commit 518f829f7d24b4e4d230da0d80345c9af777e0a9
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 16:09:59 2025 -0500
+
+    gallery mini-app embed fix
+
+commit 72b8c6433f778ec5fd003326b6a2c515f2371fca
+Author: MXJXN <modulations@gmail.com>
+Date:   Fri Dec 12 15:58:06 2025 -0500
+
+    Fix auction card click handling - use TransitionLink wrapper
+    
+    - Replace onClick handlers with TransitionLink wrapper for entire card
+    - Fix pointer-events on overlay to allow clicks to pass through
+    - Remove complex click/touch handling logic
+    - Remove unused router and ref imports
+    - Cards now consistently clickable from any direction
+
+commit cbac97be5d09486a5598fbab4129759999062e3f
+Merge: dce70d9 c4b9d99
+Author: Max Jackson <modulations@gmail.com>
+Date:   Fri Dec 12 15:24:24 2025 -0500
+
+    Merge pull request #36 from mxjxn/copilot/update-live-auctions-view
+    
+    Add real-time countdown timers and bidder info to auction cards
+
+commit c4b9d997724cfe6d053b1a6452da5ebff269e846
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 15:54:24 2025 +0000
+
+    Add high bid "by @name" detail to auction cards
+    
+    Shows bidder info under high bid price with priority:
+    1. @username if available
+    2. ENS name if available
+    3. 0x123...def format as fallback
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit d73ff3eea863c0e828e8c4951be98f6971ee5209
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 15:32:54 2025 +0000
+
+    Optimize countdown hook to avoid unnecessary intervals
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 2f5ea187d2d4a978c4560289a9f153e6bc791c1b
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 15:30:17 2025 +0000
+
+    Add countdown timer hook and integrate with AuctionCard
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit cb2dee56fd6035c1e6308b767f83bc3066dfae0f
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 15:22:32 2025 +0000
+
+    Initial plan
+
+commit dce70d9e08bcb2cfe53fcbd2d7b239b7f48aae2c
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 23:17:37 2025 -0500
+
+    auction-card clickkability
+
+commit 626d489d93b08ef4affc4e67e6b53cc7840d27cc
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 23:11:49 2025 -0500
+
+    Add gallery OG images with automatic pre-rendering
+    
+    - Create OG image route for gallery pages showing artwork grid
+    - Add gallery OG image pre-render utility
+    - Hook up automatic pre-rendering when items are added or gallery is updated
+    - Update gallery page metadata to include OG image URL
+    - Fix gallery/share button layout on mini-app (buttons on own line)
+    - Make AddToGalleryButton smaller to match page styling
+    - Add membership benefits section to membership page
+
+commit 4a4b60d4233902172f71c30b36269c013d85bc30
+Merge: 512b1bb 0429ef4
+Author: Max Jackson <modulations@gmail.com>
+Date:   Thu Dec 11 22:45:00 2025 -0500
+
+    Merge pull request #35 from mxjxn/copilot/assess-gallery-implementation
+    
+    Implement 3-gallery limit and listing card menu for gallery curation
+
+commit 0429ef4f55dedb4753edfa81f8d0fb879816f819
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 22:37:40 2025 -0500
+
+    Fix OG image generation and add membership-based gallery gating
+    
+    - Add media processor for video/GIF frame extraction using ffmpeg/sharp
+    - Update OG image routes to handle videos, GIFs, and large images
+    - Remove '[ no image ]' fallback - omit images entirely if unavailable
+    - Add pre-rendering system for OG images and listing cards
+    - Create AuctionCardServer/Client components for fast static rendering
+    - Gate gallery feature by membership NFT (STP_V2_CONTRACT_ADDRESS)
+    - Add database caching for membership checks to reduce onchain calls
+    - Add membership_cache table migration (0015)
+    - Fix thumbnail_cache migration ordering (0016 before 0014)
+    - Add pre-render API endpoint and batch script
+
+commit 512b1bbe458ba667e707a4b5d429874d4b7d1889
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 20:29:54 2025 -0500
+
+    Filter out ended ERC721 auctions with bids that are likely finalized (subgraph sync lag fix)
+
+commit a0eadf03ef388f741f94a251998efc096c4ecc9c
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 00:58:17 2025 +0000
+
+    refactor: Improve code quality in ListingCardMenu
+    
+    - Extract magic numbers as named constants
+    - Simplify boolean logic with intermediate variables
+    - Use inline styles for dropdown dimensions to match constants
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 9e5dfe8c29fbd98d1ef9b1954b88e9eaf43c73e1
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 00:53:52 2025 +0000
+
+    feat: Implement 3-gallery limit and integrate gallery menu into listing cards
+    
+    - Add MAX_GALLERIES_PER_USER constant (3 galleries)
+    - Enforce limit in API POST /api/curation
+    - Update CurateClient UI to show limit and disable create button
+    - Update AddToGalleryButton to show limit and display "Add to [Gallery Name]"
+    - Create ListingCardMenu component combining gallery + admin options
+    - Integrate ListingCardMenu into AuctionCard component
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 52f441cb81a6033b17d51807d48b2da678bdcbd5
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Fri Dec 12 00:48:38 2025 +0000
+
+    Initial plan
+
+commit 55b00ede020aafdd4d860ff969951410353ff7bc
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 19:37:34 2025 -0500
+
+    Add defensive checks and logging to getLiveBids for debugging
+
+commit 105c93d3934165d2e403cf4d732ee31dd62daf1e
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 19:35:56 2025 -0500
+
+    Fix getLiveBids: query subgraph directly with hasBid filter for scalability and accuracy
+
+commit dba5e24d6834301156dc2bafdad50af47f30f24c
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:47:45 2025 -0500
+
+    Fix getLiveBids: fetch 100 auctions instead of limit*2 to capture older listings with bids
+
+commit 4e5c22ce3fecb204ac17522ecd0361e91ea1fece
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:46:16 2025 -0500
+
+    Add logging and check hasBid field in getLiveBids to debug missing listings
+
+commit d4cf1b8b6beeebf9e392f278e76b4d7cc28e81bd
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:36:06 2025 -0500
+
+    Improve listing card hover: add gradient overlay and 40% black bg behind title/creator for better contrast
+
+commit 0e2a46a40583ebcafcb4d99e9a144cba00f3f372
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:31:15 2025 -0500
+
+    Fix live auctions section to include listings with startTime=0 (immediate start)
+
+commit 1253e3e416ba8af45a9ca64a8aed0389c50ea3e5
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:25:14 2025 -0500
+
+    Fix duplicate listings in market page by deduplicating on listingId when loading more
+
+commit abc8de6e7765938c8ea37add8c3204de2afef55a
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:17:12 2025 -0500
+
+    Fix upcoming_auctions section to show currently live auctions, not just future ones
+
+commit c25e45c1591b92fc3e789009572051bea4591d21
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 16:04:04 2025 -0500
+
+    Refactor admin homepage layout: use Current Homepage Sections for drag-and-drop reordering with Save/Revert buttons, remove individual row drag handles
+
+commit 24ec66a1839bedf14390439af4cdf45ecb6bfd71
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:58:51 2025 -0500
+
+    Update navigation buttons to link to filtered views for ERC721 and ERC1155
+
+commit f15cce2c250e6812a665d7e7f0735c4321580bb6
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:57:36 2025 -0500
+
+    Add navigation buttons [—>] at bottom right of grid sections
+
+commit e23ccb8264ddd1f52bc2fcf3d3577c9c4c534d9e
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:56:35 2025 -0500
+
+    Display Recent NFTs and Editions side by side on xl breakpoint
+
+commit ab90379295b795fe24028e42d6c9a9b9837f853d
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:51:13 2025 -0500
+
+    Make section headers more prominent with underline to indicate they're clickable links
+
+commit bae871d4b1c2d114bed705055560fdc1868cdc7b
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:49:09 2025 -0500
+
+    Change homepage grid to 2 columns and show 4 items by default
+
+commit 7f93785627ac333a333d5d67bb91050758b67c4c
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:29:27 2025 -0500
+
+    Fix miniapp grid to 3 columns, tighten card text layout, change 'remaining' to 'ends in', remove duplicate text
+
+commit 233e31f52da6ecc1cdd4cc68e24868ab44c85731
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 15:10:50 2025 -0500
+
+    Update homepage to show 6 items in 3-column grid with clickable headers
+
+commit 998f7d3fcacbb1ffefbfa065bb03e9e288a2e78c
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 14:57:56 2025 -0500
+
+    Implement two-tap interaction for auction cards: first tap reveals info, second tap navigates
+
+commit 7bb214ad12d0ba2b2a451048fb6d6c6532effd31
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 14:46:37 2025 -0500
+
+    Make auction cards fully tappable and improve touch support
+
+commit e727c36438173f30afa155a2ebf88d9904f2a79a
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 13:26:22 2025 -0500
+
+    feat: change default view from list to grid on homepage
+
+commit 1496fac792e7779c75272d594eba656d930f3e8d
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 13:21:02 2025 -0500
+
+    replace ampersand with and
+
+commit 208ece9bd81247c971385b184f4364e684869d99
+Merge: e0a61bb 6039d0f
+Author: Max Jackson <modulations@gmail.com>
+Date:   Thu Dec 11 13:16:25 2025 -0500
+
+    Merge pull request #34 from mxjxn/fix/farcaster-manifest-config
+    
+    Fix/farcaster manifest config
+
+commit 6039d0fa74c7265954a7bb992ea9253998e1f95e
+Merge: 353eeba e0a61bb
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 13:12:54 2025 -0500
+
+    Merge main into fix/farcaster-manifest-config to test for conflicts
+
+commit e0a61bbe28c933a32d46147ef121956c42a9e361
+Merge: 777e838 3767f19
+Author: Max Jackson <modulations@gmail.com>
+Date:   Thu Dec 11 13:11:19 2025 -0500
+
+    Merge pull request #33 from mxjxn/copilot/enhance-homepage-rendering
+    
+    Enable ISR with client-side optimistic updates for sub-100ms homepage loads
+
+commit 353eeba74dc66375e52e74bde2f204a961133aec
+Author: MXJXN <modulations@gmail.com>
+Date:   Thu Dec 11 13:07:09 2025 -0500
+
+    fix: refactor Farcaster manifest to use config file
+    
+    - Add farcaster-manifest.config.ts for easy manifest editing
+    - Remove frame object (not needed for Mini Apps per Farcaster spec)
+    - Import constants directly instead of placeholder strings
+    - Improve manifest structure and documentation
+
+commit 3767f19053f97c931ef32fa6a2fb1042583bd375
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Thu Dec 11 16:20:52 2025 +0000
+
+    Add executive summary for homepage optimization
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 78deeae518549944440cc8183ad9911149158815
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Thu Dec 11 16:19:48 2025 +0000
+
+    Add comprehensive documentation for homepage ISR optimization
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 4ca8cd9a25669b235fd81bed142eadbdbf0edd02
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Thu Dec 11 16:12:18 2025 +0000
+
+    Implement ISR with optimistic updates for homepage
+    
+    Co-authored-by: mxjxn <943499+mxjxn@users.noreply.github.com>
+
+commit 71ec6406b8fc0fc36c28f01b6d3a785a35494de3
+Author: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Date:   Thu Dec 11 16:07:33 2025 +0000
+
+    Initial plan
+
+commit 1b644f10762b8d2782947e31b28e21cea9d3f0d3
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 21:45:57 2025 -0500
+
+    Add subgraph down detection and user-friendly error messages
+    
+    - Add subgraphDown flag to BrowseListingsResult interface
+    - Detect subgraph availability issues (bad indexers, network errors, etc.)
+    - Update API response to include subgraphDown status
+    - Show 'Unable to load listings' message when subgraph is down instead of 'No listings found'
+    - Add retry functionality in HomePageClient and MarketClient
+    - Fix 10-year duration for forever listings (changed from 100 years)
+    - Add retry logic with exponential backoff for subgraph requests
+    - Exclude scripts directory from TypeScript build
+    - Add diagnostic tools for subgraph debugging
+
+commit f4627bcade35922cad7f6b4b7f574cd26d2ab4f4
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 02:18:28 2025 -0500
+
+    Add list/grid toggle to homepage listings
+
+commit 777e83883219af59244a299deb76222f4ffc0b3a
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 01:32:45 2025 -0500
+
+    Fix featured artist section image to ensure full width display
+
+commit 32c78d8952ad37fdab6ca1a218865f7460489ce5
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 01:21:30 2025 -0500
+
+    Add full-width featured artist section with bottom third text overlay
+    
+    - Create FeaturedArtistSection component for artist sections
+    - Full-width artwork image takes up top half of viewport (50vh)
+    - Text overlay in bottom third with gradient for readability
+    - Display section title, listing title, and artist name
+    - Update HomepageLayout to render artist sections with new component
+
+commit df981f06b14cef2dd7f00a1d752a6c72ab1ae907
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 01:15:00 2025 -0500
+
+    Update docs deploy workflow to trigger on docs/ folder changes
+
+commit 19cb045c09083e0ddf064ebf12f8d26f8d561d29
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 00:52:08 2025 -0500
+
+    Add NFT-based gallery access gating with admin bypass
+    
+    - Implement NFT balance check for gallery feature access (0x96640349f9e87A2FE151d8114Acbc53D6e43CE7A)
+    - Add useHasNFTAccess hook that checks all associated Farcaster wallets
+    - Add server-side NFT validation with fallback to Neynar API for verified addresses
+    - Gate all gallery creation/modification API routes (POST, PATCH, DELETE)
+    - Add admin bypass - admins can use galleries without NFT ownership
+    - Update AddToGalleryButton to check NFT access or admin status
+    - Support cross-wallet access: if wallet B has NFT and is verified with Farcaster, user signed in with wallet A can access galleries
+
+commit cf4dbfc6837e143dfadee5cd26cc74e4205fac41
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 00:22:36 2025 -0500
+
+    feat: Add news section to docs site and remove TopBuyersSellers from homepage
+    
+    - Remove TopBuyersSellers component from homepage (keep for homepage arranger)
+    - Add news/blog section to docs site with MDX support
+    - Add frontmatter to PROGRESS_TRACKING.md for blog post integration
+    - Create news listing page and individual post pages
+    - Update navigation to include News section
+    - Add progress tracking document with version history
+
+commit f3619e0855fe0cd7763e9e22bd4fa2e85e69618a
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 00:18:36 2025 -0500
+
+    oops
+
+commit 75f3653d8405f4318b65cb70230f0be8b9aa9fac
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 00:10:37 2025 -0500
+
+    Add top buyers and sellers view to homepage
+    
+    - Add API endpoint /api/users/top-buyers-sellers to fetch aggregated stats
+    - Create TopBuyersSellers component with two-column layout
+    - Display users with avatars, artwork counts, and total amounts
+    - Fix TypeScript errors in check-token route and erc721-supply
+    - Integrate component into HomePageClient
+
+commit 3b5b2fbee18b93f3bdf8d20a605756466f041b04
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 00:07:39 2025 -0500
+
+    Add ERC-721 collection total supply display using alchemy-sdk
+    
+    - Add erc721-supply.ts to fetch collection total supply from Alchemy API
+    - Update API routes to fetch and include erc721TotalSupply in auction data
+    - Update MetadataViewer to show 'contractName #tokenId out of y' for ERC-721s
+    - Update AuctionCard to display collection size in hover overlay
+    - Add erc721TotalSupply field to EnrichedAuctionData type
+
+commit 82f35ca1e94a45ee7cd6da2362d54ec8061aefce
+Author: MXJXN <modulations@gmail.com>
+Date:   Wed Dec 10 00:03:31 2025 -0500
+
+    feat: prevent caching and displaying images for cancelled listings
+    
+    - Skip thumbnail generation for cancelled listings in notification events
+    - Skip thumbnail generation for cancelled listings in browse-listings
+    - Don't display images in AuctionCard for cancelled listings
+    - Don't display thumbnails in RecentListingsTable for cancelled listings
+    - Skip image caching in opengraph-image route for cancelled listings
+    - Add cleanup script to remove cached images for cancelled listings
+      - Includes safety checks: verifies status=CANCELLED, not finalized, not sold out
+      - Supports dry-run mode for safe testing
+      - Processes listings in batches with detailed logging
+
+commit 43bec6ffe705455ced98b4f7d14a5e0b34143219
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 22:53:31 2025 -0500
+
+    Fix sold out/ended display and long-term sales time display in recent listings
+    
+    - Show 'Sold out' for ERC1155 items when all available are sold
+    - Show 'Sold out' for finalized ERC721 items
+    - Show 'Ended' for auctions and fixed price listings that have expired
+    - Hide time display for long-term sales (>1 year) to imply no end
+    - Hide bid count for sold out/ended/cancelled/finalized auctions
+
+commit 17fe5cb267df577b5793389de7966acaaaec980f
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 22:38:05 2025 -0500
+
+    feat: show 'Sold Out' for sold ERC721 fixed price listings
+    
+    - Replace buy now interface with 'Sold Out' text when ERC721 is sold
+    - Check if totalSold >= totalAvailable for ERC721 tokens
+    - Applied to both /listing and /auction detail pages
+    - Maintains existing behavior for ERC1155 tokens
+
+commit f9df1630348d36ed47f072d1d438d0596935aba6
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 22:27:06 2025 -0500
+
+    feat: show ERC1155 edition info below artwork title
+    
+    - Add 'edition of xx' text below title for ERC1155 tokens
+    - Display in smaller font (text-sm) with muted color
+    - Only shows when erc1155TotalSupply is available
+    - Applied to both /listing and /auction detail pages
+
+commit d3281675958e13d9e2d54b10b303f3ef15bb13d3
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 22:23:02 2025 -0500
+
+    feat: implement admin cancel listing functionality
+    
+    - Add on-chain admin verification via isAdmin contract function
+    - Create useIsAdminOnChain hook for contract-based admin checks
+    - Add listing utility functions (hasBid, isFinalized, canCancelListing, etc.)
+    - Create AdminCancelDialog component with confirmation and warnings
+    - Enhance AdminContextMenu with on-chain checks and dialog integration
+    - Support configurable holdbackBPS (0-1000, max 10%)
+    - Add proper error handling and user feedback
+    - Replace hardcoded deployer check with on-chain admin verification
+
+commit bb2d15735223bdd650b4ea8a29be33a0a83fec37
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 22:15:13 2025 -0500
+
+    Include ended and sold-out listings in recent listings
+
+commit 316b843be127d01ae2aa17c8f2de6a21211e92de
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 21:51:02 2025 -0500
+
+    Implement referralAddress support across listings, transactions, and galleries
+    
+    - Update all share routes to use referralAddress instead of referralId
+    - Update share components (ShareButton, LinkShareButton) to use referralAddress
+    - Update listing pages to read referralAddress from query params (with backwards compatibility for 'ref')
+    - Add referral address support to auction bids, fixed price purchases, and ERC1155 editions
+    - Update gallery links to include referralAddress when linking to listings
+    - Support both referralAddress (new) and ref (legacy) query params for backwards compatibility
+
+commit 62aba59c07e3d485cdec5db231ff411b198616d6
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 21:36:47 2025 -0500
+
+    fix: create homepage layout section when featuring gallery on homepage
+    
+    When clicking 'Feature on Homepage' for a gallery, the system was creating
+    a featured section but not a corresponding homepage layout section. This
+    meant the section wouldn't appear in the sortable HomepageLayoutManager
+    list, preventing admins from reordering it on the homepage.
+    
+    Changes:
+    - Updated createSectionFromGallery mutation to create a homepage layout
+      section with type 'custom_section' after creating the featured section
+    - The homepage layout section references the featured section via
+      config.sectionId, linking the two systems together
+    - This ensures featured galleries appear in the sortable list above the
+      featured galleries section, allowing admins to reorder homepage content
+    
+    The fix maintains backward compatibility and properly invalidates all
+    relevant query caches to ensure the UI updates immediately after creation.
+
+commit c0b7a6d5df6d85791966c907c529d61a293186b1
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 21:33:52 2025 -0500
+
+    Use featured listings for homepage embeds and add drag-and-drop reordering
+    
+    - Update homepage opengraph-image route to use curated featured listings instead of recent listings
+    - Add banned user filtering to homepage embeds and featured listings API
+    - Add drag-and-drop reordering to featured sections admin page
+    - Fix TypeScript build error by using status === 'FINALIZED' instead of finalized property
+    - Filter out cancelled, finalized, and sold-out listings from featured content
+    
+    This ensures homepage embeds show curated content and automatically exclude banned users.
+
+commit a626284dc7a1d2a1baef8648f308a11c07808cc6
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 21:20:17 2025 -0500
+
+    Add ERC1155 total supply fetching to individual listing API route
+
+commit 94dfc9a10cc1bb233cf5d8ea86f7654cdfe9027c
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 21:17:05 2025 -0500
+
+    Add IPFS directory detection and image discovery for NFT metadata
+    
+    - Detect when image field points to IPFS directory instead of file
+    - Automatically find image files within IPFS directories
+    - Support HTML and JSON directory listings from IPFS gateways
+    - Try common image file names when directory listing unavailable
+    - Add validation to prevent caching non-image content from IPFS
+    - Add inspection script for investigating listing metadata patterns
+    
+    This ensures proper image resolution when tokenURI JSON metadata
+    contains image fields pointing to IPFS directories (like listing 53).
+
+commit 875f9de32526e09aa2a35f5bbf1116ca8f562e43
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 20:45:36 2025 -0500
+
+    Add gallery slug support with index-based fallback
+    
+    - Update gallery slug API route to handle numeric slugs as gallery indices (e.g., /user/username/gallery/1)
+    - Modify getGalleryUrl to accept optional galleryIndex and default to index when no slug exists
+    - Update gallery list components to calculate and pass gallery indices
+    - Galleries with custom slugs use kebab-case URLs, others default to index-based URLs
+
+commit 5389e3792d1f649219109f5024b9e3cd03cffa43
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 20:32:17 2025 -0500
+
+    Fix Farcaster homepage embedding metadata
+    
+    - Separate fc:miniapp and fc:frame metadata objects
+    - Use launch_frame type for fc:frame (backward compatibility)
+    - Fix homepage, membership, profile, and create pages
+    - Ensures proper embed rendering in Farcaster cast composer
+
+commit 020f71ddad3188f668407bbdc5e98ee115686582
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 16:14:56 2025 -0500
+
+    Show homepage sections even when empty
+    
+    - Display all configured homepage sections from dashboard, even if they have no listings
+    - Show loading state instead of hiding component while loading
+    - Display empty state message for sections with no listings
+    - Remove filter that excluded sections with no listings from API response
+
+commit 197e71ed38d6298f980bdaeda851f00bdfc4c0c0
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 16:05:01 2025 -0500
+
+    Fix start time field editability and no timeframe option
+    
+    - Allow start time field to be editable even when slightly in the past (set min to 1 hour ago)
+    - Fix 'no timeframe' option to properly set endTime to MAX_UINT48 for FIXED_PRICE listings
+    - Clear start/end times when switching to no timeframe mode
+    - Apply fixes to both ERC721 and ERC1155 fixed price config pages
+
+commit a901eefbc1ec78ee2455e13a0b90a509b491d931
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:53:48 2025 -0500
+
+    Fix require() usage in thumbnail-generator for ES modules
+    
+    - Replace require('crypto') with ES module import
+    - Fixes ReferenceError when running backfill script with tsx
+    - All thumbnail generations were failing due to require() not being available in ES module mode
+
+commit 0b5aafe54ec94b03782c7518cd9697930dc8652c
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:52:09 2025 -0500
+
+    Fix backfill script to load .env.local automatically
+    
+    - Add dotenv support to load environment variables
+    - Load .env.local from apps/mvp directory
+    - Also check project root for .env files
+    - Fixes issue where NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL wasn't being loaded
+
+commit 3f59d558a006f25e464ad311450d3c09b8887656
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:45:09 2025 -0500
+
+    Add environment variables documentation for backfill script
+
+commit 6a4ac3d8b3f4eacfb4e43cdf61508686e6a7ee71
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:39:55 2025 -0500
+
+    Add tsx dependency for running TypeScript scripts
+
+commit c2764cbd3bd959104d7d9c1cf465641c2e76d329
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:38:41 2025 -0500
+
+    Add thumbnail backfill script
+    
+    - Create script to generate thumbnails for existing listings
+    - Processes listings in batches to avoid overwhelming system
+    - Shows progress and statistics
+    - Supports command-line options for limit, batch size, and sizes
+    - Skips already-cached thumbnails by default
+    - Handles errors gracefully and continues processing
+
+commit b2618b3c66e0b430401fe99b97e06df2fc39ebcc
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:31:33 2025 -0500
+
+    Improve admin homepage feature UX
+    
+    - Remove tacky confirm() alert from 'Feature on Homepage' button
+    - Add success message feedback when section is created
+    - Add 'Current Homepage Sections' display showing:
+      - Recent Listings section (always active)
+      - All active sections from homepage layout manager
+    - Change button text to 'Adding...' during creation for better UX
+
+commit ea4a97b5129798a47dcbe905d167f9e31b148a24
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:20:46 2025 -0500
+
+    Add /home route for homepage preview/testing
+    
+    - Create /home route that mirrors the homepage functionality
+    - Useful for testing homepage changes without affecting main route
+    - Uses same HomePageClient component as homepage
+
+commit 5c2801620c34edd8e98aca6ccc2cd3447b14054d
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:17:32 2025 -0500
+
+    Update creator-core-contracts submodule - add .gitignore
+
+commit e69eab7d3c17d6ff9baad78acbe2b10397b54773
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:17:24 2025 -0500
+
+    Update auctionhouse-contracts submodule
+    
+    - Add mainnet deployment documentation and scripts
+    - Update to latest commit with deployment artifacts
+
+commit d77adb971516e5d0ae829da123abdfee5f3a9acb
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 15:14:12 2025 -0500
+
+    Add background thumbnail generation with status tracking
+    
+    - Add database migration for thumbnail generation status (ready/generating/error)
+    - Create background thumbnail generation system that pre-generates thumbnails when listings are created
+    - Update processNewListings to trigger background thumbnail generation
+    - Update browse-listings to check thumbnail status and use original image if generating
+    - Fix invalid URL errors when thumbnail URLs are passed to thumbnail API
+    - Convert relative URLs to absolute URLs before fetching
+
+commit 2566ad04eba775468d2dd03bcf37373fab6f0a4a
+Merge: 7286017 67ac4a5
+Author: Max Jackson <modulations@gmail.com>
+Date:   Tue Dec 9 14:25:14 2025 -0500
+
+    Merge pull request #30 from mxjxn/fix/homepage-issues
+    
+    Fix/homepage issues
+
+commit 67ac4a5310c6b91b1ee177935ff1a971cdd131d6
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 14:19:28 2025 -0500
+
+    Fix Next.js route conflict: unify to [identifier]
+    
+    - Rename [address] and [username] routes to [identifier] to fix Next.js routing conflict
+    - Update route handlers to accept both addresses and usernames
+    - Update client-side calls to use unified identifier routes
+
+commit c4896cd7b12a1c01e2ada381203b3d1f2273de00
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 14:19:20 2025 -0500
+
+    Fix homepage loading state and image format errors
+    
+    - Fix loading state initialization in HomePageClient to prevent showing loading when initial data exists
+    - Prevent double-fetching in React Strict Mode with hasInitializedRef
+    - Add better error handling for unsupported image formats in thumbnail generation
+    - Add performance logging to track fetch and parse times
+    - Fix TypeScript errors in AuctionDetailClient and page.tsx
+    - Fix hasBid property check in homepage-layout.ts
+
+commit 7286017b8121fbdf751056c593d22b608a0a1f83
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 13:26:51 2025 -0500
+
+    Add maintenance page - cryptoart down for routine maintenance
+
+commit 49bc243152e3b069d824253223134450f7a2b000
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 13:08:24 2025 -0500
+
+    fix: Improve listing loading reliability and add diagnostic logging
+    
+    - Add comprehensive logging to browseListings and API route
+    - Make IPFS caching non-blocking (1s timeout, background cache)
+    - Add error handling around subgraph requests
+    - Return empty array on subgraph errors instead of throwing
+    - Prevent IPFS caching from blocking metadata fetches
+    - Add logging to help diagnose production listing load issues
+
+commit 3adea3c51041c5f75ffb51e0133651d0be7f1349
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:54:38 2025 -0500
+
+    feat: Optimize image loading with Next.js Image and IPFS caching
+    
+    - Add IPFS image cache database table and migration (0013)
+    - Implement IPFS image caching service to cache IPFS images to Vercel Blob
+    - Integrate IPFS caching into NFT metadata fetching (server-side only)
+    - Update Next.js config for image optimization (WebP/AVIF, responsive sizes)
+    - Replace img tags with Next.js Image component in AuctionCard
+    - Update thumbnail generator to use cached IPFS URLs
+    
+    Benefits:
+    - Faster page loads with Next.js Image optimization
+    - Reduced IPFS gateway calls (images cached to Vercel Blob CDN)
+    - Automatic WebP/AVIF conversion and responsive images
+    - Better reliability (no dependency on free gateways after initial cache)
+    - Cost reduction (cached images served from CDN)
+
+commit 99dd6b59858838825c90ecfcca88577f7b843fcd
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:37:42 2025 -0500
+
+    fix: Add image loading states and fix click navigation flash
+    
+    - Add image loading state with spinner
+    - Add onError handler for failed image loads
+    - Reset image state when image URL changes
+    - Fix click handler to prevent flash on navigation
+    - Skip click handling for interactive children (links, buttons)
+    - Prevents black flash when clicking listings
+    - Images now show loading state and handle errors gracefully
+
+commit 804ab6fbebc06c0b055d6fd0eea7f52bdedbfb4f
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:28:29 2025 -0500
+
+    fix: Add timeouts and error handling to API routes
+    
+    - Add withTimeout utility to prevent hanging requests
+    - Add maxDuration export to API routes for Next.js timeout config
+    - Wrap database calls in timeouts (5-10 seconds)
+    - Add try-catch error handling to return graceful fallbacks
+    - Prevents NetworkError when database is slow or unavailable
+    - Fixes: username, artist name, homepage layout, and auction API routes
+
+commit fdfcdb5169cdaeb38ff64733ac8d93e75a9a38d8
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:22:26 2025 -0500
+
+    fix: Add thumbnail generation to fetchActiveAuctions
+    
+    - Generate thumbnails for active auctions like we do in other functions
+    - Ensures thumbnailUrl is set for AuctionCard component
+    - Fixes issue where images weren't appearing on listing cards
+
+commit e59ce4f5dc248cbf2ffb94f02594204f5e42250d
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:21:06 2025 -0500
+
+    fix: Fix overlay blocking clicks on AuctionCard
+    
+    - Add pointer-events-none when overlay is invisible
+    - Add pointer-events-auto on hover to allow interaction
+    - Fixes issue where images and clicks weren't working
+
+commit 5c581a584797eab1ef03aa44e9c0eb152e52c99a
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:15:21 2025 -0500
+
+    fix: Import drizzle-orm functions from @cryptoart/db for type compatibility
+    
+    - Import and, eq, gte from @cryptoart/db instead of drizzle-orm directly
+    - Fixes TypeScript build error in production
+    - Ensures type compatibility across drizzle-orm versions
+
+commit b8262228d7282dee845b9bd11e8036e80dd7868f
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:11:13 2025 -0500
+
+    fix: Make ERC1155 supply fetch never throw to prevent breaking Promise.all
+    
+    - Wrap getERC1155TotalSupply in try-catch to never throw
+    - Ensure errors in ERC1155 supply fetch don't break listing loads
+    - Add defensive error handling in fetchActiveAuctions
+    - Fixes production issue where listings fail to load
+
+commit 19211191ec8a3d997aefa01af2f0397de0670d26
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:07:00 2025 -0500
+
+    feat: Add migration 0012 for ERC1155 token supply cache table
+    
+    - Create 0012_add_erc1155_token_supply_cache.sql migration
+    - Update migrate-all.ts script to include migration 0012
+    - Table caches total supply per tokenId for ERC1155 tokens
+
+commit 4919e0f34934c05e8eb2d935e995eefa03435246
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 12:04:15 2025 -0500
+
+    fix: Gracefully handle missing erc1155TokenSupplyCache table in production
+    
+    - Add error handling for table-not-found errors
+    - Allow listings to load even if migration hasn't run yet
+    - Cache operations now fail silently if table doesn't exist
+    - Fixes production issue where listings weren't loading
+
+commit 1fd03613515ad8ebef9aa38d4e15c90b94bec297
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 11:46:17 2025 -0500
+
+    feat: Add ERC1155 total supply fetching and improved auction card displays
+    
+    - Add erc1155TokenSupplyCache table to database schema
+    - Implement ERC1155 total supply fetching via contract calls (cached)
+    - Add erc1155TotalSupply field to EnrichedAuctionData
+    - Improve AuctionCard component:
+      - Show total supply prominently for ERC1155 tokens (X of Y format)
+      - Show 'Sold to [buyer] for [amount]' for finalized 1/1 auctions
+      - Show current bid, bid count, and time remaining for active auctions
+      - Show remaining count and time for ERC1155 active listings
+      - Handle never-expiring and long-term sales gracefully
+    - Add isLongTermSale utility function
+    - Create API route for ERC1155 supply fetching
+    - Update listing detail pages to show total supply
+    - Optimize to avoid Alchemy NFT API calls (uses RPC contract calls instead)
+
+commit ef3e2fe51f52e029757aa87ebee42ec9c10b4165
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 11:24:19 2025 -0500
+
+    feat: Support galleries without slugs via /user/[username]/gallery/id/[uuid]
+    
+    - Add route /user/[username]/gallery/id/[id] for galleries without slugs
+    - Add API endpoint /api/curation/user/[username]/gallery/id/[id]
+    - Update getGalleryUrl to use UUID-based URLs for galleries without slugs
+    - Update CurateClient to show all published galleries (with or without slugs)
+    - Galleries can now be optionally named - if no slug, use UUID in URL
+
+commit 54f4879b65ad94bc8c7e617b5aa5173aa3a96a9a
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 11:16:48 2025 -0500
+
+    feat: Update gallery URLs to use /user/[username]/gallery/[slug] structure
+    
+    - Create new route /user/[username]/gallery/[slug] for user-friendly gallery URLs
+    - Create API endpoint /api/curation/user/[username]/gallery/[slug] that handles both usernames and addresses
+    - Update all gallery links to use new structure via getGalleryUrl helper
+    - Redirect old /gallery/[address]/[slug] route to new structure
+    - Update ProfileGalleriesSection, CurateClient, and GalleryEditClient to use new URLs
+    - Keep backward compatibility - API accepts both usernames and addresses
+
+commit b103a4ab073a4c1164295f0337692b45d1df8267
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 11:03:59 2025 -0500
+
+    refactor: Remove manual featured listings, use galleries instead
+    
+    - Remove manual featured listings UI from admin panel
+    - Remove featured_carousel from homepage arranger UI (kept in backend for backward compatibility)
+    - Make featured carousel return empty gracefully for existing sections
+    - Homepage now uses galleries via homepage arranger instead
+    - HomepageLayout handles empty state gracefully (shows recent listings)
+
+commit 6526057a7e685a919274829f935b69bbae20111e
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 10:42:56 2025 -0500
+
+    feat: Add homepage arranger admin panel with drag-and-drop
+    
+    - Add homepage_layout_sections table and migration
+    - Create admin UI for managing homepage layout with drag-and-drop
+    - Support multiple section types: upcoming auctions, recently concluded, live bids, artist, gallery, collector, listing, featured carousel, custom sections
+    - Add API routes for CRUD operations on homepage layout
+    - Update homepage to render dynamic sections from database
+    - Add @dnd-kit dependencies for drag-and-drop functionality
+    - Fix TypeScript errors in homepage-layout server functions
+
+commit ca663eb9e90d855b3943bab37f524d9e43140b47
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 01:08:12 2025 -0500
+
+    Fix infinite scrolling pagination and improve loading state UX
+    
+    - Fix hasMore calculation by fetching extra listings to account for filtering
+    - Add separate loadingMore state for better UX feedback
+    - Add visual loading spinners and error handling for load more operations
+    - Improve loading state messages and retry functionality
+    - Return subgraph response metadata to accurately determine if more listings exist
+
+commit 8f7468dc1e5d686f35851f84939075fe8d1d219a
+Author: MXJXN <modulations@gmail.com>
+Date:   Tue Dec 9 00:56:03 2025 -0500
+
+    Fix admin checks, thumbnail storage, and database connection issues
+    
+    - Add NEXT_PUBLIC_ prefix support for admin env vars (client-side access)
+    - Simplify admin check logic to allow wallet OR FID match
+    - Fix thumbnail storage to use local storage in development
+    - Add API route to serve local thumbnail files
+    - Reduce database connection pool size in development (1 connection)
+    - Add timeout to server-side data fetching to prevent page hangs
+    - Skip server-side fetch in development by default
+    - Add @pigment-css/react to transpilePackages for @neynar/react compatibility
+    - Update webpack config to resolve @pigment-css/react correctly
+    - Install @vercel/blob package
+
+commit 84a121e36949c2d0dd6c67a5c6cc73d09565ce65
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 22:57:43 2025 -0500
+
+    Fix FID-based admin access for Farcaster web login
+    
+    - Prioritize FID check over wallet check for admin access
+    - Ensure FID comparison handles type differences (string/number)
+    - Allow admin access via FID match even when wallet doesn't match
+    - Fixes issue where admin options don't show in profile dropdown for Farcaster web login
+
+commit 7b0ebc73f9ae70a11a67ddd7ebdb71484a5e3a27
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 22:33:25 2025 -0500
+
+    Add support for multiple admin addresses and FID-based admin access
+    
+    - Add ADDITIONAL_ADMIN_ADDRESSES env var support (comma-separated list)
+    - Update useIsAdmin to check wallet from Farcaster context
+    - Allow admin access via FID match for Farcaster web login
+    - Support multiple admin addresses in addition to primary admin
+
+commit c0afe5957add2dda8568198dfb103aa605e26c3e
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 22:27:33 2025 -0500
+
+    Add infinite scroll to recent listings feed with intersection observer
+
+commit a09ba4630123cbf6abf318204898d3aa14b3e50a
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 22:24:10 2025 -0500
+
+    fix: use @cryptoart/db imports for drizzle-orm functions to fix build type errors
+
+commit eb8d73112a313a5f72d3c54efeb7f4216b6882bb
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 22:16:12 2025 -0500
+
+    Update auctionhouse-contracts submodule: remove MembershipAllowlistRegistry
+
+commit f3fb5868b86682f514e861c7a27f493aeb3c1282
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 22:09:13 2025 -0500
+
+    updating bg color
+
+commit 29d1f2aeab97f8fa922d5356408416e92339a38d
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 21:58:34 2025 -0500
+
+    Fix build: Add missing dependencies
+    
+    - Add @farcaster/miniapp-node for webhook route
+    - Add @pigment-css/react peer dependency for @neynar/react
+    - Resolves build errors: Module not found for both packages
+
+commit 892618473ecd819bd02348ce688d05a2e1053dc6
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 21:50:54 2025 -0500
+
+    Cleanup: Remove unused packages and apps
+    
+    - Remove packages/subgraph (unused duplicate)
+    - Remove packages/unified-indexer
+    - Remove packages/cache
+    - Remove packages/shared-db-config
+    - Remove apps/auctionhouse
+    - Remove apps/auctionhouse-docs
+    - Archive apps/cryptoart-studio-app to archive/studio-app-archived
+    - Update creator-core-indexer to use @cryptoart/db instead of shared-db-config
+    - Update README.md and documentation to reflect current structure
+    - Update LSSVM_INTEGRATION.md to remove unified-indexer references
+
+commit 956461f13b026926f887f6eba475b25a808d87e4
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 21:28:40 2025 -0500
+
+    Remove such-gallery app and all references
+    
+    - Deleted apps/such-gallery directory
+    - Removed all references from README.md
+    - Removed deployment instructions from docs/DEPLOYMENT.md
+    - Updated docs/INDEXER_IMPLEMENTATION_SUMMARY.md
+    - Updated docs/NGINX_REVERSE_PROXY_GUIDE.md
+    - Updated docs/ENGAGEMENT_ROADMAP.md
+    - Updated docs/STATUS_AND_NEXT_STEPS.md
+    
+    Curation features are now integrated into the main MVP app.
+
+commit d326da2b9a657125cb5bbf0c6147daca575c160b
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 21:19:49 2025 -0500
+
+    Fix ToC links: add anchor IDs to markdown headings
+
+commit 4199f451a531e07fd64644c6fbc8772bd0cd732e
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 21:17:45 2025 -0500
+
+    Fix docs site: always default to dark mode instead of system preference
+
+commit 765db5c802764e15765284009e797bf8dc0f5cc1
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 21:16:36 2025 -0500
+
+    Add auction end notifications and improve ended auction UI
+    
+    - Add processEndedAuctions function to detect and notify when auctions end naturally
+    - Send notifications to winners and sellers when auctions end
+    - Add AUCTION_ENDED_WON and AUCTION_ENDED_READY_TO_FINALIZE notification types
+    - Update UI to show ended auction state with winner information
+    - Show finalize button for both seller and winner when auction has ended
+    - Hide bid input when auction has ended
+    - Display winner name/address and winning bid amount prominently
+
+commit 8fc21dd731dec188a61c9275f6ca0b6587011930
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 20:53:24 2025 -0500
+
+    Update membership language from 'pro' to 'member/free' and add profile ring styling
+    
+    - Changed membership badge from 'pro' to 'member' for paid members
+    - Updated HomePageClient CTA from 'Mint Pro' to 'Mint Member'
+    - Added profile icon ring styling: grey for free members, blue for paid members
+    - Updated membership benefits text to reflect early access features
+    - Maintained backward compatibility with useMembershipStatus hook
+
+commit ab65206ea0fad1324072ccf5293ff7de4ccbdb99
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:48:42 2025 -0500
+
+    Update documentation site to reflect current MVP features
+    
+    - Update membership pricing from 0.5 ETH one-time to 0.0001 ETH/month
+    - Add 6 new documentation pages: Featured Sections, Curation, Social Features, Market, Settings, Share
+    - Update existing pages with new features (favorites, follows, galleries, featured content)
+    - Update homepage and MVP overview with all current features
+    - Update architecture page with database layer and new systems
+
+commit f002d38f31a19fe314b6fc9a51f27a3b8c99183b
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:34:46 2025 -0500
+
+    Fix wallet persistence: use sessionStorage instead of localStorage to prevent cross-tab/session persistence in incognito mode
+
+commit 43db0b4a724ab382f8ff922b658677a0111bc9ab
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:33:38 2025 -0500
+
+    Fix wallet persistence: use sessionStorage instead of localStorage to prevent cross-tab/session persistence
+
+commit 887af034368c52b3cf6ac56b5e88b7fa66098369
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:19:01 2025 -0500
+
+    Fix AddToGalleryButton - add Boolean wrapper for extra defensive check
+
+commit c12f8d7c661cbc42e590303e0b2f40a50eed6304
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:18:27 2025 -0500
+
+    Fix AddToGalleryButton - use explicit shouldShow check to prevent rendering for non-admins
+
+commit 491a01f8fa921dfbff12894268ffd8a5333f6820
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:17:15 2025 -0500
+
+    Fix AddToGalleryButton - make admin check more explicit with separate conditions
+
+commit dca84ad7def594682ad1f2036b044d8fcec6767a
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:13:26 2025 -0500
+
+    Fix React hooks violation in AddToGalleryButton - move all hooks before conditional return
+
+commit cd2886c89b6e984ff7f6b2a3c6c0bd1a63845608
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 19:03:16 2025 -0500
+
+    Fix AddToGalleryButton - also check isConnected before showing button
+
+commit e8c5c516617f21cd7f87c53272aec5aea4fd14fc
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:58:46 2025 -0500
+
+    Fix AddToGalleryButton - hide during admin check loading to prevent showing to non-admins
+
+commit 369d8e5c11659bff2eea8dc9e97167366a7978c3
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:49:33 2025 -0500
+
+    Update migrate-all.ts comment to include all migrations
+
+commit 09a90022d5f41b7c87234af99aaecf84252e6001
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:48:07 2025 -0500
+
+    Prioritize manual featured listings - always show at top before featured sections
+
+commit ab50cb76eab270b924bb88901c39ef74d74fedb8
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:33:18 2025 -0500
+
+    Add curation management to admin featured page - feature galleries on homepage
+
+commit 54540018fc988766cb08cfae6a4b4bf54ed1f28e
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:27:35 2025 -0500
+
+    Add galleries tab button to user profile (admin-only)
+
+commit 64c1b97f5135593334217cc4f4937690fef179ae
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:27:11 2025 -0500
+
+    Hide curation tools from non-admins - admin-only feature
+
+commit f7c82ec0012e805496fbe5d3b9da0d4974411d0f
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:21:47 2025 -0500
+
+    Add user curation tools: galleries, add to gallery, public gallery views
+
+commit 4152520bf21d52e51a624039a242136fd4112b12
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 18:04:14 2025 -0500
+
+    Fix listing expiration display and validation
+    
+    - Update getAuctionTimeStatus to check for never-expiring listings
+    - Fix display components to hide expiration for never-expiring listings
+    - Add comprehensive validation to prevent invalid timeframes
+    - Prevent auctions from being created with never-expiring endTime
+    - Validate reasonable timeframes (max 10 years)
+    - Ensure proper validation in both create and update forms
+
+commit fa7449a77a82fee694093db9348fee23a6bc0f50
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 17:48:13 2025 -0500
+
+    feat: Add recent listings table view and dynamic featured sections system
+    
+    - Replace large card grid with compact table view for recent listings
+    - Add small thumbnails (60x60px) using existing thumbnail caching
+    - Add pagination support with 'View All Recent' button
+    - Create dynamic featured sections system with admin interface
+    - Add database schema for featured_sections and featured_section_items
+    - Support multiple section types: custom, featured_artists, recently_sold, upcoming, collection
+    - Add admin tools for creating, editing, reordering, and managing sections
+    - Add cache invalidation endpoints for instant updates
+    - Prepare curation table for future features
+
+commit 3ec8669834bb8383b5d6fd307d4753d37de48d43
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 17:14:31 2025 -0500
+
+    Add share features for bid moments and cleanup unused code
+    
+    New Features:
+    - Add share routes for top-bid and being-outbid moments
+    - Add BidHistoryShareButton component for sharing bid history
+    - Add frame-extractor utility for share functionality
+    - Update ShareableMomentButton and share utilities
+    - Add auction early termination investigation report
+    
+    Cleanup:
+    - Remove unused imports, refs, and state from AuctionDetailClient
+    - Clean up unused code (441 lines removed)
+    
+    Updates:
+    - Update opengraph-image route for share moments
+    - Update share-moments and share-og-image utilities
+    - Minor updates across various files
+
+commit 12f58be0f707a9612feeb792359a15cfe572de49
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 17:09:01 2025 -0500
+
+    Refactor: Extract browse listings logic and fix contract ABI
+    
+    - Extract browse listings logic from API route to reusable server function
+    - Add browse-listings.ts server utility for shared listing fetching logic
+    - Fix missing PURCHASE_ABI exports (NO_REFERRER and WITH_REFERRER)
+    - Add missing modifyListing function to marketplace ABI
+    - Fix ERC20 bid handling in listing detail client
+    - Preserve caching strategy (30s s-maxage, 60s stale-while-revalidate)
+    - Clean up unused imports and variables in AuctionDetailClient
+
+commit 2c0dd50c6c62692ae327fb3a237274461da9b91c
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 17:00:07 2025 -0500
+
+    Add cancel listing button for deployer in AdminContextMenu
+    
+    - Add deployer address check (0x6da173b1d50f7bc5c686f8880c20378965408344)
+    - Add cancel listing functionality using marketplace cancel function
+    - Show 'Cancel Listing' button in three-dot menu for deployer only
+    - Handle loading states and redirect after successful cancellation
+    - Invalidate cache and navigate to home page after cancel
+
+commit 2c17bf08542da62e02f0ee088aae46f83cb63dfb
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 12:28:11 2025 -0500
+
+    feat: improve bidding flow with transaction modal and immediate UI updates
+    
+    - Add TransactionModal component showing bid status with clear messaging
+    - Implement optimistic UI updates when bid transaction is submitted (not just confirmed)
+    - Add cache invalidation after successful bids to ensure fresh data
+    - Implement smart polling logic to wait for subgraph indexing before refreshing
+    - Fix duplicate bid prevention in optimistic updates
+    - Show modal immediately on 'Place Bid' click with 'Your xxx bid is on its way!' message
+    - Automatically close modal and refresh with fresh data once bid appears in subgraph
+    - Clear and repopulate bid input with next minimum bid after successful bid
+    
+    This ensures users see immediate feedback when placing bids and the UI
+    updates with fresh data as soon as the subgraph indexes the transaction.
+
+commit 51da9948eba96ec0acb81551273ac9847fe5dfad
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 12:05:37 2025 -0500
+
+    Add buyers list for fixed-price listings
+    
+    - Create API endpoint to fetch purchases grouped by buyer
+    - Add BuyersList component showing FC handle, avatar, wallet address, and quantity
+    - Display buyers list on fixed-price listing pages
+    - Implement optimistic updates when purchase succeeds
+    - Smart caching with 60s cache, 120s stale-while-revalidate
+    - Auto-discover missing user data in background
+
+commit 032eab2e0a6f555d03db7cd362aec6803c47f42f
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 11:56:44 2025 -0500
+
+    Immediately update UI after bid transaction success
+    
+    - Add optimistic update to show new bid immediately upon transaction confirmation
+    - Update bid history with new bidder information instantly
+    - Refetch auction data after 2s delay to sync with subgraph
+    - Automatically repopulate bid input with next minimum bid after refetch
+    - Add ref tracking to prevent duplicate bid processing
+    - Enhance useAuction refetch to support forced refresh
+    - Apply fixes to both auction and listing detail pages
+
+commit 1a1c31982efe6a9e3dd62e05622c7eb24ab1044b
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 11:40:22 2025 -0500
+
+    Fix ERC-20 token auction bid transaction
+    
+    - Add missing ABI entry for bid(listingId, bidAmount, increase) function
+    - Update bid transaction execution to use correct function overload for ERC-20 tokens
+    - For ERC-20 payments, pass bidAmount as function parameter instead of using msg.value
+    - Fixes 'invalid bid amount' error when bidding on ERC-20 token auctions
+
+commit 75b952c36627a8206e03fafe8a662dbbbc2a0231
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 11:35:09 2025 -0500
+
+    Improve image format validation in opengraph-image routes
+    
+    - Add WebP format support to image validation
+    - Fix GIF format validation (check for GIF8 magic bytes)
+    - Improve error logging with detailed magic bytes and metadata
+    - Add debug logging for image URL processing
+
+commit 9e6b546d030e46a40aebc43e2e20a7030b22020f
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 10:29:31 2025 -0500
+
+    Replace Uniswap with Farcaster swap action in miniapp for ERC-20 listings
+    
+    - Add conditional swap button that uses Farcaster swapToken action in miniapp context
+    - Keep Uniswap link for web context
+    - Pre-fill buyToken with CAIP-19 format and optional sellAmount for fixed-price listings
+    - Apply to both auction and fixed-price listing detail pages
+
+commit 84b2ba9aa47d40404ff557ad0b31c62f02648d93
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 10:05:37 2025 -0500
+
+    Fix database connection pooling to prevent max connections error
+    
+    - Use global singleton pattern for Next.js serverless
+    - Reduce max connections from 10 to 2-3 per instance
+    - Faster idle timeout (10s instead of 20s)
+    - Add connection string tracking
+    - Fix TypeScript null check issue
+
+commit 8ac96c62e32912f73d7c424988ee65b546a89a22
+Author: MXJXN <modulations@gmail.com>
+Date:   Mon Dec 8 09:40:56 2025 -0500
+
+    Fix auction bid approval flow for ERC20 tokens
+    
+    - Track pending bid amount after approval request
+    - Automatically place bid once approval transaction confirms
+    - Update button text to show approval status (Approve/Approving/Place Bid)
+    - Fix invalid bid amount error by ensuring bid executes after approval
+    - Add proper state management for approval -> bid flow
