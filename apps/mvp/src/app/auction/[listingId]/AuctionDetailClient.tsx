@@ -17,6 +17,8 @@ import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
 import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
+import { TxStateCard } from "~/components/TxStateCard";
+import { AuctionSkeleton } from "~/components/AuctionSkeleton";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
@@ -84,6 +86,7 @@ export default function AuctionDetailClient({
   const [showOutbidNotification, setShowOutbidNotification] = useState(false);
   const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(false);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -963,11 +966,17 @@ export default function AuctionDetailClient({
       fetch('/api/auctions/invalidate-cache', { method: 'POST' }).catch(err => 
         console.error('Error invalidating cache:', err)
       );
+      
+      // Show skeleton holding page
+      setShowSkeleton(true);
+      
       // Refresh router to get fresh data, then navigate to home
       router.refresh();
+      
+      // Navigate to home after a delay to show the finalized state/skeleton
       setTimeout(() => {
         router.push("/");
-      }, 100);
+      }, 2000);
     }
   }, [isFinalizeConfirmed, router, auction, address]);
 
@@ -1316,6 +1325,21 @@ export default function AuctionDetailClient({
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Tx State Card - shown during finalization */}
+      <TxStateCard
+        isPending={false} // We don't track signature pending specifically for finalize here, but we could if we split the status
+        isConfirming={isFinalizeLoading} // This covers both pending and confirming
+        isSuccess={isFinalizeConfirmed}
+        error={finalizeError}
+        hash={finalizeHash}
+        onDismiss={() => {}} // Optional: allow dismissing
+      />
+
+      {/* Show skeleton if finalized */}
+      {showSkeleton ? (
+        <AuctionSkeleton />
+      ) : (
+        <>
       {/* Header - Only show when not in miniapp */}
       {!isMiniApp && (
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -2172,6 +2196,8 @@ export default function AuctionDetailClient({
         show={showChainSwitchPrompt} 
         onDismiss={() => setShowChainSwitchPrompt(false)} 
       />
+        </>
+      )}
     </div>
   );
 }
