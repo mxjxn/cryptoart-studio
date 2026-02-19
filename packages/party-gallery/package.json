@@ -1,0 +1,15 @@
+{
+  "name": "@cryptoart-studio/party-gallery",
+  "version": "0.1.0",
+  "description": "Party Protocol + ERC-6551 gallery integration for collective NFT curation",
+  "license": "MIT",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "deploy:base-sepolia": "forge script scripts/Deploy.s.sol --rpc-url base-sepolia --broadcast",
+    "deploy:base": "forge script scripts/Deploy.s.sol --rpc-url base --broadcast"
+  },
+  "devDependencies": {
+    "forge-std": "github:foundry-rs/forge-std"
+  }
+}
