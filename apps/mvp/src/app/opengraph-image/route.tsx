@@ -416,22 +416,31 @@ export async function GET(request: NextRequest) {
     // Fetch and cache images for listings (OG-sized variant)
     // Use Promise.allSettled to allow partial completion - some images may fail/timeout
     // but we'll render the OG image with whatever images we successfully fetched
+    // Each image fetch is bounded to IMAGE_FETCH_TIMEOUT_MS to prevent slow images
+    // from blocking the entire render.
+    const IMAGE_FETCH_TIMEOUT_MS = 12000; // 12s per image (incl. all gateway retries)
     const listingImageResults = await Promise.allSettled(
-      recentListings.map(async (listing) => {
-        const imageUrl = listing.image || listing.metadata?.image;
-        if (!imageUrl) {
-          console.warn(
-            `[OG Image] No image URL for listing ${listing.listingId}: image=${listing.image}, metadata.image=${listing.metadata?.image}`,
-          );
-          return null;
-        }
+      recentListings.map((listing) =>
+        withTimeout(
+          (async () => {
+            // Prefer thumbnailUrl (optimized Vercel Blob) over raw IPFS image
+            const imageUrl =
+              listing.thumbnailUrl ||
+              listing.image ||
+              listing.metadata?.image;
+            if (!imageUrl) {
+              console.warn(
+                `[OG Image] No image URL for listing ${listing.listingId}: thumbnailUrl=${listing.thumbnailUrl}, image=${listing.image}, metadata.image=${listing.metadata?.image}`,
+              );
+              return null;
+            }
 
-        console.log(
-          `[OG Image] Processing image for listing ${listing.listingId}: ${imageUrl.substring(0, 100)}...`,
-        );
-        console.log(
-          `[OG Image] Full image URL for listing ${listing.listingId}: ${imageUrl}`,
-        );
+            console.log(
+              `[OG Image] Processing image for listing ${listing.listingId} (${listing.thumbnailUrl ? "thumbnail" : "original"}): ${imageUrl.substring(0, 100)}...`,
+            );
+            console.log(
+              `[OG Image] Full image URL for listing ${listing.listingId}: ${imageUrl}`,
+            );
 
         // Handle data URIs directly - no need to cache or fetch
         if (isDataURI(imageUrl)) {
@@ -701,11 +710,15 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        console.warn(
-          `[OG Image] Returning null for listing ${listing.listingId} - image fetch failed`,
-        );
-        return null;
-      }),
+            console.warn(
+              `[OG Image] Returning null for listing ${listing.listingId} - image fetch failed`,
+            );
+            return null;
+          })(),
+          IMAGE_FETCH_TIMEOUT_MS,
+          null,
+        ),
+      ),
     );
 
     // Extract results from Promise.allSettled - fulfilled values or null for rejected/timed out
