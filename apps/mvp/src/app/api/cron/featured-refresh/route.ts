@@ -6,6 +6,9 @@ import { getCachedActiveAuctions } from '~/lib/server/auction';
  * GET /api/cron/featured-refresh
  * Auto-refresh featured listings (when auto mode is enabled)
  * Called by Vercel cron every hour
+ *
+ * After refreshing featured listings it also triggers the homepage OG
+ * image pre-render so the new artwork thumbnails are cached immediately.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -71,6 +74,20 @@ export async function GET(req: NextRequest) {
     });
     
     console.log(`[Cron] Featured listings refreshed with ${randomListings.length} listings`);
+
+    // Trigger a background homepage OG image pre-warm so the new artwork
+    // thumbnails are fetched, processed, and cached in the DB immediately.
+    // This is fire-and-forget — we don't await it so the response isn't delayed.
+    const baseUrl =
+      process.env.NEXT_PUBLIC_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      'http://localhost:3000';
+    fetch(`${baseUrl}/opengraph-image?refresh=true`, {
+      signal: AbortSignal.timeout(55000),
+      headers: { 'Cache-Control': 'no-cache', 'X-Triggered-By': 'featured-refresh' },
+    }).catch((err) =>
+      console.warn('[Cron] Non-fatal: homepage OG pre-warm failed:', err instanceof Error ? err.message : String(err))
+    );
     
     return NextResponse.json({ 
       message: 'Featured listings refreshed',
@@ -85,4 +102,5 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
 
