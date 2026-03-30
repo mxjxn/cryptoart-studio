@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
+import { formatEther } from "viem";
 import { TransitionLink } from "~/components/TransitionLink";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
+import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { AuctionCard } from "~/components/AuctionCard";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { HomepageLayout } from "~/components/HomepageLayout";
@@ -26,7 +29,16 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
   return tokenSpec === "ERC1155" || String(tokenSpec) === "2";
 }
 
-export default function HomePageClient() {
+/** Decorative patron labels aligned with Figma Patrons section (preview only). */
+const REDESIGN_PATRON_PREVIEW = [
+  "0xbc9…9915", "0x053…6ee0", "0x9ff…f28b", "wokhe…eth", "maxca…eth", "gurug…eth",
+  "tomat…eth", "tinyr…eth", "nifty…eth", "crypt…eth", "mxjxn…eth", "aoife…eth",
+  "0x626…fc49", "0xc1d…7d14", "0x3c5…ba62", "0x2f0…9fa7", "0x9e7…90e5", "0x771…a711",
+  "0x5c0…b3a3", "0x1a2…3307", "0x921…36a5", "mumbo…eth", "wgmee…eth", "push-…eth", "efdot…eth",
+];
+
+/** Preview homepage matching Figma "Homepage" (Screens); served at /redesign */
+export default function HomePageClientV2() {
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>([]);
   const [nftExpandedListings, setNftExpandedListings] = useState<EnrichedAuctionData[]>([]);
@@ -177,7 +189,7 @@ export default function HomePageClient() {
         setNftHasMore(false);
       }
     } catch (error) {
-      console.error('[HomePageClient] Error loading more NFTs:', error);
+      console.error('[HomePageClientV2] Error loading more NFTs:', error);
     } finally {
       setNftLoadingMore(false);
     }
@@ -297,7 +309,7 @@ export default function HomePageClient() {
         setEditionHasMore(false);
       }
     } catch (error) {
-      console.error('[HomePageClient] Error loading more Editions:', error);
+      console.error('[HomePageClientV2] Error loading more Editions:', error);
     } finally {
       setEditionLoadingMore(false);
     }
@@ -306,7 +318,8 @@ export default function HomePageClient() {
   const isMember = isPro; // Alias for clarity
   const { actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
-  const { isConnected } = useEffectiveAddress();
+  const { address, isConnected } = useEffectiveAddress();
+  const ensName = useEnsNameForAddress(address, !isMiniApp && isConnected && !!address);
   const { openConnectModal } = useConnectModal();
   const router = useRouter();
   const pathname = usePathname();
@@ -350,7 +363,7 @@ export default function HomePageClient() {
     setNftError(null);
     try {
       // Fetch more than needed to account for filtering
-      console.log('[HomePageClient] Fetching recent NFTs...', { fetchCount: initialFetchCount });
+      console.log('[HomePageClientV2] Fetching recent NFTs...', { fetchCount: initialFetchCount });
       const startTime = Date.now();
       
       // Use streaming mode for incremental loading
@@ -483,19 +496,19 @@ export default function HomePageClient() {
       }
       
       const fetchTime = Date.now() - startTime;
-      console.log('[HomePageClient] NFT fetch completed in', fetchTime, 'ms');
+      console.log('[HomePageClientV2] NFT fetch completed in', fetchTime, 'ms');
       
       // Filter for ERC721 only
       const nftListings = listings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
       const isSubgraphDown = metadata.subgraphDown || false;
-      console.log('[HomePageClient] Received NFTs:', nftListings.length, 'from', listings.length, 'total listings');
+      console.log('[HomePageClientV2] Received NFTs:', nftListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
       setNftListings(nftListings.slice(0, displayCount));
       setNftSubgraphDown(isSubgraphDown);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch NFTs';
-      console.error('[HomePageClient] Error fetching NFTs:', errorMessage, error);
+      console.error('[HomePageClientV2] Error fetching NFTs:', errorMessage, error);
       setNftError(errorMessage);
     } finally {
       setNftLoading(false);
@@ -511,7 +524,7 @@ export default function HomePageClient() {
     try {
       // Fetch more than needed to account for filtering
       const fetchCount = 20; // Fetch 20 to ensure we get enough ERC1155 after filtering
-      console.log('[HomePageClient] Fetching recent Editions...', { fetchCount });
+      console.log('[HomePageClientV2] Fetching recent Editions...', { fetchCount });
       const startTime = Date.now();
       
       // Use streaming mode for incremental loading
@@ -643,19 +656,19 @@ export default function HomePageClient() {
       }
       
       const fetchTime = Date.now() - startTime;
-      console.log('[HomePageClient] Edition fetch completed in', fetchTime, 'ms');
+      console.log('[HomePageClientV2] Edition fetch completed in', fetchTime, 'ms');
       
       // Filter for ERC1155 only
       const editionListings = listings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
       const isSubgraphDown = metadata.subgraphDown || false;
-      console.log('[HomePageClient] Received Editions:', editionListings.length, 'from', listings.length, 'total listings');
+      console.log('[HomePageClientV2] Received Editions:', editionListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
       setEditionListings(editionListings.slice(0, displayCount));
       setEditionSubgraphDown(isSubgraphDown);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Editions';
-      console.error('[HomePageClient] Error fetching Editions:', errorMessage, error);
+      console.error('[HomePageClientV2] Error fetching Editions:', errorMessage, error);
       setEditionError(errorMessage);
     } finally {
       setEditionLoading(false);
@@ -717,12 +730,42 @@ export default function HomePageClient() {
     };
   }, [fetchRecentEditions]);
 
+  const displayHandle = isMiniApp
+    ? context?.user?.username
+      ? `@${context.user.username}`
+      : context?.user?.displayName ?? "Guest"
+    : !isConnected || !address
+      ? "Connect wallet"
+      : ensName
+        ? `@${ensName.replace(/^@/, "")}`
+        : `@${address.slice(0, 6)}…${address.slice(-4)}`;
+
+  const formatListingEth = (a: EnrichedAuctionData) => {
+    try {
+      const v = a.currentPrice || a.initialAmount || "0";
+      return `${formatEther(BigInt(v))} ETH`;
+    } catch {
+      return "— ETH";
+    }
+  };
+
+  const bidRankLabels = ["Top bidder", "Second bidder", "Third bidder", "Fourth bidder"];
+  const featuredListing = nftListings[0];
+  const patronColSize = Math.ceil(REDESIGN_PATRON_PREVIEW.length / 3);
+  const patronCols = [
+    REDESIGN_PATRON_PREVIEW.slice(0, patronColSize),
+    REDESIGN_PATRON_PREVIEW.slice(patronColSize, patronColSize * 2),
+    REDESIGN_PATRON_PREVIEW.slice(patronColSize * 2),
+  ];
+
+  const gutter = "px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16";
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white flex justify-center">
+      <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] lg:max-w-[min(100%,1100px)] xl:max-w-[min(100%,1280px)] flex-col min-h-screen border-x border-[#222] shadow-2xl">
       {/* Top Bar — centered logo; preferences left; profile right */}
-      <header className="relative flex min-h-[72px] items-center justify-center border-b border-[#333333] px-4 py-4">
-        <div className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 items-center">
+      <header className="relative flex min-h-[72px] items-center justify-center border-b border-[#101010] bg-black px-4 py-4 sm:px-6 md:px-8">
+        <div className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 items-center sm:left-6 md:left-8">
           <TransitionLink
             href="/settings"
             prefetch={false}
@@ -746,19 +789,19 @@ export default function HomePageClient() {
           </TransitionLink>
         </div>
         <Logo className="shrink-0" />
-        <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 items-center gap-3">
+        <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 items-center gap-3 sm:right-6 md:right-8">
           <ProfileDropdown />
         </div>
       </header>
 
-      {/* Create Listing Button - Minimal */}
+      {/* Create Listing */}
       {isMember && (
         <section className="border-b border-[#333333]">
-          <div className="px-5 py-3 flex justify-center">
+          <div className={`flex justify-center py-3 ${gutter}`}>
             <TransitionLink
               href="/create"
               prefetch={false}
-              className="text-sm text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+              className="font-mek-mono text-sm tracking-[0.5px] text-[#999999] transition-colors hover:text-white"
             >
               + Create Listing
             </TransitionLink>
@@ -766,16 +809,69 @@ export default function HomePageClient() {
         </section>
       )}
 
-      {/* Homepage Layout (driven by admin arranger) */}
-      <HomepageLayout />
+      {/* Figma: membership strip */}
+      {!membershipLoading && (
+        <button
+          type="button"
+          onClick={() => {
+            if (isMember) return;
+            if (isConnected) router.push("/membership");
+            else openConnectModal?.();
+          }}
+          className="flex w-full flex-wrap items-center justify-center gap-2.5 bg-[#f5b0d3] p-2.5 font-mek-mono text-[clamp(0.75rem,3.5vw,1.05rem)] font-medium leading-normal text-black"
+        >
+          <span>{isMember ? "Member" : "become a member"}</span>
+          {!isMember && <span>0.0001 ETH /MONTH</span>}
+        </button>
+      )}
 
-      {/* Add Mini App Banner - Only show in miniapp context if not already added */}
+      {/* Figma: identity row */}
+      <div className={`flex w-full items-center justify-between py-5 font-mek-mono text-sm text-white ${gutter}`}>
+        <span className="min-w-0 truncate">{displayHandle}</span>
+        <TransitionLink href="/settings" prefetch={false} className="shrink-0 text-white hover:underline">
+          Settings
+        </TransitionLink>
+      </div>
+
+      {/* Figma: hero / logo + tagline — stack on mobile, row on desktop */}
+      <div className={`flex flex-col gap-4 pb-5 md:flex-row md:items-center md:gap-8 md:pb-8 ${gutter}`}>
+        <div className="relative aspect-[384/119] w-full md:w-1/2 md:max-w-xl md:shrink-0">
+          <Image
+            src="/cryptoart-logo-wgmeets.png"
+            alt="CryptoArt"
+            fill
+            className="object-contain object-left md:object-center"
+            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 45vw, 576px"
+            priority
+          />
+        </div>
+        <p className="font-mek-mono text-sm leading-normal text-white md:flex-1 md:py-0">
+          CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what
+          matters.
+        </p>
+      </div>
+
+      {/* Figma: Galleries (lime) */}
+      <section className="w-full bg-[#dcf54c] text-[#272727]">
+        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none ${gutter}`}>
+          Galleries
+        </h2>
+        <HomepageLayout />
+        <div className={`flex items-center justify-between border-t border-black/10 py-5 font-mek-mono text-sm ${gutter}`}>
+          <span>Created by users</span>
+          <TransitionLink href="/curate" prefetch={false} className="hover:underline">
+            see more →
+          </TransitionLink>
+        </div>
+      </section>
+
       {isMiniApp && !isMiniAppInstalled && actions && (
         <section className="border-b border-[#333333]">
-          <div className="px-5 py-3 flex justify-center items-center">
+          <div className={`flex items-center justify-center py-3 ${gutter}`}>
             <button
+              type="button"
               onClick={actions.addMiniApp}
-              className="text-[24px] font-mek-mono text-[#999999] hover:text-[#cccccc] transition-colors underline"
+              className="font-mek-mono text-[#999999] underline decoration-[#999999] hover:text-[#cccccc]"
             >
               Add mini-app to Farcaster
             </button>
@@ -783,261 +879,167 @@ export default function HomePageClient() {
         </section>
       )}
 
-      {/* Membership Banner - Only show if not a member */}
-      {!membershipLoading && !isMember && (
-        <section className="border-b border-[#333333] bg-[#0a0a0a]">
-          <div className="px-5 py-5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
-            <div className="flex flex-col gap-1">
-              <div className="text-sm font-bold text-[#ff6b35] tracking-[0.5px]">
-                Mint Member for early access
-              </div>
-              <div className="text-xs font-normal text-[#999999]">
-                only 0.0001 ETH/month
-              </div>
-            </div>
-            <div className="flex items-center">
-              <button
-                onClick={() => {
-                  if (isConnected) {
-                    router.push("/membership");
-                  } else if (openConnectModal) {
-                    openConnectModal();
-                  }
-                }}
-                className="px-6 py-2.5 bg-[#ff6b35] text-black text-sm font-bold tracking-[0.5px] hover:bg-[#ff8555] transition-colors whitespace-nowrap"
-              >
-                Mint Member
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Recent NFTs and Editions - Side by side on xl screens */}
-      <div className="xl:flex xl:gap-8">
-      {/* Recent NFTs (721s) */}
-      <section id="nfts" className="px-5 py-8 xl:flex-1">
-        <div className="flex items-center justify-between mb-6">
-          <TransitionLink
-            href="/market?tab=recent"
-            prefetch={false}
-            className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
-          >
-            Recent NFTs
-          </TransitionLink>
-        </div>
+      {/* Figma: Listings (pink) */}
+      <section id="nfts" className="w-full bg-[#f5acd1] pb-6">
+        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-[#272727] ${gutter}`}>
+          Listings
+        </h2>
 
         {nftLoading ? (
-          <div className="text-center py-12">
-            <p className="text-[#cccccc]">Loading NFTs...</p>
-          </div>
+          <p className={`py-8 text-center font-mek-mono text-sm text-[#272727] ${gutter}`}>Loading listings…</p>
         ) : nftError ? (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-2">Error loading NFTs</p>
-            <p className="text-[#999999] text-sm mb-4">{nftError}</p>
-            <button
-              onClick={() => {
-                setNftListings([]);
-                fetchRecentNFTs();
-              }}
-              className="text-white hover:underline"
-            >
+          <div className={`py-8 text-center ${gutter}`}>
+            <p className="font-mek-mono text-sm text-red-700">{nftError}</p>
+            <button type="button" onClick={() => { setNftListings([]); fetchRecentNFTs(); }} className="mt-2 font-mek-mono text-sm underline">
               Retry
             </button>
           </div>
         ) : nftListings.length === 0 ? (
-          <div className="text-center py-12">
-            {nftSubgraphDown ? (
-              <>
-                <p className="text-[#cccccc] mb-2">Unable to load NFTs</p>
-                <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
-                <button
-                  onClick={() => {
-                    setNftSubgraphDown(false);
-                    fetchRecentNFTs();
-                  }}
-                  className="text-white hover:underline text-sm"
-                >
-                  Try again
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-[#cccccc] mb-4">No NFTs found</p>
-                {isMember && (
-                  <TransitionLink
-                    href="/create"
-                    prefetch={false}
-                    className="text-white hover:underline"
-                  >
-                    Create your first listing
-                  </TransitionLink>
-                )}
-              </>
-            )}
-          </div>
+          <p className={`py-8 text-center font-mek-mono text-sm text-[#272727] ${gutter}`}>No listings yet.</p>
         ) : (
-          <div className="relative">
-            <div className="grid grid-cols-2 gap-4">
-              {nftListings.map((auction, index) => (
+          <>
+            <div className={`space-y-2.5 lg:flex lg:flex-row lg:items-start lg:gap-8 lg:space-y-0 ${gutter}`}>
+            {featuredListing && (
+              <div className="pb-2.5 lg:max-w-md lg:shrink-0 lg:pb-0 lg:w-full">
+                <TransitionLink
+                  href={`/listing/${featuredListing.listingId}`}
+                  prefetch={false}
+                  onClick={() =>
+                    setLoadingListing({
+                      listingId: featuredListing.listingId,
+                      image: featuredListing.thumbnailUrl || featuredListing.image || null,
+                      title: featuredListing.title || "Listing",
+                    })
+                  }
+                  className="block overflow-hidden bg-white"
+                >
+                  <div className="relative aspect-square w-full max-w-[392px] mx-auto bg-neutral-200 lg:mx-0 lg:max-w-none">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={featuredListing.thumbnailUrl || featuredListing.image || ""}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <div className="absolute left-0 top-0 flex items-center gap-2.5 bg-[#272727] p-2.5">
+                      <span className="h-2 w-2 shrink-0 bg-[#00ff11]" aria-hidden />
+                      <span className="font-mek-mono text-sm text-white">active</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 bg-white p-2.5 font-mek-mono text-sm text-black">
+                      <p>{formatListingEth(featuredListing)}</p>
+                      <p className="text-neutral-700">by @{featuredListing.artist || "artist"}</p>
+                    </div>
+                  </div>
+                  <div className="bg-[#1b1b1b] p-2.5 font-mek-mono text-sm text-white">
+                    <p>{featuredListing.title || "Untitled"}</p>
+                    <p className="text-neutral-400">by {featuredListing.artist || "—"}</p>
+                  </div>
+                </TransitionLink>
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+              {nftListings.slice(1).map((auction, index) => (
                 <AuctionCard
                   key={auction.id}
                   auction={auction}
-                  gradient={gradients[index % gradients.length]}
-                  index={index}
+                  gradient={gradients[(index + 1) % gradients.length]}
+                  index={index + 1}
                   onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
                 />
               ))}
             </div>
-            
-            {/* Expanded listings - loaded inline with lazy image loading */}
+
             {nftExpandedListings.length > 0 && (
-              <div className="mt-6 grid grid-cols-2 gap-4">
+              <div className="mt-2.5 grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
                 {nftExpandedListings.map((auction, index) => (
                   <AuctionCard
                     key={auction.id}
                     auction={auction}
                     gradient={gradients[(nftListings.length + index) % gradients.length]}
-                    index={nftListings.length + index + 100} // Use high index to ensure lazy loading (priority only for first 6)
+                    index={nftListings.length + index + 100}
                     onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
                   />
                 ))}
               </div>
             )}
-            
-            {/* Load more button - bigger and loads inline */}
+
             {!nftExpandedRef.current && (
-              <div className="flex justify-end mt-6">
+              <div className="flex justify-end pt-4">
                 <button
+                  type="button"
                   onClick={loadMoreNFTs}
                   disabled={nftLoadingMore || !nftHasMore}
-                  className="text-lg px-4 py-2 text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[1px] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-[#333333] hover:border-[#555555] rounded"
+                  className="font-mek-mono text-sm text-[#272727] underline disabled:opacity-40"
                 >
-                  <span>[</span>
-                  <span>—</span>
-                  <span>&gt;</span>
-                  <span>]</span>
-                  {nftLoadingMore && (
-                    <span className="ml-2 w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  )}
+                  {nftLoadingMore ? "Loading…" : "More listings →"}
                 </button>
               </div>
             )}
-          </div>
+            </div>
+            </div>
+          </>
         )}
       </section>
 
-      {/* Recent Editions */}
-      <section id="editions" className="px-5 py-8 xl:flex-1">
-        <div className="flex items-center justify-between mb-6">
-          <TransitionLink
-            href="/market?tab=recent"
-            prefetch={false}
-            className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
-          >
-            Recent Editions
-          </TransitionLink>
-        </div>
-
-        {editionLoading ? (
-          <div className="text-center py-12">
-            <p className="text-[#cccccc]">Loading editions...</p>
-          </div>
-        ) : editionError ? (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-2">Error loading editions</p>
-            <p className="text-[#999999] text-sm mb-4">{editionError}</p>
-            <button
-              onClick={() => {
-                setEditionListings([]);
-                fetchRecentEditions();
-              }}
-              className="text-white hover:underline"
-            >
-              Retry
-            </button>
-          </div>
-        ) : editionListings.length === 0 ? (
-          <div className="text-center py-12">
-            {editionSubgraphDown ? (
-              <>
-                <p className="text-[#cccccc] mb-2">Unable to load editions</p>
-                <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
-                <button
-                  onClick={() => {
-                    setEditionSubgraphDown(false);
-                    fetchRecentEditions();
-                  }}
-                  className="text-white hover:underline text-sm"
-                >
-                  Try again
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-[#cccccc] mb-4">No editions found</p>
-                {isMember && (
-                  <TransitionLink
-                    href="/create"
-                    prefetch={false}
-                    className="text-white hover:underline"
-                  >
-                    Create your first listing
-                  </TransitionLink>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="relative">
-            <div className="grid grid-cols-2 gap-4">
-              {editionListings.map((auction, index) => (
-                <AuctionCard
-                  key={auction.id}
-                  auction={auction}
-                  gradient={gradients[index % gradients.length]}
-                  index={index}
-                  onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
-                />
-              ))}
-            </div>
-            
-            {/* Expanded listings - loaded inline with lazy image loading */}
-            {editionExpandedListings.length > 0 && (
-              <div className="mt-6 grid grid-cols-2 gap-4">
-                {editionExpandedListings.map((auction, index) => (
-                  <AuctionCard
-                    key={auction.id}
-                    auction={auction}
-                    gradient={gradients[(editionListings.length + index) % gradients.length]}
-                    index={editionListings.length + index + 100} // Use high index to ensure lazy loading (priority only for first 6)
-                    onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
+      {/* Figma: Bids (white) */}
+      <section className="w-full bg-white text-black">
+        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-[#272727] ${gutter}`}>
+          Bids
+        </h2>
+        <div className={`flex flex-col divide-y divide-neutral-200 pb-6 md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 xl:grid-cols-4 ${gutter}`}>
+          {nftLoading ? (
+            <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">Loading…</p>
+          ) : (
+            nftListings.slice(0, 4).map((auction, i) => (
+              <TransitionLink
+                key={auction.id}
+                href={`/listing/${auction.listingId}`}
+                prefetch={false}
+                className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200"
+              >
+                <div className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={auction.thumbnailUrl || auction.image || ""}
+                    alt=""
+                    className="h-full w-full object-cover"
                   />
+                </div>
+                <div className="min-w-0 flex-1 font-mek-mono text-sm">
+                  <p className="truncate">{auction.title || "Listing"}</p>
+                  <p className="truncate text-neutral-600">by {auction.artist || "—"}</p>
+                </div>
+                <p className="shrink-0 text-center font-mek-mono text-sm text-neutral-800">
+                  {bidRankLabels[i] ?? `Bidder ${i + 1}`}
+                </p>
+              </TransitionLink>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Figma: Patrons (gold + red type) */}
+      <section className="w-full bg-[#ecc100] pb-10">
+        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-[#ff0402] ${gutter}`}>
+          Patrons
+        </h2>
+        <div className={`mx-auto max-w-5xl border-b border-[#ff0402] py-2.5 font-mek-mono text-sm text-[#ff0402] ${gutter}`}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8">
+            {patronCols.map((col, ci) => (
+              <div key={ci} className="min-w-0 space-y-0">
+                {col.map((line, li) => (
+                  <p key={`${ci}-${li}`} className="truncate leading-normal">
+                    {line}
+                  </p>
                 ))}
               </div>
-            )}
-            
-            {/* Load more button - bigger and loads inline */}
-            {!editionExpandedRef.current && (
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={loadMoreEditions}
-                  disabled={editionLoadingMore || !editionHasMore}
-                  className="text-lg px-4 py-2 text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[1px] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-[#333333] hover:border-[#555555] rounded"
-                >
-                  <span>[</span>
-                  <span>—</span>
-                  <span>&gt;</span>
-                  <span>]</span>
-                  {editionLoadingMore && (
-                    <span className="ml-2 w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  )}
-                </button>
-              </div>
-            )}
+            ))}
           </div>
-        )}
+        </div>
+        <p className={`pt-3 font-mek-mono text-xs text-[#ff0402]/80 ${gutter}`}>Preview labels — member directory coming soon.</p>
       </section>
+
       </div>
 
       {/* Admin Tools Panel - Only visible when admin mode is enabled */}
