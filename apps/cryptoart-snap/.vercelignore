@@ -1,0 +1,2 @@
+# Local dev only — uses Node APIs incompatible with Edge
+src/server.ts
