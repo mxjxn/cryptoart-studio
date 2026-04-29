@@ -4,17 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { formatEther } from "viem";
 import { TransitionLink } from "~/components/TransitionLink";
-import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
-import { AuctionCard } from "~/components/AuctionCard";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
-import { HomepageLayout } from "~/components/HomepageLayout";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useRouter, usePathname } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
 
@@ -37,31 +33,87 @@ const REDESIGN_PATRON_PREVIEW = [
   "0x5c0…b3a3", "0x1a2…3307", "0x921…36a5", "mumbo…eth", "wgmee…eth", "push-…eth", "efdot…eth",
 ];
 
+const FARCON_STATIC_PREVIEW = true;
+
+const KISMET_GRADIENTS = [
+  "linear-gradient(135deg, #f5acd1 0%, #dcf54c 52%, #ecc100 100%)",
+  "linear-gradient(135deg, #ff0402 0%, #f5acd1 45%, #272727 100%)",
+  "linear-gradient(135deg, #dcf54c 0%, #ffffff 48%, #f5acd1 100%)",
+  "linear-gradient(135deg, #ecc100 0%, #ff0402 55%, #000000 100%)",
+  "linear-gradient(135deg, #272727 0%, #dcf54c 50%, #ffffff 100%)",
+  "linear-gradient(135deg, #f5acd1 0%, #ff0402 42%, #ecc100 100%)",
+  "linear-gradient(135deg, #ffffff 0%, #ecc100 50%, #272727 100%)",
+  "linear-gradient(135deg, #dcf54c 0%, #f5acd1 55%, #ff0402 100%)",
+];
+
+const KISMET_CASA_PLACEHOLDERS: EnrichedAuctionData[] = Array.from({ length: 8 }, (_, index) => {
+  const n = index + 1;
+  const amount = BigInt(n + 1) * 1000000000000000n;
+  const listingType = index % 3 === 0 ? "INDIVIDUAL_AUCTION" : "FIXED_PRICE";
+  return {
+    id: `kismet-placeholder-${n}`,
+    listingId: `kismet-placeholder-${n}`,
+    marketplace: "0x0000000000000000000000000000000000000000",
+    seller: "0x1111111111111111111111111111111111111111",
+    tokenAddress: "0x2222222222222222222222222222222222222222",
+    tokenId: String(n),
+    tokenSpec: "ERC721",
+    listingType,
+    initialAmount: amount.toString(),
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "0",
+    endTime: "0",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: amount.toString(),
+    createdAt: String(1777460000 + n),
+    createdAtBlock: String(30000000 + n),
+    bidCount: listingType === "INDIVIDUAL_AUCTION" ? n : 0,
+    highestBid: listingType === "INDIVIDUAL_AUCTION"
+      ? {
+          amount: amount.toString(),
+          bidder: `0x${String(n).repeat(40).slice(0, 40)}`,
+          timestamp: String(1777460000 + n),
+        }
+      : undefined,
+    title: `Kismet Casa Lot ${n}`,
+    artist: "Kismet Casa",
+    description: "Placeholder auction item for the FarCon live bidding preview.",
+  };
+});
+
 /** Preview homepage matching Figma "Homepage" (Screens); served at /redesign */
 export default function HomePageClientV2() {
   // Recent NFTs (ERC721) state
-  const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>([]);
+  const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>(
+    FARCON_STATIC_PREVIEW ? KISMET_CASA_PLACEHOLDERS : [],
+  );
   const [nftExpandedListings, setNftExpandedListings] = useState<EnrichedAuctionData[]>([]);
-  const [nftLoading, setNftLoading] = useState(true);
+  const [nftLoading, setNftLoading] = useState(!FARCON_STATIC_PREVIEW);
   const [nftLoadingMore, setNftLoadingMore] = useState(false);
   const [nftError, setNftError] = useState<string | null>(null);
   const [nftSubgraphDown, setNftSubgraphDown] = useState(false);
-  const [nftHasMore, setNftHasMore] = useState(true);
+  const [nftHasMore, setNftHasMore] = useState(!FARCON_STATIC_PREVIEW);
   const nftLoadingRef = useRef(true);
   const nftHasInitializedRef = useRef(false);
-  const nftExpandedRef = useRef(false);
+  const nftExpandedRef = useRef(FARCON_STATIC_PREVIEW);
 
   // Recent Editions (ERC1155) state
-  const [editionListings, setEditionListings] = useState<EnrichedAuctionData[]>([]);
+  const [editionListings, setEditionListings] = useState<EnrichedAuctionData[]>(
+    FARCON_STATIC_PREVIEW ? KISMET_CASA_PLACEHOLDERS.slice(0, 4) : [],
+  );
   const [editionExpandedListings, setEditionExpandedListings] = useState<EnrichedAuctionData[]>([]);
-  const [editionLoading, setEditionLoading] = useState(true);
+  const [editionLoading, setEditionLoading] = useState(!FARCON_STATIC_PREVIEW);
   const [editionLoadingMore, setEditionLoadingMore] = useState(false);
   const [editionError, setEditionError] = useState<string | null>(null);
   const [editionSubgraphDown, setEditionSubgraphDown] = useState(false);
-  const [editionHasMore, setEditionHasMore] = useState(true);
+  const [editionHasMore, setEditionHasMore] = useState(!FARCON_STATIC_PREVIEW);
   const editionLoadingRef = useRef(true);
   const editionHasInitializedRef = useRef(false);
-  const editionExpandedRef = useRef(false);
+  const editionExpandedRef = useRef(FARCON_STATIC_PREVIEW);
 
   // Loading modal state for listing navigation
   const [loadingListing, setLoadingListing] = useState<{
@@ -320,7 +372,6 @@ export default function HomePageClientV2() {
   const { isMiniApp } = useAuthMode();
   const { address, isConnected } = useEffectiveAddress();
   const ensName = useEnsNameForAddress(address, !isMiniApp && isConnected && !!address);
-  const { openConnectModal } = useConnectModal();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -344,15 +395,6 @@ export default function HomePageClientV2() {
       }
     }
   }, [pathname, loadingListing]);
-  const gradients = [
-    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-    "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-    "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-    "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-    "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
-  ];
-  
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
 
@@ -678,6 +720,7 @@ export default function HomePageClientV2() {
 
   // Initialize NFTs section
   useEffect(() => {
+    if (FARCON_STATIC_PREVIEW) return;
     if (nftHasInitializedRef.current) return;
     nftHasInitializedRef.current = true;
     fetchRecentNFTs();
@@ -705,6 +748,7 @@ export default function HomePageClientV2() {
 
   // Initialize Editions section
   useEffect(() => {
+    if (FARCON_STATIC_PREVIEW) return;
     if (editionHasInitializedRef.current) return;
     editionHasInitializedRef.current = true;
     fetchRecentEditions();
@@ -749,8 +793,28 @@ export default function HomePageClientV2() {
     }
   };
 
-  const bidRankLabels = ["Top bidder", "Second bidder", "Third bidder", "Fourth bidder"];
-  const featuredListing = nftListings[0];
+  const formatBidder = (bidder: string | undefined) => {
+    if (!bidder) return "Unknown bidder";
+    return `${bidder.slice(0, 6)}…${bidder.slice(-4)}`;
+  };
+
+  const bidTimestamp = (a: EnrichedAuctionData) => {
+    try {
+      return BigInt(a.highestBid?.timestamp ?? "0");
+    } catch {
+      return 0n;
+    }
+  };
+
+  const bidListings = [...nftListings, ...editionListings]
+    .filter((auction) => auction.highestBid?.amount)
+    .sort((a, b) => {
+      const bt = bidTimestamp(b);
+      const at = bidTimestamp(a);
+      if (bt === at) return 0;
+      return bt > at ? 1 : -1;
+    })
+    .slice(0, 4);
   const patronColSize = Math.ceil(REDESIGN_PATRON_PREVIEW.length / 3);
   const patronCols = [
     REDESIGN_PATRON_PREVIEW.slice(0, patronColSize),
@@ -763,37 +827,6 @@ export default function HomePageClientV2() {
   return (
     <div className="min-h-screen bg-black text-white flex justify-center">
       <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] lg:max-w-[min(100%,1100px)] xl:max-w-[min(100%,1280px)] flex-col min-h-screen border-x border-[#222] shadow-2xl">
-      {/* Top Bar — centered logo; preferences left; profile right */}
-      <header className="relative flex min-h-[72px] items-center justify-center border-b border-[#101010] bg-black px-4 py-4 sm:px-6 md:px-8">
-        <div className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 items-center sm:left-6 md:left-8">
-          <TransitionLink
-            href="/settings"
-            prefetch={false}
-            className="flex min-h-11 min-w-11 items-center justify-center text-[#cccccc] transition-opacity hover:text-white hover:opacity-90"
-            aria-label="Preferences and settings"
-          >
-            <svg
-              width={22}
-              height={22}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </TransitionLink>
-        </div>
-        <Logo className="shrink-0" />
-        <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 items-center gap-3 sm:right-6 md:right-8">
-          <ProfileDropdown />
-        </div>
-      </header>
-
       {/* Create Listing */}
       {isMember && (
         <section className="border-b border-[#333333]">
@@ -815,13 +848,12 @@ export default function HomePageClientV2() {
           type="button"
           onClick={() => {
             if (isMember) return;
-            if (isConnected) router.push("/membership");
-            else openConnectModal?.();
+            router.push("/membership?from=redesign");
           }}
           className="flex w-full flex-wrap items-center justify-center gap-2.5 bg-[#f5b0d3] p-2.5 font-mek-mono text-[clamp(0.75rem,3.5vw,1.05rem)] font-medium leading-normal text-black"
         >
-          <span>{isMember ? "Member" : "become a member"}</span>
-          {!isMember && <span>0.0001 ETH /MONTH</span>}
+          <span className="text-black">{isMember ? "Member" : "become a member"}</span>
+          {!isMember && <span className="text-black">0.0001 ETH /MONTH</span>}
         </button>
       )}
 
@@ -853,15 +885,50 @@ export default function HomePageClientV2() {
 
       {/* Figma: Galleries (lime) */}
       <section className="w-full bg-[#dcf54c] text-[#272727]">
-        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none ${gutter}`}>
-          Galleries
+        <h2 className={`pt-5 font-space-grotesk text-[clamp(3.25rem,15vw,5.85rem)] font-medium leading-[0.9] text-[#999] ${gutter}`}>
+          Featured
         </h2>
-        <HomepageLayout />
+        <div className={`relative z-10 -mt-4 pb-6 md:-mt-[28px] ${gutter}`}>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-stretch">
+            <div className="relative min-h-[360px] overflow-hidden border border-black/15 bg-[#dcf54c] text-black">
+              <div
+                className="absolute inset-0"
+                style={{ background: KISMET_GRADIENTS[0] }}
+                aria-hidden
+              />
+              <div className="absolute inset-0 bg-white/25" aria-hidden />
+              <div className="relative flex min-h-[360px] flex-col justify-between p-4 sm:p-6">
+                <div className="font-mek-mono text-sm uppercase tracking-[0.18em] text-black">
+                  FarCon live auction preview
+                </div>
+                <div className="max-w-xl">
+                  <h3 className="font-mek-mono text-[clamp(2.5rem,12vw,6.5rem)] font-medium leading-[0.9] text-black">
+                    Kismet Casa
+                  </h3>
+                  <p className="mt-4 max-w-md font-mek-mono text-sm leading-normal text-black">
+                    Placeholder event gallery. Replace this copy with the real room, artist, and bidding instructions before launch.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 font-mek-mono text-sm">
+                  <span className="bg-black px-2.5 py-1 text-white">All lots shown below</span>
+                  <span className="border border-black px-2.5 py-1 text-black">Real listing IDs pending</span>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-2">
+              {KISMET_CASA_PLACEHOLDERS.slice(0, 4).map((auction, index) => (
+                <StaticArtworkTile
+                  key={auction.id}
+                  auction={auction}
+                  gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
         <div className={`flex items-center justify-between border-t border-black/10 py-5 font-mek-mono text-sm ${gutter}`}>
-          <span>Created by users</span>
-          <TransitionLink href="/curate" prefetch={false} className="hover:underline">
-            see more →
-          </TransitionLink>
+          <span>Curated for FarCon</span>
+          <span>live auction placeholders</span>
         </div>
       </section>
 
@@ -879,165 +946,39 @@ export default function HomePageClientV2() {
         </section>
       )}
 
-      {/* Figma: Listings (pink) */}
-      <section id="nfts" className="w-full bg-[#f5acd1] pb-6">
-        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-[#272727] ${gutter}`}>
-          Listings
-        </h2>
-
-        {nftLoading ? (
-          <p className={`py-8 text-center font-mek-mono text-sm text-[#272727] ${gutter}`}>Loading listings…</p>
-        ) : nftError ? (
-          <div className={`py-8 text-center ${gutter}`}>
-            <p className="font-mek-mono text-sm text-red-700">{nftError}</p>
-            <button type="button" onClick={() => { setNftListings([]); fetchRecentNFTs(); }} className="mt-2 font-mek-mono text-sm underline">
-              Retry
-            </button>
-          </div>
-        ) : nftListings.length === 0 ? (
-          <p className={`py-8 text-center font-mek-mono text-sm text-[#272727] ${gutter}`}>No listings yet.</p>
-        ) : (
-          <>
-            <div className={`space-y-2.5 lg:flex lg:flex-row lg:items-start lg:gap-8 lg:space-y-0 ${gutter}`}>
-            {featuredListing && (
-              <div className="pb-2.5 lg:max-w-md lg:shrink-0 lg:pb-0 lg:w-full">
-                <TransitionLink
-                  href={`/listing/${featuredListing.listingId}`}
-                  prefetch={false}
-                  onClick={() =>
-                    setLoadingListing({
-                      listingId: featuredListing.listingId,
-                      image: featuredListing.thumbnailUrl || featuredListing.image || null,
-                      title: featuredListing.title || "Listing",
-                    })
-                  }
-                  className="block overflow-hidden bg-white"
-                >
-                  <div className="relative aspect-square w-full max-w-[392px] mx-auto bg-neutral-200 lg:mx-0 lg:max-w-none">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={featuredListing.thumbnailUrl || featuredListing.image || ""}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-                    <div className="absolute left-0 top-0 flex items-center gap-2.5 bg-[#272727] p-2.5">
-                      <span className="h-2 w-2 shrink-0 bg-[#00ff11]" aria-hidden />
-                      <span className="font-mek-mono text-sm text-white">active</span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 bg-white p-2.5 font-mek-mono text-sm text-black">
-                      <p>{formatListingEth(featuredListing)}</p>
-                      <p className="text-neutral-700">by @{featuredListing.artist || "artist"}</p>
-                    </div>
-                  </div>
-                  <div className="bg-[#1b1b1b] p-2.5 font-mek-mono text-sm text-white">
-                    <p>{featuredListing.title || "Untitled"}</p>
-                    <p className="text-neutral-400">by {featuredListing.artist || "—"}</p>
-                  </div>
-                </TransitionLink>
-              </div>
-            )}
-
-            <div className="min-w-0 flex-1 space-y-2.5">
-            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-              {nftListings.slice(1).map((auction, index) => (
-                <AuctionCard
-                  key={auction.id}
-                  auction={auction}
-                  gradient={gradients[(index + 1) % gradients.length]}
-                  index={index + 1}
-                  onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
-                />
-              ))}
-            </div>
-
-            {nftExpandedListings.length > 0 && (
-              <div className="mt-2.5 grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-                {nftExpandedListings.map((auction, index) => (
-                  <AuctionCard
-                    key={auction.id}
-                    auction={auction}
-                    gradient={gradients[(nftListings.length + index) % gradients.length]}
-                    index={nftListings.length + index + 100}
-                    onNavigate={(listingId, image, title) => setLoadingListing({ listingId, image, title })}
-                  />
-                ))}
-              </div>
-            )}
-
-            {!nftExpandedRef.current && (
-              <div className="flex justify-end pt-4">
-                <button
-                  type="button"
-                  onClick={loadMoreNFTs}
-                  disabled={nftLoadingMore || !nftHasMore}
-                  className="font-mek-mono text-sm text-[#272727] underline disabled:opacity-40"
-                >
-                  {nftLoadingMore ? "Loading…" : "More listings →"}
-                </button>
-              </div>
-            )}
-            </div>
-            </div>
-          </>
-        )}
-      </section>
-
       {/* Figma: Bids (white) */}
       <section className="w-full bg-white text-black">
-        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-[#272727] ${gutter}`}>
+        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-black ${gutter}`}>
           Bids
         </h2>
         <div className={`flex flex-col divide-y divide-neutral-200 pb-6 md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 xl:grid-cols-4 ${gutter}`}>
-          {nftLoading ? (
+          {nftLoading || editionLoading ? (
             <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">Loading…</p>
+          ) : bidListings.length === 0 ? (
+            <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">No bids yet.</p>
           ) : (
-            nftListings.slice(0, 4).map((auction, i) => (
-              <TransitionLink
+            bidListings.map((auction) => (
+              <div
                 key={auction.id}
-                href={`/listing/${auction.listingId}`}
-                prefetch={false}
                 className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200"
               >
-                <div className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={auction.thumbnailUrl || auction.image || ""}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <div
+                  className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
+                  style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
+                  aria-hidden
+                />
                 <div className="min-w-0 flex-1 font-mek-mono text-sm">
-                  <p className="truncate">{auction.title || "Listing"}</p>
-                  <p className="truncate text-neutral-600">by {auction.artist || "—"}</p>
+                  <p className="truncate text-black">{auction.title || "Listing"}</p>
+                  <p className="truncate text-black">by {auction.artist || "—"}</p>
                 </div>
-                <p className="shrink-0 text-center font-mek-mono text-sm text-neutral-800">
-                  {bidRankLabels[i] ?? `Bidder ${i + 1}`}
-                </p>
-              </TransitionLink>
+                <div className="shrink-0 text-right font-mek-mono text-sm text-black">
+                  <p className="text-black">{formatListingEth({ ...auction, currentPrice: auction.highestBid?.amount })}</p>
+                  <p className="text-black">{formatBidder(auction.highestBid?.bidder)}</p>
+                </div>
+              </div>
             ))
           )}
         </div>
-      </section>
-
-      {/* Figma: Patrons (gold + red type) */}
-      <section className="w-full bg-[#ecc100] pb-10">
-        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-[#ff0402] ${gutter}`}>
-          Patrons
-        </h2>
-        <div className={`mx-auto max-w-5xl border-b border-[#ff0402] py-2.5 font-mek-mono text-sm text-[#ff0402] ${gutter}`}>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8">
-            {patronCols.map((col, ci) => (
-              <div key={ci} className="min-w-0 space-y-0">
-                {col.map((line, li) => (
-                  <p key={`${ci}-${li}`} className="truncate leading-normal">
-                    {line}
-                  </p>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-        <p className={`pt-3 font-mek-mono text-xs text-[#ff0402]/80 ${gutter}`}>Preview labels — member directory coming soon.</p>
       </section>
 
       </div>
@@ -1075,6 +1016,65 @@ export default function HomePageClientV2() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function formatStaticEth(amount: string | undefined) {
+  try {
+    return `${formatEther(BigInt(amount || "0"))} ETH`;
+  } catch {
+    return "TBD";
+  }
+}
+
+function StaticArtworkTile({
+  auction,
+  gradient,
+}: {
+  auction: EnrichedAuctionData;
+  gradient: string;
+}) {
+  return (
+    <div className="min-h-[160px] border border-black/15 bg-black p-2 text-white">
+      <div className="flex h-full flex-col justify-between p-2" style={{ background: gradient }}>
+        <span className="self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
+          Lot {auction.tokenId}
+        </span>
+        <div className="bg-black/70 p-2 font-mek-mono text-xs">
+          <p className="truncate">{auction.title}</p>
+          <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StaticAuctionCard({
+  auction,
+  gradient,
+}: {
+  auction: EnrichedAuctionData;
+  gradient: string;
+}) {
+  const price = formatStaticEth(auction.currentPrice || auction.initialAmount);
+  const status = auction.highestBid ? "live bid placeholder" : "auction placeholder";
+
+  return (
+    <div className="overflow-hidden bg-[#1b1b1b] text-white">
+      <div className="relative aspect-square" style={{ background: gradient }}>
+        <div className="absolute left-0 top-0 flex items-center gap-2 bg-[#272727] p-2.5">
+          <span className="h-2 w-2 bg-[#00ff11]" aria-hidden />
+          <span className="font-mek-mono text-xs">{status}</span>
+        </div>
+        <div className="absolute bottom-0 left-0 bg-white p-2.5 font-mek-mono text-sm text-black">
+          {price}
+        </div>
+      </div>
+      <div className="space-y-1 p-2.5 font-mek-mono text-sm">
+        <p className="truncate">{auction.title}</p>
+        <p className="truncate text-neutral-400">by {auction.artist}</p>
+      </div>
     </div>
   );
 }
