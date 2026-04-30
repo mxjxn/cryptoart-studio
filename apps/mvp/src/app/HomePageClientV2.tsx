@@ -25,14 +25,6 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
   return tokenSpec === "ERC1155" || String(tokenSpec) === "2";
 }
 
-/** Decorative patron labels aligned with Figma Patrons section (preview only). */
-const REDESIGN_PATRON_PREVIEW = [
-  "0xbc9…9915", "0x053…6ee0", "0x9ff…f28b", "wokhe…eth", "maxca…eth", "gurug…eth",
-  "tomat…eth", "tinyr…eth", "nifty…eth", "crypt…eth", "mxjxn…eth", "aoife…eth",
-  "0x626…fc49", "0xc1d…7d14", "0x3c5…ba62", "0x2f0…9fa7", "0x9e7…90e5", "0x771…a711",
-  "0x5c0…b3a3", "0x1a2…3307", "0x921…36a5", "mumbo…eth", "wgmee…eth", "push-…eth", "efdot…eth",
-];
-
 const FARCON_STATIC_PREVIEW = true;
 
 const KISMET_GRADIENTS = [
@@ -815,13 +807,6 @@ export default function HomePageClientV2() {
       return bt > at ? 1 : -1;
     })
     .slice(0, 4);
-  const patronColSize = Math.ceil(REDESIGN_PATRON_PREVIEW.length / 3);
-  const patronCols = [
-    REDESIGN_PATRON_PREVIEW.slice(0, patronColSize),
-    REDESIGN_PATRON_PREVIEW.slice(patronColSize, patronColSize * 2),
-    REDESIGN_PATRON_PREVIEW.slice(patronColSize * 2),
-  ];
-
   const gutter = "px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16";
 
   return (
@@ -850,7 +835,7 @@ export default function HomePageClientV2() {
             if (isMember) return;
             router.push("/membership?from=redesign");
           }}
-          className="flex w-full flex-wrap items-center justify-center gap-2.5 bg-[#f5b0d3] p-2.5 font-mek-mono text-[clamp(0.75rem,3.5vw,1.05rem)] font-medium leading-normal text-black"
+          className="flex w-full flex-wrap items-center justify-center gap-2.5 bg-[#f5b0d3] p-2.5 font-space-grotesk text-[30px] font-medium leading-normal text-black"
         >
           <span className="text-black">{isMember ? "Member" : "become a member"}</span>
           {!isMember && <span className="text-black">0.0001 ETH /MONTH</span>}
@@ -929,6 +914,27 @@ export default function HomePageClientV2() {
         <div className={`flex items-center justify-between border-t border-black/10 py-5 font-mek-mono text-sm ${gutter}`}>
           <span>Curated for FarCon</span>
           <span>live auction placeholders</span>
+        </div>
+      </section>
+
+      {/* Kismet Casa: each lot gets a dedicated section preview */}
+      <section className="w-full bg-[#111111]">
+        <h2 className={`pb-2 pt-5 font-space-grotesk text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-white ${gutter}`}>
+          Kismet Casa lots
+        </h2>
+        <p className={`pb-5 font-mek-mono text-sm text-[#aaaaaa] ${gutter}`}>
+          Individual lot previews. Click into a listing to place bids.
+        </p>
+
+        <div className="flex flex-col">
+          {KISMET_CASA_PLACEHOLDERS.map((auction, index) => (
+            <KismetLotSection
+              key={auction.id}
+              auction={auction}
+              gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
+              gutter={gutter}
+            />
+          ))}
         </div>
       </section>
 
@@ -1076,6 +1082,70 @@ function StaticAuctionCard({
         <p className="truncate text-neutral-400">by {auction.artist}</p>
       </div>
     </div>
+  );
+}
+
+function KismetLotSection({
+  auction,
+  gradient,
+  gutter,
+}: {
+  auction: EnrichedAuctionData;
+  gradient: string;
+  gutter: string;
+}) {
+  const price = formatStaticEth(auction.currentPrice || auction.initialAmount);
+  const isAuction = auction.listingType === "INDIVIDUAL_AUCTION";
+  const statusText = isAuction ? "Auction lot" : "Fixed price lot";
+  const bidInfo = isAuction ? `${auction.bidCount || 0} bid${auction.bidCount === 1 ? "" : "s"}` : "Buy now";
+
+  return (
+    <article className="border-t border-[#2b2b2b] bg-black text-white">
+      <div className={`grid gap-4 py-5 md:grid-cols-[minmax(160px,220px)_minmax(0,1fr)] md:items-start ${gutter}`}>
+        <div className="relative aspect-square overflow-hidden border border-white/15" style={{ background: gradient }}>
+          <div className="absolute left-2 top-2 bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
+            Lot {auction.tokenId}
+          </div>
+          <div className="absolute bottom-2 left-2 bg-black/80 px-2 py-1 font-mek-mono text-xs text-white">
+            {statusText}
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="space-y-1">
+            <h3 className="truncate font-space-grotesk text-2xl font-medium text-white">
+              {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
+            </h3>
+            <p className="font-mek-mono text-sm text-[#c9c9c9]">by {auction.artist || "Kismet Casa"}</p>
+          </div>
+
+          <p className="line-clamp-2 font-mek-mono text-sm text-[#9f9f9f]">
+            {auction.description || "Limited lot preview. Open listing for full details and bidding controls."}
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 font-mek-mono text-sm">
+            <div className="border border-[#333333] bg-[#151515] p-2.5">
+              <p className="text-[#8f8f8f]">Current</p>
+              <p className="text-white">{price}</p>
+            </div>
+            <div className="border border-[#333333] bg-[#151515] p-2.5">
+              <p className="text-[#8f8f8f]">Status</p>
+              <p className="text-white">{bidInfo}</p>
+            </div>
+          </div>
+
+          <div>
+            <TransitionLink
+              href={`/listing/${auction.listingId}`}
+              prefetch={false}
+              className="inline-flex items-center border border-white/25 px-3 py-2 font-mek-mono text-sm text-white transition-colors hover:bg-white hover:text-black"
+            >
+              View listing
+            </TransitionLink>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
