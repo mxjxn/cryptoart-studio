@@ -35,6 +35,7 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
   
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [newGalleryTitle, setNewGalleryTitle] = useState("");
   const [newGalleryDescription, setNewGalleryDescription] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -121,6 +122,32 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
     },
     onError: (error: Error) => {
       alert(error.message);
+    },
+  });
+
+  const refreshMetadata = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/listings/${listingId}/refresh-metadata`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userAddress: address }),
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data?.success) {
+        setRefreshMessage("Refresh queued");
+        return;
+      }
+      if (typeof data?.cooldownRemainingMs === "number" && data.cooldownRemainingMs > 0) {
+        const minutes = Math.ceil(data.cooldownRemainingMs / 60000);
+        setRefreshMessage(`Recently refreshed, try again in ${minutes}m`);
+      } else {
+        setRefreshMessage("Refresh unavailable");
+      }
+    },
+    onError: () => {
+      setRefreshMessage("Refresh unavailable");
     },
   });
 
@@ -245,6 +272,18 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
                   </button>
                 </div>
               )}
+              <div className="border-t border-[#333333] pt-1 mt-1">
+                <button
+                  onClick={() => refreshMetadata.mutate()}
+                  disabled={refreshMetadata.isPending}
+                  className="w-full text-left px-3 py-2 text-xs text-white hover:bg-[#333333] transition-colors disabled:opacity-50"
+                >
+                  {refreshMetadata.isPending ? "Refreshing metadata..." : "Refresh metadata"}
+                </button>
+                {refreshMessage && (
+                  <p className="px-3 pb-2 text-[10px] text-[#999999]">{refreshMessage}</p>
+                )}
+              </div>
             </>
           )}
         </>

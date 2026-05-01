@@ -36,6 +36,78 @@ const publicClient = createPublicClient({
   ),
 });
 
+const METADATA_FETCH_TIMEOUT_MS = 9000;
+const HEAD_VALIDATION_TIMEOUT_MS = 1200;
+
+function normalizeGatewayBase(url: string | undefined): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/\/+$/, '');
+}
+
+const CONFIGURED_IPFS_GATEWAY =
+  normalizeGatewayBase(process.env.NEXT_PUBLIC_PINATA_GATEWAY_URL) ||
+  normalizeGatewayBase(process.env.PINATA_GATEWAY_URL) ||
+  normalizeGatewayBase(process.env.NEXT_PUBLIC_IPFS_GATEWAY_URL) ||
+  normalizeGatewayBase(process.env.IPFS_GATEWAY_URL);
+
+/**
+ * Pinata "Gateway Access Control" key (from Pinata → Dedicated Gateway → Request Key).
+ * Optional query: ?pinataGatewayToken=… — header: x-pinata-gateway-token
+ * (This is not always the same string as the Pinata API JWT.)
+ */
+function getPinataGatewayAccessToken(): string | null {
+  const raw =
+    process.env.PINATA_GATEWAY_ACCESS_TOKEN ||
+    process.env.PINATA_GATEWAY_KEY ||
+    process.env.PINATA_GATEWAY_TOKEN;
+  const s = raw?.trim();
+  return s || null;
+}
+
+function appendPinataGatewayTokenToUrlIfApplicable(url: string): string {
+  const token = getPinataGatewayAccessToken();
+  if (!token || !CONFIGURED_IPFS_GATEWAY) return url;
+  try {
+    const gatewayHost = new URL(CONFIGURED_IPFS_GATEWAY).host;
+    const u = new URL(url);
+    if (u.host !== gatewayHost) return url;
+    if (!u.searchParams.has('pinataGatewayToken')) {
+      u.searchParams.set('pinataGatewayToken', token);
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+function pinataGatewayRequestInitForUrl(url: string): RequestInit | undefined {
+  const token = getPinataGatewayAccessToken();
+  if (!token || !CONFIGURED_IPFS_GATEWAY) return undefined;
+  try {
+    if (new URL(url).host === new URL(CONFIGURED_IPFS_GATEWAY).host) {
+      return { headers: { 'x-pinata-gateway-token': token } };
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | undefined, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export interface NFTMetadata {
   name?: string;
   title?: string;
@@ -71,17 +143,27 @@ function ipfsToGateway(url: string): string {
   if (isDataURI(url)) {
     return url;
   }
+  let out: string;
   if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    const gateway = CONFIGURED_IPFS_GATEWAY || 'https://ipfs.io';
+    out = url.replace('ipfs://', `${gateway}/ipfs/`);
+  } else if (url.startsWith('ipfs/')) {
+    const gateway = CONFIGURED_IPFS_GATEWAY || 'https://ipfs.io';
+    out = `${gateway}/${url}`;
+  } else if ((url.startsWith('https://') || url.startsWith('http://')) && url.includes('/ipfs/')) {
+    // Some metadata hard-codes a specific gateway host (e.g. gateway.pinata.cloud).
+    // Normalize all gateway-style IPFS URLs to our configured/default gateway so one
+    // provider outage does not blank artwork across the app.
+    const gateway = CONFIGURED_IPFS_GATEWAY || 'https://ipfs.io';
+    const [, afterIpfs] = url.split('/ipfs/');
+    out = afterIpfs ? `${gateway}/ipfs/${afterIpfs}` : url;
+  } else if (url.startsWith('ar://')) {
+    out = url.replace('ar://', 'https://arweave.net/');
+  } else {
+    out = url;
   }
-  if (url.startsWith('ipfs/')) {
-    return `https://ipfs.io/${url}`;
-  }
-  // Handle Arweave URLs
-  if (url.startsWith('ar://')) {
-    return url.replace('ar://', 'https://arweave.net/');
-  }
-  return url;
+  // So <img src> works with access-controlled Pinata gateways (no custom headers in browser).
+  return appendPinataGatewayTokenToUrlIfApplicable(out);
 }
 
 /**
@@ -294,6 +376,94 @@ async function resolveIPFSImageUrl(imageUrl: string): Promise<string> {
   return ipfsToGateway(imageUrl);
 }
 
+/** Tried in order when loading JSON metadata from ipfs:// (or HTTPS /ipfs/… URLs). */
+const IPFS_METADATA_GATEWAY_HOSTS = [
+  ...(CONFIGURED_IPFS_GATEWAY ? [CONFIGURED_IPFS_GATEWAY] : []),
+  'https://ipfs.io',
+  'https://dweb.link',
+  'https://cloudflare-ipfs.com',
+  'https://gateway.pinata.cloud',
+  'https://nftstorage.link',
+  'https://w3s.link',
+] as const;
+
+function buildMetadataFetchUrlCandidates(tokenURI: string): string[] {
+  const trimmed = tokenURI.trim();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (u: string) => {
+    if (!seen.has(u)) {
+      seen.add(u);
+      out.push(u);
+    }
+  };
+
+  if (trimmed.startsWith('ipfs://')) {
+    const rest = trimmed.slice('ipfs://'.length);
+    const slash = rest.indexOf('/');
+    const cid = slash === -1 ? rest : rest.slice(0, slash);
+    const subpath = slash === -1 ? '' : rest.slice(slash + 1);
+    if (!cid) {
+      push(ipfsToGateway(trimmed));
+      return out;
+    }
+    const ipfsPath = subpath ? `${cid}/${subpath}` : cid;
+    for (const host of IPFS_METADATA_GATEWAY_HOSTS) {
+      push(`${host}/ipfs/${ipfsPath}`);
+    }
+    push(`http://ipfs.io/ipfs/${ipfsPath}`);
+    return out;
+  }
+
+  const ipfsMarker = '/ipfs/';
+  if (trimmed.startsWith('http') && trimmed.includes(ipfsMarker)) {
+    const idx = trimmed.indexOf(ipfsMarker);
+    const after = trimmed.slice(idx + ipfsMarker.length);
+    if (after) {
+      push(trimmed);
+      for (const host of IPFS_METADATA_GATEWAY_HOSTS) {
+        push(`${host}${ipfsMarker}${after}`);
+      }
+      push(`http://ipfs.io${ipfsMarker}${after}`);
+      return out;
+    }
+  }
+
+  push(ipfsToGateway(trimmed));
+  return out;
+}
+
+async function fetchMetadataJsonWithFallback(
+  tokenURI: string
+): Promise<NFTMetadata | null> {
+  const candidates = buildMetadataFetchUrlCandidates(tokenURI);
+  for (const url of candidates) {
+    try {
+      const signedUrl = appendPinataGatewayTokenToUrlIfApplicable(url);
+      const pinataInit = pinataGatewayRequestInitForUrl(signedUrl);
+      const response = await fetchWithTimeout(
+        signedUrl,
+        pinataInit,
+        METADATA_FETCH_TIMEOUT_MS
+      );
+      if (!response.ok) continue;
+      const text = await response.text();
+      let parsed: NFTMetadata;
+      try {
+        parsed = JSON.parse(text) as NFTMetadata;
+      } catch {
+        continue;
+      }
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 /**
  * Fetch NFT metadata from token URI
  * Handles both HTTP/IPFS URLs and data URIs (onchain metadata)
@@ -351,16 +521,11 @@ export async function fetchNFTMetadata(
       }
       metadata = parsed;
     } else {
-      // Convert IPFS/Arweave URL if needed
-      const gatewayUrl = ipfsToGateway(tokenURI);
-
-      // Fetch metadata from URL
-      const response = await fetch(gatewayUrl);
-      if (!response.ok) {
+      const fetched = await fetchMetadataJsonWithFallback(tokenURI);
+      if (!fetched) {
         return null;
       }
-
-      metadata = await response.json() as NFTMetadata;
+      metadata = fetched;
     }
 
     // Convert image URL if it's IPFS (skip if already a data URI)
@@ -405,7 +570,11 @@ export async function fetchNFTMetadata(
               // Validate cached URL is actually an image before using it
               // Check if it looks like a Vercel Blob URL and validate it's not HTML
               try {
-                const validateResponse = await fetch(cached, { method: 'HEAD' });
+                const validateResponse = await fetchWithTimeout(
+                  cached,
+                  { method: 'HEAD' },
+                  HEAD_VALIDATION_TIMEOUT_MS
+                );
                 const cachedContentType = validateResponse.headers.get('content-type') || '';
                 
                 // If cached URL returns HTML, it's probably broken - fall back to gateway

@@ -1,0 +1,1 @@
+- [ ] so on that page, we need to have the same menu that we have on the homepage - click on my profile pic and it gives that dropdown. please do that first. 

@@ -4,6 +4,11 @@ import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { Address } from "viem";
 import { getDatabase, hiddenUsers } from '@cryptoart/db';
+import {
+  getListingMediaSnapshot,
+  primeListingMediaSnapshot,
+  resolveMediaWithFallback,
+} from "~/lib/server/listing-metadata-refresh";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -285,6 +290,93 @@ export function normalizeTokenSpec(
 }
 
 /**
+ * Resolve the listing entity from the subgraph only (no metadata, thumbnails, or RPC).
+ * Used by page-status and as the first step of getAuctionServer.
+ */
+export async function resolveListingFromSubgraph(
+  listingId: string
+): Promise<any | null> {
+  const endpoint = getSubgraphEndpoint();
+  const headers = getSubgraphHeaders();
+
+  let data = await request<{ listing: any | null }>(
+    endpoint,
+    LISTING_BY_ID_QUERY,
+    { id: listingId },
+    headers
+  );
+
+  let listing = data.listing;
+
+  if (listing) {
+    const returnedListingId = String(listing.listingId || listing.id || "");
+    const requestedListingId = String(listingId);
+
+    if (returnedListingId !== requestedListingId) {
+      console.warn(
+        `[resolveListingFromSubgraph] Listing ID mismatch with entity id query! Requested: ${requestedListingId}, Got: ${returnedListingId}, Entity ID: ${listing.id}, Status: ${listing.status}`
+      );
+      const listingIdNum = parseInt(listingId, 10);
+      if (!isNaN(listingIdNum)) {
+        const listingData = await request<{ listings: any[] }>(
+          endpoint,
+          LISTING_BY_LISTING_ID_QUERY,
+          { listingId: listingIdNum },
+          headers
+        );
+
+        if (listingData.listings && listingData.listings.length > 0) {
+          listing = listingData.listings[0];
+          const newReturnedListingId = String(listing.listingId || listing.id || "");
+          if (newReturnedListingId !== requestedListingId) {
+            console.error(
+              `[resolveListingFromSubgraph] Still got wrong listing! Requested: ${requestedListingId}, Got: ${newReturnedListingId}`
+            );
+            return null;
+          }
+          console.log(
+            `[resolveListingFromSubgraph] Found correct listing using listingId query: listingId=${listing.listingId}, status=${listing.status}`
+          );
+        } else {
+          console.warn(
+            `[resolveListingFromSubgraph] No listing found using listingId query for: ${listingId}`
+          );
+          return null;
+        }
+      } else {
+        console.error(`[resolveListingFromSubgraph] Invalid listingId format: ${listingId}`);
+        return null;
+      }
+    }
+  }
+
+  if (!listing) {
+    const listingIdNum = parseInt(listingId, 10);
+    if (!isNaN(listingIdNum)) {
+      try {
+        const listingData = await request<{ listings: any[] }>(
+          endpoint,
+          LISTING_BY_LISTING_ID_QUERY,
+          { listingId: listingIdNum },
+          headers
+        );
+
+        if (listingData.listings && listingData.listings.length > 0) {
+          listing = listingData.listings[0];
+          console.log(
+            `[resolveListingFromSubgraph] Found listing using listingId query fallback: listingId=${listing.listingId}, status=${listing.status}`
+          );
+        }
+      } catch (error) {
+        console.error(`[resolveListingFromSubgraph] Fallback query also failed:`, error);
+      }
+    }
+  }
+
+  return listing || null;
+}
+
+/**
  * Fetch auction data server-side (for use in route handlers, etc.)
  */
 export async function getAuctionServer(
@@ -294,82 +386,10 @@ export async function getAuctionServer(
   console.log(`[OG Image] [getAuctionServer] Fetching auction ${listingId}...`);
   
   try {
-    const endpoint = getSubgraphEndpoint();
-    console.log(`[OG Image] [getAuctionServer] Using subgraph endpoint: ${endpoint.replace(/\/graphql.*$/, '/graphql')}`);
-
-    // Try querying by entity id first
-    let data = await request<{ listing: any | null }>(
-      endpoint,
-      LISTING_BY_ID_QUERY,
-      { id: listingId },
-      getSubgraphHeaders()
-    );
-
-    let listing = data.listing;
-    
-    // Validate that the returned listing actually matches the requested listingId
-    // This prevents issues where old cancelled listings might be returned for the same NFT
-    if (listing) {
-      const returnedListingId = String(listing.listingId || listing.id || '');
-      const requestedListingId = String(listingId);
-      
-      if (returnedListingId !== requestedListingId) {
-        console.warn(`[OG Image] [getAuctionServer] Listing ID mismatch with entity id query! Requested: ${requestedListingId}, Got: ${returnedListingId}, Entity ID: ${listing.id}, Status: ${listing.status}`);
-        // Try querying by listingId field instead
-        const listingIdNum = parseInt(listingId);
-        if (!isNaN(listingIdNum)) {
-          const listingData = await request<{ listings: any[] }>(
-            endpoint,
-            LISTING_BY_LISTING_ID_QUERY,
-            { listingId: listingIdNum },
-            getSubgraphHeaders()
-          );
-          
-          if (listingData.listings && listingData.listings.length > 0) {
-            listing = listingData.listings[0];
-            const newReturnedListingId = String(listing.listingId || listing.id || '');
-            if (newReturnedListingId === requestedListingId) {
-              console.log(`[OG Image] [getAuctionServer] Found correct listing using listingId query: listingId=${listing.listingId}, status=${listing.status}`);
-            } else {
-              console.error(`[OG Image] [getAuctionServer] Still got wrong listing! Requested: ${requestedListingId}, Got: ${newReturnedListingId}`);
-              return null;
-            }
-          } else {
-            console.warn(`[OG Image] [getAuctionServer] No listing found using listingId query for: ${listingId}`);
-            return null;
-          }
-        } else {
-          console.error(`[OG Image] [getAuctionServer] Invalid listingId format: ${listingId}`);
-          return null;
-        }
-      }
-    }
-
+    const listing = await resolveListingFromSubgraph(listingId);
     if (!listing) {
       console.warn(`[OG Image] [getAuctionServer] No listing found for ID: ${listingId}`);
-      // Try fallback query by listingId field
-      const listingIdNum = parseInt(listingId);
-      if (!isNaN(listingIdNum)) {
-        try {
-          const listingData = await request<{ listings: any[] }>(
-            endpoint,
-            LISTING_BY_LISTING_ID_QUERY,
-            { listingId: listingIdNum },
-            getSubgraphHeaders()
-          );
-          
-          if (listingData.listings && listingData.listings.length > 0) {
-            listing = listingData.listings[0];
-            console.log(`[OG Image] [getAuctionServer] Found listing using listingId query fallback: listingId=${listing.listingId}, status=${listing.status}`);
-          }
-        } catch (error) {
-          console.error(`[OG Image] [getAuctionServer] Fallback query also failed:`, error);
-        }
-      }
-      
-      if (!listing) {
-        return null;
-      }
+      return null;
     }
     
     console.log(`[OG Image] [getAuctionServer] Listing found: listingId=${listing.listingId}, status=${listing.status}, tokenAddress=${listing.tokenAddress}`);
@@ -408,6 +428,7 @@ export async function getAuctionServer(
     // This ensures og-image embeds work reliably with optimized images
     let thumbnailUrl: string | undefined = undefined;
     const imageUrl = metadata?.image;
+    const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
     if (imageUrl) {
       try {
         const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
@@ -431,6 +452,14 @@ export async function getAuctionServer(
       normalizedTokenSpec,
     });
 
+    const resolvedMedia = resolveMediaWithFallback({
+      freshImage: metadata?.image,
+      cachedThumbnail: thumbnailUrl,
+      lastKnownImage: mediaSnapshot?.image,
+      lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+      originalImage: metadata?.image,
+    });
+
     const enriched: EnrichedAuctionData = {
       ...listing,
       listingType: normalizedListingType,
@@ -443,13 +472,14 @@ export async function getAuctionServer(
             timestamp: highestBid.timestamp,
           }
         : undefined,
-      title: metadata?.title || metadata?.name,
-      artist: metadata?.artist || metadata?.creator,
-      image: metadata?.image,
-      description: metadata?.description,
-      thumbnailUrl,
+      title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+      artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+      image: resolvedMedia.image,
+      description: metadata?.description || mediaSnapshot?.description,
+      thumbnailUrl: resolvedMedia.thumbnailUrl,
       metadata,
     };
+    primeListingMediaSnapshot(enriched);
 
     const elapsed = Date.now() - startTime;
     console.log(`[OG Image] [getAuctionServer] Auction data fetched successfully in ${elapsed}ms`);
@@ -626,6 +656,7 @@ async function fetchActiveAuctions(
         // Generate thumbnail for homepage display (optimized, cached)
         let thumbnailUrl: string | undefined = undefined;
         const imageUrl = metadata?.image;
+        const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
         if (imageUrl) {
           try {
             const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
@@ -637,6 +668,14 @@ async function fetchActiveAuctions(
           }
         }
 
+        const resolvedMedia = resolveMediaWithFallback({
+          freshImage: metadata?.image,
+          cachedThumbnail: thumbnailUrl,
+          lastKnownImage: mediaSnapshot?.image,
+          lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+          originalImage: metadata?.image,
+        });
+
         const enriched: EnrichedAuctionData = {
           ...listing,
           listingType: normalizeListingType(listing.listingType, listing),
@@ -647,15 +686,17 @@ async function fetchActiveAuctions(
             bidder: highestBid.bidder,
             timestamp: highestBid.timestamp,
           } : undefined,
-          title: metadata?.title || metadata?.name,
-          artist: metadata?.artist || metadata?.creator,
-          image: metadata?.image,
-          description: metadata?.description,
-          thumbnailUrl,
+          title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+          artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+          image: resolvedMedia.image,
+          description: metadata?.description || mediaSnapshot?.description,
+          thumbnailUrl: resolvedMedia.thumbnailUrl,
           metadata,
           erc1155TotalSupply,
           erc721TotalSupply,
         };
+
+        primeListingMediaSnapshot(enriched);
 
         return enriched;
       })

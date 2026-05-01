@@ -15,7 +15,6 @@ import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { type Address, parseEther, formatEther } from "viem";
 import { base } from "viem/chains";
 import { TransitionLink } from "~/components/TransitionLink";
-import { useSearchParams } from "next/navigation";
 
 // STP v2 ABI for subscription functions
 const STP_V2_ABI = [
@@ -122,8 +121,7 @@ function formatTimeRemaining(seconds: number): string {
 }
 
 export default function MembershipClient() {
-  const searchParams = useSearchParams();
-  const homeHref = searchParams.get("from") === "redesign" ? "/redesign" : "/";
+  const homeHref = "/";
 
   const { openConnectModal } = useConnectModal();
   const { address, isConnected } = useEffectiveAddress();
@@ -274,7 +272,7 @@ export default function MembershipClient() {
     <div className="min-h-screen bg-[rgb(255,4,2)] text-white flex justify-center">
       <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] flex-col min-h-screen border-x border-black/20 shadow-2xl">
         {/* Match homepage membership strip (Figma) */}
-        <div className="flex w-full flex-wrap items-center justify-center gap-2.5 bg-[rgb(245,176,211)] p-2.5 font-space-grotesk text-[clamp(0.75rem,3.5vw,1.05rem)] font-medium leading-normal text-black">
+        <div className="flex w-full flex-wrap items-center justify-center gap-1 bg-[rgb(245,176,211)] px-2 py-1 font-space-grotesk text-[11px] font-medium leading-none text-black sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-xs">
           <span className="text-black">become a member</span>
           <span className="text-black">0.0001 ETH /MONTH</span>
         </div>

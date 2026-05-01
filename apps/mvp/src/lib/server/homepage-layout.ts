@@ -12,6 +12,9 @@ import { getAuctionServer, fetchActiveAuctionsUncached, normalizeListingType, no
 import { browseListings } from '~/lib/server/browse-listings';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import { type Address } from 'viem';
+import { unstable_cache } from "next/cache";
+import { getListingMediaSnapshot, primeListingMediaSnapshot } from "~/lib/server/listing-metadata-refresh";
+import { withTimeout } from "~/lib/utils";
 
 type SectionType =
   | 'upcoming_auctions'
@@ -637,4 +640,100 @@ function getSubgraphHeaders(): Record<string, string> {
   }
   return {};
 }
+
+export interface Tier1ListingCard {
+  listingId: string;
+  tokenId?: string;
+  title: string;
+  artist: string;
+  description: string;
+  image: string | null;
+  thumbnailUrl: string | null;
+}
+
+export interface RedesignTieredSections {
+  featured: {
+    hero: Tier1ListingCard | null;
+    artworks: Tier1ListingCard[];
+  };
+  kismetLots: Tier1ListingCard[];
+}
+
+const REDESIGN_TIER1_LIMIT = 12;
+const REDESIGN_TIER1_TIMEOUT_MS = 1200;
+const REDESIGN_FALLBACK_DESCRIPTION =
+  "Curated listing preview. Open the listing for live auction activity.";
+let lastKnownRedesignSections: RedesignTieredSections | null = null;
+
+function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
+  primeListingMediaSnapshot(listing);
+  const snapshot = getListingMediaSnapshot(listing.listingId);
+  return {
+    listingId: listing.listingId,
+    tokenId: listing.tokenId,
+    title: snapshot?.title || listing.title || `Listing #${listing.listingId}`,
+    artist: snapshot?.artist || listing.artist || "Unknown artist",
+    description:
+      snapshot?.description ||
+      listing.description ||
+      REDESIGN_FALLBACK_DESCRIPTION,
+    image: snapshot?.image || listing.image || null,
+    thumbnailUrl: snapshot?.thumbnailUrl || listing.thumbnailUrl || listing.image || null,
+  };
+}
+
+async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSections> {
+  const { listings } = await browseListings({
+    first: REDESIGN_TIER1_LIMIT,
+    skip: 0,
+    orderBy: "createdAt",
+    orderDirection: "desc",
+    enrich: false,
+  });
+
+  const tier1Listings = listings
+    .filter((listing) => listing.status !== "CANCELLED")
+    .map(toTier1Card);
+
+  const hero = tier1Listings[0] || null;
+  const artworks = tier1Listings.slice(0, 4);
+  const kismetLots = tier1Listings.slice(0, 8);
+
+  const resolved = {
+    featured: { hero, artworks },
+    kismetLots,
+  };
+  lastKnownRedesignSections = resolved;
+  return resolved;
+}
+
+async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTieredSections> {
+  const fallback =
+    lastKnownRedesignSections ??
+    ({
+      featured: { hero: null, artworks: [] },
+      kismetLots: [],
+    } satisfies RedesignTieredSections);
+
+  const startedAt = Date.now();
+  const result = await withTimeout(
+    resolveRedesignTieredSectionsUncached(),
+    REDESIGN_TIER1_TIMEOUT_MS,
+    fallback
+  );
+  const elapsed = Date.now() - startedAt;
+  console.log(
+    `[RedesignTier1] sections resolved in ${elapsed}ms${result === fallback ? " (fallback)" : ""}`
+  );
+  return result;
+}
+
+export const getRedesignTieredSections = unstable_cache(
+  async () => resolveRedesignTieredSectionsWithBudget(),
+  ["redesign-tiered-sections-v1"],
+  {
+    revalidate: 120,
+    tags: ["redesign-tiered-sections"],
+  }
+);
 

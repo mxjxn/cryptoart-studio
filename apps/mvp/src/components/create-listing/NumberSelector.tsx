@@ -91,20 +91,23 @@ export function NumberSelector({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
+
+    // Keep typing predictable by allowing partial numeric values during input.
+    // Canonical formatting/clamping happens on blur.
+    if (!/^-?\d*\.?\d*$/.test(newValue)) {
+      return;
+    }
+
     setInputValue(newValue);
-    
-    const clamped = parseAndClamp(newValue);
-    if (clamped !== null) {
-      // Format to appropriate decimal places based on step
-      const decimals = step < 1 ? String(step).split(".")[1]?.length || 0 : 0;
-      const formatted = decimals > 0 ? clamped.toFixed(decimals) : String(clamped);
-      onChange(formatted);
-    } else if (newValue === "") {
-      // Allow empty temporarily for user typing
+
+    if (newValue === "") {
       onChange("");
-    } else {
-      // Invalid input - don't update parent, but keep in local state for display
-      // The value will be clamped on blur
+      return;
+    }
+
+    const parsed = parseFloat(newValue);
+    if (!isNaN(parsed)) {
+      onChange(newValue);
     }
   };
 
@@ -173,16 +176,15 @@ export function NumberSelector({
         </button>
         <div className="flex-1">
           <input
-            type="number"
+            type="text"
             value={inputValue}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
-            min={min}
-            max={max}
-            step={step}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder={placeholder}
             disabled={disabled}
             required={required}
+            inputMode={step < 1 ? "decimal" : "numeric"}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black text-center ${
               showError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "border-[#333333]"
             }`}

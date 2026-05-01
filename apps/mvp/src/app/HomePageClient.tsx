@@ -370,7 +370,7 @@ export default function HomePageClient() {
       const decoder = new TextDecoder();
       let buffer = '';
       let listings: EnrichedAuctionData[] = [];
-      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number } = {};
       let listingsArrayStart = -1;
       
       while (true) {
@@ -446,6 +446,8 @@ export default function HomePageClient() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                 } catch {
                   // Continue
                 }
@@ -478,6 +480,9 @@ export default function HomePageClient() {
         if (finalData.subgraphDown !== undefined) {
           metadata.subgraphDown = finalData.subgraphDown;
         }
+        if (finalData.degraded !== undefined) {
+          metadata.degraded = finalData.degraded;
+        }
       } catch {
         // Buffer might be incomplete, that's okay
       }
@@ -487,7 +492,7 @@ export default function HomePageClient() {
       
       // Filter for ERC721 only
       const nftListings = listings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
-      const isSubgraphDown = metadata.subgraphDown || false;
+      const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
       console.log('[HomePageClient] Received NFTs:', nftListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
@@ -530,7 +535,7 @@ export default function HomePageClient() {
       const decoder = new TextDecoder();
       let buffer = '';
       let listings: EnrichedAuctionData[] = [];
-      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number } = {};
       let listingsArrayStart = -1;
       
       while (true) {
@@ -606,6 +611,8 @@ export default function HomePageClient() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                 } catch {
                   // Continue
                 }
@@ -638,6 +645,9 @@ export default function HomePageClient() {
         if (finalData.subgraphDown !== undefined) {
           metadata.subgraphDown = finalData.subgraphDown;
         }
+        if (finalData.degraded !== undefined) {
+          metadata.degraded = finalData.degraded;
+        }
       } catch {
         // Buffer might be incomplete, that's okay
       }
@@ -647,7 +657,7 @@ export default function HomePageClient() {
       
       // Filter for ERC1155 only
       const editionListings = listings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
-      const isSubgraphDown = metadata.subgraphDown || false;
+      const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
       console.log('[HomePageClient] Received Editions:', editionListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
@@ -717,6 +727,7 @@ export default function HomePageClient() {
     };
   }, [fetchRecentEditions]);
 
+  const showDataDegradedNotice = nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -762,6 +773,14 @@ export default function HomePageClient() {
             >
               + Create Listing
             </TransitionLink>
+          </div>
+        </section>
+      )}
+
+      {showDataDegradedNotice && (
+        <section className="border-b border-[#333333] bg-[#221f12]">
+          <div className="px-5 py-2 text-xs text-[#f6d87d] font-mek-mono">
+            Live listing data is temporarily degraded. You may see delayed or incomplete results while services recover.
           </div>
         </section>
       )}

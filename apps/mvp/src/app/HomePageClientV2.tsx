@@ -5,14 +5,16 @@ import Image from "next/image";
 import { formatEther } from "viem";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
+import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { useEnsNameForAddress } from "~/hooks/useEnsName";
 import { AdminToolsPanel } from "~/components/AdminToolsPanel";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { usePretextMeasure } from "~/hooks/usePretextMeasure";
 
 
 // Helper function to check if a listing is ERC721
@@ -26,6 +28,8 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
 }
 
 const FARCON_STATIC_PREVIEW = true;
+const TIER1_TIMEOUT_MS = 2500;
+const TIER2_TIMEOUT_MS = 3000;
 
 const KISMET_GRADIENTS = [
   "linear-gradient(135deg, #f5acd1 0%, #dcf54c 52%, #ecc100 100%)",
@@ -77,8 +81,67 @@ const KISMET_CASA_PLACEHOLDERS: EnrichedAuctionData[] = Array.from({ length: 8 }
   };
 });
 
+type Tier1ListingCard = {
+  listingId: string;
+  tokenId?: string;
+  title: string;
+  artist: string;
+  description: string;
+  image: string | null;
+  thumbnailUrl: string | null;
+};
+
+type Tier2HydrationItem = {
+  listingId: string;
+  currentPrice: string;
+  listingType: string;
+  status: string;
+  bidCount: number;
+};
+
+function shouldSkipDynamicRedesignFetch(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & {
+    connection?: { effectiveType?: string; saveData?: boolean };
+  };
+  const effectiveType = nav.connection?.effectiveType ?? "";
+  const saveData = nav.connection?.saveData ?? false;
+  return saveData || effectiveType.includes("2g") || effectiveType.includes("3g");
+}
+
+async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /** Preview homepage matching Figma "Homepage" (Screens); served at /redesign */
 export default function HomePageClientV2() {
+  const [featuredHero, setFeaturedHero] = useState<Tier1ListingCard | null>(null);
+  const [featuredArtworks, setFeaturedArtworks] = useState<Tier1ListingCard[]>([]);
+  const [kismetTier1Lots, setKismetTier1Lots] = useState<Tier1ListingCard[]>(
+    KISMET_CASA_PLACEHOLDERS.map((auction) => ({
+      listingId: auction.listingId,
+      tokenId: auction.tokenId,
+      title: auction.title || `Kismet Casa Lot ${auction.tokenId}`,
+      artist: auction.artist || "Kismet Casa",
+      description:
+        auction.description ||
+        "Limited lot preview. Open listing for full details and bidding controls.",
+      image: auction.image || null,
+      thumbnailUrl: auction.thumbnailUrl || auction.image || null,
+    }))
+  );
+  const [kismetHydratedLots, setKismetHydratedLots] = useState<Record<string, Tier2HydrationItem>>({});
+  const [kismetHydrationDone, setKismetHydrationDone] = useState(false);
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>(
     FARCON_STATIC_PREVIEW ? KISMET_CASA_PLACEHOLDERS : [],
@@ -366,6 +429,8 @@ export default function HomePageClientV2() {
   const ensName = useEnsNameForAddress(address, !isMiniApp && isConnected && !!address);
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const pretextDebugEnabled = process.env.NODE_ENV !== "production" && searchParams.get("pretextDebug") === "1";
 
   // Hide loading modal when route changes away from homepage (navigation completes)
   useEffect(() => {
@@ -417,7 +482,7 @@ export default function HomePageClientV2() {
       const decoder = new TextDecoder();
       let buffer = '';
       let listings: EnrichedAuctionData[] = [];
-      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number } = {};
       let listingsArrayStart = -1;
       
       while (true) {
@@ -493,6 +558,8 @@ export default function HomePageClientV2() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                 } catch {
                   // Continue
                 }
@@ -525,6 +592,9 @@ export default function HomePageClientV2() {
         if (finalData.subgraphDown !== undefined) {
           metadata.subgraphDown = finalData.subgraphDown;
         }
+        if (finalData.degraded !== undefined) {
+          metadata.degraded = finalData.degraded;
+        }
       } catch {
         // Buffer might be incomplete, that's okay
       }
@@ -534,7 +604,7 @@ export default function HomePageClientV2() {
       
       // Filter for ERC721 only
       const nftListings = listings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
-      const isSubgraphDown = metadata.subgraphDown || false;
+      const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
       console.log('[HomePageClientV2] Received NFTs:', nftListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
@@ -577,7 +647,7 @@ export default function HomePageClientV2() {
       const decoder = new TextDecoder();
       let buffer = '';
       let listings: EnrichedAuctionData[] = [];
-      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number } = {};
       let listingsArrayStart = -1;
       
       while (true) {
@@ -653,6 +723,8 @@ export default function HomePageClientV2() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                 } catch {
                   // Continue
                 }
@@ -685,6 +757,9 @@ export default function HomePageClientV2() {
         if (finalData.subgraphDown !== undefined) {
           metadata.subgraphDown = finalData.subgraphDown;
         }
+        if (finalData.degraded !== undefined) {
+          metadata.degraded = finalData.degraded;
+        }
       } catch {
         // Buffer might be incomplete, that's okay
       }
@@ -694,7 +769,7 @@ export default function HomePageClientV2() {
       
       // Filter for ERC1155 only
       const editionListings = listings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
-      const isSubgraphDown = metadata.subgraphDown || false;
+      const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
       console.log('[HomePageClientV2] Received Editions:', editionListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
@@ -809,9 +884,106 @@ export default function HomePageClientV2() {
     .slice(0, 4);
   const gutter = "px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16";
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTier1 = async () => {
+      const startedAt = performance.now();
+      if (shouldSkipDynamicRedesignFetch()) {
+        console.log("[HomePageClientV2] Skipping tier1 dynamic fetch on constrained network");
+        return;
+      }
+      try {
+        const data = await fetchJsonWithTimeout("/api/redesign/sections", TIER1_TIMEOUT_MS);
+        if (!data?.success || !data?.sections || cancelled) return;
+
+        setFeaturedHero(data.sections.featured?.hero ?? null);
+        setFeaturedArtworks(data.sections.featured?.artworks ?? []);
+
+        if (Array.isArray(data.sections.kismetLots) && data.sections.kismetLots.length > 0) {
+          setKismetTier1Lots(data.sections.kismetLots);
+        }
+        console.log(
+          `[HomePageClientV2] Tier1 loaded in ${Math.round(performance.now() - startedAt)}ms`
+        );
+      } catch (error) {
+        console.warn("[HomePageClientV2] Tier1 fetch timed out or failed, keeping curated fallback:", error);
+      }
+    };
+
+    void loadTier1();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setKismetHydrationDone(false);
+
+    const loadTier2 = async () => {
+      const startedAt = performance.now();
+      if (shouldSkipDynamicRedesignFetch()) {
+        console.log("[HomePageClientV2] Skipping tier2 hydration on constrained network");
+        if (!cancelled) setKismetHydrationDone(true);
+        return;
+      }
+      try {
+        const ids = kismetTier1Lots.map((lot) => lot.listingId).join(",");
+        const data = await fetchJsonWithTimeout(
+          `/api/redesign/hydration?ids=${encodeURIComponent(ids)}`,
+          TIER2_TIMEOUT_MS
+        );
+
+        if (cancelled) return;
+        const hydrated = (data?.items || {}) as Record<string, Tier2HydrationItem>;
+        setKismetHydratedLots(hydrated);
+        console.log(
+          `[HomePageClientV2] Tier2 hydration loaded in ${Math.round(performance.now() - startedAt)}ms`
+        );
+      } catch (error) {
+        console.warn("[HomePageClientV2] Tier2 hydration timed out or failed, keeping placeholder pricing:", error);
+      } finally {
+        if (!cancelled) setKismetHydrationDone(true);
+      }
+    };
+
+    void loadTier2();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [kismetTier1Lots]);
+
+  const showDataDegradedNotice = nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError;
+  const heroListingId = featuredHero?.listingId || kismetTier1Lots[0]?.listingId;
+  const heroTaglineText =
+    "CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what matters.";
+  const heroDescriptionText =
+    featuredHero?.description ||
+    "Placeholder event gallery. Replace this copy with the real room, artist, and bidding instructions before launch.";
+  const lotIntroText = "Individual lot previews. Click into a listing to place bids.";
+
+  const heroTaglineMeasure = usePretextMeasure<HTMLParagraphElement>({
+    text: heroTaglineText,
+    font: "400 14px Space Grotesk",
+    lineHeightPx: 21,
+  });
+  const heroDescriptionMeasure = usePretextMeasure<HTMLParagraphElement>({
+    text: heroDescriptionText,
+    font: "400 14px Space Grotesk",
+    lineHeightPx: 21,
+  });
+  const lotIntroMeasure = usePretextMeasure<HTMLParagraphElement>({
+    text: lotIntroText,
+    font: "400 14px MEK-Mono",
+    lineHeightPx: 21,
+  });
+
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center">
-      <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] lg:max-w-[min(100%,1100px)] xl:max-w-[min(100%,1280px)] flex-col min-h-screen border-x border-[#222] shadow-2xl">
+    <div className="min-h-screen bg-white text-black flex justify-center">
+      <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] lg:max-w-[min(100%,1100px)] xl:max-w-[min(100%,1280px)] flex-col min-h-screen border-x border-[#222] bg-white shadow-2xl">
       {/* Create Listing */}
       {isMember && (
         <section className="border-b border-[#333333]">
@@ -832,26 +1004,43 @@ export default function HomePageClientV2() {
         <button
           type="button"
           onClick={() => {
-            if (isMember) return;
-            router.push("/membership?from=redesign");
+            router.push("/membership");
           }}
-          className="flex w-full flex-wrap items-center justify-center gap-2.5 bg-[#f5b0d3] p-2.5 font-space-grotesk text-[30px] font-medium leading-normal text-black"
+          className="flex w-full flex-wrap items-center justify-center gap-1 bg-[#f5b0d3] px-2 py-1 font-space-grotesk text-[11px] font-medium leading-none text-black sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-xs"
         >
           <span className="text-black">{isMember ? "Member" : "become a member"}</span>
           {!isMember && <span className="text-black">0.0001 ETH /MONTH</span>}
         </button>
       )}
 
+      {showDataDegradedNotice && (
+        <section className="w-full border-b border-[#333333] bg-[#221f12]">
+          <div className={`py-2 font-mek-mono text-xs text-[#f6d87d] ${gutter}`}>
+            Live listing data is temporarily degraded. You may see placeholders or delayed updates while services recover.
+          </div>
+        </section>
+      )}
+
       {/* Figma: identity row */}
-      <div className={`flex w-full items-center justify-between py-5 font-mek-mono text-sm text-white ${gutter}`}>
+      <div className={`flex w-full items-center justify-between bg-black py-5 font-mek-mono text-sm text-white ${gutter}`}>
         <span className="min-w-0 truncate">{displayHandle}</span>
-        <TransitionLink href="/settings" prefetch={false} className="shrink-0 text-white hover:underline">
-          Settings
-        </TransitionLink>
+        <div className="flex shrink-0 items-center gap-2">
+          <span
+            className="inline-flex h-8 w-8 items-center justify-center rounded border border-[#333333] text-white"
+            aria-hidden="true"
+            title="Settings"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
+              <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1.2 1.2 0 0 1 0 1.7l-1 1a1.2 1.2 0 0 1-1.7 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1.2 1.2 0 0 1-1.2 1.2h-1.4A1.2 1.2 0 0 1 10.4 20v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1.2 1.2 0 0 1-1.7 0l-1-1a1.2 1.2 0 0 1 0-1.7l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1.2 1.2 0 0 1-1.2-1.2v-1.4A1.2 1.2 0 0 1 4 10.4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1.2 1.2 0 0 1 0-1.7l1-1a1.2 1.2 0 0 1 1.7 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4A1.2 1.2 0 0 1 10.4 2.8h1.4A1.2 1.2 0 0 1 13 4v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1.2 1.2 0 0 1 1.7 0l1 1a1.2 1.2 0 0 1 0 1.7l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a1.2 1.2 0 0 1 1.2 1.2v1.4a1.2 1.2 0 0 1-1.2 1.2h-.2a1 1 0 0 0-.9.6Z" />
+            </svg>
+          </span>
+          <ProfileDropdown />
+        </div>
       </div>
 
       {/* Figma: hero / logo + tagline — stack on mobile, row on desktop */}
-      <div className={`flex flex-col gap-4 pb-5 md:flex-row md:items-center md:gap-8 md:pb-8 ${gutter}`}>
+      <div className={`flex flex-col gap-4 bg-black pb-5 pt-5 md:flex-row md:items-center md:gap-8 md:pb-8 ${gutter}`}>
         <div className="relative aspect-[384/119] w-full md:w-1/2 md:max-w-xl md:shrink-0">
           <Image
             src="/cryptoart-logo-wgmeets.png"
@@ -862,11 +1051,38 @@ export default function HomePageClientV2() {
             priority
           />
         </div>
-        <p className="font-mek-mono text-sm leading-normal text-white md:flex-1 md:py-0">
-          CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what
-          matters.
-        </p>
+        <div className="md:flex-1 md:py-0">
+          <p ref={heroTaglineMeasure.ref} className="font-space-grotesk text-sm leading-normal text-white">
+            {heroTaglineText}
+          </p>
+          <TransitionLink
+            href="/market"
+            prefetch={false}
+            className="mt-4 inline-flex w-fit border border-white px-3 py-1.5 !font-space-grotesk text-xs tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-black"
+          >
+            View all listings
+          </TransitionLink>
+        </div>
       </div>
+
+      {pretextDebugEnabled && (
+        <section className={`w-full border-y border-[#333333] bg-black py-3 font-space-grotesk text-xs text-[#f5b0d3] ${gutter}`}>
+          <div className="grid gap-1 md:grid-cols-3">
+            <p>
+              heroTagline lines: actual {heroTaglineMeasure.actualLineCount} / predicted {heroTaglineMeasure.predicted.lineCount} (w{" "}
+              {Math.round(heroTaglineMeasure.width)}px)
+            </p>
+            <p>
+              heroDescription lines: actual {heroDescriptionMeasure.actualLineCount} / predicted{" "}
+              {heroDescriptionMeasure.predicted.lineCount} (w {Math.round(heroDescriptionMeasure.width)}px)
+            </p>
+            <p>
+              lotIntro lines: actual {lotIntroMeasure.actualLineCount} / predicted {lotIntroMeasure.predicted.lineCount} (w{" "}
+              {Math.round(lotIntroMeasure.width)}px)
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Figma: Galleries (lime) */}
       <section className="w-full bg-[#dcf54c] text-[#272727]">
@@ -883,28 +1099,47 @@ export default function HomePageClientV2() {
               />
               <div className="absolute inset-0 bg-white/25" aria-hidden />
               <div className="relative flex min-h-[360px] flex-col justify-between p-4 sm:p-6">
-                <div className="font-mek-mono text-sm uppercase tracking-[0.18em] text-black">
-                  FarCon live auction preview
+                <div className="font-space-grotesk text-sm uppercase tracking-[0.18em] text-black">
+                  FarCon Live Auctions
                 </div>
                 <div className="max-w-xl">
-                  <h3 className="font-mek-mono text-[clamp(2.5rem,12vw,6.5rem)] font-medium leading-[0.9] text-black">
-                    Kismet Casa
+                  <h3 className="!font-space-grotesk text-[clamp(2.5rem,12vw,6.5rem)] font-medium leading-[0.9] text-black">
+                    {featuredHero?.artist || "Kismet Casa"}
                   </h3>
-                  <p className="mt-4 max-w-md font-mek-mono text-sm leading-normal text-black">
-                    Placeholder event gallery. Replace this copy with the real room, artist, and bidding instructions before launch.
+                  <p ref={heroDescriptionMeasure.ref} className="mt-4 max-w-md !font-space-grotesk text-sm leading-normal text-black">
+                    {heroDescriptionText}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 font-mek-mono text-sm">
-                  <span className="bg-black px-2.5 py-1 text-white">All lots shown below</span>
-                  <span className="border border-black px-2.5 py-1 text-black">Real listing IDs pending</span>
+                <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
+                  {heroListingId ? (
+                    <TransitionLink
+                      href={`/listing/${heroListingId}`}
+                      prefetch={false}
+                      className="bg-black px-2.5 py-1 text-white transition-colors hover:bg-[#222]"
+                    >
+                      View featured lot
+                    </TransitionLink>
+                  ) : (
+                    <span className="bg-black px-2.5 py-1 text-white">All lots shown below</span>
+                  )}
+                  <span className="border border-black px-2.5 py-1 text-black">All lots shown below</span>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-2">
-              {KISMET_CASA_PLACEHOLDERS.slice(0, 4).map((auction, index) => (
+              {(featuredArtworks.length > 0 ? featuredArtworks : kismetTier1Lots.slice(0, 4)).map((auction, index) => (
                 <StaticArtworkTile
-                  key={auction.id}
-                  auction={auction}
+                  key={auction.listingId}
+                  auction={{
+                    ...KISMET_CASA_PLACEHOLDERS[index]!,
+                    listingId: auction.listingId,
+                    tokenId: auction.tokenId || String(index + 1),
+                    title: auction.title,
+                    artist: auction.artist,
+                    description: auction.description,
+                    image: auction.image || undefined,
+                    thumbnailUrl: auction.thumbnailUrl || undefined,
+                  }}
                   gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
                 />
               ))}
@@ -922,15 +1157,26 @@ export default function HomePageClientV2() {
         <h2 className={`pb-2 pt-5 font-space-grotesk text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-white ${gutter}`}>
           Kismet Casa lots
         </h2>
-        <p className={`pb-5 font-mek-mono text-sm text-[#aaaaaa] ${gutter}`}>
-          Individual lot previews. Click into a listing to place bids.
+        <p ref={lotIntroMeasure.ref} className={`pb-5 font-mek-mono text-sm text-[#aaaaaa] ${gutter}`}>
+          {lotIntroText}
         </p>
 
         <div className="flex flex-col">
-          {KISMET_CASA_PLACEHOLDERS.map((auction, index) => (
+          {kismetTier1Lots.map((auction, index) => (
             <KismetLotSection
-              key={auction.id}
-              auction={auction}
+              key={auction.listingId}
+              auction={{
+                ...KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!,
+                listingId: auction.listingId,
+                tokenId: auction.tokenId || String(index + 1),
+                title: auction.title,
+                artist: auction.artist,
+                description: auction.description,
+                image: auction.image || undefined,
+                thumbnailUrl: auction.thumbnailUrl || undefined,
+              }}
+              hydratedListing={kismetHydratedLots[auction.listingId]}
+              hydrationDone={kismetHydrationDone}
               gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
               gutter={gutter}
             />
@@ -973,7 +1219,7 @@ export default function HomePageClientV2() {
                   style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
                   aria-hidden
                 />
-                <div className="min-w-0 flex-1 font-mek-mono text-sm">
+                <div className="min-w-0 flex-1 font-space-grotesk text-sm">
                   <p className="truncate text-black">{auction.title || "Listing"}</p>
                   <p className="truncate text-black">by {auction.artist || "—"}</p>
                 </div>
@@ -1047,7 +1293,7 @@ function StaticArtworkTile({
         <span className="self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
           Lot {auction.tokenId}
         </span>
-        <div className="bg-black/70 p-2 font-mek-mono text-xs">
+        <div className="bg-black/70 p-2 font-space-grotesk text-xs">
           <p className="truncate">{auction.title}</p>
           <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
         </div>
@@ -1087,26 +1333,35 @@ function StaticAuctionCard({
 
 function KismetLotSection({
   auction,
+  hydratedListing,
+  hydrationDone,
   gradient,
   gutter,
 }: {
   auction: EnrichedAuctionData;
+  hydratedListing?: Tier2HydrationItem;
+  hydrationDone?: boolean;
   gradient: string;
   gutter: string;
 }) {
-  const price = formatStaticEth(auction.currentPrice || auction.initialAmount);
-  const isAuction = auction.listingType === "INDIVIDUAL_AUCTION";
+  const displayListing = hydratedListing || auction;
+  const price = formatStaticEth(
+    (displayListing as Tier2HydrationItem).currentPrice || auction.currentPrice || auction.initialAmount
+  );
+  const isAuction =
+    ((displayListing as Tier2HydrationItem).listingType || auction.listingType) === "INDIVIDUAL_AUCTION";
   const statusText = isAuction ? "Auction lot" : "Fixed price lot";
-  const bidInfo = isAuction ? `${auction.bidCount || 0} bid${auction.bidCount === 1 ? "" : "s"}` : "Buy now";
+  const bidCount = (displayListing as Tier2HydrationItem).bidCount || auction.bidCount || 0;
+  const bidInfo = isAuction ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : "Buy now";
 
   return (
     <article className="border-t border-[#2b2b2b] bg-black text-white">
       <div className={`grid gap-4 py-5 md:grid-cols-[minmax(160px,220px)_minmax(0,1fr)] md:items-start ${gutter}`}>
         <div className="relative aspect-square overflow-hidden border border-white/15" style={{ background: gradient }}>
-          <div className="absolute left-2 top-2 bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
+          <div className="absolute left-2 top-2 bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
             Lot {auction.tokenId}
           </div>
-          <div className="absolute bottom-2 left-2 bg-black/80 px-2 py-1 font-mek-mono text-xs text-white">
+          <div className="absolute bottom-2 left-2 bg-black/80 px-2 py-1 font-space-grotesk text-xs text-white">
             {statusText}
           </div>
         </div>
@@ -1116,29 +1371,36 @@ function KismetLotSection({
             <h3 className="truncate font-space-grotesk text-2xl font-medium text-white">
               {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
             </h3>
-            <p className="font-mek-mono text-sm text-[#c9c9c9]">by {auction.artist || "Kismet Casa"}</p>
+            <p className="font-space-grotesk text-sm text-[#c9c9c9]">by {auction.artist || "Kismet Casa"}</p>
           </div>
 
-          <p className="line-clamp-2 font-mek-mono text-sm text-[#9f9f9f]">
+          <p className="line-clamp-2 font-space-grotesk text-sm text-[#9f9f9f]">
             {auction.description || "Limited lot preview. Open listing for full details and bidding controls."}
           </p>
 
-          <div className="grid grid-cols-2 gap-2 font-mek-mono text-sm">
-            <div className="border border-[#333333] bg-[#151515] p-2.5">
-              <p className="text-[#8f8f8f]">Current</p>
-              <p className="text-white">{price}</p>
+          {!hydratedListing ? (
+            <div className="border border-[#333333] bg-[#151515] p-2.5 font-space-grotesk text-sm text-white">
+              a xxx.xx ETH reserve auction
+              {hydrationDone ? "" : " ..."}
             </div>
-            <div className="border border-[#333333] bg-[#151515] p-2.5">
-              <p className="text-[#8f8f8f]">Status</p>
-              <p className="text-white">{bidInfo}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 font-mek-mono text-sm">
+              <div className="border border-[#333333] bg-[#151515] p-2.5">
+                <p className="text-[#8f8f8f]">Current</p>
+                <p className="text-white">{price}</p>
+              </div>
+              <div className="border border-[#333333] bg-[#151515] p-2.5">
+                <p className="text-[#8f8f8f]">Status</p>
+                <p className="text-white">{bidInfo}</p>
+              </div>
             </div>
-          </div>
+          )}
 
           <div>
             <TransitionLink
               href={`/listing/${auction.listingId}`}
               prefetch={false}
-              className="inline-flex items-center border border-white/25 px-3 py-2 font-mek-mono text-sm text-white transition-colors hover:bg-white hover:text-black"
+              className="inline-flex items-center border border-white/25 px-3 py-2 font-space-grotesk text-sm text-white transition-colors hover:bg-white hover:text-black"
             >
               View listing
             </TransitionLink>

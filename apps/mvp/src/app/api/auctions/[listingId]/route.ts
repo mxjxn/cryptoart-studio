@@ -7,7 +7,6 @@ import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
 import { normalizeListingType, normalizeTokenSpec } from '~/lib/server/auction';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
-import { withTimeout } from '~/lib/utils';
 
 // Set route timeout to 15 seconds (auction data may need more time)
 export const maxDuration = 15;
@@ -277,54 +276,78 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     ? listing.bids[0] // Already sorted by amount desc
     : undefined;
 
-  // Fetch NFT metadata
-  let metadata = null;
-  if (listing.tokenAddress && listing.tokenId) {
+  // Metadata + optional supply reads in parallel (was sequential and could exceed client timeouts).
+  const metadataPromise =
+    listing.tokenAddress && listing.tokenId
+      ? fetchNFTMetadata(
+          listing.tokenAddress as Address,
+          listing.tokenId,
+          listing.tokenSpec
+        ).catch((error) => {
+          console.error(
+            `Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`,
+            error
+          );
+          return null;
+        })
+      : Promise.resolve(null);
+
+  const erc1155Promise =
+    (listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) &&
+    listing.tokenAddress &&
+    listing.tokenId
+      ? import("~/lib/server/erc1155-supply").then(async ({ getERC1155TotalSupply }) => {
+          try {
+            const totalSupply = await getERC1155TotalSupply(
+              listing.tokenAddress,
+              listing.tokenId
+            );
+            return totalSupply !== null ? totalSupply.toString() : undefined;
+          } catch (error: any) {
+            const errorMsg = error?.message || String(error);
+            console.error(
+              `[fetchAuctionData] Error fetching ERC1155 total supply for ${listing.tokenAddress}:${listing.tokenId}:`,
+              errorMsg
+            );
+            return undefined;
+          }
+        })
+      : Promise.resolve(undefined);
+
+  const erc721Promise =
+    (listing.tokenSpec === "ERC721" || listing.tokenSpec === 1) && listing.tokenAddress
+      ? import("~/lib/erc721-supply").then(async ({ fetchERC721TotalSupply }) => {
+          try {
+            const totalSupply = await fetchERC721TotalSupply(listing.tokenAddress);
+            return totalSupply !== null ? totalSupply : undefined;
+          } catch (error: any) {
+            const errorMsg = error?.message || String(error);
+            console.error(
+              `[fetchAuctionData] Error fetching ERC721 total supply for ${listing.tokenAddress}:`,
+              errorMsg
+            );
+            return undefined;
+          }
+        })
+      : Promise.resolve(undefined);
+
+  const [metadata, erc1155TotalSupply, erc721TotalSupply] = await Promise.all([
+    metadataPromise,
+    erc1155Promise,
+    erc721Promise,
+  ]);
+
+  let thumbnailUrl: string | undefined = undefined;
+  if (metadata?.image) {
     try {
-      metadata = await fetchNFTMetadata(
-        listing.tokenAddress as Address,
-        listing.tokenId,
-        listing.tokenSpec
-      );
+      const { getOrGenerateThumbnail } = await import("~/lib/server/thumbnail-generator");
+      thumbnailUrl = await getOrGenerateThumbnail(metadata.image, "small");
     } catch (error) {
-      console.error(`Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);
-    }
-  }
-
-  // Fetch ERC1155 total supply if applicable
-  let erc1155TotalSupply: string | undefined = undefined;
-  if ((listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) && listing.tokenAddress && listing.tokenId) {
-    try {
-      const { getERC1155TotalSupply } = await import('~/lib/server/erc1155-supply');
-      const totalSupply = await getERC1155TotalSupply(
-        listing.tokenAddress,
-        listing.tokenId
+      console.warn(
+        `[fetchAuctionData] Failed to generate thumbnail for ${metadata.image}:`,
+        error
       );
-      if (totalSupply !== null) {
-        erc1155TotalSupply = totalSupply.toString();
-      }
-    } catch (error: any) {
-      // Log but don't throw - this is optional enrichment data
-      const errorMsg = error?.message || String(error);
-      console.error(`[fetchAuctionData] Error fetching ERC1155 total supply for ${listing.tokenAddress}:${listing.tokenId}:`, errorMsg);
-      // Continue without total supply - listing will still work
-    }
-  }
-
-  // Fetch ERC721 collection total supply if applicable
-  let erc721TotalSupply: number | undefined = undefined;
-  if ((listing.tokenSpec === "ERC721" || listing.tokenSpec === 1) && listing.tokenAddress) {
-    try {
-      const { fetchERC721TotalSupply } = await import('~/lib/erc721-supply');
-      const totalSupply = await fetchERC721TotalSupply(listing.tokenAddress);
-      if (totalSupply !== null) {
-        erc721TotalSupply = totalSupply;
-      }
-    } catch (error: any) {
-      // Log but don't throw - this is optional enrichment data
-      const errorMsg = error?.message || String(error);
-      console.error(`[fetchAuctionData] Error fetching ERC721 total supply for ${listing.tokenAddress}:`, errorMsg);
-      // Continue without total supply - listing will still work
+      thumbnailUrl = metadata.image;
     }
   }
 
@@ -358,6 +381,7 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     title: metadata?.title || metadata?.name,
     artist: metadata?.artist || metadata?.creator,
     image: metadata?.image,
+    thumbnailUrl,
     description: metadata?.description,
     metadata,
     erc1155TotalSupply,
@@ -367,13 +391,24 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
   return enriched;
 }
 
+/** Bust Data Cache when gateway / access token env changes (avoids stale "no image" payloads). */
+function auctionFetchCacheIdentity(): string {
+  return [
+    process.env.PINATA_GATEWAY_URL || '',
+    process.env.NEXT_PUBLIC_PINATA_GATEWAY_URL || '',
+    process.env.PINATA_GATEWAY_ACCESS_TOKEN || '',
+    process.env.PINATA_GATEWAY_KEY || '',
+    'v4',
+  ].join('|');
+}
+
 /**
  * Cached version of fetchAuctionData
  * Cache TTL: 2 minutes (120 seconds) to reduce subgraph rate limiting
- * Cache key includes listingId automatically via function parameter
+ * Second arg is part of the cache key so media env changes invalidate entries.
  */
 const getCachedAuctionData = unstable_cache(
-  async (listingId: string) => {
+  async (listingId: string, _mediaEnvKey: string) => {
     return fetchAuctionData(listingId);
   },
   ['auction-data'],
@@ -397,13 +432,44 @@ export async function GET(
       );
     }
 
-    // Fetch cached auction data with timeout to prevent hanging
-    const enriched = await withTimeout(
-      getCachedAuctionData(listingId),
-      10000, // 10 second timeout
-      null // Fallback to null on timeout
-    );
+    // `useAuction` passes `?refresh=` on forced refetch — bypass stale `unstable_cache`
+    // so metadata/IPFS enrichment can complete (slow gateways may exceed short timeouts).
+    const forceRefresh = req.nextUrl.searchParams.has('refresh');
+    const timeoutMs = forceRefresh ? 16000 : 12000;
+    const loadPromise = forceRefresh
+      ? fetchAuctionData(listingId)
+      : getCachedAuctionData(listingId, auctionFetchCacheIdentity());
 
+    type RaceOk = { kind: 'ok'; data: EnrichedAuctionData | null };
+    type RaceTimeout = { kind: 'timeout' };
+    type RaceErr = { kind: 'err'; err: unknown };
+
+    const outcome = await Promise.race([
+      loadPromise
+        .then((data): RaceOk => ({ kind: 'ok', data }))
+        .catch((err): RaceErr => ({ kind: 'err', err })),
+      new Promise<RaceTimeout>((resolve) => setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs)),
+    ]);
+
+    if (outcome.kind === 'timeout') {
+      console.warn(
+        `[auctions/${listingId}] Enrichment exceeded ${timeoutMs}ms — returning 504 (not 404)`
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Auction lookup timed out',
+          code: 'TIMEOUT',
+        },
+        { status: 504 }
+      );
+    }
+
+    if (outcome.kind === 'err') {
+      throw outcome.err;
+    }
+
+    const enriched = outcome.data;
     if (!enriched) {
       return NextResponse.json(
         { error: 'Auction not found' },
@@ -425,10 +491,13 @@ export async function GET(
       console.error('[auctions API] Error in background user discovery:', error);
     }
 
-    return NextResponse.json({
-      success: true,
-      auction: enriched,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        auction: enriched,
+      },
+      forceRefresh ? { headers: { 'Cache-Control': 'no-store, max-age=0' } } : {}
+    );
   } catch (error: any) {
     console.error('Error fetching auction:', error);
     

@@ -72,7 +72,7 @@ export default function MarketClient() {
         const decoder = new TextDecoder();
         let buffer = '';
         let listings: EnrichedAuctionData[] = [];
-        let metadata: { subgraphDown?: boolean; count?: number; pagination?: { hasMore?: boolean } } = {};
+        let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number; pagination?: { hasMore?: boolean } } = {};
         let listingsArrayStart = -1;
 
         while (true) {
@@ -128,6 +128,8 @@ export default function MarketClient() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                   const hasMoreMatch = afterArray.match(/"hasMore":(true|false)/);
                   if (hasMoreMatch) {
                     metadata.pagination = { hasMore: hasMoreMatch[1] === 'true' };
@@ -158,6 +160,9 @@ export default function MarketClient() {
           if (finalData.subgraphDown !== undefined) {
             metadata.subgraphDown = finalData.subgraphDown;
           }
+          if (finalData.degraded !== undefined) {
+            metadata.degraded = finalData.degraded;
+          }
           if (finalData.pagination) {
             metadata.pagination = finalData.pagination;
           }
@@ -165,7 +170,7 @@ export default function MarketClient() {
           // Buffer might be incomplete, that's okay - we already parsed what we could
         }
 
-        const isSubgraphDown = metadata.subgraphDown || false;
+        const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
 
         console.log('[MarketClient] Received data:', {
           success: true,

@@ -5,48 +5,31 @@ import { Address } from "viem";
 import { useContractName } from "~/hooks/useContractName";
 import { useArtistName } from "~/hooks/useArtistName";
 import { fetchFloorPriceFromAlchemy, type FloorPriceInfo } from "~/lib/contract-info";
+import { cn } from "~/lib/utils";
 
 interface ContractDetailsProps {
   contractAddress: Address;
   imageUrl?: string | null;
+  /** `light`: black text on white listing panel. `dark`: original minimal theme. */
+  variant?: "dark" | "light";
 }
 
-export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsProps) {
+export function ContractDetails({
+  contractAddress,
+  imageUrl,
+  variant = "dark",
+}: ContractDetailsProps) {
   const { contractName, isLoading: contractNameLoading } = useContractName(contractAddress);
   const [deploymentBlock, setDeploymentBlock] = useState<number | null>(null);
   const [deploymentLoading, setDeploymentLoading] = useState(false);
   const [floorPrice, setFloorPrice] = useState<FloorPriceInfo | null>(null);
   const [floorPriceLoading, setFloorPriceLoading] = useState(false);
 
-  // Fetch deployment block from API
+  // Disable deployment block lookup for now; the old endpoint was removed and
+  // caused noisy 404s in the browser console.
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchDeploymentBlock = async () => {
-      setDeploymentLoading(true);
-      try {
-        // Try to get deployment info from contract cache or API
-        const response = await fetch(`/api/contracts/${contractAddress}/deployment`);
-        if (response.ok) {
-          const data = await response.json();
-          if (isMounted && data.blockNumber) {
-            setDeploymentBlock(data.blockNumber);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching deployment block:", error);
-      } finally {
-        if (isMounted) {
-          setDeploymentLoading(false);
-        }
-      }
-    };
-
-    fetchDeploymentBlock();
-
-    return () => {
-      isMounted = false;
-    };
+    setDeploymentLoading(false);
+    setDeploymentBlock(null);
   }, [contractAddress]);
 
   // Fetch floor price from Alchemy
@@ -85,23 +68,41 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
   );
 
   const displayDeployer = deployerName || deployerAddress || "Unknown";
+  const light = variant === "light";
 
   return (
-    <div className="mb-4 space-y-2 border-t border-[#333333] pt-3" role="region" aria-label="Contract Details">
-      <div className="text-[10px] text-[#666666] uppercase tracking-wider mb-2" role="heading" aria-level={3}>
+    <div
+      className={cn(
+        "space-y-2 border-t",
+        light ? "mb-0 border-neutral-200 pt-4" : "mb-4 border-[#333333] pt-3",
+      )}
+      role="region"
+      aria-label="Contract Details"
+    >
+      <div
+        className={cn(
+          "mb-2 text-[10px] uppercase tracking-wider",
+          light ? "text-neutral-500" : "text-[#666666]",
+        )}
+        role="heading"
+        aria-level={3}
+      >
         Contract Details
       </div>
-      
+
       <dl className="space-y-1.5 text-xs">
         {/* Contract Address - Basescan link */}
         <div className="flex items-start gap-2">
-          <dt className="text-[#999999] min-w-[100px]">address:</dt>
+          <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>address:</dt>
           <dd>
             <a
               href={`https://basescan.org/address/${contractAddress}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#cccccc] hover:text-white hover:underline font-mono break-all"
+              className={cn(
+                "font-mono break-all hover:underline",
+                light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
+              )}
               aria-label={`View contract ${contractAddress} on Basescan`}
             >
               {contractAddress}
@@ -112,45 +113,64 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
         {/* Contract Name */}
         {contractNameLoading ? (
           <div className="flex items-center gap-2">
-            <dt className="text-[#999999] min-w-[100px]">name:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>name:</dt>
             <dd>
-              <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-label="Loading contract name" aria-busy="true"></div>
+              <div
+                className={cn(
+                  "h-3 w-3 animate-spin rounded-full border border-t-transparent",
+                  light ? "border-neutral-300 border-t-neutral-700" : "border-[#666666] border-t-transparent",
+                )}
+                aria-label="Loading contract name"
+                aria-busy="true"
+              />
             </dd>
           </div>
         ) : contractName ? (
           <div className="flex items-start gap-2">
-            <dt className="text-[#999999] min-w-[100px]">name:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>name:</dt>
             <dd>
-              <span className="text-[#cccccc] font-mono">{contractName}</span>
+              <span className={cn("font-mono", light ? "text-neutral-800" : "text-[#cccccc]")}>{contractName}</span>
             </dd>
           </div>
         ) : null}
 
         {/* Deployed By */}
         <div className="flex items-start gap-2">
-          <dt className="text-[#999999] min-w-[100px]">deployed by:</dt>
+          <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>deployed by:</dt>
           <dd>
-            <span className="text-[#cccccc] font-mono break-all">{displayDeployer}</span>
+            <span className={cn("break-all font-mono", light ? "text-neutral-800" : "text-[#cccccc]")}>
+              {displayDeployer}
+            </span>
           </dd>
         </div>
 
         {/* Deployment Block */}
         {deploymentLoading ? (
           <div className="flex items-center gap-2">
-            <dt className="text-[#999999] min-w-[100px]">block:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>block:</dt>
             <dd>
-              <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-label="Loading deployment block" aria-busy="true"></div>
+              <div
+                className={cn(
+                  "h-3 w-3 animate-spin rounded-full border border-t-transparent",
+                  light ? "border-neutral-300 border-t-neutral-700" : "border-[#666666] border-t-transparent",
+                )}
+                aria-label="Loading deployment block"
+                aria-busy="true"
+              />
             </dd>
           </div>
         ) : deploymentBlock ? (
           <div className="flex items-start gap-2">
-            <dt className="text-[#999999] min-w-[100px]">block:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>block:</dt>
             <dd>
               <a
                 href={`https://basescan.org/block/${deploymentBlock}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#cccccc] hover:text-white hover:underline font-mono"
+                className={cn(
+                  "font-mono hover:underline",
+                  light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
+                )}
                 aria-label={`View deployment block ${deploymentBlock.toLocaleString()} on Basescan`}
               >
                 {deploymentBlock.toLocaleString()}
@@ -162,13 +182,16 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
         {/* Image URL */}
         {imageUrl && (
           <div className="flex items-start gap-2">
-            <dt className="text-[#999999] min-w-[100px]">imageUrl:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>imageUrl:</dt>
             <dd>
               <a
                 href={imageUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#cccccc] hover:text-white hover:underline font-mono break-all"
+                className={cn(
+                  "break-all font-mono hover:underline",
+                  light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
+                )}
                 aria-label={`View image: ${imageUrl}`}
               >
                 {imageUrl}
@@ -180,16 +203,23 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
         {/* Floor Price */}
         {floorPriceLoading ? (
           <div className="flex items-center gap-2">
-            <dt className="text-[#999999] min-w-[100px]">floor price:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>floor price:</dt>
             <dd>
-              <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin" aria-label="Loading floor price" aria-busy="true"></div>
+              <div
+                className={cn(
+                  "h-3 w-3 animate-spin rounded-full border border-t-transparent",
+                  light ? "border-neutral-300 border-t-neutral-700" : "border-[#666666] border-t-transparent",
+                )}
+                aria-label="Loading floor price"
+                aria-busy="true"
+              />
             </dd>
           </div>
         ) : floorPrice ? (
           <div className="flex items-start gap-2">
-            <dt className="text-[#999999] min-w-[100px]">floor price:</dt>
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>floor price:</dt>
             <dd>
-              <span className="text-[#cccccc] font-mono">
+              <span className={cn("font-mono", light ? "text-neutral-800" : "text-[#cccccc]")}>
                 {floorPrice.floorPrice.toFixed(4)} {floorPrice.priceCurrency}
               </span>
               {floorPrice.collectionUrl && (
@@ -197,7 +227,10 @@ export function ContractDetails({ contractAddress, imageUrl }: ContractDetailsPr
                   href={floorPrice.collectionUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-2 text-[#999999] hover:text-[#cccccc] hover:underline text-xs"
+                  className={cn(
+                    "ml-2 text-xs hover:underline",
+                    light ? "text-neutral-500 hover:text-neutral-800" : "text-[#999999] hover:text-[#cccccc]",
+                  )}
                   aria-label="View collection on marketplace"
                 >
                   (view)

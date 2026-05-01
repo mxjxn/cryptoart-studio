@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from "~/lib/constants";
 import { getMiniAppEmbedMetadata } from "~/lib/utils";
-import HomePageClient from "./HomePageClient";
+import HomePageClientV2 from "./HomePageClientV2";
 
 // Enable ISR (Incremental Static Regeneration) for fast homepage rendering
 // Page will be statically generated and revalidated every 60 seconds
@@ -49,9 +49,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  // Client-side fetching is now handled in HomePageClient
-  // The page uses ISR for fast initial render, but listings are fetched client-side
-  // to support separate NFT and Edition sections with filtering
-  return <HomePageClient />;
+  return <HomePageClientV2 />;
 }
 

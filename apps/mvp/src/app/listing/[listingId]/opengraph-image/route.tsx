@@ -167,8 +167,8 @@ export async function GET(
     }
     
     const url = new URL(request.url);
-    // Force HTTPS for font URL to avoid SSL errors
-    const baseUrl = `https://${url.host}`;
+    // Match request scheme (https://localhost:3000 breaks font fetch — wrong SSL version on http).
+    const baseUrl = `${url.protocol}//${url.host}`;
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font from URL (edge runtime compatible)

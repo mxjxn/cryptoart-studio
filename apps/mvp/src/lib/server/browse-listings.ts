@@ -6,6 +6,11 @@ import { normalizeListingType, getHiddenUserAddresses } from "~/lib/server/aucti
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { getContractCreator } from "~/lib/contract-creator";
 import { getOrGenerateThumbnail } from "~/lib/server/thumbnail-generator";
+import {
+  getListingMediaSnapshot,
+  primeListingMediaSnapshot,
+  resolveMediaWithFallback,
+} from "~/lib/server/listing-metadata-refresh";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -327,6 +332,7 @@ export async function browseListings(
         // Skip thumbnail generation for cancelled listings
         let thumbnailUrl: string | undefined = undefined;
         const imageUrl = metadata?.image;
+        const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
         
         if (imageUrl && listing.status !== "CANCELLED") {
           try {
@@ -349,6 +355,14 @@ export async function browseListings(
           }
         }
 
+        const resolvedMedia = resolveMediaWithFallback({
+          freshImage: metadata?.image,
+          cachedThumbnail: thumbnailUrl,
+          lastKnownImage: mediaSnapshot?.image,
+          lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+          originalImage: metadata?.image,
+        });
+
           return {
             ...listing,
             listingType: normalizeListingType(listing.listingType, listing),
@@ -360,13 +374,22 @@ export async function browseListings(
                   timestamp: highestBid.timestamp,
                 }
               : undefined,
-            title: metadata?.title || metadata?.name,
-            artist: metadata?.artist || metadata?.creator,
-            image: metadata?.image,
-            description: metadata?.description,
-            thumbnailUrl,
+            title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+            artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+            image: resolvedMedia.image,
+            description: metadata?.description || mediaSnapshot?.description,
+            thumbnailUrl: resolvedMedia.thumbnailUrl,
             metadata,
           };
+          primeListingMediaSnapshot({
+            ...listing,
+            listingId: String(listing.listingId),
+            title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+            artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+            description: metadata?.description || mediaSnapshot?.description,
+            image: resolvedMedia.image,
+            thumbnailUrl: resolvedMedia.thumbnailUrl,
+          } as EnrichedAuctionData);
         })
       );
       
@@ -584,6 +607,7 @@ export async function* browseListingsStreaming(
       // This ensures fast streaming even if thumbnails aren't ready yet
       let thumbnailUrl: string | undefined = undefined;
       const imageUrl = metadata?.image;
+      const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
       
       if (imageUrl && listing.status !== "CANCELLED") {
         try {
@@ -604,7 +628,15 @@ export async function* browseListingsStreaming(
         }
       }
 
-      return {
+      const resolvedMedia = resolveMediaWithFallback({
+        freshImage: metadata?.image,
+        cachedThumbnail: thumbnailUrl,
+        lastKnownImage: mediaSnapshot?.image,
+        lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+        originalImage: metadata?.image,
+      });
+
+      const enriched = {
         ...listing,
         listingType: normalizeListingType(listing.listingType, listing),
         bidCount,
@@ -615,13 +647,15 @@ export async function* browseListingsStreaming(
               timestamp: highestBid.timestamp,
             }
           : undefined,
-        title: metadata?.title || metadata?.name,
-        artist: metadata?.artist || metadata?.creator,
-        image: metadata?.image,
-        description: metadata?.description,
-        thumbnailUrl,
+        title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+        artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+        image: resolvedMedia.image,
+        description: metadata?.description || mediaSnapshot?.description,
+        thumbnailUrl: resolvedMedia.thumbnailUrl,
         metadata,
       };
+      primeListingMediaSnapshot(enriched as EnrichedAuctionData);
+      return enriched;
     });
 
     // Wait for batch to complete and yield each listing as it's ready

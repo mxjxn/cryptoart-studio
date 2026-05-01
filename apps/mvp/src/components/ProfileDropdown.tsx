@@ -96,7 +96,12 @@ function AdminSection() {
   );
 }
 
-export function ProfileDropdown() {
+type ProfileDropdownProps = {
+  /** Trigger row is light (e.g. listing page header); softens loading state. */
+  topBarVariant?: "dark" | "light";
+};
+
+export function ProfileDropdown({ topBarVariant = "dark" }: ProfileDropdownProps) {
   const { isMiniApp, isLoading: authModeLoading } = useAuthMode();
   const { context } = useMiniApp();
   const { address, isConnected } = useAccount();
@@ -173,7 +178,13 @@ export function ProfileDropdown() {
   // Loading state
   if (authModeLoading) {
     return (
-      <div className="px-4 py-2 bg-[#1a1a1a] text-[#999999] text-sm rounded">
+      <div
+        className={
+          topBarVariant === "light"
+            ? "rounded px-4 py-2 text-sm text-neutral-500 bg-neutral-100"
+            : "rounded px-4 py-2 text-sm text-[#999999] bg-[#1a1a1a]"
+        }
+      >
         Loading...
       </div>
     );
