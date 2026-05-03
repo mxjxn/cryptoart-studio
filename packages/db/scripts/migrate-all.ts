@@ -23,6 +23,7 @@
  *   0016_add_thumbnail_cache.sql - Thumbnail cache table (metadata for blob-stored thumbnails) - Added late, should have been 0002
  *   0014_add_thumbnail_generation_status.sql - Thumbnail generation status table (adds columns to thumbnail_cache)
  *   0015_add_membership_cache.sql - Membership cache table for caching membership NFT balance checks
+ *   0017_listing_media_preview.sql - Listing preview rows for fast market merge
  */
 
 import { config } from 'dotenv';
@@ -66,6 +67,7 @@ const MIGRATIONS = [
   '0016_add_thumbnail_cache.sql', // Added late - should have been 0002 but was skipped. Must run before 0014.
   '0014_add_thumbnail_generation_status.sql', // Adds columns to thumbnail_cache (requires table from 0016)
   '0015_add_membership_cache.sql',
+  '0017_listing_media_preview.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)
