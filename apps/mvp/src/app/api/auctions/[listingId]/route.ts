@@ -352,13 +352,40 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
   ]);
 
   let thumbnailUrl: string | undefined = undefined;
+  let detailThumbnailUrl: string | undefined = undefined;
   if (metadata?.image) {
     try {
       const { getOrGenerateThumbnail } = await import("~/lib/server/thumbnail-generator");
-      thumbnailUrl = await getOrGenerateThumbnail(metadata.image, "small");
+      const { getCachedThumbnail } = await import("~/lib/server/thumbnail-cache");
+      const image = metadata.image;
+      const [smallResult, detailResult] = await Promise.allSettled([
+        getOrGenerateThumbnail(image, "small"),
+        (async () => {
+          const cached = await getCachedThumbnail(image, "detail");
+          if (cached) return cached;
+          return getOrGenerateThumbnail(image, "detail");
+        })(),
+      ]);
+      thumbnailUrl =
+        smallResult.status === "fulfilled" ? smallResult.value : image;
+      detailThumbnailUrl =
+        detailResult.status === "fulfilled" ? detailResult.value : undefined;
+      if (smallResult.status === "rejected") {
+        console.warn(
+          `[fetchAuctionData] Failed to generate small thumbnail for ${image}:`,
+          smallResult.reason
+        );
+        thumbnailUrl = image;
+      }
+      if (detailResult.status === "rejected") {
+        console.warn(
+          `[fetchAuctionData] Failed to generate detail thumbnail for ${image}:`,
+          detailResult.reason
+        );
+      }
     } catch (error) {
       console.warn(
-        `[fetchAuctionData] Failed to generate thumbnail for ${metadata.image}:`,
+        `[fetchAuctionData] Failed to generate thumbnails for ${metadata.image}:`,
         error
       );
       thumbnailUrl = metadata.image;
@@ -396,6 +423,7 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     artist: metadata?.artist || metadata?.creator,
     image: metadata?.image,
     thumbnailUrl,
+    detailThumbnailUrl,
     description: metadata?.description,
     metadata,
     erc1155TotalSupply,

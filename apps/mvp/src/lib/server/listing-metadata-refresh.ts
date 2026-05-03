@@ -110,12 +110,18 @@ async function refreshListingMetadataInternal(
 
     let thumbnailUrl = metadata.image;
     if (metadata.image) {
+      const src = metadata.image;
       try {
         const { getOrGenerateThumbnail } = await import("~/lib/server/thumbnail-generator");
-        thumbnailUrl = await getOrGenerateThumbnail(metadata.image, "small");
+        thumbnailUrl = await getOrGenerateThumbnail(src, "small");
       } catch {
-        thumbnailUrl = metadata.image;
+        thumbnailUrl = src;
       }
+      void import("~/lib/server/thumbnail-generator").then(({ getOrGenerateThumbnail }) =>
+        getOrGenerateThumbnail(src, "detail")
+      ).catch(() => {
+        // Warm hero cache in background; listing fetch also generates on demand
+      });
     }
 
     const isValidFreshImage = await validateImageCandidate(metadata.image);

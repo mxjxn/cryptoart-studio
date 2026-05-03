@@ -395,6 +395,7 @@ export function AuctionCardClient({
             src={displayImage}
             alt={displayTitle}
             fill
+            quality={90}
             className={`object-cover transition-opacity duration-300 ${
               imageLoading ? 'opacity-0' : 'opacity-100'
             }`}
