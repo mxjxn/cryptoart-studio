@@ -8,7 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --test src/lib/listing-theme.test.ts src/lib/server/listing-theme-candidates.test.ts src/lib/time-utils.test.ts",
+    "test": "tsx --test src/lib/listing-theme.test.ts src/lib/server/listing-theme-candidates.test.ts src/lib/time-utils.test.ts src/lib/create-listing-endtime.test.ts",
     "clean": "rm -rf .next node_modules/.cache",
     "backfill-thumbnails": "tsx scripts/backfill-thumbnails.ts",
     "cleanup-cancelled-images": "tsx scripts/cleanup-cancelled-listings-images.ts",

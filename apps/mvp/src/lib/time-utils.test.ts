@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatCountdownTo, getAuctionTimeStatus } from "./time-utils";
+import {
+  formatBiddingWindowAfterStart,
+  formatCountdownTo,
+  formatPreOpenAuctionTiming,
+  getAuctionTimeStatus,
+} from "./time-utils";
 
 describe("getAuctionTimeStatus (fixed startTime)", () => {
   it("uses starts-in before open, ends-in after open", () => {
@@ -11,10 +16,30 @@ describe("getAuctionTimeStatus (fixed startTime)", () => {
     assert.equal(before.status, "Not started");
     assert.match(before.timeRemaining ?? "", /^starts in /);
     assert.match(before.timeRemaining ?? "", / · ends in /);
+    assert.match(before.timeRemaining ?? "", / · bidding /);
 
     const afterOpen = getAuctionTimeStatus(startTime, endTime, false, startTime + 60);
     assert.equal(afterOpen.status, "Live");
     assert.match(afterOpen.timeRemaining ?? "", /^ends in /);
+  });
+});
+
+describe("formatBiddingWindowAfterStart", () => {
+  it("formats sub-hour windows", () => {
+    const start = 1_700_000_000;
+    assert.equal(formatBiddingWindowAfterStart(start, start + 2026), "bidding 33m");
+  });
+});
+
+describe("formatPreOpenAuctionTiming", () => {
+  it("includes bidding span", () => {
+    const now = 500;
+    const start = now + 7200;
+    const end = start + 90 * 60;
+    const t = formatPreOpenAuctionTiming(start, end, now);
+    assert.ok(t.includes("starts in 2 hrs"));
+    assert.ok(t.includes("ends in"));
+    assert.ok(t.includes("bidding 1 hr 30m"));
   });
 });
 

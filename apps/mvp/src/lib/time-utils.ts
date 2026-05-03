@@ -24,7 +24,7 @@ export function formatEndTime(timestamp: number): string {
 export type TimeCountdownVerb = "ends" | "starts";
 
 /**
- * Format countdown to a unix timestamp using "starts in …" or "ends in …".
+ * Countdown to a unix second using "starts in …" or "ends in …" (hours granularity).
  */
 export function formatCountdownTo(
   targetUnixSeconds: number,
@@ -46,6 +46,43 @@ export function formatCountdownTo(
     return `${prefix} in ${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""}`;
   }
   return `${prefix} in ${hours} hr${hours !== 1 ? "s" : ""}`;
+}
+
+/**
+ * Human-readable length of the bidding window (endTime − startTime) when both are absolute timestamps.
+ */
+export function formatBiddingWindowAfterStart(startTime: number, endTime: number): string | null {
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+    return null;
+  }
+  const sec = endTime - startTime;
+  const days = Math.floor(sec / 86400);
+  const hours = Math.floor((sec % 86400) / 3600);
+  const mins = Math.floor((sec % 3600) / 60);
+  if (days > 0) {
+    return `bidding ${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""}`;
+  }
+  if (hours > 0) {
+    return `bidding ${hours} hr${hours !== 1 ? "s" : ""} ${mins}m`;
+  }
+  if (mins > 0) {
+    return `bidding ${mins}m`;
+  }
+  return "bidding under 1m";
+}
+
+/**
+ * Before a fixed-start auction opens: time until start, until on-chain end, and scheduled window length.
+ */
+export function formatPreOpenAuctionTiming(startTime: number, endTime: number, now?: number): string {
+  const currentTime = now ?? Math.floor(Date.now() / 1000);
+  const startsIn = formatCountdownTo(startTime, currentTime, "starts");
+  if (!Number.isFinite(endTime) || endTime <= 0) {
+    return `${startsIn} · end not set`;
+  }
+  const endsIn = formatCountdownTo(endTime, currentTime, "ends");
+  const window = formatBiddingWindowAfterStart(startTime, endTime);
+  return window ? `${startsIn} · ${endsIn} · ${window}` : `${startsIn} · ${endsIn}`;
 }
 
 /**
@@ -122,14 +159,12 @@ export function getAuctionTimeStatus(
   } else {
     // Has fixed start time
     if (currentTime < startTime) {
-      // Not started yet: show both until open and until close so "ends in …" is never
-      // confused with time-until-bidding (e.g. Mon 9am → Tue 4:45pm reads clearly).
-      const startsIn = formatCountdownTo(startTime, currentTime, "starts");
-      const endsIn = formatCountdownTo(endTime, currentTime, "ends");
+      // Not started yet — show time until open, until chain end, and on-chain auction length
+      // (endTime is an absolute timestamp when startTime > 0; duration semantics only apply when startTime === 0)
       return {
         status: "Not started",
         endDate: formatEndTime(endTime),
-        timeRemaining: `${startsIn} · ${endsIn}`,
+        timeRemaining: formatPreOpenAuctionTiming(startTime, endTime, currentTime),
         neverExpires: false,
       };
     } else {
