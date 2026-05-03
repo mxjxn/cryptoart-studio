@@ -3,10 +3,18 @@ import { describe, it } from "node:test";
 import {
   composeLinearGradientCss,
   DEFAULT_LISTING_THEME,
+  hexForColorInput,
   normalizeHexColor,
   resolveThemeLayers,
   validateListingTheme,
 } from "./listing-theme";
+
+describe("hexForColorInput", () => {
+  it("returns #rrggbb for color inputs", () => {
+    assert.equal(hexForColorInput("#f0a", "#000000"), "#ff00aa");
+    assert.equal(hexForColorInput(undefined, "#00Ff00"), "#00ff00");
+  });
+});
 
 describe("normalizeHexColor", () => {
   it("expands #RGB to #RRGGBB", () => {

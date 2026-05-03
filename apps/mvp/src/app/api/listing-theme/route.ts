@@ -5,18 +5,18 @@ import {
   getSellerDefaultThemeRow,
   getListingThemeOverrideRow,
 } from "~/lib/server/listing-theme-persistence";
-import {
-  resolveThemeLayers,
-  type ListingThemeSource,
-} from "~/lib/listing-theme";
+import { resolveThemeLayers } from "~/lib/listing-theme";
 
 export const dynamic = "force-dynamic";
 
-function jsonWithCache(body: unknown, source: ListingThemeSource) {
-  const maxAge = source === "fallback" ? 300 : 60;
+/**
+ * Never cache listing theme on shared caches — after PATCH, clients must see
+ * fresh merged theme immediately (browser fetch can otherwise reuse stale GET).
+ */
+function jsonNoStore(body: unknown) {
   return NextResponse.json(body, {
     headers: {
-      "Cache-Control": `public, s-maxage=${maxAge}, stale-while-revalidate=120`,
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
     },
   });
 }
@@ -47,15 +47,12 @@ export async function GET(req: NextRequest) {
         overrideTheme = null;
       }
       const { theme, source } = resolveThemeLayers(defaultTheme, overrideTheme);
-      return jsonWithCache(
-        {
-          theme,
-          source,
-          sellerAddress: sellerLower,
-          listingId,
-        },
-        source
-      );
+      return jsonNoStore({
+        theme,
+        source,
+        sellerAddress: sellerLower,
+        listingId,
+      });
     }
 
     if (sellerParam) {
@@ -65,14 +62,11 @@ export async function GET(req: NextRequest) {
       const sellerLower = sellerParam.toLowerCase();
       const defaultTheme = await getSellerDefaultThemeRow(sellerLower);
       const { theme, source } = resolveThemeLayers(defaultTheme, null);
-      return jsonWithCache(
-        {
-          theme,
-          source,
-          sellerAddress: sellerLower,
-        },
-        source
-      );
+      return jsonNoStore({
+        theme,
+        source,
+        sellerAddress: sellerLower,
+      });
     }
 
     return NextResponse.json(
