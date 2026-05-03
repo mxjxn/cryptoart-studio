@@ -36,6 +36,8 @@ import {
   // IPFS image cache
   ipfsImageCache,
   listingMediaPreview,
+  listingSellerTheme,
+  listingThemeOverride,
 } from './schema';
 
 // Global singleton pattern for Next.js serverless environments
@@ -184,6 +186,8 @@ export {
   // IPFS image cache
   ipfsImageCache,
   listingMediaPreview,
+  listingSellerTheme,
+  listingThemeOverride,
 } from './schema';
 export type { 
   UserCacheData, 

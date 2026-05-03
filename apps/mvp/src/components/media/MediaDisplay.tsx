@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { getMediaType, getMediaTypeFromFormat, type MediaType } from "~/lib/media-utils";
 import { AudioPlayer } from "./AudioPlayer";
 import { VideoPlayer } from "./VideoPlayer";
@@ -23,6 +23,8 @@ interface MediaDisplayProps {
   className?: string;
   /** Max height for inline image (default ~⅔ viewport for listing heroes) */
   maxHeightClass?: string;
+  /** When no image (or error), use this CSS background instead of the default purple gradient */
+  placeholderGradientCss?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function MediaDisplay({
   viewTransitionName,
   className = "",
   maxHeightClass = "max-h-[min(66vh,85dvh)]",
+  placeholderGradientCss,
 }: MediaDisplayProps) {
   const [imageError, setImageError] = useState(false);
   const [animationError, setAnimationError] = useState(false);
@@ -123,11 +126,16 @@ export function MediaDisplay({
   const displayUrl = imageUrl || animationUrl;
 
   if (!displayUrl || imageError) {
-    // Fallback gradient placeholder
+    const placeholderStyle: CSSProperties = {
+      viewTransitionName,
+      ...(placeholderGradientCss ? { background: placeholderGradientCss } : {}),
+    };
     return (
       <div
-        className={`w-full aspect-square bg-gradient-to-br from-[#667eea] to-[#764ba2] ${className}`}
-        style={{ viewTransitionName }}
+        className={`w-full aspect-square ${
+          placeholderGradientCss ? "" : "bg-gradient-to-br from-[#667eea] to-[#764ba2]"
+        } ${className}`}
+        style={placeholderStyle}
       />
     );
   }

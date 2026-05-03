@@ -36,6 +36,8 @@ export {
   // IPFS image cache
   ipfsImageCache,
   listingMediaPreview,
+  listingSellerTheme,
+  listingThemeOverride,
 } from './client';
 export type { 
   UserCacheData, 
@@ -72,6 +74,8 @@ export type {
   // IPFS image cache types
   IPFSImageCacheData,
   ListingMediaPreviewData,
+  ListingSellerThemeRow,
+  ListingThemeOverrideRow,
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

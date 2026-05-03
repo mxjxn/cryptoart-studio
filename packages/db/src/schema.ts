@@ -848,6 +848,54 @@ export interface ListingMediaPreviewData {
 }
 
 // ============================================
+// LISTING PAGE THEME (member personalization)
+// ============================================
+
+/**
+ * Default listing page look per on-chain seller wallet (lowercase 0x…40).
+ */
+export const listingSellerTheme = pgTable(
+  'listing_seller_theme',
+  {
+    sellerAddress: text('seller_address').primaryKey().notNull(),
+    theme: jsonb('theme').notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    updatedAtIdx: index('listing_seller_theme_updated_at_idx').on(table.updatedAt),
+  }),
+);
+
+/**
+ * Per-listing theme override (optional). Resolved after seller default.
+ */
+export const listingThemeOverride = pgTable(
+  'listing_theme_override',
+  {
+    listingId: text('listing_id').primaryKey().notNull(),
+    sellerAddress: text('seller_address').notNull(),
+    theme: jsonb('theme').notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    sellerAddressIdx: index('listing_theme_override_seller_address_idx').on(table.sellerAddress),
+  }),
+);
+
+export interface ListingSellerThemeRow {
+  sellerAddress: string;
+  theme: unknown;
+  updatedAt: Date;
+}
+
+export interface ListingThemeOverrideRow {
+  listingId: string;
+  sellerAddress: string;
+  theme: unknown;
+  updatedAt: Date;
+}
+
+// ============================================
 // TOKEN IMAGE CACHE
 // ============================================
 
