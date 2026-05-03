@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
+import { getAuctionServer } from '~/lib/server/auction';
+import { requestListingMetadataRefresh } from '~/lib/server/listing-metadata-refresh';
 
 /**
  * Invalidate auctions cache after listing changes
@@ -27,6 +29,22 @@ export async function POST(req: NextRequest) {
       revalidatePath(`/listing/${listingId}`);
       // Revalidate the API endpoint - this clears both HTTP cache and unstable_cache
       revalidatePath(`/api/auctions/${listingId}`);
+
+      // Opportunistically queue metadata refresh for the changed listing.
+      // Cooldown policy prevents repeated expensive refreshes.
+      try {
+        const listing = await getAuctionServer(listingId);
+        if (listing?.tokenAddress && listing?.tokenId) {
+          await requestListingMetadataRefresh({
+            listingId,
+            tokenAddress: listing.tokenAddress,
+            tokenId: listing.tokenId,
+            tokenSpec: listing.tokenSpec,
+          });
+        }
+      } catch (error) {
+        console.warn('[invalidate-cache] metadata refresh queue failed:', error);
+      }
     }
     
     return NextResponse.json({

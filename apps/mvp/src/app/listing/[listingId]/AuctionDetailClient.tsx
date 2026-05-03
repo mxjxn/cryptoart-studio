@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuction } from "~/hooks/useAuction";
+import { useAuction, AUCTION_FETCH_TIMEOUT } from "~/hooks/useAuction";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useContractName } from "~/hooks/useContractName";
@@ -20,6 +20,7 @@ import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
 import { MediaDisplay } from "~/components/media";
 import { getMediaType, getMediaTypeFromFormat } from "~/lib/media-utils";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { useOffers } from "~/hooks/useOffers";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
@@ -78,14 +79,22 @@ export default function AuctionDetailClient({
   const chainId = useChainId();
   const { switchToBase } = useNetworkGuard();
   const { hideOverlay } = useLoadingOverlay();
-  
+  const { isPro, loading: membershipLoading } = useMembershipStatus();
+  const isMember = isPro;
+
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-  const { auction, loading, refetch: refetchAuction, updateAuction } = useAuction(listingId);
+  // Use cached auction API by default; `?refresh=1` on first load was bypassing unstable_cache
+  // and stacking with page-status + metadata work, which made listing pages very slow.
+  const { auction, loading, error: auctionFetchError, refetch: refetchAuction, updateAuction } = useAuction(
+    listingId
+  );
   
   // Track page building status
-  const [pageStatus, setPageStatus] = useState<'building' | 'ready' | 'error' | null>(null);
-  const [isCheckingPageStatus, setIsCheckingPageStatus] = useState(false);
+  const [pageStatus, setPageStatus] = useState<'building' | 'ready' | 'not_found' | 'error' | null>(null);
+  const pageStatusCheckInFlight = useRef(false);
+  const [buildingTimedOut, setBuildingTimedOut] = useState(false);
+  const BUILDING_TIMEOUT_MS = 12000;
 
   // Poll for page status when listing is not found or page is building
   useEffect(() => {
@@ -95,9 +104,9 @@ export default function AuctionDetailClient({
     let isMounted = true;
     
     const checkPageStatus = async () => {
-      if (isCheckingPageStatus) return;
-      setIsCheckingPageStatus(true);
-      
+      if (pageStatusCheckInFlight.current) return;
+      pageStatusCheckInFlight.current = true;
+
       try {
         const response = await fetch(`/api/listings/${listingId}/page-status`, {
           signal: AbortSignal.timeout(5000), // 5 second timeout
@@ -171,7 +180,7 @@ export default function AuctionDetailClient({
         }
       } finally {
         if (isMounted) {
-          setIsCheckingPageStatus(false);
+          pageStatusCheckInFlight.current = false;
         }
       }
     };
@@ -180,7 +189,7 @@ export default function AuctionDetailClient({
     checkPageStatus();
     
     // Poll every 3 seconds if status is building or if auction is not found
-    if (pageStatus === 'building' || (!auction && !loading)) {
+    if (pageStatus !== 'not_found' && (pageStatus === 'building' || (!auction && !loading))) {
       pollInterval = setInterval(checkPageStatus, 3000);
     }
     
@@ -190,19 +199,29 @@ export default function AuctionDetailClient({
         clearInterval(pollInterval);
       }
     };
-  }, [listingId, pageStatus, auction, loading, isCheckingPageStatus, address]);
+  }, [listingId, pageStatus, auction, loading, address]);
 
-  // Clear overlay when data is ready
+  // If build status stays unresolved for too long, stop blocking the page forever.
   useEffect(() => {
-    if (!loading && auction && pageStatus === 'ready') {
-      // Wait for view transition to complete before hiding overlay
-      // View transitions typically take 300-500ms, so we wait a bit longer to ensure smooth transition
+    if (pageStatus === 'building' && !auction) {
+      setBuildingTimedOut(false);
+      const timeout = setTimeout(() => {
+        setBuildingTimedOut(true);
+      }, BUILDING_TIMEOUT_MS);
+      return () => clearTimeout(timeout);
+    }
+    setBuildingTimedOut(false);
+  }, [pageStatus, auction, listingId]);
+
+  // Clear transition overlay once auction payload is ready (page-status can lag or disagree with API).
+  useEffect(() => {
+    if (!loading && auction) {
       const timer = setTimeout(() => {
         hideOverlay();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [loading, auction, pageStatus, hideOverlay]);
+  }, [loading, auction, hideOverlay]);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
@@ -1444,20 +1463,21 @@ export default function AuctionDetailClient({
     }
   }, [canUpdateAtRisk]);
 
-  // Show building state if page is building or listing not found yet
-  const isBuilding = pageStatus === 'building' || (!auction && !loading && pageStatus !== 'ready');
+  // Only block when API explicitly reports `building`.
+  // Avoid treating unknown/null status as building forever.
+  const isBuilding = !buildingTimedOut && !auction && pageStatus === 'building';
   
   if (loading || isBuilding) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4">
+      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-[#cccccc] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-[#cccccc]">
+          <div className="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-neutral-600">
             {isBuilding ? 'Building listing page...' : 'Loading auction...'}
           </p>
         </div>
         {isBuilding && (
-          <p className="text-sm text-[#888888] max-w-md text-center px-4">
+          <p className="text-sm text-neutral-500 max-w-md text-center px-4">
             Your listing is being processed. This usually takes a few seconds. We'll notify you when it's ready!
           </p>
         )}
@@ -1465,13 +1485,70 @@ export default function AuctionDetailClient({
     );
   }
 
+  if (!loading && !auction && auctionFetchError?.message === AUCTION_FETCH_TIMEOUT) {
+    return (
+      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4 px-4">
+        <p className="max-w-md text-center text-neutral-600">
+          This listing took too long to load (slow metadata or network). It may still exist — try again.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => refetchAuction(true)}
+            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100"
+          >
+            Retry
+          </button>
+          <TransitionLink
+            href="/"
+            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100"
+          >
+            Home
+          </TransitionLink>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loading && !auction && buildingTimedOut) {
+    return (
+      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-neutral-600 text-center">
+          This listing is taking longer than expected to build.
+        </p>
+        <p className="text-sm text-neutral-500 text-center max-w-md">
+          You can retry now. If it still fails, return to the homepage and open another lot while this one finishes.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setBuildingTimedOut(false);
+              setPageStatus(null);
+              refetchAuction();
+            }}
+            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100"
+          >
+            Retry
+          </button>
+          <TransitionLink
+            href="/"
+            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100"
+          >
+            Back to homepage
+          </TransitionLink>
+        </div>
+      </div>
+    );
+  }
+
   if (!auction && !loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4">
-        <p className="text-[#cccccc]">Auction not found</p>
+      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4">
+        <p className="text-neutral-600">Auction not found</p>
         <TransitionLink
           href="/"
-          className="text-sm text-[#999999] hover:text-white transition-colors underline"
+          className="text-sm text-neutral-500 hover:text-neutral-900 transition-colors underline"
         >
           Return to homepage
         </TransitionLink>
@@ -1602,28 +1679,85 @@ export default function AuctionDetailClient({
   const isModifyLoading = isModifying || isConfirmingModify;
 
   return (
-    <div className="min-h-screen bg-black text-white animate-in fade-in duration-100">
-      {/* Header - Only show when not in miniapp */}
-      {!isMiniApp && (
-        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
-          <Logo />
-          <div className="flex items-center gap-3">
-            <ProfileDropdown />
-          </div>
-        </header>
+    <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 animate-in fade-in duration-100">
+      {/* Redesign: membership strip (matches HomePageClientV2) */}
+      {!membershipLoading && (
+        <button
+          type="button"
+          onClick={() => {
+            if (isMember) return;
+            router.push("/membership?from=listing");
+          }}
+          className="flex w-full flex-col items-center justify-center gap-1 bg-[#f5b0d3] px-3 py-2.5 text-center font-space-grotesk text-sm font-medium leading-snug text-[#333333] sm:flex-row sm:flex-wrap sm:gap-x-2 sm:text-base"
+        >
+          {isMember ? (
+            <span>Member — thanks for supporting infrastructure & open-source</span>
+          ) : (
+            <>
+              <span className="max-w-[min(100%,42rem)]">
+                Support infrastructure & open-source behind cryptoart.social
+              </span>
+              <span className="tabular-nums">0.0001 ETH / month</span>
+            </>
+          )}
+        </button>
       )}
-      {/* Back Button - Narrow section above artwork */}
-      <div className="border-b border-[#333333]">
-        <div className="container mx-auto px-5 py-2 max-w-4xl">
+
+      {!isMiniApp && (
+        <section className="border-b border-neutral-200 bg-white">
+          <div className="container mx-auto flex max-w-4xl justify-center px-5 py-3">
+            <TransitionLink
+              href="/create"
+              prefetch={false}
+              className="font-mek-mono text-sm tracking-[0.5px] text-neutral-600 transition-colors hover:text-neutral-950"
+            >
+              + Create listing
+            </TransitionLink>
+          </div>
+        </section>
+      )}
+
+      {/* Web: logo row + back row in one forced-white shell (avoids dark header from theme/inheritance). */}
+      <div
+        className="listing-light-surface listing-page-chrome border-b border-neutral-200 bg-white text-neutral-900"
+        style={{ backgroundColor: "#ffffff" }}
+      >
+        {!isMiniApp && (
+          <div className="container mx-auto flex max-w-4xl items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-5">
+            <Logo compact />
+            <ProfileDropdown topBarVariant="light" />
+          </div>
+        )}
+        <div className="container mx-auto flex max-w-4xl items-center justify-between gap-3 px-5 py-3 font-space-grotesk text-sm font-medium">
           <TransitionLink
             href="/"
-            className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2 text-sm"
+            className="inline-flex shrink-0 items-center gap-2 text-neutral-900 underline-offset-2 hover:underline"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back
+            <span aria-hidden>←</span> back
           </TransitionLink>
+          {isMiniApp ? (
+            <div className="flex min-w-0 shrink-0 items-center justify-end">
+              <ProfileDropdown />
+            </div>
+          ) : (
+            <div className="min-w-0 truncate text-right text-neutral-700">
+              {sellerUsername ? (
+                <TransitionLink
+                  href={`/user/${sellerUsername}`}
+                  className="hover:text-neutral-950 hover:underline"
+                >
+                  @{sellerUsername}
+                </TransitionLink>
+              ) : auction.seller ? (
+                <TransitionLink
+                  href={`/user/${auction.seller}`}
+                  className="font-mono text-xs hover:underline sm:text-sm"
+                >
+                  {auction.seller.slice(0, 6)}…{auction.seller.slice(-4)}
+                </TransitionLink>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
       <div className="container mx-auto px-5 py-4 max-w-4xl">
@@ -1632,7 +1766,7 @@ export default function AuctionDetailClient({
           <div className="mb-4 flex justify-end">
             <button
               onClick={actions.addMiniApp}
-              className="text-xs text-[#999999] hover:text-[#cccccc] transition-colors underline"
+              className="text-xs text-neutral-500 hover:text-neutral-600 transition-colors underline"
             >
               Add to Farcaster
             </button>
@@ -1641,7 +1775,7 @@ export default function AuctionDetailClient({
         {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
         <div className="mb-4">
           <MediaDisplay
-            imageUrl={auction.image}
+            imageUrl={auction.thumbnailUrl || auction.image}
             animationUrl={auction.metadata?.animation_url}
             animationFormat={auction.metadata?.animation_details?.format}
             alt={title}
@@ -1681,23 +1815,27 @@ export default function AuctionDetailClient({
           />
         )}
 
-        {/* Title, Collection, Creator - each on own row */}
-        <div className="mb-4">
+        {/* Title + description (directly under title) + metadata — one light full-width block */}
+        <div className="listing-light-surface -mx-5 mb-4 w-full bg-white px-5 py-5 font-space-grotesk text-neutral-900">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <h1 className="text-2xl font-light mb-1">{title}</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="mb-1 text-2xl font-medium tracking-tight text-neutral-900">{title}</h1>
               {auction.tokenSpec === "ERC1155" && auction.erc1155TotalSupply && (
-                <p className="text-sm text-[#999999] mb-1">edition of {auction.erc1155TotalSupply}</p>
+                <p className="text-sm text-neutral-600">edition of {auction.erc1155TotalSupply}</p>
               )}
             </div>
-            <AdminContextMenu 
-              listingId={listingId} 
-              sellerAddress={auction.seller}
-            />
+            <AdminContextMenu listingId={listingId} sellerAddress={auction.seller} />
           </div>
+
+          {auction.description ? (
+            <p className="mt-3 w-full max-w-none whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
+              {auction.description}
+            </p>
+          ) : null}
+
           {/* Collection name with metadata viewer */}
           {auction.tokenAddress && auction.tokenId && (
-            <div className="mb-1">
+            <div className={auction.description ? "mt-4" : "mt-3"}>
               <MetadataViewer
                 contractAddress={auction.tokenAddress as Address}
                 tokenId={auction.tokenId}
@@ -1708,21 +1846,21 @@ export default function AuctionDetailClient({
             </div>
           )}
           {displayCreatorName ? (
-            <div className="text-xs text-[#cccccc] mb-1">
+            <div className="mt-3 text-sm text-neutral-600">
               <div className="mb-2">
                 <span>
                   by{" "}
                   {creatorUsername ? (
                     <TransitionLink
                       href={`/user/${creatorUsername}`}
-                      className="hover:underline"
+                      className="text-neutral-800 underline-offset-2 hover:underline"
                     >
                       {displayCreatorName}
                     </TransitionLink>
                   ) : displayCreatorAddress ? (
                     <TransitionLink
                       href={`/user/${displayCreatorAddress}`}
-                      className="hover:underline"
+                      className="text-neutral-800 underline-offset-2 hover:underline"
                     >
                       {displayCreatorName}
                     </TransitionLink>
@@ -1731,9 +1869,8 @@ export default function AuctionDetailClient({
                   )}
                 </span>
               </div>
-              {/* Only show share buttons if auction is not cancelled */}
               {!isCancelled && (
-                <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-2">
                   <AddToGalleryButton listingId={listingId} />
                   <LinkShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
@@ -1747,19 +1884,18 @@ export default function AuctionDetailClient({
               )}
             </div>
           ) : displayCreatorAddress && !creatorNameLoading ? (
-            <div className="text-xs text-[#cccccc] mb-1">
+            <div className="mt-3 text-sm text-neutral-600">
               <div className="mb-2 flex items-center gap-2">
                 <TransitionLink
                   href={creatorUsername ? `/user/${creatorUsername}` : `/user/${displayCreatorAddress}`}
-                  className="font-mono hover:underline"
+                  className="font-mono text-neutral-800 underline-offset-2 hover:underline"
                 >
                   {displayCreatorAddress}
                 </TransitionLink>
                 <CopyButton text={displayCreatorAddress} />
               </div>
-              {/* Only show share buttons if auction is not cancelled */}
               {!isCancelled && (
-                <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-2">
                   <AddToGalleryButton listingId={listingId} />
                   <LinkShareButton
                     url={typeof window !== "undefined" ? window.location.href : ""}
@@ -1773,8 +1909,8 @@ export default function AuctionDetailClient({
               )}
             </div>
           ) : !isCancelled ? (
-            <div className="text-xs mb-1">
-              <div className="flex gap-2 items-center">
+            <div className="mt-3 text-sm">
+              <div className="flex items-center gap-2">
                 <AddToGalleryButton listingId={listingId} />
                 <LinkShareButton
                   url={typeof window !== "undefined" ? window.location.href : ""}
@@ -1787,28 +1923,20 @@ export default function AuctionDetailClient({
               </div>
             </div>
           ) : null}
-          {/* Description */}
-          {auction.description && (
-            <div className="mb-4">
-              <p className="text-xs text-[#cccccc] leading-relaxed">
-                {auction.description}
-              </p>
-            </div>
-          )}
-          {/* Contract Details */}
+
           {auction.tokenAddress && (
             <ContractDetails
               contractAddress={auction.tokenAddress as Address}
               imageUrl={auction.image || auction.metadata?.image || null}
+              variant="light"
             />
           )}
-          
+
           {/* External Links & Token Info */}
           {(auction.tokenAddress || auction.tokenId) && (
-            <div className="mb-4 flex gap-3 text-xs items-center">
-              {/* Token Spec Badge */}
+            <div className="mt-4 flex items-center gap-3 text-xs">
               {auction.tokenSpec && (
-                <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-[#1a1a1a] border border-[#333333] text-[#cccccc]">
+                <span className="rounded border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-700">
                   {auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2" ? "ERC-1155" : "ERC-721"}
                 </span>
               )}
@@ -1817,8 +1945,8 @@ export default function AuctionDetailClient({
                   href={`https://opensea.io/item/base/${auction.tokenAddress}/${auction.tokenId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#999999] hover:text-[#cccccc] hover:underline"
-                  aria-label={`View NFT on OpenSea: ${contractName || 'Collection'} #${auction.tokenId}`}
+                  className="text-neutral-600 underline-offset-2 hover:text-neutral-900 hover:underline"
+                  aria-label={`View NFT on OpenSea: ${contractName || "Collection"} #${auction.tokenId}`}
                 >
                   OpenSea
                 </a>
@@ -1829,8 +1957,8 @@ export default function AuctionDetailClient({
 
         {/* Cancelled Auction Message */}
         {isCancelled && (
-          <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
-            <p className="text-sm text-white font-medium">Auction has been cancelled</p>
+          <div className="mb-4 p-4 bg-white border border-neutral-200 shadow-sm rounded-lg">
+            <p className="text-sm text-neutral-900 font-medium">Auction has been cancelled</p>
           </div>
         )}
 
@@ -1850,7 +1978,7 @@ export default function AuctionDetailClient({
         {showUpdateForm && (canUpdate || canUpdateAtRisk) && !isCancelled && (
           <div className="mb-4">
             {isAtRiskListing && (
-              <p className="text-sm text-[#cccccc] mb-3">
+              <p className="text-sm text-neutral-600 mb-3">
                 Update your auction configuration. Set a start time and end time, or use duration mode.
                 Maximum duration is 6 months.
               </p>
@@ -1912,29 +2040,29 @@ export default function AuctionDetailClient({
 
         {/* Auction Ended Message - Only for INDIVIDUAL_AUCTION */}
         {isEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && (
-          <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg">
-            <p className="text-sm text-white font-medium mb-2">Auction Ended</p>
+          <div className="mb-4 p-4 bg-white border border-neutral-200 shadow-sm rounded-lg">
+            <p className="text-sm text-neutral-900 font-medium mb-2">Auction Ended</p>
             {auction.highestBid && hasBid ? (
               <div className="space-y-2">
-                <p className="text-xs text-[#cccccc]">
+                <p className="text-xs text-neutral-600">
                   Winner: {bidderName ? (
                     bidderUsername ? (
-                      <TransitionLink href={`/user/${bidderUsername}`} className="text-white hover:underline">
+                      <TransitionLink href={`/user/${bidderUsername}`} className="text-neutral-900 hover:underline">
                         {bidderName}
                       </TransitionLink>
                     ) : (
-                      <TransitionLink href={`/user/${auction.highestBid.bidder}`} className="text-white hover:underline">
+                      <TransitionLink href={`/user/${auction.highestBid.bidder}`} className="text-neutral-900 hover:underline">
                         {bidderName}
                       </TransitionLink>
                     )
                   ) : (
-                    <TransitionLink href={bidderUsername ? `/user/${bidderUsername}` : `/user/${auction.highestBid.bidder}`} className="font-mono text-white hover:underline">
+                    <TransitionLink href={bidderUsername ? `/user/${bidderUsername}` : `/user/${auction.highestBid.bidder}`} className="font-mono text-neutral-900 hover:underline">
                       {auction.highestBid.bidder.slice(0, 6)}...{auction.highestBid.bidder.slice(-4)}
                     </TransitionLink>
                   )}
                 </p>
-                <p className="text-xs text-[#cccccc]">
-                  Winning Bid: <span className="text-white font-medium">
+                <p className="text-xs text-neutral-600">
+                  Winning Bid: <span className="text-neutral-900 font-medium">
                     <span className="flex items-center gap-1.5">
                       {formatPrice(auction.highestBid.amount)} 
                       <TokenImage tokenAddress={auction.erc20} size={14} />
@@ -1944,7 +2072,7 @@ export default function AuctionDetailClient({
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-[#cccccc]">No bids were placed on this auction.</p>
+              <p className="text-xs text-neutral-600">No bids were placed on this auction.</p>
             )}
           </div>
         )}
@@ -2026,7 +2154,7 @@ export default function AuctionDetailClient({
             {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && !has180DayIssue && (
               <div className="mb-4">
                 {!isConnected ? (
-                  <p className="text-xs text-[#cccccc]">
+                  <p className="text-xs text-neutral-600">
                     Please connect your wallet to place a bid.
                   </p>
                 ) : isOwnAuction ? (
@@ -2037,7 +2165,7 @@ export default function AuctionDetailClient({
                       value={bidAmount}
                       onChange={(e) => setBidAmount(e.target.value)}
                       disabled
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                      className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-neutral-500"
                       placeholder={
                         auction.highestBid
                           ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
@@ -2051,7 +2179,7 @@ export default function AuctionDetailClient({
                     >
                       Place Bid
                     </button>
-                    <p className="text-xs text-[#cccccc]">
+                    <p className="text-xs text-neutral-600">
                       You cannot bid on your own auction.
                     </p>
                   </div>
@@ -2069,7 +2197,7 @@ export default function AuctionDetailClient({
                           value={bidAmount}
                           onChange={(e) => setBidAmount(e.target.value)}
                           disabled
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                          className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-neutral-500"
                           placeholder={
                             auction.highestBid
                               ? `Min: ${formatPrice(currentPrice)} ${paymentSymbol}`
@@ -2083,7 +2211,7 @@ export default function AuctionDetailClient({
                         >
                           Place Bid
                         </button>
-                        <p className="text-xs text-[#cccccc]">
+                        <p className="text-xs text-neutral-600">
                           Auction starts {new Date(startTime * 1000).toLocaleString()}.
                         </p>
                       </div>
@@ -2104,14 +2232,14 @@ export default function AuctionDetailClient({
                           min={formatPrice(calculateMinBid.toString())}
                           value={bidAmount}
                           onChange={(e) => setBidAmount(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                          className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400 placeholder:text-neutral-500"
                           placeholder={`Min: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                           aria-label={`Bid amount in ${paymentSymbol}. Minimum: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                           aria-describedby="bid-balance-info"
                         />
                         {/* Show user balance */}
                         {!userBalance.isLoading && (
-                          <p id="bid-balance-info" className="text-xs text-[#666666] mt-1" aria-live="polite">
+                          <p id="bid-balance-info" className="text-xs text-neutral-500 mt-1" aria-live="polite">
                             Your balance: {userBalance.formatted} {paymentSymbol}
                           </p>
                         )}
@@ -2139,7 +2267,7 @@ export default function AuctionDetailClient({
               if (isERC721SoldOut) {
                 return (
                   <div className="mb-4">
-                    <p className="text-center text-lg font-medium text-[#999999] py-4">
+                    <p className="text-center text-lg font-medium text-neutral-500 py-4">
                       Sold Out
                     </p>
                   </div>
@@ -2150,7 +2278,7 @@ export default function AuctionDetailClient({
                 <div className="mb-4 space-y-3">
                   {auction.tokenSpec === "ERC1155" && (
                   <div>
-                    <label className="block text-sm font-medium text-[#cccccc] mb-2">
+                    <label className="block text-sm font-medium text-neutral-600 mb-2">
                       Number of Purchases
                     </label>
                     <input
@@ -2159,20 +2287,20 @@ export default function AuctionDetailClient({
                       max={Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))}
                       value={purchaseQuantity}
                       onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white"
+                      className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400"
                       aria-label="Number of purchases"
                       aria-describedby="purchase-quantity-info"
                     />
                     <div id="purchase-quantity-info" className="sr-only">
                       You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies
                     </div>
-                    <p className="text-xs text-[#999999] mt-1">
+                    <p className="text-xs text-neutral-500 mt-1">
                       You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {auction.totalPerSale} copies per purchase)
                     </p>
-                    <p className="text-xs text-[#666666] mt-0.5">
+                    <p className="text-xs text-neutral-500 mt-0.5">
                       {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} copies remaining ({Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))} purchase{Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1")) !== 1 ? 's' : ''} available)
                       {auction.erc1155TotalSupply && (
-                        <span className="ml-1 text-[#999999]">
+                        <span className="ml-1 text-neutral-500">
                           (of {auction.erc1155TotalSupply} total)
                         </span>
                       )}
@@ -2180,11 +2308,11 @@ export default function AuctionDetailClient({
                   </div>
                 )}
                 {!isConnected ? (
-                  <p className="text-xs text-[#cccccc]">
+                  <p className="text-xs text-neutral-600">
                     Please connect your wallet to purchase.
                   </p>
                 ) : isOwnAuction ? (
-                  <p className="text-xs text-[#cccccc]">
+                  <p className="text-xs text-neutral-600">
                     You cannot purchase your own listing.
                   </p>
                 ) : (() => {
@@ -2196,10 +2324,10 @@ export default function AuctionDetailClient({
                   if (hasNotStartedForFixedPrice) {
                     return (
                       <div className="space-y-3">
-                        <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg opacity-50">
+                        <div className="p-3 bg-white border border-neutral-200 shadow-sm rounded-lg opacity-50">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm text-[#cccccc]">Price Per Copy</span>
-                            <span className="text-lg font-medium text-white flex items-center gap-1.5">
+                            <span className="text-sm text-neutral-600">Price Per Copy</span>
+                            <span className="text-lg font-medium text-neutral-900 flex items-center gap-1.5">
                               {formatPrice(auction.initialAmount)} 
                               <TokenImage tokenAddress={auction.erc20} size={20} className="ml-0.5" />
                               <span>{paymentSymbol}</span>
@@ -2212,7 +2340,7 @@ export default function AuctionDetailClient({
                         >
                           Buy Now
                         </button>
-                        <p className="text-xs text-[#cccccc]">
+                        <p className="text-xs text-neutral-600">
                           {startTime === 0 
                             ? "Listing will start when the first purchase is made."
                             : `Listing starts ${new Date(startTime * 1000).toLocaleString()}.`}
@@ -2224,10 +2352,10 @@ export default function AuctionDetailClient({
                   // Listing has started or has no startTime - show active buy button
                   return (
                   <>
-                    <div className="p-3 bg-[#1a1a1a] border border-[#333333] rounded-lg">
+                    <div className="p-3 bg-white border border-neutral-200 shadow-sm rounded-lg">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm text-[#cccccc]">Price Per Copy</span>
-                        <span className="text-lg font-medium text-white flex items-center gap-1.5">
+                        <span className="text-sm text-neutral-600">Price Per Copy</span>
+                        <span className="text-lg font-medium text-neutral-900 flex items-center gap-1.5">
                           {formatPrice(auction.initialAmount)} 
                           <TokenImage tokenAddress={auction.erc20} size={20} className="ml-0.5" />
                           <span>{paymentSymbol}</span>
@@ -2236,14 +2364,14 @@ export default function AuctionDetailClient({
                       {auction.tokenSpec === "ERC1155" && (
                         <>
                           <div className="flex justify-between items-center mt-2">
-                            <span className="text-sm text-[#cccccc]">Copies Purchased</span>
-                            <span className="text-sm font-medium text-white">
+                            <span className="text-sm text-neutral-600">Copies Purchased</span>
+                            <span className="text-sm font-medium text-neutral-900">
                               {purchaseQuantity * parseInt(auction.totalPerSale || "1")} ({purchaseQuantity} × {auction.totalPerSale})
                             </span>
                           </div>
                           <div className="flex justify-between items-center mt-2">
-                            <span className="text-sm text-[#cccccc]">Total Price</span>
-                            <span className="text-sm font-medium text-white flex items-center gap-1.5">
+                            <span className="text-sm text-neutral-600">Total Price</span>
+                            <span className="text-sm font-medium text-neutral-900 flex items-center gap-1.5">
                               {auction.initialAmount ? formatPrice((BigInt(auction.initialAmount) * BigInt(purchaseQuantity)).toString()) : '—'} 
                               {auction.initialAmount && (
                                 <>
@@ -2257,9 +2385,9 @@ export default function AuctionDetailClient({
                       )}
                       {/* Show user balance */}
                       {!userBalance.isLoading && (
-                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#333333]">
-                          <span className="text-xs text-[#666666]">Your balance</span>
-                          <span className="text-xs text-[#666666]">
+                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-neutral-200">
+                          <span className="text-xs text-neutral-500">Your balance</span>
+                          <span className="text-xs text-neutral-500">
                             {userBalance.formatted} {paymentSymbol}
                           </span>
                         </div>
@@ -2327,7 +2455,7 @@ export default function AuctionDetailClient({
             {auction.listingType === "OFFERS_ONLY" && showControls && (
               <div className="mb-4 space-y-4">
                 {!isConnected ? (
-                  <p className="text-xs text-[#cccccc]">
+                  <p className="text-xs text-neutral-600">
                     Please connect your wallet to make an offer.
                   </p>
                 ) : !auctionHasStarted ? (
@@ -2338,7 +2466,7 @@ export default function AuctionDetailClient({
                       value={offerAmount}
                       onChange={(e) => setOfferAmount(e.target.value)}
                       disabled
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-[#666666]"
+                      className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg opacity-50 cursor-not-allowed placeholder:text-neutral-500"
                       placeholder={`Min: ${formatPrice(auction.initialAmount)} ${paymentSymbol}`}
                     />
                     <button
@@ -2348,14 +2476,14 @@ export default function AuctionDetailClient({
                     >
                       Make Offer
                     </button>
-                    <p className="text-xs text-[#cccccc]">
+                    <p className="text-xs text-neutral-600">
                       {startTime === 0 
                         ? "Listing will start when the first offer is made."
                         : `Listing starts ${new Date(startTime * 1000).toLocaleString()}.`}
                     </p>
                   </div>
                 ) : isOwnAuction ? (
-                  <p className="text-xs text-[#cccccc]">
+                  <p className="text-xs text-neutral-600">
                     You cannot make an offer on your own listing.
                   </p>
                 ) : (
@@ -2370,14 +2498,14 @@ export default function AuctionDetailClient({
                         step="0.001"
                         value={offerAmount}
                         onChange={(e) => setOfferAmount(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white placeholder:text-[#666666]"
+                        className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400 placeholder:text-neutral-500"
                         placeholder={`Enter offer in ${paymentSymbol}`}
                         aria-label={`Offer amount in ${paymentSymbol}`}
                         aria-describedby="offer-balance-info"
                       />
                       {/* Show user balance */}
                       {!userBalance.isLoading && (
-                        <p id="offer-balance-info" className="text-xs text-[#666666] mt-1" aria-live="polite">
+                        <p id="offer-balance-info" className="text-xs text-neutral-500 mt-1" aria-live="polite">
                           Your balance: {userBalance.formatted} {paymentSymbol}
                         </p>
                       )}
@@ -2403,24 +2531,24 @@ export default function AuctionDetailClient({
 
                 {/* Offers List - Show for seller and buyers */}
                 {activeOffers.length > 0 && (
-                  <div className="mt-4 p-4 bg-[#1a1a1a] border border-[#333333] rounded-lg" role="region" aria-label="Active offers">
-                    <h3 className="text-sm font-medium text-white mb-3">Active Offers</h3>
+                  <div className="mt-4 p-4 bg-white border border-neutral-200 shadow-sm rounded-lg" role="region" aria-label="Active offers">
+                    <h3 className="text-sm font-medium text-neutral-900 mb-3">Active Offers</h3>
                     <ul className="space-y-2" role="list" aria-label={`${activeOffers.length} active offer${activeOffers.length !== 1 ? 's' : ''}`}>
                       {activeOffers.map((offer, index) => (
                         <li
                           key={index}
-                          className="flex justify-between items-center p-2 bg-black rounded border border-[#333333]"
+                          className="flex justify-between items-center p-2 rounded border border-neutral-200 bg-neutral-100"
                           role="listitem"
                         >
                           <div>
-                            <p className="text-sm text-white font-medium">
+                            <p className="text-sm text-neutral-900 font-medium">
                               <span className="flex items-center gap-1.5">
                                 {formatPrice(offer.amount)} 
                                 <TokenImage tokenAddress={auction.erc20} size={14} />
                                 <span>{paymentSymbol}</span>
                               </span>
                             </p>
-                            <p className="text-xs text-[#999999] font-mono">
+                            <p className="text-xs text-neutral-500 font-mono">
                               {offer.offerer.slice(0, 6)}...{offer.offerer.slice(-4)}
                             </p>
                           </div>
@@ -2466,13 +2594,13 @@ export default function AuctionDetailClient({
               return (
                 <>
                   {/* Compact auction info row */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span className="flex items-center gap-1.5">
                       {formatPrice(auction.initialAmount)} 
                       <TokenImage tokenAddress={auction.erc20} size={14} />
                       <span>{paymentSymbol} reserve</span>
                     </span>
-                    <span className="text-[#444]">•</span>
+                    <span className="text-neutral-400">•</span>
                     <span className="flex items-center gap-1.5">
                       {auction.highestBid ? (
                         <>
@@ -2484,35 +2612,35 @@ export default function AuctionDetailClient({
                         "No bids"
                       )}
                     </span>
-                    <span className="text-[#444]">•</span>
+                    <span className="text-neutral-400">•</span>
                     <span>{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>
-                    <span className="text-[#444]">•</span>
+                    <span className="text-neutral-400">•</span>
                     <span>{timeStatus.status === "Not started" ? "Not started" : isEnded ? "Ended" : isActive ? "Active" : "Ended"}</span>
                     {!timeStatus.neverExpires && timeStatus.timeRemaining && !isEnded && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>{timeStatus.timeRemaining}</span>
                       </>
                     )}
                   </div>
                   
                   {/* Seller row */}
-                  <div className="text-xs text-[#999999]">
+                  <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
                       sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : (
-                        <span className="text-white">{sellerName}</span>
+                        <span className="text-neutral-900">{sellerName}</span>
                       )
                     ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-neutral-900 hover:underline">
                         {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
                       </TransitionLink>
                     ) : null}
@@ -2521,7 +2649,7 @@ export default function AuctionDetailClient({
                   {/* Bid History */}
                   {auction.bids && auction.bids.length > 0 && (
                     <div className="mt-4">
-                      <h3 className="text-xs font-medium text-[#999999] mb-2 uppercase tracking-wider">Bid History</h3>
+                      <h3 className="text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wider">Bid History</h3>
                       <div className="space-y-1">
                         {auction.bids.map((bid, index) => (
                           <BidHistoryRow
@@ -2585,7 +2713,7 @@ export default function AuctionDetailClient({
               return (
                 <>
                   {/* Compact fixed price info row */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span className="flex items-center gap-1.5">
                       {formatPrice(auction.initialAmount)} 
                       <TokenImage tokenAddress={auction.erc20} size={16} />
@@ -2593,42 +2721,42 @@ export default function AuctionDetailClient({
                     </span>
                     {auction.tokenSpec === "ERC1155" && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>
                           {remaining} left out of {totalAvailable}
                           {totalSupply !== null && totalSupply !== totalAvailable && (
-                            <span className="text-[#999999]"> ({totalSupply} in total)</span>
+                            <span className="text-neutral-500"> ({totalSupply} in total)</span>
                           )}
                         </span>
                       </>
                     )}
-                    <span className="text-[#444]">•</span>
+                    <span className="text-neutral-400">•</span>
                     <span>{statusText}</span>
                     {!timeStatus.neverExpires && timeStatus.timeRemaining && !isSoldOut && !isEnded && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>{timeStatus.timeRemaining}</span>
                       </>
                     )}
                   </div>
                   
                   {/* Seller row */}
-                  <div className="text-xs text-[#999999]">
+                  <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
                       sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : (
-                        <span className="text-white">{sellerName}</span>
+                        <span className="text-neutral-900">{sellerName}</span>
                       )
                     ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-neutral-900 hover:underline">
                         {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
                       </TransitionLink>
                     ) : null}
@@ -2686,46 +2814,46 @@ export default function AuctionDetailClient({
               return (
                 <>
                   {/* Compact offers info row */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span>Offers Only</span>
                     {auction.tokenSpec === "ERC1155" && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>
                           {remaining} left out of {totalAvailable}
                           {totalSupply !== null && totalSupply !== totalAvailable && (
-                            <span className="text-[#999999]"> ({totalSupply} in total)</span>
+                            <span className="text-neutral-500"> ({totalSupply} in total)</span>
                           )}
                         </span>
                       </>
                     )}
-                    <span className="text-[#444]">•</span>
+                    <span className="text-neutral-400">•</span>
                     <span>{statusText}</span>
                     {!timeStatus.neverExpires && timeStatus.timeRemaining && !isSoldOut && !isEndedForOffers && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>{timeStatus.timeRemaining}</span>
                       </>
                     )}
                   </div>
                   
                   {/* Seller row */}
-                  <div className="text-xs text-[#999999]">
+                  <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
                       sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : (
-                        <span className="text-white">{sellerName}</span>
+                        <span className="text-neutral-900">{sellerName}</span>
                       )
                     ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-neutral-900 hover:underline">
                         {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
                       </TransitionLink>
                     ) : null}
@@ -2780,46 +2908,46 @@ export default function AuctionDetailClient({
               return (
                 <>
                   {/* Compact dynamic price info row */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#999999]">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span>Dynamic Price</span>
                     {auction.tokenSpec === "ERC1155" && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>
                           {remaining} left out of {totalAvailable}
                           {totalSupply !== null && totalSupply !== totalAvailable && (
-                            <span className="text-[#999999]"> ({totalSupply} in total)</span>
+                            <span className="text-neutral-500"> ({totalSupply} in total)</span>
                           )}
                         </span>
                       </>
                     )}
-                    <span className="text-[#444]">•</span>
+                    <span className="text-neutral-400">•</span>
                     <span>{statusText}</span>
                     {!timeStatus.neverExpires && timeStatus.timeRemaining && !isSoldOut && !isEndedForDynamic && (
                       <>
-                        <span className="text-[#444]">•</span>
+                        <span className="text-neutral-400">•</span>
                         <span>{timeStatus.timeRemaining}</span>
                       </>
                     )}
                   </div>
                   
                   {/* Seller row */}
-                  <div className="text-xs text-[#999999]">
+                  <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
                       sellerUsername ? (
-                        <TransitionLink href={`/user/${sellerUsername}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${sellerUsername}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : auction.seller ? (
-                        <TransitionLink href={`/user/${auction.seller}`} className="text-white hover:underline">
+                        <TransitionLink href={`/user/${auction.seller}`} className="text-neutral-900 hover:underline">
                           {sellerName}
                         </TransitionLink>
                       ) : (
-                        <span className="text-white">{sellerName}</span>
+                        <span className="text-neutral-900">{sellerName}</span>
                       )
                     ) : auction.seller ? (
-                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-white hover:underline">
+                      <TransitionLink href={sellerUsername ? `/user/${sellerUsername}` : `/user/${auction.seller}`} className="font-mono text-neutral-900 hover:underline">
                         {auction.seller.slice(0, 6)}...{auction.seller.slice(-4)}
                       </TransitionLink>
                     ) : null}
@@ -2838,7 +2966,7 @@ export default function AuctionDetailClient({
                 type="button"
                 onClick={handleSwapBuyToken}
                 disabled={!isSDKLoaded}
-                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center disabled:opacity-60 disabled:cursor-not-allowed"
+                className="block w-full px-4 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm font-medium tracking-[0.5px] hover:bg-neutral-100 transition-colors text-center disabled:opacity-60 disabled:cursor-not-allowed"
                 aria-label={`Swap for ${paymentSymbol}`}
               >
                 Swap for {paymentSymbol}
@@ -2848,7 +2976,7 @@ export default function AuctionDetailClient({
                 href={`https://app.uniswap.org/swap?outputCurrency=${auction.erc20}&chain=base`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#252525] transition-colors text-center"
+                className="block w-full px-4 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm font-medium tracking-[0.5px] hover:bg-neutral-100 transition-colors text-center"
                 aria-label={`Buy ${paymentSymbol} on Uniswap`}
               >
                 Buy {paymentSymbol}
@@ -2889,12 +3017,12 @@ function BidHistoryRow({
   const timeAgo = getTimeAgo(bidDate);
 
   return (
-    <div className="flex items-center justify-between py-1.5 text-xs border-b border-[#222]">
+    <div className="flex items-center justify-between py-1.5 text-xs border-b border-neutral-200">
       <div className="flex items-center gap-2">
         {isHighest && (
-          <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white rounded">HIGH</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-medium">HIGH</span>
         )}
-        <span className="text-white font-medium">
+        <span className="text-neutral-900 font-medium">
           <span className="flex items-center gap-1.5">
             {formatPrice(bid.amount)} 
             <TokenImage tokenAddress={tokenAddress} size={14} />
@@ -2902,17 +3030,17 @@ function BidHistoryRow({
           </span>
         </span>
       </div>
-      <div className="flex items-center gap-2 text-[#999999]">
+      <div className="flex items-center gap-2 text-neutral-500">
         {username ? (
-          <TransitionLink href={`/user/${username}`} className="hover:text-white hover:underline">
+          <TransitionLink href={`/user/${username}`} className="hover:text-neutral-900 hover:underline">
             {artistName || username}
           </TransitionLink>
         ) : (
-          <TransitionLink href={`/user/${bid.bidder}`} className="font-mono hover:text-white hover:underline">
+          <TransitionLink href={`/user/${bid.bidder}`} className="font-mono hover:text-neutral-900 hover:underline">
             {bid.bidder.slice(0, 6)}...{bid.bidder.slice(-4)}
           </TransitionLink>
         )}
-        <span className="text-[#666]">•</span>
+        <span className="text-neutral-400">•</span>
         <span>{timeAgo}</span>
       </div>
     </div>

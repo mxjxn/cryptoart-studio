@@ -11,10 +11,12 @@
     "clean": "rm -rf .next node_modules/.cache",
     "backfill-thumbnails": "tsx scripts/backfill-thumbnails.ts",
     "cleanup-cancelled-images": "tsx scripts/cleanup-cancelled-listings-images.ts",
-    "clear-image-cache": "tsx scripts/clear-image-cache.ts"
+    "clear-image-cache": "tsx scripts/clear-image-cache.ts",
+    "ipfs-benchmark": "tsx scripts/ipfs-gateway-benchmark.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.946.0",
+    "@chenglou/pretext": "^0.0.6",
     "@cryptoart/db": "file:../../packages/db",
     "@dnd-kit/core": "^6.1.0",
     "@dnd-kit/sortable": "^8.0.0",
@@ -35,6 +37,7 @@
     "alchemy-sdk": "^3.6.5",
     "base-x": "^5.0.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
     "graphql-request": "^6.1.0",
     "lucide-react": "^0.469.0",
     "mvp": "link:",

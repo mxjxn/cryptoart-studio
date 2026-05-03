@@ -37,28 +37,24 @@ export function ContractSelector({
     async function fetchContracts() {
       setLoading(true);
       try {
-        // Fetch from cached endpoint (instant)
         const cachedResponse = await fetch(`/api/contracts/cached/${encodeURIComponent(address!)}`);
         if (cachedResponse.ok) {
           const cachedData = await cachedResponse.json();
           const cachedContracts = cachedData.contracts || [];
           setContracts(cachedContracts);
-          
-          // If no cached contracts, fetch directly (will also cache them)
+
           if (cachedContracts.length === 0) {
-            const deployedResponse = await fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`);
+            const deployedResponse = await fetch(
+              `/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`,
+            );
             if (deployedResponse.ok) {
               const deployedData = await deployedResponse.json();
               setContracts(deployedData.contracts || []);
             }
           } else {
-            // Trigger background refresh if we have cached data
-            fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`).catch(() => {
-              // Silently fail background refresh
-            });
+            fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`).catch(() => {});
           }
         } else {
-          // If cached endpoint fails, try direct fetch
           const deployedResponse = await fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}`);
           if (deployedResponse.ok) {
             const deployedData = await deployedResponse.json();
@@ -77,7 +73,6 @@ export function ContractSelector({
 
   const handleContractSelect = (contract: Contract) => {
     onSelectContract(contract.address, contract.tokenType as "ERC721" | "ERC1155");
-    // Clear manual input when selecting from grid
     setManualAddress("");
   };
 
@@ -96,49 +91,46 @@ export function ContractSelector({
   const isValidAddress = manualAddress && /^0x[a-fA-F0-9]{40}$/i.test(manualAddress);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-space-grotesk">
       <div>
-        <h2 className="text-xl font-light mb-2">Select Contract</h2>
-        <p className="text-sm text-[#999999] mb-4">
-          Choose a contract you've deployed, or enter a contract address manually
+        <h2 className="mb-2 text-xl font-medium text-neutral-900">Select contract</h2>
+        <p className="mb-4 text-sm text-neutral-600">
+          Choose a contract you have deployed, or enter a contract address manually.
         </p>
       </div>
 
-      {/* Contract Grid - Only show if contracts exist */}
       {loading && contracts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
-          <div className="h-8 w-8 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-[#999999]">Loading your contracts...</p>
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-600" />
+          <p className="text-neutral-600">Loading your contracts…</p>
         </div>
-      ) : contracts.length > 0 && (
+      ) : contracts.length > 0 ? (
         <div>
-          <h3 className="text-sm font-medium text-[#cccccc] mb-3">Your Deployed Contracts</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <h3 className="mb-3 text-sm font-medium text-neutral-700">Your deployed contracts</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {contracts.map((contract) => (
               <button
                 key={contract.address}
                 type="button"
                 onClick={() => handleContractSelect(contract)}
-                className={`p-4 rounded-lg border text-left transition-colors ${
+                className={`rounded-lg border p-4 text-left transition-colors ${
                   selectedContract?.toLowerCase() === contract.address.toLowerCase()
-                    ? "border-white bg-[#1a1a1a]"
-                    : "border-[#333333] bg-[#0a0a0a] hover:border-[#555555]"
+                    ? "border-neutral-900 bg-neutral-100"
+                    : "border-neutral-200 bg-neutral-50 hover:border-neutral-400 hover:bg-white"
                 }`}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-white font-medium truncate mb-1">
-                      {contract.name || "Unnamed Contract"}
+                <div className="mb-2 flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="mb-1 truncate font-medium text-neutral-900">
+                      {contract.name || "Unnamed contract"}
                     </h3>
-                    <p className="text-xs text-[#999999] font-mono truncate">
-                      {contract.address}
-                    </p>
+                    <p className="truncate font-mono text-xs text-neutral-600">{contract.address}</p>
                   </div>
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ml-2 flex-shrink-0 ${
+                    className={`ml-2 inline-flex flex-shrink-0 items-center rounded border px-2 py-1 text-xs font-medium ${
                       contract.tokenType === "ERC721"
-                        ? "bg-purple-900/30 text-purple-300 border border-purple-700/50"
-                        : "bg-orange-900/30 text-orange-300 border border-orange-700/50"
+                        ? "border-purple-200 bg-purple-50 text-purple-900"
+                        : "border-orange-200 bg-orange-50 text-orange-900"
                     }`}
                   >
                     {contract.tokenType}
@@ -148,19 +140,16 @@ export function ContractSelector({
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Manual Input - Always visible */}
       <div className="space-y-2">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex-1 border-t border-[#333333]"></div>
-          <span className="text-sm text-[#999999]">Or</span>
-          <div className="flex-1 border-t border-[#333333]"></div>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex-1 border-t border-neutral-200" />
+          <span className="text-sm text-neutral-500">Or</span>
+          <div className="flex-1 border-t border-neutral-200" />
         </div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-          Enter Contract Address Manually
-        </label>
-        <div className="bg-[#1a1a1a] border border-[#333333] rounded-lg p-4 space-y-3">
+        <label className="mb-2 block text-sm font-medium text-neutral-700">Enter contract address manually</label>
+        <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <div className="flex gap-2">
             <input
               type="text"
@@ -168,26 +157,23 @@ export function ContractSelector({
               onChange={(e) => setManualAddress(e.target.value)}
               onKeyDown={handleManualKeyDown}
               placeholder="0x..."
-              className="flex-1 px-4 py-2 border border-[#333333] rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black font-mono text-sm placeholder:text-[#666666]"
+              className="flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-2 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/20"
             />
             <button
               type="button"
               onClick={handleManualSubmit}
               disabled={!isValidAddress}
-              className="px-6 py-2 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="whitespace-nowrap rounded-lg bg-neutral-900 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Use Address
+              Use address
             </button>
           </div>
           {manualAddress && !isValidAddress && (
-            <p className="text-xs text-red-400">Invalid address format. Please enter a valid 0x address.</p>
+            <p className="text-xs text-red-600">Invalid address format. Enter a valid 0x address.</p>
           )}
-          {isValidAddress && (
-            <p className="text-xs text-green-400">✓ Valid address format</p>
-          )}
+          {isValidAddress && <p className="text-xs text-green-700">Valid address format</p>}
         </div>
       </div>
     </div>
   );
 }
-

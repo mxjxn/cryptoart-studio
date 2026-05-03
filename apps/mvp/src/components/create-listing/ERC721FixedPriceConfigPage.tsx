@@ -124,27 +124,22 @@ export function ERC721FixedPriceConfigPage({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 font-space-grotesk">
       <div>
-        <h2 className="text-xl font-light mb-2">Fixed Price Listing</h2>
-        <p className="text-sm text-[#999999] mb-4">
-          Set a fixed price for immediate purchase
-        </p>
+        <h2 className="mb-2 text-xl font-medium text-neutral-900">Fixed price listing</h2>
+        <p className="mb-4 text-sm text-neutral-600">Set a fixed price for immediate purchase.</p>
       </div>
 
-      {/* Payment Currency Selection */}
       <div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-3">
-          Payment Currency
-        </label>
+        <label className="mb-3 block text-sm font-medium text-neutral-700">Payment currency</label>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setPaymentType("ETH")}
-            className={`px-4 py-2 text-sm rounded border transition-colors ${
+            className={`rounded border px-4 py-2 text-sm transition-colors ${
               paymentType === "ETH"
-                ? "bg-white text-black border-white"
-                : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                ? "border-neutral-900 bg-neutral-900 text-white"
+                : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400"
             }`}
           >
             ETH
@@ -152,13 +147,13 @@ export function ERC721FixedPriceConfigPage({
           <button
             type="button"
             onClick={() => setPaymentType("ERC20")}
-            className={`px-4 py-2 text-sm rounded border transition-colors ${
+            className={`rounded border px-4 py-2 text-sm transition-colors ${
               paymentType === "ERC20"
-                ? "bg-white text-black border-white"
-                : "bg-transparent border-[#333333] text-white hover:border-[#666666]"
+                ? "border-neutral-900 bg-neutral-900 text-white"
+                : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400"
             }`}
           >
-            ERC20 Token
+            ERC20 token
           </button>
         </div>
 
@@ -168,17 +163,17 @@ export function ERC721FixedPriceConfigPage({
               type="text"
               value={erc20Address}
               onChange={(e) => setErc20Address(e.target.value)}
-              placeholder="0x... (ERC20 Token Address)"
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black font-mono text-sm ${
+              placeholder="0x... (ERC20 token address)"
+              className={`w-full rounded-lg border bg-white px-4 py-2 font-mono text-sm text-neutral-900 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/20 ${
                 erc20Address && erc20Token.error
                   ? "border-red-500"
                   : erc20Address && erc20Token.isValid
-                  ? "border-green-500"
-                  : "border-[#333333]"
+                    ? "border-green-500"
+                    : "border-neutral-200"
               }`}
             />
             {erc20Address && erc20Token.isValid && (
-              <p className="mt-1 text-xs text-green-400">
+              <p className="mt-1 text-xs text-green-700">
                 {erc20Token.name} ({erc20Token.symbol})
               </p>
             )}
@@ -203,30 +198,28 @@ export function ERC721FixedPriceConfigPage({
 
       {/* Timeframe Options */}
       <div>
-        <label className="block text-sm font-medium text-[#cccccc] mb-3">
-          Timeframe
-        </label>
+        <label className="mb-3 block text-sm font-medium text-neutral-700">Timeframe</label>
         <div className="space-y-3">
           <label className="flex items-center gap-2">
             <input
               type="radio"
               checked={useTimeframe}
               onChange={() => setUseTimeframe(true)}
-              className="w-4 h-4 text-white bg-black border-[#333333]"
+              className="h-4 w-4 border-neutral-300 text-neutral-900"
             />
-            <span className="text-sm text-white">Start and end date</span>
+            <span className="text-sm text-neutral-900">Start and end date</span>
           </label>
           <label className="flex items-center gap-2">
             <input
               type="radio"
               checked={!useTimeframe}
               onChange={() => setUseTimeframe(false)}
-              className="w-4 h-4 text-white bg-black border-[#333333]"
+              className="h-4 w-4 border-neutral-300 text-neutral-900"
             />
             <div>
-              <span className="text-sm text-white">Available until sold</span>
-              <p className="text-xs text-[#666666] mt-0.5">
-                Listing starts immediately and remains active until sold
+              <span className="text-sm text-neutral-900">Available until sold</span>
+              <p className="mt-0.5 text-xs text-neutral-600">
+                Listing starts immediately and remains active until sold.
               </p>
             </div>
           </label>
@@ -265,35 +258,35 @@ export function ERC721FixedPriceConfigPage({
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(24)}
-                  className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
+                  className="rounded border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                 >
                   24hr
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(48)}
-                  className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
+                  className="rounded border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                 >
                   48hr
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(24 * 7)}
-                  className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
+                  className="rounded border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                 >
                   1wk
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(24 * 14)}
-                  className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
+                  className="rounded border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                 >
                   2wk
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickEndTime(24 * 30)}
-                  className="px-3 py-1 text-xs bg-[#1a1a1a] border border-[#333333] text-white rounded hover:border-[#555555] transition-colors"
+                  className="rounded border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                 >
                   1mo
                 </button>
@@ -305,9 +298,9 @@ export function ERC721FixedPriceConfigPage({
 
       {/* Error Messages */}
       {allErrors.length > 0 && (
-        <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4">
-          <p className="text-red-400 text-sm font-medium mb-2">Please fix the following errors:</p>
-          <ul className="list-disc list-inside text-red-300 text-xs space-y-1">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="mb-2 text-sm font-medium text-red-800">Please fix the following:</p>
+          <ul className="list-inside list-disc space-y-1 text-xs text-red-700">
             {allErrors.map((error, idx) => (
               <li key={idx}>{error}</li>
             ))}
@@ -315,21 +308,20 @@ export function ERC721FixedPriceConfigPage({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-3 pt-4 border-t border-[#333333]">
+      <div className="flex gap-3 border-t border-neutral-200 pt-4">
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-3 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium rounded hover:border-[#555555] transition-colors"
+          className="rounded border border-neutral-300 bg-white px-6 py-3 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50"
         >
           Back
         </button>
         <button
           type="submit"
           disabled={isSubmitting || !isFormValid}
-          className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium rounded hover:bg-[#cccccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 rounded bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSubmitting ? "Creating Listing..." : "Create Listing"}
+          {isSubmitting ? "Creating listing…" : "Create listing"}
         </button>
       </div>
     </form>

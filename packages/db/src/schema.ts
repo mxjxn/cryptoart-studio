@@ -817,6 +817,36 @@ export interface ListingPageStatusData {
   lastCheckedAt?: Date | null;
 }
 
+/**
+ * Cached listing preview for fast market/browse (subgraph-only + merge).
+ * Filled from listing detail enrichment and cron backfill — not on hot browse path.
+ */
+export const listingMediaPreview = pgTable(
+  'listing_media_preview',
+  {
+    listingId: text('listing_id').primaryKey().notNull(),
+    tokenAddress: text('token_address').notNull(),
+    tokenId: text('token_id').notNull(),
+    imageUrl: text('image_url'),
+    thumbnailSmallUrl: text('thumbnail_small_url'),
+    title: text('title'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    updatedAtIdx: index('listing_media_preview_updated_at_idx').on(table.updatedAt),
+  }),
+);
+
+export interface ListingMediaPreviewData {
+  listingId: string;
+  tokenAddress: string;
+  tokenId: string;
+  imageUrl: string | null;
+  thumbnailSmallUrl: string | null;
+  title: string | null;
+  updatedAt: Date;
+}
+
 // ============================================
 // TOKEN IMAGE CACHE
 // ============================================

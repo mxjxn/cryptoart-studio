@@ -31,6 +31,7 @@ export default {
       },
       fontFamily: {
         'mek-mono': ['var(--font-mek-mono)', 'monospace'],
+        'space-grotesk': ['var(--font-space-grotesk)', 'sans-serif'],
       },
     }
   },

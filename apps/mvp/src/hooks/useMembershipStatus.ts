@@ -36,6 +36,7 @@ export interface MembershipStatus {
 }
 
 export function useMembershipStatus(): MembershipStatus {
+  const debug = process.env.NODE_ENV !== 'production';
   const { address: connectedAddress, isConnected } = useAccount();
   const { context } = useMiniApp();
 
@@ -49,25 +50,27 @@ export function useMembershipStatus(): MembershipStatus {
       const user = context.user as any;
       
       // Debug: Log user object structure
-      console.log('[useMembershipStatus] User object structure:', {
-        custody_address: user.custody_address,
-        verified_addresses: user.verified_addresses,
-        verifications: user.verifications,
-        fid: user.fid,
-      });
+      if (debug) {
+        console.log('[useMembershipStatus] User object structure:', {
+          custody_address: user.custody_address,
+          verified_addresses: user.verified_addresses,
+          verifications: user.verifications,
+          fid: user.fid,
+        });
+      }
       
       // Check if there's a verified_addresses field (may not exist in newer SDK)
       const verifiedAddrs = user.verified_addresses;
       if (verifiedAddrs?.eth_addresses) {
         const ethAddrs = verifiedAddrs.eth_addresses.map((addr: string) => addr.toLowerCase());
-        console.log('[useMembershipStatus] Found eth_addresses:', ethAddrs);
+        if (debug) console.log('[useMembershipStatus] Found eth_addresses:', ethAddrs);
         addresses.push(...ethAddrs);
       }
       
       // Check primary address
       if (verifiedAddrs?.primary?.eth_address) {
         const primaryAddr = verifiedAddrs.primary.eth_address.toLowerCase();
-        console.log('[useMembershipStatus] Found primary address:', primaryAddr);
+        if (debug) console.log('[useMembershipStatus] Found primary address:', primaryAddr);
         if (!addresses.includes(primaryAddr)) {
           addresses.push(primaryAddr);
         }
@@ -75,7 +78,7 @@ export function useMembershipStatus(): MembershipStatus {
       
       // Also check verifications array (legacy format)
       if (user.verifications) {
-        console.log('[useMembershipStatus] Found verifications array:', user.verifications);
+        if (debug) console.log('[useMembershipStatus] Found verifications array:', user.verifications);
         user.verifications.forEach((addr: string) => {
           const lowerAddr = addr.toLowerCase();
           if (!addresses.includes(lowerAddr)) {
@@ -87,7 +90,7 @@ export function useMembershipStatus(): MembershipStatus {
       // Add custody address if it exists
       if (user.custody_address) {
         const custodyAddr = user.custody_address.toLowerCase();
-        console.log('[useMembershipStatus] Found custody address:', custodyAddr);
+        if (debug) console.log('[useMembershipStatus] Found custody address:', custodyAddr);
         if (!addresses.includes(custodyAddr)) {
           addresses.push(custodyAddr);
         }
@@ -97,13 +100,13 @@ export function useMembershipStatus(): MembershipStatus {
     // Add connected wallet (from wagmi - works for both mini-app and web)
     if (connectedAddress) {
       const connectedAddrLower = connectedAddress.toLowerCase();
-      console.log('[useMembershipStatus] Connected address:', connectedAddrLower);
+      if (debug) console.log('[useMembershipStatus] Connected address:', connectedAddrLower);
       if (!addresses.includes(connectedAddrLower)) {
         addresses.push(connectedAddrLower);
       }
     }
     
-    console.log('[useMembershipStatus] All verified addresses to check:', addresses);
+    if (debug) console.log('[useMembershipStatus] All verified addresses to check:', addresses);
     return addresses;
   }, [context?.user, connectedAddress]);
 
@@ -145,10 +148,12 @@ export function useMembershipStatus(): MembershipStatus {
     }
     
     // Log what we found (always log for debugging)
-    console.log('[useMembershipStatus] Farcaster native wallets:', {
-      fromMiniApp: !!context?.user,
-      farcasterNativeWallets: wallets,
-    });
+    if (debug) {
+      console.log('[useMembershipStatus] Farcaster native wallets:', {
+        fromMiniApp: !!context?.user,
+        farcasterNativeWallets: wallets,
+      });
+    }
     
     return wallets;
   }, [context?.user]);
@@ -178,19 +183,21 @@ export function useMembershipStatus(): MembershipStatus {
   // Process results to find ALL active memberships
   // Note: balanceOf returns time remaining in seconds for STP v2 contract
   const membershipData = useMemo(() => {
-    console.log('[useMembershipStatus] Processing membership results:', {
-      resultsLength: results?.length,
-      verifiedAddressesLength: verifiedAddresses.length,
-      results: results?.map((r, i) => ({
-        address: verifiedAddresses[i],
-        status: r?.status,
-        result: r?.result?.toString(),
-        error: r?.error,
-      })),
-    });
+    if (debug) {
+      console.log('[useMembershipStatus] Processing membership results:', {
+        resultsLength: results?.length,
+        verifiedAddressesLength: verifiedAddresses.length,
+        results: results?.map((r, i) => ({
+          address: verifiedAddresses[i],
+          status: r?.status,
+          result: r?.result?.toString(),
+          error: r?.error,
+        })),
+      });
+    }
 
     if (!results || results.length === 0) {
-      console.log('[useMembershipStatus] No results, returning no membership');
+      if (debug) console.log('[useMembershipStatus] No results, returning no membership');
       return { 
         memberships: [],
         primaryMembership: null,
@@ -208,16 +215,18 @@ export function useMembershipStatus(): MembershipStatus {
       const addr = verifiedAddresses[i];
       const balanceResult = results[i];
       
-      console.log(`[useMembershipStatus] Checking address ${i}:`, {
-        address: addr,
-        status: balanceResult?.status,
-        result: balanceResult?.result?.toString(),
-        error: balanceResult?.error,
-      });
+      if (debug) {
+        console.log(`[useMembershipStatus] Checking address ${i}:`, {
+          address: addr,
+          status: balanceResult?.status,
+          result: balanceResult?.result?.toString(),
+          error: balanceResult?.error,
+        });
+      }
       
       if (balanceResult?.status === 'success' && balanceResult.result) {
         const timeRemainingSeconds = balanceResult.result as bigint;
-        console.log(`[useMembershipStatus] Address ${addr} has balance:`, timeRemainingSeconds.toString());
+        if (debug) console.log(`[useMembershipStatus] Address ${addr} has balance:`, timeRemainingSeconds.toString());
         
         // If timeRemainingSeconds > 0, user has active subscription
         if (timeRemainingSeconds > 0n) {
@@ -245,12 +254,14 @@ export function useMembershipStatus(): MembershipStatus {
             isFarcasterWallet,
           };
           
-          console.log('[useMembershipStatus] Found active membership:', {
-            address: addr,
-            timeRemainingSeconds: seconds,
-            expirationDate: expirationDate.toISOString(),
-            isFarcasterWallet,
-          });
+          if (debug) {
+            console.log('[useMembershipStatus] Found active membership:', {
+              address: addr,
+              timeRemainingSeconds: seconds,
+              expirationDate: expirationDate.toISOString(),
+              isFarcasterWallet,
+            });
+          }
           
           allMemberships.push(membershipInfo);
         }
@@ -264,22 +275,24 @@ export function useMembershipStatus(): MembershipStatus {
     
     const primaryMembership = allMemberships.length > 0 ? allMemberships[0] : null;
     
-    console.log('[useMembershipStatus] Membership check complete:', {
-      totalMemberships: allMemberships.length,
-      primaryMembership: primaryMembership ? {
-        address: primaryMembership.address,
-        timeRemainingSeconds: primaryMembership.timeRemainingSeconds,
-        isFarcasterWallet: primaryMembership.isFarcasterWallet,
-      } : null,
-      allMemberships: allMemberships.map(m => ({
-        address: m.address,
-        timeRemainingSeconds: m.timeRemainingSeconds,
-        isFarcasterWallet: m.isFarcasterWallet,
-      })),
-    });
+    if (debug) {
+      console.log('[useMembershipStatus] Membership check complete:', {
+        totalMemberships: allMemberships.length,
+        primaryMembership: primaryMembership ? {
+          address: primaryMembership.address,
+          timeRemainingSeconds: primaryMembership.timeRemainingSeconds,
+          isFarcasterWallet: primaryMembership.isFarcasterWallet,
+        } : null,
+        allMemberships: allMemberships.map(m => ({
+          address: m.address,
+          timeRemainingSeconds: m.timeRemainingSeconds,
+          isFarcasterWallet: m.isFarcasterWallet,
+        })),
+      });
+    }
     
     if (allMemberships.length === 0) {
-      console.log('[useMembershipStatus] No active membership found in any verified address');
+      if (debug) console.log('[useMembershipStatus] No active membership found in any verified address');
     }
     
     return {
@@ -313,28 +326,30 @@ export function useMembershipStatus(): MembershipStatus {
     if (prevMembershipDataRef.current !== membershipKey) {
       prevMembershipDataRef.current = membershipKey;
       
-      console.log('[useMembershipStatus] Final membership check result:', {
-        totalMemberships: membershipData.memberships.length,
-        isPro: membershipData.isPro,
-        membershipAddress: membershipData.membershipAddress,
-        connectedAddress: connectedAddress?.toLowerCase(),
-        firstVerifiedAddress: verifiedAddresses[0],
-        farcasterNativeWallets,
-        isFarcasterWallet,
-        allVerifiedAddresses: verifiedAddresses,
-        primaryMembership: membershipData.primaryMembership ? {
-          address: membershipData.primaryMembership.address,
-          timeRemainingSeconds: membershipData.primaryMembership.timeRemainingSeconds,
-          isFarcasterWallet: membershipData.primaryMembership.isFarcasterWallet,
-        } : null,
-        allMemberships: membershipData.memberships.map(m => ({
-          address: m.address,
-          timeRemainingSeconds: m.timeRemainingSeconds,
-          isFarcasterWallet: m.isFarcasterWallet,
-        })),
-        timeRemainingSeconds: membershipData.timeRemainingSeconds,
-        expirationDate: membershipData.expirationDate?.toISOString(),
-      });
+      if (debug) {
+        console.log('[useMembershipStatus] Final membership check result:', {
+          totalMemberships: membershipData.memberships.length,
+          isPro: membershipData.isPro,
+          membershipAddress: membershipData.membershipAddress,
+          connectedAddress: connectedAddress?.toLowerCase(),
+          firstVerifiedAddress: verifiedAddresses[0],
+          farcasterNativeWallets,
+          isFarcasterWallet,
+          allVerifiedAddresses: verifiedAddresses,
+          primaryMembership: membershipData.primaryMembership ? {
+            address: membershipData.primaryMembership.address,
+            timeRemainingSeconds: membershipData.primaryMembership.timeRemainingSeconds,
+            isFarcasterWallet: membershipData.primaryMembership.isFarcasterWallet,
+          } : null,
+          allMemberships: membershipData.memberships.map(m => ({
+            address: m.address,
+            timeRemainingSeconds: m.timeRemainingSeconds,
+            isFarcasterWallet: m.isFarcasterWallet,
+          })),
+          timeRemainingSeconds: membershipData.timeRemainingSeconds,
+          expirationDate: membershipData.expirationDate?.toISOString(),
+        });
+      }
     }
   }, [membershipData, connectedAddress, verifiedAddresses, farcasterNativeWallets, isFarcasterWallet]);
 

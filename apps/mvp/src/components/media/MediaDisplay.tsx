@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getMediaType, getMediaTypeFromFormat, type MediaType } from "~/lib/media-utils";
 import { AudioPlayer } from "./AudioPlayer";
 import { VideoPlayer } from "./VideoPlayer";
@@ -43,6 +43,12 @@ export function MediaDisplay({
 }: MediaDisplayProps) {
   const [imageError, setImageError] = useState(false);
   const [animationError, setAnimationError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+  }, [imageUrl, animationUrl]);
 
   // Determine media type from animation URL, falling back to format hint if URL detection fails
   let animationMediaType: MediaType | null = null;
@@ -124,22 +130,35 @@ export function MediaDisplay({
   }
 
   return (
-    <button
-      type="button"
-      onClick={onImageClick}
-      className={`w-full cursor-zoom-in block ${className}`}
-      disabled={!onImageClick}
-      style={{ cursor: onImageClick ? "zoom-in" : "default" }}
-      aria-label={onImageClick ? "View artwork fullscreen" : undefined}
-    >
-      <img
-        src={displayUrl}
-        alt={alt}
-        className="w-full max-h-[80vh] object-contain"
-        style={{ viewTransitionName }}
-        onError={() => setImageError(true)}
-      />
-    </button>
+    <div className={`relative w-full ${className}`} style={{ viewTransitionName }}>
+      {!imageLoaded && !imageError && (
+        <div
+          className="absolute inset-0 z-0 min-h-[200px] bg-[#1a1a1a] animate-pulse"
+          aria-hidden
+        />
+      )}
+      <p className="sr-only" aria-live="polite">
+        {!imageLoaded && !imageError ? "Loading artwork…" : ""}
+      </p>
+      <button
+        type="button"
+        onClick={onImageClick}
+        className="relative z-10 w-full cursor-zoom-in block"
+        disabled={!onImageClick}
+        style={{ cursor: onImageClick ? "zoom-in" : "default" }}
+        aria-label={onImageClick ? "View artwork fullscreen" : undefined}
+      >
+        <img
+          src={displayUrl}
+          alt={alt}
+          className={`w-full max-h-[80vh] object-contain transition-opacity duration-200 ${
+            imageLoaded ? "opacity-100" : "opacity-0"
+          }`}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
+        />
+      </button>
+    </div>
   );
 }
 

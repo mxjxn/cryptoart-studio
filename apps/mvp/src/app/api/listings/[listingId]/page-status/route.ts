@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabase, listingPageStatus, eq } from "@cryptoart/db";
-import { getAuctionServer } from "~/lib/server/auction";
+import { resolveListingFromSubgraph } from "~/lib/server/auction";
+
+/** After this long in `building` with no subgraph listing, treat as missing (stale row or invalid ID). */
+const BUILDING_NO_AUCTION_GRACE_MS = 3 * 60 * 1000;
 
 /**
  * GET /api/listings/[listingId]/page-status
- * Check the status of a listing page (building/ready/error)
+ * Check the status of a listing page (building/ready/not_found/error)
  */
 export async function GET(
   req: NextRequest,
@@ -43,17 +46,18 @@ export async function GET(
     }
 
     if (statusRecord.length === 0) {
-      // No status record exists - check if listing is available in subgraph
-      // If it is, mark as ready; otherwise return building
+      // No status record exists - check if listing is available in subgraph.
+      // If it is, mark as ready; otherwise return not_found.
+      // Use subgraph-only resolution (no metadata/IPFS) so this route stays fast.
       try {
-        const auction = await getAuctionServer(listingId);
-        if (auction) {
+        const listing = await resolveListingFromSubgraph(listingId);
+        if (listing) {
           // Listing exists in subgraph, create ready status
           try {
             await db.insert(listingPageStatus).values({
               listingId,
               status: 'ready',
-              sellerAddress: auction.seller || '',
+              sellerAddress: listing.seller || '',
               readyAt: new Date(),
               lastCheckedAt: new Date(),
             });
@@ -63,7 +67,7 @@ export async function GET(
               return NextResponse.json({
                 status: 'ready',
                 listingId,
-                sellerAddress: auction.seller || '',
+                sellerAddress: listing.seller || '',
                 readyAt: new Date().toISOString(),
               });
             }
@@ -73,16 +77,16 @@ export async function GET(
           return NextResponse.json({
             status: 'ready',
             listingId,
-            sellerAddress: auction.seller || '',
+            sellerAddress: listing.seller || '',
             readyAt: new Date().toISOString(),
           });
         }
       } catch {
-        // Listing not available yet
+        // Listing lookup failed, fall through to not_found for missing record path
       }
       
       return NextResponse.json({
-        status: 'building',
+        status: 'not_found',
         listingId,
         sellerAddress: null,
       });
@@ -93,64 +97,81 @@ export async function GET(
     // If status is building, check if it's ready now
     if (record.status === 'building') {
       try {
-        const auction = await getAuctionServer(listingId);
-        if (auction) {
-          // Try to fetch the opengraph image to ensure it's generated
-          // This is a lightweight check - we just verify the endpoint exists
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                         process.env.APP_URL || 
-                         req.headers.get('origin') || 
-                         'http://localhost:3000';
-          const ogImageUrl = `${baseUrl}/listing/${listingId}/opengraph-image`;
-          
+        // Subgraph-only: avoid getAuctionServer + HEAD opengraph (duplicated heavy work
+        // that blocked listing pages). OG image generates on first real request/share.
+        const listing = await resolveListingFromSubgraph(listingId);
+        if (listing) {
           try {
-            const ogResponse = await fetch(ogImageUrl, { 
-              method: 'HEAD',
-              signal: AbortSignal.timeout(5000), // 5 second timeout
+            await db
+              .update(listingPageStatus)
+              .set({
+                status: 'ready',
+                readyAt: new Date(),
+                lastCheckedAt: new Date(),
+              })
+              .where(eq(listingPageStatus.listingId, listingId));
+
+            const updatedRecord = await db
+              .select()
+              .from(listingPageStatus)
+              .where(eq(listingPageStatus.listingId, listingId))
+              .limit(1);
+
+            return NextResponse.json({
+              status: 'ready',
+              listingId,
+              sellerAddress: updatedRecord[0]?.sellerAddress || record.sellerAddress,
+              readyAt: new Date().toISOString(),
             });
-            
-            if (ogResponse.ok) {
-              // Page is ready!
-              try {
-                await db
-                  .update(listingPageStatus)
-                  .set({
-                    status: 'ready',
-                    readyAt: new Date(),
-                    lastCheckedAt: new Date(),
-                  })
-                  .where(eq(listingPageStatus.listingId, listingId));
-                
-                const updatedRecord = await db
-                  .select()
-                  .from(listingPageStatus)
-                  .where(eq(listingPageStatus.listingId, listingId))
-                  .limit(1);
-                
-                return NextResponse.json({
-                  status: 'ready',
-                  listingId,
-                  sellerAddress: updatedRecord[0]?.sellerAddress || record.sellerAddress,
-                  readyAt: new Date().toISOString(),
-                });
-              } catch (updateError: any) {
-                // Table might not exist - just return ready status
-                if (updateError?.code === '42P01' || updateError?.message?.includes('does not exist')) {
-                  return NextResponse.json({
-                    status: 'ready',
-                    listingId,
-                    sellerAddress: record.sellerAddress,
-                    readyAt: new Date().toISOString(),
-                  });
-                }
-                throw updateError;
-              }
+          } catch (updateError: any) {
+            if (updateError?.code === '42P01' || updateError?.message?.includes('does not exist')) {
+              return NextResponse.json({
+                status: 'ready',
+                listingId,
+                sellerAddress: record.sellerAddress,
+                readyAt: new Date().toISOString(),
+              });
             }
-          } catch {
-            // OG image not ready yet, continue with building status
+            throw updateError;
           }
-          
-          // Update last checked time
+        } else {
+          // Subgraph has no listing — keep `building` only during initial indexing window
+          const createdAtMs = record.createdAt
+            ? new Date(record.createdAt).getTime()
+            : 0;
+          const ageMs = Date.now() - createdAtMs;
+
+          if (ageMs >= BUILDING_NO_AUCTION_GRACE_MS) {
+            try {
+              await db
+                .update(listingPageStatus)
+                .set({
+                  status: 'not_found',
+                  lastCheckedAt: new Date(),
+                })
+                .where(eq(listingPageStatus.listingId, listingId));
+            } catch (updateError: any) {
+              if (
+                updateError?.code === '42P01' ||
+                updateError?.message?.includes('does not exist')
+              ) {
+                return NextResponse.json({
+                  status: 'not_found',
+                  listingId,
+                  sellerAddress: record.sellerAddress,
+                });
+              }
+              throw updateError;
+            }
+
+            return NextResponse.json({
+              status: 'not_found',
+              listingId,
+              sellerAddress: record.sellerAddress,
+              lastCheckedAt: new Date().toISOString(),
+            });
+          }
+
           try {
             await db
               .update(listingPageStatus)
@@ -159,9 +180,11 @@ export async function GET(
               })
               .where(eq(listingPageStatus.listingId, listingId));
           } catch (updateError: any) {
-            // Table might not exist - ignore
-            if (updateError?.code === '42P01' || updateError?.message?.includes('does not exist')) {
-              // Just continue
+            if (
+              updateError?.code === '42P01' ||
+              updateError?.message?.includes('does not exist')
+            ) {
+              // ignore
             } else {
               throw updateError;
             }

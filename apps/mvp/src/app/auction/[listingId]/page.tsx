@@ -1,7 +1,20 @@
+import { Suspense } from "react";
 import { Metadata } from "next";
-import { APP_NAME, APP_URL } from "~/lib/constants";
+import { APP_NAME } from "~/lib/constants";
 import { getMiniAppEmbedMetadata, normalizeUrl } from "~/lib/utils";
+import { getRequestSiteUrl } from "~/lib/server/request-site-url";
 import AuctionDetailClient from "./AuctionDetailClient";
+
+function AuctionDetailFallback() {
+  return (
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text)] flex flex-col items-center justify-center gap-4">
+      <div className="flex items-center gap-2">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent" />
+        <p className="text-neutral-400">Loading auction…</p>
+      </div>
+    </div>
+  );
+}
 
 interface AuctionPageProps {
   params: Promise<{ listingId: string }>;
@@ -9,15 +22,10 @@ interface AuctionPageProps {
 
 export async function generateMetadata({ params }: AuctionPageProps): Promise<Metadata> {
   const { listingId } = await params;
-  
-  // Construct absolute URLs for embed metadata (normalize to prevent double slashes)
-  // Farcaster requires absolute URLs for imageUrl and action.url
-  const auctionImageUrl = normalizeUrl(APP_URL, `/auction/${listingId}/opengraph-image`);
-  const auctionPageUrl = normalizeUrl(APP_URL, `/auction/${listingId}`);
 
-  console.log(`[OG Image] [generateMetadata] Generating metadata for auction ${listingId}`);
-  console.log(`[OG Image] [generateMetadata] Image URL: ${auctionImageUrl}`);
-  console.log(`[OG Image] [generateMetadata] Page URL: ${auctionPageUrl}`);
+  const siteUrl = await getRequestSiteUrl();
+  const auctionImageUrl = normalizeUrl(siteUrl, `/auction/${listingId}/opengraph-image`);
+  const auctionPageUrl = normalizeUrl(siteUrl, `/auction/${listingId}`);
 
   const title = `Auction #${listingId} | ${APP_NAME}`;
   const description = "View auction details and place bids";
@@ -37,10 +45,8 @@ export async function generateMetadata({ params }: AuctionPageProps): Promise<Me
     auctionImageUrl  // splashImageUrl - use auction-specific image
   );
   
-  console.log(`[OG Image] [generateMetadata] MiniApp embed metadata:`, JSON.stringify(miniappMetadata, null, 2));
-  console.log(`[OG Image] [generateMetadata] Frame embed metadata:`, JSON.stringify(frameMetadata, null, 2));
-
   return {
+    metadataBase: new URL(siteUrl),
     title,
     description,
     openGraph: {
@@ -48,7 +54,7 @@ export async function generateMetadata({ params }: AuctionPageProps): Promise<Me
       description,
       images: [
         {
-          url: auctionImageUrl,
+          url: `/auction/${listingId}/opengraph-image`,
           width: 1200,
           height: 800, // 3:2 aspect ratio required by Farcaster
         },
@@ -66,6 +72,10 @@ export async function generateMetadata({ params }: AuctionPageProps): Promise<Me
 
 export default async function AuctionPage({ params }: AuctionPageProps) {
   const { listingId } = await params;
-  return <AuctionDetailClient listingId={listingId} />;
+  return (
+    <Suspense fallback={<AuctionDetailFallback />}>
+      <AuctionDetailClient listingId={listingId} />
+    </Suspense>
+  );
 }
 

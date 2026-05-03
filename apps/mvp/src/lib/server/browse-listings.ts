@@ -1,11 +1,20 @@
 import { request, gql } from "graphql-request";
 import type { EnrichedAuctionData } from "~/lib/types";
-import { fetchNFTMetadata } from "~/lib/nft-metadata";
+import { fetchNFTMetadataCached } from "~/lib/server/nft-metadata-cache";
 import { type Address } from "viem";
 import { normalizeListingType, getHiddenUserAddresses } from "~/lib/server/auction";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { getContractCreator } from "~/lib/contract-creator";
-import { getOrGenerateThumbnail } from "~/lib/server/thumbnail-generator";
+import { getListingPreviewsByIds } from "~/lib/server/listing-preview-store";
+import {
+  getListingMediaSnapshot,
+  primeListingMediaSnapshot,
+  resolveMediaWithFallback,
+} from "~/lib/server/listing-metadata-refresh";
+import {
+  classifyMarketLifecycle,
+  type MarketLifecycleTab,
+} from "~/lib/market-lifecycle";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -27,6 +36,43 @@ const getSubgraphHeaders = (): Record<string, string> => {
   }
   return {};
 };
+
+/** Thumbnail cache reads hit Postgres; without a ceiling a stuck query blocks the whole browse batch */
+const THUMBNAIL_LOOKUP_TIMEOUT_MS = 2500;
+const HIDDEN_USERS_TIMEOUT_MS = 3500;
+
+async function lookupCachedThumbnailBounded(imageUrl: string): Promise<string | null> {
+  try {
+    const { getCachedThumbnail } = await import("./thumbnail-cache");
+    return await Promise.race([
+      getCachedThumbnail(imageUrl, "small"),
+      new Promise<string | null>((resolve) =>
+        setTimeout(() => resolve(null), THUMBNAIL_LOOKUP_TIMEOUT_MS)
+      ),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+async function getHiddenUserAddressesBounded(logLabel: string): Promise<Set<string>> {
+  const t0 = Date.now();
+  const raced = await Promise.race([
+    getHiddenUserAddresses().then((set) => ({ ok: true as const, set })),
+    new Promise<{ ok: false }>((resolve) =>
+      setTimeout(() => resolve({ ok: false }), HIDDEN_USERS_TIMEOUT_MS)
+    ),
+  ]);
+  const ms = Date.now() - t0;
+  if (!raced.ok) {
+    console.warn(`[${logLabel}] phase=hidden_users TIMEOUT — continuing without hidden-user filter`, {
+      budgetMs: HIDDEN_USERS_TIMEOUT_MS,
+    });
+    return new Set();
+  }
+  console.log(`[${logLabel}] phase=hidden_users`, { ms, count: raced.set.size });
+  return raced.set;
+}
 
 const BROWSE_LISTINGS_QUERY = gql`
   query BrowseListings($first: Int!, $skip: Int!, $orderBy: String!, $orderDirection: String!) {
@@ -118,6 +164,47 @@ export interface BrowseListingsOptions {
   orderBy?: string;
   orderDirection?: "asc" | "desc";
   enrich?: boolean;
+  /** When set (market tabs), over-fetches and filters by lifecycle; cancelled rows only appear in finished. */
+  marketLifecycle?: MarketLifecycleTab;
+}
+
+function subgraphOrderByField(orderBy: string): string {
+  if (orderBy === "listingId") return "listingId";
+  if (orderBy === "updatedAt") return "updatedAt";
+  return "createdAt";
+}
+
+function filterBrowseCandidateListings(
+  listings: any[],
+  hiddenAddresses: Set<string>,
+  marketLifecycle?: MarketLifecycleTab
+): any[] {
+  const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60;
+  return listings.filter((listing) => {
+    if (!marketLifecycle && listing.status === "CANCELLED") return false;
+    if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+      console.log(
+        `[Browse Listings] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`
+      );
+      return false;
+    }
+    const startTime = parseInt(listing.startTime || "0", 10);
+    const endTime = parseInt(listing.endTime || "0", 10);
+    if (
+      listing.listingType === "INDIVIDUAL_AUCTION" &&
+      startTime === 0 &&
+      endTime > ONE_MONTH_IN_SECONDS
+    ) {
+      console.log(
+        `[Browse Listings] Filtering out listing ${listing.listingId}: start-on-first-bid auction with duration > 1 month (${Math.floor(endTime / 86400)} days)`
+      );
+      return false;
+    }
+    if (marketLifecycle && classifyMarketLifecycle(listing) !== marketLifecycle) {
+      return false;
+    }
+    return true;
+  });
 }
 
 export interface BrowseListingsResult {
@@ -143,15 +230,18 @@ export async function browseListings(
     orderBy = "listingId",
     orderDirection = "desc",
     enrich = true,
+    marketLifecycle,
   } = options;
 
   const endpoint = getSubgraphEndpoint();
-  
-  // Fetch more listings than requested to account for filtering
-  // We'll filter out cancelled and hidden listings
-  // Finalized and sold-out listings are included in recent listings
-  // So we need to fetch extra to ensure we have enough after filtering
-  const fetchCount = Math.min(Math.ceil(first * 1.5), 100); // Fetch 50% more, capped at 100
+
+  const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
+  const fetchCount = Math.min(
+    marketLifecycle
+      ? Math.max(Math.ceil(first * (lifecycleHeavySkip ? 8 : 5)), lifecycleHeavySkip ? 120 : 80)
+      : Math.ceil(first * 1.5),
+    marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
+  );
   
   let data: { listings: any[] };
   try {
@@ -165,7 +255,7 @@ export async function browseListings(
         {
           first: fetchCount,
           skip,
-          orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
+          orderBy: subgraphOrderByField(orderBy),
           orderDirection: orderDirection === "asc" ? "asc" : "desc",
         },
         getSubgraphHeaders()
@@ -203,41 +293,49 @@ export async function browseListings(
   }
   
   // Get hidden user addresses for filtering
-  const hiddenAddresses = await getHiddenUserAddresses();
+  const hiddenAddresses = await getHiddenUserAddressesBounded("Browse Listings");
   
-  // Filter out cancelled listings, hidden users, and problematic auctions
-  // Include finalized and sold-out listings in recent listings
-  const activeListings = data.listings.filter(listing => {
-    // Exclude cancelled listings
-    if (listing.status === "CANCELLED") {
-      return false;
-    }
-    
-    // Exclude listings from hidden users
-    if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
-      console.log(`[Browse Listings] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
-      return false;
-    }
-    
-    // Exclude start-on-first-bid auctions with duration > 1 month (problematic 180-day auctions)
-    // These are auctions that were created with the bug before the fix
-    const startTime = parseInt(listing.startTime || "0", 10);
-    const endTime = parseInt(listing.endTime || "0", 10);
-    const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 2592000 seconds
-    
-    if (listing.listingType === "INDIVIDUAL_AUCTION" && 
-        startTime === 0 && 
-        endTime > ONE_MONTH_IN_SECONDS) {
-      console.log(`[Browse Listings] Filtering out listing ${listing.listingId}: start-on-first-bid auction with duration > 1 month (${Math.floor(endTime / 86400)} days)`);
-      return false;
-    }
-    
-    return true;
-  });
+  const activeListings = filterBrowseCandidateListings(
+    data.listings,
+    hiddenAddresses,
+    marketLifecycle
+  );
 
-  let enrichedListings: EnrichedAuctionData[] = activeListings;
+  let enrichedListings: EnrichedAuctionData[];
 
-  if (enrich) {
+  if (!enrich) {
+    enrichedListings = activeListings.map((listing) => {
+      const bidCount = listing.bids?.length || 0;
+      const highestBid =
+        listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
+      return {
+        ...listing,
+        listingType: normalizeListingType(listing.listingType, listing),
+        bidCount,
+        highestBid: highestBid
+          ? {
+              amount: highestBid.amount,
+              bidder: highestBid.bidder,
+              timestamp: highestBid.timestamp,
+            }
+          : undefined,
+      } as EnrichedAuctionData;
+    });
+
+    const previewMap = await getListingPreviewsByIds(
+      enrichedListings.map((l) => String(l.listingId)),
+    );
+    enrichedListings = enrichedListings.map((l) => {
+      const p = previewMap.get(String(l.listingId));
+      if (!p?.imageUrl && !p?.thumbnailSmallUrl && !p?.title) return l;
+      return {
+        ...l,
+        title: p.title ?? l.title,
+        image: p.imageUrl ?? l.image,
+        thumbnailUrl: p.thumbnailSmallUrl ?? p.imageUrl ?? l.thumbnailUrl,
+      } as EnrichedAuctionData;
+    });
+  } else {
     console.log('[Browse Listings] Enriching', activeListings.length, 'listings');
     
     // Collect all addresses that need user discovery
@@ -300,7 +398,7 @@ export async function browseListings(
             // Add timeout to metadata fetching to prevent hanging
             // Reduced timeout to 5 seconds for faster page loads
             // Use Promise.race to timeout after 5 seconds
-            const metadataPromise = fetchNFTMetadata(
+            const metadataPromise = fetchNFTMetadataCached(
               listing.tokenAddress as Address,
               listing.tokenId,
               listing.tokenSpec
@@ -327,27 +425,24 @@ export async function browseListings(
         // Skip thumbnail generation for cancelled listings
         let thumbnailUrl: string | undefined = undefined;
         const imageUrl = metadata?.image;
+        const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
         
         if (imageUrl && listing.status !== "CANCELLED") {
           try {
-            const { getCachedThumbnail } = await import('./thumbnail-cache');
-            
-            // OPTIMIZED: Only check cache - skip on-demand generation to avoid blocking
-            // This ensures fast page loads even if thumbnails aren't ready yet
-            // The original image will be used temporarily, and thumbnails will be ready on next load
-            const cached = await getCachedThumbnail(imageUrl, 'small');
-            if (cached) {
-              thumbnailUrl = cached;
-            } else {
-              // Not cached - use original image to avoid blocking page load
-              // Background generation will create thumbnail for next load
-              thumbnailUrl = imageUrl;
-            }
-          } catch (error) {
-            // If anything fails, use original image
+            const cached = await lookupCachedThumbnailBounded(imageUrl);
+            thumbnailUrl = cached ?? imageUrl;
+          } catch {
             thumbnailUrl = imageUrl;
           }
         }
+
+        const resolvedMedia = resolveMediaWithFallback({
+          freshImage: metadata?.image,
+          cachedThumbnail: thumbnailUrl,
+          lastKnownImage: mediaSnapshot?.image,
+          lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+          originalImage: metadata?.image,
+        });
 
           return {
             ...listing,
@@ -360,13 +455,22 @@ export async function browseListings(
                   timestamp: highestBid.timestamp,
                 }
               : undefined,
-            title: metadata?.title || metadata?.name,
-            artist: metadata?.artist || metadata?.creator,
-            image: metadata?.image,
-            description: metadata?.description,
-            thumbnailUrl,
+            title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+            artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+            image: resolvedMedia.image,
+            description: metadata?.description || mediaSnapshot?.description,
+            thumbnailUrl: resolvedMedia.thumbnailUrl,
             metadata,
           };
+          primeListingMediaSnapshot({
+            ...listing,
+            listingId: String(listing.listingId),
+            title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+            artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+            description: metadata?.description || mediaSnapshot?.description,
+            image: resolvedMedia.image,
+            thumbnailUrl: resolvedMedia.thumbnailUrl,
+          } as EnrichedAuctionData);
         })
       );
       
@@ -426,11 +530,18 @@ export async function* browseListingsStreaming(
     orderBy = "listingId",
     orderDirection = "desc",
     enrich = true,
+    marketLifecycle,
   } = options;
 
   const endpoint = getSubgraphEndpoint();
-  const fetchCount = Math.min(Math.ceil(first * 1.5), 100);
-  
+  const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
+  const fetchCount = Math.min(
+    marketLifecycle
+      ? Math.max(Math.ceil(first * (lifecycleHeavySkip ? 8 : 5)), lifecycleHeavySkip ? 120 : 80)
+      : Math.ceil(first * 1.5),
+    marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
+  );
+
   let data: { listings: any[] };
   try {
     console.log('[Browse Listings Streaming] Fetching from subgraph:', { endpoint, fetchCount, skip, orderBy, orderDirection });
@@ -442,7 +553,7 @@ export async function* browseListingsStreaming(
         {
           first: fetchCount,
           skip,
-          orderBy: orderBy === "listingId" ? "listingId" : "createdAt",
+          orderBy: subgraphOrderByField(orderBy),
           orderDirection: orderDirection === "asc" ? "asc" : "desc",
         },
         getSubgraphHeaders()
@@ -464,28 +575,17 @@ export async function* browseListingsStreaming(
     return;
   }
   
-  const hiddenAddresses = await getHiddenUserAddresses();
-  const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 2592000 seconds
-  
-  const activeListings = data.listings.filter(listing => {
-    if (listing.status === "CANCELLED") return false;
-    if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
-      console.log(`[Browse Listings Streaming] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
-      return false;
-    }
-    
-    // Exclude start-on-first-bid auctions with duration > 1 month (problematic 180-day auctions)
-    const startTime = parseInt(listing.startTime || "0", 10);
-    const endTime = parseInt(listing.endTime || "0", 10);
-    
-    if (listing.listingType === "INDIVIDUAL_AUCTION" && 
-        startTime === 0 && 
-        endTime > ONE_MONTH_IN_SECONDS) {
-      console.log(`[Browse Listings Streaming] Filtering out listing ${listing.listingId}: start-on-first-bid auction with duration > 1 month (${Math.floor(endTime / 86400)} days)`);
-      return false;
-    }
-    
-    return true;
+  const hiddenAddresses = await getHiddenUserAddressesBounded("Browse Listings Streaming");
+
+  const activeListings = filterBrowseCandidateListings(
+    data.listings,
+    hiddenAddresses,
+    marketLifecycle
+  );
+
+  console.log("[Browse Listings Streaming] phase=filtered", {
+    activeCount: activeListings.length,
+    subgraphRawCount: data.listings.length,
   });
 
   // Yield metadata first
@@ -531,7 +631,13 @@ export async function* browseListingsStreaming(
   
   for (let i = 0; i < activeListings.length && yieldedCount < first; i += BATCH_SIZE) {
     const batch = activeListings.slice(i, i + BATCH_SIZE);
-    
+    const batchStarted = Date.now();
+    console.log("[Browse Listings Streaming] phase=batch_start", {
+      batchOffset: i,
+      batchSize: batch.length,
+      listingIds: batch.map((l) => l.listingId),
+    });
+
     // Process batch in parallel
     const batchPromises = batch.map(async (listing) => {
       const bidCount = listing.bids?.length || 0;
@@ -561,7 +667,7 @@ export async function* browseListingsStreaming(
           // Add timeout to metadata fetching to prevent hanging
           // Reduced timeout to 5 seconds for faster page loads
           // Use Promise.race to timeout after 5 seconds
-          const metadataPromise = fetchNFTMetadata(
+          const metadataPromise = fetchNFTMetadataCached(
             listing.tokenAddress as Address,
             listing.tokenId,
             listing.tokenSpec
@@ -584,27 +690,26 @@ export async function* browseListingsStreaming(
       // This ensures fast streaming even if thumbnails aren't ready yet
       let thumbnailUrl: string | undefined = undefined;
       const imageUrl = metadata?.image;
+      const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
       
       if (imageUrl && listing.status !== "CANCELLED") {
         try {
-          const { getCachedThumbnail } = await import('./thumbnail-cache');
-          
-          // Only check cache - skip on-demand generation to avoid blocking
-          const cached = await getCachedThumbnail(imageUrl, 'small');
-          if (cached) {
-            thumbnailUrl = cached;
-          } else {
-            // Not cached - use original image to avoid blocking
-            // Background generation will create thumbnail for next load
-            thumbnailUrl = imageUrl;
-          }
-        } catch (error) {
-          // If anything fails, use original image
+          const cached = await lookupCachedThumbnailBounded(imageUrl);
+          thumbnailUrl = cached ?? imageUrl;
+        } catch {
           thumbnailUrl = imageUrl;
         }
       }
 
-      return {
+      const resolvedMedia = resolveMediaWithFallback({
+        freshImage: metadata?.image,
+        cachedThumbnail: thumbnailUrl,
+        lastKnownImage: mediaSnapshot?.image,
+        lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+        originalImage: metadata?.image,
+      });
+
+      const enriched = {
         ...listing,
         listingType: normalizeListingType(listing.listingType, listing),
         bidCount,
@@ -615,18 +720,20 @@ export async function* browseListingsStreaming(
               timestamp: highestBid.timestamp,
             }
           : undefined,
-        title: metadata?.title || metadata?.name,
-        artist: metadata?.artist || metadata?.creator,
-        image: metadata?.image,
-        description: metadata?.description,
-        thumbnailUrl,
+        title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+        artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+        image: resolvedMedia.image,
+        description: metadata?.description || mediaSnapshot?.description,
+        thumbnailUrl: resolvedMedia.thumbnailUrl,
         metadata,
       };
+      primeListingMediaSnapshot(enriched as EnrichedAuctionData);
+      return enriched;
     });
 
     // Wait for batch to complete and yield each listing as it's ready
     const batchResults = await Promise.allSettled(batchPromises);
-    
+
     for (const result of batchResults) {
       if (yieldedCount >= first) break;
       
@@ -655,6 +762,13 @@ export async function* browseListingsStreaming(
         yieldedCount++;
       }
     }
+
+    console.log("[Browse Listings Streaming] phase=batch_done", {
+      batchOffset: i,
+      ms: Date.now() - batchStarted,
+      settled: batchResults.length,
+      yieldedTotal: yieldedCount,
+    });
   }
 }
 

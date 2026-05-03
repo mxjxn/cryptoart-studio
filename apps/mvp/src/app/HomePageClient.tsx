@@ -370,7 +370,7 @@ export default function HomePageClient() {
       const decoder = new TextDecoder();
       let buffer = '';
       let listings: EnrichedAuctionData[] = [];
-      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number } = {};
       let listingsArrayStart = -1;
       
       while (true) {
@@ -446,6 +446,8 @@ export default function HomePageClient() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                 } catch {
                   // Continue
                 }
@@ -478,6 +480,9 @@ export default function HomePageClient() {
         if (finalData.subgraphDown !== undefined) {
           metadata.subgraphDown = finalData.subgraphDown;
         }
+        if (finalData.degraded !== undefined) {
+          metadata.degraded = finalData.degraded;
+        }
       } catch {
         // Buffer might be incomplete, that's okay
       }
@@ -487,7 +492,7 @@ export default function HomePageClient() {
       
       // Filter for ERC721 only
       const nftListings = listings.filter((listing: EnrichedAuctionData) => isERC721(listing.tokenSpec));
-      const isSubgraphDown = metadata.subgraphDown || false;
+      const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
       console.log('[HomePageClient] Received NFTs:', nftListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
@@ -530,7 +535,7 @@ export default function HomePageClient() {
       const decoder = new TextDecoder();
       let buffer = '';
       let listings: EnrichedAuctionData[] = [];
-      let metadata: { subgraphDown?: boolean; count?: number } = {};
+      let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number } = {};
       let listingsArrayStart = -1;
       
       while (true) {
@@ -606,6 +611,8 @@ export default function HomePageClient() {
                   if (metaMatch) metadata.count = parseInt(metaMatch[1]);
                   const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
                   if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
+                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
+                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
                 } catch {
                   // Continue
                 }
@@ -638,6 +645,9 @@ export default function HomePageClient() {
         if (finalData.subgraphDown !== undefined) {
           metadata.subgraphDown = finalData.subgraphDown;
         }
+        if (finalData.degraded !== undefined) {
+          metadata.degraded = finalData.degraded;
+        }
       } catch {
         // Buffer might be incomplete, that's okay
       }
@@ -647,7 +657,7 @@ export default function HomePageClient() {
       
       // Filter for ERC1155 only
       const editionListings = listings.filter((listing: EnrichedAuctionData) => isERC1155(listing.tokenSpec));
-      const isSubgraphDown = metadata.subgraphDown || false;
+      const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
       console.log('[HomePageClient] Received Editions:', editionListings.length, 'from', listings.length, 'total listings');
       
       // Take only displayCount for display
@@ -717,28 +727,58 @@ export default function HomePageClient() {
     };
   }, [fetchRecentEditions]);
 
+  const showDataDegradedNotice = nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError;
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Top Bar */}
-      <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
-        <Logo />
-        <div className="flex items-center gap-3">
+      {/* Top Bar — centered logo; preferences left; profile right */}
+      <header className="relative flex min-h-[72px] items-center justify-center border-b border-[#333333] px-4 py-4">
+        <div className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 items-center">
+          <TransitionLink
+            href="/settings"
+            prefetch={false}
+            className="flex min-h-11 min-w-11 items-center justify-center text-[#cccccc] transition-opacity hover:text-white hover:opacity-90"
+            aria-label="Preferences and settings"
+          >
+            <svg
+              width={22}
+              height={22}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </TransitionLink>
+        </div>
+        <Logo className="shrink-0" />
+        <div className="absolute right-4 top-1/2 z-10 flex -translate-y-1/2 items-center gap-3">
           <ProfileDropdown />
         </div>
       </header>
 
-      {/* Create Listing Button - Minimal */}
-      {isMember && (
-        <section className="border-b border-[#333333]">
-          <div className="px-5 py-3 flex justify-center">
-            <TransitionLink
-              href="/create"
-              prefetch={false}
-              className="text-sm text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
-            >
-              + Create Listing
-            </TransitionLink>
+      {/* Create listing (open to all wallet users; /create handles requirements) */}
+      <section className="border-b border-[#333333]">
+        <div className="px-5 py-3 flex justify-center">
+          <TransitionLink
+            href="/create"
+            prefetch={false}
+            className="text-sm text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+          >
+            + Create listing
+          </TransitionLink>
+        </div>
+      </section>
+
+      {showDataDegradedNotice && (
+        <section className="border-b border-[#333333] bg-[#221f12]">
+          <div className="px-5 py-2 text-xs text-[#f6d87d] font-mek-mono">
+            Live listing data is temporarily degraded. You may see delayed or incomplete results while services recover.
           </div>
         </section>
       )}
@@ -796,7 +836,7 @@ export default function HomePageClient() {
       <section id="nfts" className="px-5 py-8 xl:flex-1">
         <div className="flex items-center justify-between mb-6">
           <TransitionLink
-            href="/market?tab=recent"
+            href="/market?tab=active"
             prefetch={false}
             className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
           >
@@ -908,7 +948,7 @@ export default function HomePageClient() {
       <section id="editions" className="px-5 py-8 xl:flex-1">
         <div className="flex items-center justify-between mb-6">
           <TransitionLink
-            href="/market?tab=recent"
+            href="/market?tab=active"
             prefetch={false}
             className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
           >

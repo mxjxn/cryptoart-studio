@@ -216,7 +216,7 @@ export async function GET(
   try {
     const { username, slug } = await params;
     const url = new URL(request.url);
-    const baseUrl = `https://${url.host}`;
+    const baseUrl = `${url.protocol}//${url.host}`;
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font

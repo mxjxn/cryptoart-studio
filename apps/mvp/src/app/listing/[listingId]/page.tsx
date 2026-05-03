@@ -1,7 +1,20 @@
+import { Suspense } from "react";
 import { Metadata } from "next";
-import { APP_NAME, APP_URL } from "~/lib/constants";
+import { APP_NAME } from "~/lib/constants";
 import { getMiniAppEmbedMetadata, normalizeUrl } from "~/lib/utils";
+import { getRequestSiteUrl } from "~/lib/server/request-site-url";
 import AuctionDetailClient from "./AuctionDetailClient";
+
+function ListingDetailFallback() {
+  return (
+    <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4">
+      <div className="flex items-center gap-2">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent" />
+        <p className="text-neutral-600">Loading listing…</p>
+      </div>
+    </div>
+  );
+}
 
 interface ListingPageProps {
   params: Promise<{ listingId: string }>;
@@ -12,15 +25,12 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
   try {
     const resolvedParams = await params;
     listingId = resolvedParams.listingId;
-    
-    // Construct absolute URLs for embed metadata (normalize to prevent double slashes)
-    // Farcaster requires absolute URLs for imageUrl and action.url
-    const listingImageUrl = normalizeUrl(APP_URL, `/listing/${listingId}/opengraph-image`);
-    const listingPageUrl = normalizeUrl(APP_URL, `/listing/${listingId}`);
 
-    console.log(`[OG Image] [generateMetadata] Generating metadata for listing ${listingId}`);
-    console.log(`[OG Image] [generateMetadata] Image URL: ${listingImageUrl}`);
-    console.log(`[OG Image] [generateMetadata] Page URL: ${listingPageUrl}`);
+    const siteUrl = await getRequestSiteUrl();
+    // Same host as the browser request — avoids NEXT_PUBLIC_URL=ngrok while testing on localhost,
+    // which pointed og:image at ngrok and blocked or stalled the document.
+    const listingImageUrl = normalizeUrl(siteUrl, `/listing/${listingId}/opengraph-image`);
+    const listingPageUrl = normalizeUrl(siteUrl, `/listing/${listingId}`);
 
     const title = `Listing #${listingId} | ${APP_NAME}`;
     const description = "View listing details and place bids";
@@ -42,10 +52,8 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
       "View Listing"   // buttonText - custom text for listing pages
     );
     
-    console.log(`[OG Image] [generateMetadata] MiniApp embed metadata:`, JSON.stringify(miniappMetadata, null, 2));
-    console.log(`[OG Image] [generateMetadata] Frame embed metadata:`, JSON.stringify(frameMetadata, null, 2));
-
     return {
+      metadataBase: new URL(siteUrl),
       title,
       description,
       openGraph: {
@@ -53,7 +61,7 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
         description,
         images: [
           {
-            url: listingImageUrl,
+            url: `/listing/${listingId}/opengraph-image`,
             width: 1200,
             height: 800, // 3:2 aspect ratio required by Farcaster
           },
@@ -89,12 +97,16 @@ export default async function ListingPage({ params }: ListingPageProps) {
     // If we can't get the listing ID, we can't render the page
     // Return a basic error component instead of redirecting
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p className="text-[#cccccc]">Invalid listing ID</p>
+      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex items-center justify-center">
+        <p className="text-neutral-600">Invalid listing ID</p>
       </div>
     );
   }
   
-  return <AuctionDetailClient listingId={listingId} />;
+  return (
+    <Suspense fallback={<ListingDetailFallback />}>
+      <AuctionDetailClient listingId={listingId} />
+    </Suspense>
+  );
 }
 

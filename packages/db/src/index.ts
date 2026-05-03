@@ -34,7 +34,8 @@ export {
   // ERC1155 token supply cache
   erc1155TokenSupplyCache,
   // IPFS image cache
-  ipfsImageCache
+  ipfsImageCache,
+  listingMediaPreview,
 } from './client';
 export type { 
   UserCacheData, 
@@ -69,7 +70,8 @@ export type {
   // ERC1155 token supply cache types
   ERC1155TokenSupplyCacheData,
   // IPFS image cache types
-  IPFSImageCacheData
+  IPFSImageCacheData,
+  ListingMediaPreviewData,
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

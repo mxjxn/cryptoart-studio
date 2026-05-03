@@ -14,11 +14,14 @@ export function useEnsNameForAddress(
   address: Address | string | undefined | null,
   enabled: boolean = true
 ): string | undefined {
+  // Avoid hammering default public RPCs (llamarpc) unless a dedicated
+  // mainnet RPC is configured for the client.
+  const hasConfiguredMainnetRpc = Boolean(process.env.NEXT_PUBLIC_MAINNET_RPC_URL);
   const { data: ensName } = useEnsName({
     address: address as Address | undefined,
     chainId: mainnet.id,
     query: {
-      enabled: enabled && !!address,
+      enabled: enabled && !!address && hasConfiguredMainnetRpc,
     },
   });
 

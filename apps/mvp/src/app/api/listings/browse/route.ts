@@ -1,5 +1,64 @@
 import { NextRequest } from "next/server";
 import { browseListings, browseListingsStreaming } from "~/lib/server/browse-listings";
+import { emitRouteMetric } from "~/lib/server/route-metrics";
+import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
+
+/** Allow long enriched streams (market load-more + lifecycle). */
+export const maxDuration = 180;
+
+const BROWSE_API_TIMEOUT_MS = 7000;
+/** Default streaming wall (home / simple browse). */
+const BROWSE_STREAM_MAX_MS = 25_000;
+/** Market lifecycle + pagination can scan many batches before 20 enriched rows — allow a longer wall. */
+const BROWSE_STREAM_MAX_MS_MARKET_HEAVY = 120_000;
+const BROWSE_LKG_TTL_MS = 10 * 60 * 1000;
+let browseTimeoutCount = 0;
+let browseDegradedCount = 0;
+
+type BrowsePayload = {
+  success: true;
+  listings: unknown[];
+  count: number;
+  subgraphDown: boolean;
+  degraded?: boolean;
+  fallbackMode?: string;
+  error?: string;
+  pagination: {
+    first: number;
+    skip: number;
+    hasMore: boolean;
+  };
+};
+
+const browseLastKnownGood = new Map<string, { payload: BrowsePayload; cachedAt: number }>();
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function parseMarketLifecycle(searchParams: URLSearchParams): MarketLifecycleTab | undefined {
+  const raw = searchParams.get("lifecycle");
+  if (raw === "active" || raw === "upcoming" || raw === "finished") return raw;
+  return undefined;
+}
+
+function getDevTimeoutOverride(searchParams: URLSearchParams, key: string, fallback: number): number {
+  if (process.env.NODE_ENV === "production") return fallback;
+  const raw = searchParams.get(key);
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,72 +68,153 @@ export async function GET(req: NextRequest) {
     const enrich = searchParams.get("enrich") !== "false";
     const noCache = searchParams.get("noCache") === "true";
     const stream = searchParams.get("stream") === "true"; // Enable streaming mode
-    
+    const marketLifecycle = parseMarketLifecycle(searchParams);
+
     // Default order by listingId descending (newest first)
     const orderBy = searchParams.get("orderBy") || "listingId";
     const orderDirection = (searchParams.get("orderDirection") || "desc") as "asc" | "desc";
+    const effectiveBrowseTimeoutMs = getDevTimeoutOverride(searchParams, "__testTimeoutMs", BROWSE_API_TIMEOUT_MS);
+    const effectiveFallbackTimeoutMs = getDevTimeoutOverride(searchParams, "__testFallbackTimeoutMs", 5000);
+    const lkgKey = JSON.stringify({
+      first,
+      skip,
+      orderBy,
+      orderDirection,
+      stream,
+      enrich,
+      marketLifecycle: marketLifecycle ?? null,
+    });
     
     console.log('[API /listings/browse] Request:', { first, skip, orderBy, orderDirection, enrich, stream });
 
-    // Use no-cache headers if noCache param is set (for admin revalidation)
-    // Otherwise use smart caching: 5 minute edge cache with stale-while-revalidate
+    // Enriched browse (IPFS/metadata) stays short-TTL. Subgraph-only responses can CDN-cache for a day.
     const cacheHeaders: Record<string, string> = noCache
-      ? { 
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+      ? {
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         }
-      : {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=120',
-        };
+      : enrich
+        ? {
+            "Cache-Control":
+              "public, s-maxage=300, stale-while-revalidate=120",
+          }
+        : {
+            "Cache-Control":
+              "public, s-maxage=86400, stale-while-revalidate=86400",
+          };
 
     // If streaming is enabled, use streaming response
     if (stream && enrich) {
       const streamResponse = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
-          
+
+          let closed = false;
+          const safeEnqueue = (chunk: string) => {
+            try {
+              controller.enqueue(encoder.encode(chunk));
+            } catch {
+              /* client disconnected or controller already closed */
+            }
+          };
+          const safeClose = () => {
+            if (closed) return;
+            closed = true;
+            try {
+              controller.close();
+            } catch {
+              /* already closed */
+            }
+          };
+
+          const heavyStream =
+            !!marketLifecycle || skip > 0;
+          let maxMs = heavyStream ? BROWSE_STREAM_MAX_MS_MARKET_HEAVY : BROWSE_STREAM_MAX_MS;
+          if (process.env.NODE_ENV !== "production") {
+            const raw = new URL(req.url).searchParams.get("__streamMaxMs");
+            const parsed = raw ? Number(raw) : NaN;
+            if (Number.isFinite(parsed) && parsed > 0) {
+              maxMs = Math.min(Math.floor(parsed), 180_000);
+            }
+          }
+
           try {
             // Send initial JSON structure
-            controller.enqueue(encoder.encode('{"success":true,"listings":['));
-            
+            safeEnqueue('{"success":true,"listings":[');
+
             let firstItem = true;
             let count = 0;
             let subgraphReturnedFullCount = false;
             let subgraphDown = false;
-            
-            // Stream listings as they're enriched
-            for await (const listing of browseListingsStreaming({
-              first,
-              skip,
-              orderBy,
-              orderDirection,
-              enrich: true,
-            })) {
-              if (listing.type === 'listing') {
-                // Send listing as JSON
-                if (!firstItem) {
-                  controller.enqueue(encoder.encode(','));
+
+            const finishBody = () => {
+              if (closed) return;
+              const hasMore = count === first && subgraphReturnedFullCount;
+              safeEnqueue(
+                `],"count":${count},"subgraphDown":${subgraphDown},"degraded":false,"pagination":{"first":${first},"skip":${skip},"hasMore":${hasMore}}}`
+              );
+              safeClose();
+            };
+
+            const finishBodyDegraded = () => {
+              if (closed) return;
+              const hasMore = count === first && subgraphReturnedFullCount;
+              safeEnqueue(
+                `],"count":${count},"subgraphDown":true,"degraded":true,"pagination":{"first":${first},"skip":${skip},"hasMore":${hasMore}}}`
+              );
+              safeClose();
+            };
+
+            const wallTimer = setTimeout(() => {
+              console.warn("[API /listings/browse] Streaming wall timeout — closing partial response", {
+                maxMs,
+                count,
+              });
+              finishBodyDegraded();
+            }, maxMs);
+
+            try {
+              // Stream listings as they're enriched
+              for await (const listing of browseListingsStreaming({
+                first,
+                skip,
+                orderBy,
+                orderDirection,
+                enrich: true,
+                marketLifecycle,
+              })) {
+                if (closed) break;
+                if (listing.type === 'listing') {
+                  if (!firstItem) {
+                    safeEnqueue(',');
+                  }
+                  firstItem = false;
+                  safeEnqueue(JSON.stringify(listing.data));
+                  count++;
+                } else if (listing.type === 'metadata') {
+                  subgraphReturnedFullCount =
+                    listing.subgraphReturnedFullCount ?? subgraphReturnedFullCount;
+                  subgraphDown = listing.subgraphDown ?? subgraphDown;
                 }
-                firstItem = false;
-                controller.enqueue(encoder.encode(JSON.stringify(listing.data)));
-                count++;
-              } else if (listing.type === 'metadata') {
-                // Update metadata
-                subgraphReturnedFullCount = listing.subgraphReturnedFullCount ?? subgraphReturnedFullCount;
-                subgraphDown = listing.subgraphDown ?? subgraphDown;
               }
+
+              clearTimeout(wallTimer);
+              if (!closed) {
+                finishBody();
+              }
+            } catch (loopErr) {
+              clearTimeout(wallTimer);
+              throw loopErr;
             }
-            
-            // Close listings array and add metadata
-            const hasMore = count === first && subgraphReturnedFullCount;
-            controller.enqueue(encoder.encode(`],"count":${count},"subgraphDown":${subgraphDown},"pagination":{"first":${first},"skip":${skip},"hasMore":${hasMore}}}`));
-            controller.close();
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to browse listings";
             console.error("[API /listings/browse] Streaming error:", errorMessage, error);
-            controller.enqueue(encoder.encode(`{"success":false,"listings":[],"count":0,"error":"${errorMessage.replace(/"/g, '\\"')}"}`));
-            controller.close();
+            safeEnqueue(
+              `{"success":false,"listings":[],"count":0,"error":"${errorMessage.replace(/"/g, '\\"')}"}`
+            );
+            safeClose();
           }
         },
       });
@@ -90,13 +230,169 @@ export async function GET(req: NextRequest) {
     }
 
     // Non-streaming mode (original behavior)
-    const result = await browseListings({
-      first,
-      skip,
-      orderBy,
-      orderDirection,
-      enrich,
-    });
+    let result;
+    const coreFallbackPromise = enrich
+      ? withTimeout(
+          browseListings({
+            first,
+            skip,
+            orderBy,
+            orderDirection,
+            enrich: false,
+            marketLifecycle,
+          }),
+          effectiveFallbackTimeoutMs,
+          "browseListingsFallbackCore"
+        ).then(
+          (result) => ({ ok: true as const, result }),
+          (error) => ({ ok: false as const, error })
+        )
+      : null;
+    try {
+      result = await withTimeout(
+        browseListings({
+          first,
+          skip,
+          orderBy,
+          orderDirection,
+          enrich,
+          marketLifecycle,
+        }),
+        effectiveBrowseTimeoutMs,
+        "browseListings"
+      );
+    } catch (error) {
+      const timeoutMessage = error instanceof Error ? error.message : "browseListings timeout";
+      browseTimeoutCount += 1;
+      browseDegradedCount += 1;
+      if (coreFallbackPromise) {
+        const fallback = await coreFallbackPromise;
+        if (fallback.ok) {
+          const fallbackResult = fallback.result;
+          emitRouteMetric({
+            metric: "browse.fallback_core.success",
+            route: "/api/listings/browse",
+            level: "warn",
+            tags: {
+              enrich,
+              first,
+              skip,
+              listingsCount: fallbackResult.listings.length,
+            },
+          });
+          const fallbackPayload: BrowsePayload = {
+            success: true,
+            listings: fallbackResult.listings,
+            count: fallbackResult.listings.length,
+            subgraphDown: fallbackResult.subgraphDown || true,
+            degraded: true,
+            fallbackMode: "core-subgraph-only",
+            error: timeoutMessage,
+            pagination: {
+              first,
+              skip,
+              hasMore: false,
+            },
+          };
+          browseLastKnownGood.set(lkgKey, {
+            payload: fallbackPayload,
+            cachedAt: Date.now(),
+          });
+          return new Response(JSON.stringify(fallbackPayload), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Route-Degraded": "true",
+              ...cacheHeaders,
+            },
+          });
+        } else {
+          const fallbackError = fallback.error;
+          emitRouteMetric({
+            metric: "browse.fallback_core.failure",
+            route: "/api/listings/browse",
+            level: "warn",
+            tags: {
+              reason: fallbackError instanceof Error ? fallbackError.message : "unknown",
+            },
+          });
+        }
+      }
+      const lastKnown = browseLastKnownGood.get(lkgKey);
+      if (lastKnown && Date.now() - lastKnown.cachedAt <= BROWSE_LKG_TTL_MS) {
+        emitRouteMetric({
+          metric: "browse.fallback_lkg.success",
+          route: "/api/listings/browse",
+          level: "warn",
+          tags: {
+            ageMs: Date.now() - lastKnown.cachedAt,
+            listingsCount: lastKnown.payload.count,
+          },
+        });
+        return new Response(JSON.stringify({
+          ...lastKnown.payload,
+          degraded: true,
+          fallbackMode: "last-known-good",
+          subgraphDown: true,
+          error: timeoutMessage,
+        }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "X-Route-Degraded": "true",
+            "X-Route-Fallback": "lkg",
+            ...cacheHeaders,
+          },
+        });
+      }
+      emitRouteMetric({
+        metric: "browse.timeout",
+        route: "/api/listings/browse",
+        level: "warn",
+        tags: {
+          timeoutMs: BROWSE_API_TIMEOUT_MS,
+          effectiveTimeoutMs: effectiveBrowseTimeoutMs,
+          effectiveFallbackTimeoutMs,
+          enrich,
+          stream,
+          first,
+          skip,
+          browseTimeoutCount,
+          browseDegradedCount,
+        },
+      });
+      console.warn("[API /listings/browse] Returning degraded response:", timeoutMessage);
+      console.warn("[API /listings/browse] Degraded counters", {
+        browseTimeoutCount,
+        browseDegradedCount,
+        timeoutMs: BROWSE_API_TIMEOUT_MS,
+      });
+      const degradedPayload: BrowsePayload = {
+        success: true,
+        listings: [],
+        count: 0,
+        subgraphDown: true,
+        degraded: true,
+        error: timeoutMessage,
+        pagination: {
+          first,
+          skip,
+          hasMore: false,
+        },
+      };
+      browseLastKnownGood.set(lkgKey, {
+        payload: degradedPayload,
+        cachedAt: Date.now(),
+      });
+      return new Response(JSON.stringify(degradedPayload), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Route-Degraded": "true",
+          ...cacheHeaders,
+        },
+      });
+    }
     
     console.log('[API /listings/browse] Result:', { listingsCount: result.listings.length, subgraphReturnedFullCount: result.subgraphReturnedFullCount });
 
@@ -107,8 +403,7 @@ export async function GET(req: NextRequest) {
       'Content-Type': 'application/json',
       ...cacheHeaders,
     };
-    
-    return new Response(JSON.stringify({
+    const payload: BrowsePayload = {
       success: true,
       listings: enrichedListings,
       count: enrichedListings.length,
@@ -118,7 +413,13 @@ export async function GET(req: NextRequest) {
         skip,
         hasMore,
       },
-    }), {
+    };
+    browseLastKnownGood.set(lkgKey, {
+      payload,
+      cachedAt: Date.now(),
+    });
+
+    return new Response(JSON.stringify(payload), {
       headers: responseHeaders,
     });
   } catch (error) {

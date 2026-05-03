@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import { APP_NAME } from "~/lib/constants";
 import { getMiniAppEmbedMetadata } from "~/lib/utils";
 import MembershipClient from "./MembershipClient";
@@ -41,6 +42,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function MembershipPage() {
-  return <MembershipClient />;
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[rgb(255,4,2)] text-white flex items-center justify-center font-mek-mono text-sm">
+          Loading…
+        </div>
+      }
+    >
+      <MembershipClient />
+    </Suspense>
+  );
 }
 

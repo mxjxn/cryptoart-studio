@@ -85,11 +85,7 @@ export function DateSelector({
 
   return (
     <div>
-      {label && (
-        <label className="block text-xs text-[#cccccc] mb-2">
-          {label}
-        </label>
-      )}
+      {label && <label className="mb-2 block text-xs text-neutral-700">{label}</label>}
       <input
         type="datetime-local"
         value={value}
@@ -99,12 +95,12 @@ export function DateSelector({
         max={max}
         required={required}
         disabled={disabled}
-        className={`w-full px-3 py-2 bg-black border text-white text-sm rounded focus:ring-2 focus:ring-white focus:border-white ${
-          showError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "border-[#333333]"
+        className={`w-full rounded border bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/20 ${
+          showError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-neutral-200"
         }`}
       />
       {showError && validation.error && (
-        <p className="mt-1 text-xs text-red-400">{validation.error}</p>
+        <p className="mt-1 text-xs text-red-600">{validation.error}</p>
       )}
     </div>
   );

@@ -69,7 +69,7 @@ export async function GET(
   try {
     const { identifier } = await params;
     const url = new URL(request.url);
-    const baseUrl = `https://${url.host}`;
+    const baseUrl = `${url.protocol}//${url.host}`;
     
     // Fetch user data
     const userResponse = await fetch(`${baseUrl}/api/user/${encodeURIComponent(identifier)}`, {
