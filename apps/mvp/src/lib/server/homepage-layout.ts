@@ -644,6 +644,7 @@ function getSubgraphHeaders(): Record<string, string> {
 export interface Tier1ListingCard {
   listingId: string;
   tokenId?: string;
+  seller?: string | null;
   title: string;
   artist: string;
   description: string;
@@ -660,19 +661,35 @@ export interface RedesignTieredSections {
 }
 
 const REDESIGN_TIER1_LIMIT = 12;
-const REDESIGN_TIER1_TIMEOUT_MS = 1200;
+/** Browse enrichment batches metadata; keep headroom so first paint is real titles/artists, not subgraph-only stubs. */
+const REDESIGN_TIER1_TIMEOUT_MS = 18_000;
 const REDESIGN_FALLBACK_DESCRIPTION =
-  "Curated listing preview. Open the listing for live auction activity.";
+  "Open this listing on CryptoArt for artwork details, provenance, and bidding.";
+
+function shortHexAddress(addr: string | null | undefined): string | null {
+  if (!addr || typeof addr !== "string") return null;
+  const a = addr.trim().toLowerCase();
+  if (!a.startsWith("0x") || a.length < 12) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
 let lastKnownRedesignSections: RedesignTieredSections | null = null;
 
 function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
   primeListingMediaSnapshot(listing);
   const snapshot = getListingMediaSnapshot(listing.listingId);
+  const title =
+    snapshot?.title || listing.title || `Listing #${listing.listingId}`;
+  const artist =
+    snapshot?.artist ||
+    listing.artist ||
+    shortHexAddress(listing.seller) ||
+    "Seller";
   return {
     listingId: listing.listingId,
     tokenId: listing.tokenId,
-    title: snapshot?.title || listing.title || `Listing #${listing.listingId}`,
-    artist: snapshot?.artist || listing.artist || "Unknown artist",
+    seller: listing.seller ?? null,
+    title,
+    artist,
     description:
       snapshot?.description ||
       listing.description ||
@@ -688,7 +705,7 @@ async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSe
     skip: 0,
     orderBy: "createdAt",
     orderDirection: "desc",
-    enrich: false,
+    enrich: true,
   });
 
   const tier1Listings = listings

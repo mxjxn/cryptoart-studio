@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getRedesignTieredSections } from "~/lib/server/homepage-layout";
 
+/** Homepage tier-1 runs subgraph + per-token metadata enrichment. */
+export const maxDuration = 60;
+
 export async function GET() {
   const startedAt = Date.now();
   try {
