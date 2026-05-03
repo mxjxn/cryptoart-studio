@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useMemo, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
-import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import type { EnrichedAuctionData } from "~/lib/types";
@@ -43,8 +42,10 @@ const PAGE_SIZE = 20;
 const BROWSE_FETCH_MAX_MS = 150_000;
 
 export default function MarketClient({ initial }: MarketClientProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tab = marketTabFromSearch(searchParams.get("tab"));
+  const [isTabPending, startTabTransition] = useTransition();
 
   const [listings, setListings] = useState<EnrichedAuctionData[]>(initial.listings);
   const [loading, setLoading] = useState(() => {
@@ -222,6 +223,13 @@ export default function MarketClient({ initial }: MarketClientProps) {
   const showDegradedBanner =
     (degraded || subgraphDown) && listings.length > 0;
 
+  const navigateToTab = (next: MarketLifecycleTab) => {
+    if (next === tab) return;
+    startTabTransition(() => {
+      router.push(`/market?tab=${next}`);
+    });
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -242,10 +250,16 @@ export default function MarketClient({ initial }: MarketClientProps) {
       <div className="px-5 py-8">
         <h1 className="text-2xl font-light mb-6">Market</h1>
 
-        <div className="flex flex-wrap gap-x-6 gap-y-2 mb-8 border-b border-[#333333]">
-          <TransitionLink
-            href="/market?tab=active"
-            prefetch={false}
+        <div
+          className="flex flex-wrap gap-x-6 gap-y-2 mb-2 border-b border-[#333333]"
+          role="tablist"
+          aria-label="Listing lifecycle"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "active"}
+            onClick={() => navigateToTab("active")}
             className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
               tab === "active"
                 ? "text-white border-b-2 border-white"
@@ -253,10 +267,12 @@ export default function MarketClient({ initial }: MarketClientProps) {
             }`}
           >
             Active
-          </TransitionLink>
-          <TransitionLink
-            href="/market?tab=upcoming"
-            prefetch={false}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "upcoming"}
+            onClick={() => navigateToTab("upcoming")}
             className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
               tab === "upcoming"
                 ? "text-white border-b-2 border-white"
@@ -264,10 +280,12 @@ export default function MarketClient({ initial }: MarketClientProps) {
             }`}
           >
             Upcoming
-          </TransitionLink>
-          <TransitionLink
-            href="/market?tab=finished"
-            prefetch={false}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "finished"}
+            onClick={() => navigateToTab("finished")}
             className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
               tab === "finished"
                 ? "text-white border-b-2 border-white"
@@ -275,9 +293,28 @@ export default function MarketClient({ initial }: MarketClientProps) {
             }`}
           >
             Finished
-          </TransitionLink>
+          </button>
         </div>
 
+        {isTabPending && (
+          <div
+            className="mb-6 flex items-center gap-2 text-[#cccccc]"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#666666] border-t-white"
+              aria-hidden
+            />
+            <span className="font-mek-mono text-xs tracking-[0.5px]">Loading this tab…</span>
+          </div>
+        )}
+
+        <div
+          className={
+            isTabPending ? "pointer-events-none opacity-45 transition-opacity duration-150" : undefined
+          }
+        >
         {loading && listings.length === 0 ? (
           <MarketGridSkeleton />
         ) : error && listings.length === 0 ? (
@@ -331,7 +368,7 @@ export default function MarketClient({ initial }: MarketClientProps) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               {listings.map((listing, index) => (
                 <AuctionCard
                   key={listing.listingId}
@@ -384,6 +421,7 @@ export default function MarketClient({ initial }: MarketClientProps) {
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );
