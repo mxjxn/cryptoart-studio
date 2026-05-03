@@ -1688,20 +1688,22 @@ export default function AuctionDetailClient({
             if (isMember) return;
             router.push("/membership?from=listing");
           }}
-          className="flex w-full flex-wrap items-center justify-center gap-x-px gap-y-0 bg-[#f5b0d3] px-1.5 py-0 font-space-grotesk text-[21px] font-medium leading-[0] tracking-tighter text-[#333333] sm:gap-x-px sm:gap-y-0 sm:px-2 sm:py-0 sm:text-[21px] sm:leading-[0] sm:tracking-tighter"
+          className="flex w-full flex-col items-center justify-center gap-1 bg-[#f5b0d3] px-3 py-2.5 text-center font-space-grotesk text-sm font-medium leading-snug text-[#333333] sm:flex-row sm:flex-wrap sm:gap-x-2 sm:text-base"
         >
-          <span className="block w-fit whitespace-nowrap text-[21px] font-medium leading-[0] tracking-tighter text-[#333333] sm:text-[21px] sm:leading-[0] sm:tracking-tighter">
-            {isMember ? "Member" : "become a member"}
-          </span>
-          {!isMember && (
-            <span className="block w-fit whitespace-nowrap text-[21px] font-medium leading-[0] tracking-tighter text-[#333333] sm:text-[21px] sm:leading-[0] sm:tracking-tighter">
-              0.0001 ETH /MONTH
-            </span>
+          {isMember ? (
+            <span>Member — thanks for supporting infrastructure & open-source</span>
+          ) : (
+            <>
+              <span className="max-w-[min(100%,42rem)]">
+                Support infrastructure & open-source behind cryptoart.social
+              </span>
+              <span className="tabular-nums">0.0001 ETH / month</span>
+            </>
           )}
         </button>
       )}
 
-      {!isMiniApp && isMember && (
+      {!isMiniApp && (
         <section className="border-b border-neutral-200 bg-white">
           <div className="container mx-auto flex max-w-4xl justify-center px-5 py-3">
             <TransitionLink
@@ -1709,7 +1711,7 @@ export default function AuctionDetailClient({
               prefetch={false}
               className="font-mek-mono text-sm tracking-[0.5px] text-neutral-600 transition-colors hover:text-neutral-950"
             >
-              + Create Listing
+              + Create listing
             </TransitionLink>
           </div>
         </section>

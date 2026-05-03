@@ -271,10 +271,12 @@ export default function MembershipClient() {
   return (
     <div className="min-h-screen bg-[rgb(255,4,2)] text-white flex justify-center">
       <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] flex-col min-h-screen border-x border-black/20 shadow-2xl">
-        {/* Match homepage membership strip (Figma) */}
-        <div className="flex w-full flex-wrap items-center justify-center gap-1 bg-[rgb(245,176,211)] px-2 py-1 font-space-grotesk text-[11px] font-medium leading-none text-black sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-xs">
-          <span className="text-black">become a member</span>
-          <span className="text-black">0.0001 ETH /MONTH</span>
+        {/* Match homepage membership strip — backs infra & OSS */}
+        <div className="flex w-full flex-col items-center justify-center gap-1 bg-[rgb(245,176,211)] px-3 py-2.5 text-center font-space-grotesk text-[11px] font-medium leading-snug text-black sm:flex-row sm:flex-wrap sm:gap-x-2 sm:px-4 sm:py-2 sm:text-xs">
+          <span className="max-w-[42rem] text-black">
+            Support infrastructure & open-source behind cryptoart.social
+          </span>
+          <span className="text-black tabular-nums">0.0001 ETH / month</span>
         </div>
 
         <div className={`flex items-center justify-between py-5 font-mek-mono text-sm ${gutter}`}>
