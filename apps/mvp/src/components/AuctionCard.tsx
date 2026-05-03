@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { TransitionLink } from "~/components/TransitionLink";
 import { formatEther } from "viem";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -28,6 +29,7 @@ interface AuctionCardProps {
 }
 
 export function AuctionCard({ auction, gradient, index, referralAddress, onNavigate }: AuctionCardProps) {
+  const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -389,21 +391,43 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
     ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
     : `/listing/${auction.listingId}`;
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    // Call onNavigate callback if provided (for showing loading modal)
-    // Use setTimeout to ensure state updates immediately before navigation
-    if (onNavigate) {
-      // Call immediately to show modal right away
-      onNavigate(auction.listingId, auction.thumbnailUrl || auction.image || null, title);
+  const goToListing = useCallback(() => {
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      (document as Document & { startViewTransition: (cb: () => void) => void }).startViewTransition(
+        () => {
+          router.push(listingUrl);
+        }
+      );
+    } else {
+      router.push(listingUrl);
     }
+  }, [listingUrl, router]);
+
+  /** Card surface is not an <a> so profile TransitionLinks stay valid (no nested anchors). */
+  const handleCardSurfaceClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement;
+    if (t.closest("a") || t.closest("button")) return;
+    onNavigate?.(auction.listingId, auction.thumbnailUrl || auction.image || null, title);
+    goToListing();
+  };
+
+  const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if ((e.target as HTMLElement).closest("a")) return;
+    e.preventDefault();
+    onNavigate?.(auction.listingId, auction.thumbnailUrl || auction.image || null, title);
+    goToListing();
   };
 
   return (
     <div className="w-full">
-      <TransitionLink
-        href={listingUrl}
+      <div
+        role="link"
+        tabIndex={0}
+        aria-label={`Open listing: ${title}`}
         className="relative w-full cursor-pointer group block touch-manipulation"
-        onClick={handleClick}
+        onClick={handleCardSurfaceClick}
+        onKeyDown={handleCardKeyDown}
       >
         <div
           className="w-full h-[280px] relative overflow-hidden bg-black flex items-center justify-center"
@@ -599,7 +623,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
             </div>
           ) : null}
         </div>
-      </TransitionLink>
+      </div>
       {/* Listing Card Menu - Below the card (NOT part of the clickable link) */}
       <div className="mt-2 flex justify-end relative z-10">
         <ListingCardMenu 

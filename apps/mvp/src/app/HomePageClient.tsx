@@ -836,7 +836,7 @@ export default function HomePageClient() {
       <section id="nfts" className="px-5 py-8 xl:flex-1">
         <div className="flex items-center justify-between mb-6">
           <TransitionLink
-            href="/market?tab=recent"
+            href="/market?tab=active"
             prefetch={false}
             className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
           >
@@ -948,7 +948,7 @@ export default function HomePageClient() {
       <section id="editions" className="px-5 py-8 xl:flex-1">
         <div className="flex items-center justify-between mb-6">
           <TransitionLink
-            href="/market?tab=recent"
+            href="/market?tab=active"
             prefetch={false}
             className="text-base font-semibold uppercase tracking-[2px] text-white hover:text-white transition-colors font-mek-mono cursor-pointer underline decoration-white/60 hover:decoration-white"
           >

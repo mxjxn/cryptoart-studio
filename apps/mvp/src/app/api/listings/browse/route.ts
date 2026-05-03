@@ -1,10 +1,16 @@
 import { NextRequest } from "next/server";
 import { browseListings, browseListingsStreaming } from "~/lib/server/browse-listings";
 import { emitRouteMetric } from "~/lib/server/route-metrics";
+import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
+
+/** Allow long enriched streams (market load-more + lifecycle). */
+export const maxDuration = 180;
 
 const BROWSE_API_TIMEOUT_MS = 7000;
-/** Hard cap for streaming responses so clients never hang if subgraph/enrichment stalls */
+/** Default streaming wall (home / simple browse). */
 const BROWSE_STREAM_MAX_MS = 25_000;
+/** Market lifecycle + pagination can scan many batches before 20 enriched rows — allow a longer wall. */
+const BROWSE_STREAM_MAX_MS_MARKET_HEAVY = 120_000;
 const BROWSE_LKG_TTL_MS = 10 * 60 * 1000;
 let browseTimeoutCount = 0;
 let browseDegradedCount = 0;
@@ -39,6 +45,12 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
+function parseMarketLifecycle(searchParams: URLSearchParams): MarketLifecycleTab | undefined {
+  const raw = searchParams.get("lifecycle");
+  if (raw === "active" || raw === "upcoming" || raw === "finished") return raw;
+  return undefined;
+}
+
 function getDevTimeoutOverride(searchParams: URLSearchParams, key: string, fallback: number): number {
   if (process.env.NODE_ENV === "production") return fallback;
   const raw = searchParams.get(key);
@@ -56,13 +68,22 @@ export async function GET(req: NextRequest) {
     const enrich = searchParams.get("enrich") !== "false";
     const noCache = searchParams.get("noCache") === "true";
     const stream = searchParams.get("stream") === "true"; // Enable streaming mode
-    
+    const marketLifecycle = parseMarketLifecycle(searchParams);
+
     // Default order by listingId descending (newest first)
     const orderBy = searchParams.get("orderBy") || "listingId";
     const orderDirection = (searchParams.get("orderDirection") || "desc") as "asc" | "desc";
     const effectiveBrowseTimeoutMs = getDevTimeoutOverride(searchParams, "__testTimeoutMs", BROWSE_API_TIMEOUT_MS);
     const effectiveFallbackTimeoutMs = getDevTimeoutOverride(searchParams, "__testFallbackTimeoutMs", 5000);
-    const lkgKey = JSON.stringify({ first, skip, orderBy, orderDirection, stream, enrich });
+    const lkgKey = JSON.stringify({
+      first,
+      skip,
+      orderBy,
+      orderDirection,
+      stream,
+      enrich,
+      marketLifecycle: marketLifecycle ?? null,
+    });
     
     console.log('[API /listings/browse] Request:', { first, skip, orderBy, orderDirection, enrich, stream });
 
@@ -108,12 +129,14 @@ export async function GET(req: NextRequest) {
             }
           };
 
-          let maxMs = BROWSE_STREAM_MAX_MS;
+          const heavyStream =
+            !!marketLifecycle || skip > 0;
+          let maxMs = heavyStream ? BROWSE_STREAM_MAX_MS_MARKET_HEAVY : BROWSE_STREAM_MAX_MS;
           if (process.env.NODE_ENV !== "production") {
             const raw = new URL(req.url).searchParams.get("__streamMaxMs");
             const parsed = raw ? Number(raw) : NaN;
             if (Number.isFinite(parsed) && parsed > 0) {
-              maxMs = Math.min(Math.floor(parsed), 120_000);
+              maxMs = Math.min(Math.floor(parsed), 180_000);
             }
           }
 
@@ -160,6 +183,7 @@ export async function GET(req: NextRequest) {
                 orderBy,
                 orderDirection,
                 enrich: true,
+                marketLifecycle,
               })) {
                 if (closed) break;
                 if (listing.type === 'listing') {
@@ -215,6 +239,7 @@ export async function GET(req: NextRequest) {
             orderBy,
             orderDirection,
             enrich: false,
+            marketLifecycle,
           }),
           effectiveFallbackTimeoutMs,
           "browseListingsFallbackCore"
@@ -231,6 +256,7 @@ export async function GET(req: NextRequest) {
           orderBy,
           orderDirection,
           enrich,
+          marketLifecycle,
         }),
         effectiveBrowseTimeoutMs,
         "browseListings"

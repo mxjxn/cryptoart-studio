@@ -392,7 +392,15 @@ export async function getAuctionServer(
       console.warn(`[OG Image] [getAuctionServer] No listing found for ID: ${listingId}`);
       return null;
     }
-    
+
+    const hiddenSellers = await getHiddenUserAddresses();
+    if (isListingBlockedFromProduct(listing, hiddenSellers)) {
+      console.warn(
+        `[OG Image] [getAuctionServer] Blocked listing ${listingId} (hidden/blocked seller or BLOCKED_LISTING_IDS)`
+      );
+      return null;
+    }
+
     console.log(`[OG Image] [getAuctionServer] Listing found: listingId=${listing.listingId}, status=${listing.status}, tokenAddress=${listing.tokenAddress}`);
     const bidCount = listing.bids?.length || 0;
     const highestBid =
@@ -509,19 +517,63 @@ export async function getAuctionServer(
   }
 }
 
+/** Comma-separated `0x…` wallets merged into hidden set (Vercel: `BLOCKED_SELLER_ADDRESSES`). */
+function parseCommaSeparatedAddresses(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((a) => a.startsWith("0x") && a.length >= 42);
+}
+
+/**
+ * Comma-separated listing ids to block everywhere (Vercel: `BLOCKED_LISTING_IDS`), e.g. `117,118`.
+ * Use when the seller row is not in `hidden_users` but the listing must still be suppressed.
+ */
+export function getBlockedListingIdsFromEnv(): Set<string> {
+  const raw = process.env.BLOCKED_LISTING_IDS;
+  const set = new Set<string>();
+  if (!raw?.trim()) return set;
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (id) set.add(id);
+  }
+  return set;
+}
+
+/** True when this listing must not be enriched or shown (detail, OG, cron). */
+export function isListingBlockedFromProduct(
+  listing: { listingId?: unknown; seller?: unknown },
+  hiddenSellers: Set<string>
+): boolean {
+  const lid = String(listing.listingId ?? "").trim();
+  if (lid && getBlockedListingIdsFromEnv().has(lid)) return true;
+  const seller =
+    typeof listing.seller === "string" ? listing.seller.toLowerCase() : "";
+  if (seller && hiddenSellers.has(seller)) return true;
+  return false;
+}
+
 /**
  * Get set of hidden user addresses for filtering.
  * These users' listings should not appear in algorithmic feeds.
+ * Merges DB `hidden_users` with optional env `BLOCKED_SELLER_ADDRESSES` (comma-separated).
  */
 export async function getHiddenUserAddresses(): Promise<Set<string>> {
+  const set = new Set<string>();
   try {
     const db = getDatabase();
     const hidden = await db.select({ address: hiddenUsers.userAddress }).from(hiddenUsers);
-    return new Set(hidden.map(h => h.address.toLowerCase()));
+    for (const h of hidden) {
+      set.add(h.address.toLowerCase());
+    }
   } catch (error) {
-    console.error('[Auction] Error fetching hidden users:', error);
-    return new Set();
+    console.error("[Auction] Error fetching hidden users:", error);
   }
+  for (const a of parseCommaSeparatedAddresses(process.env.BLOCKED_SELLER_ADDRESSES)) {
+    set.add(a);
+  }
+  return set;
 }
 
 /**

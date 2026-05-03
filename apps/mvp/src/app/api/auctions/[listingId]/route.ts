@@ -5,7 +5,12 @@ import { CHAIN_ID } from '~/lib/contracts/marketplace';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
-import { normalizeListingType, normalizeTokenSpec } from '~/lib/server/auction';
+import {
+  getHiddenUserAddresses,
+  isListingBlockedFromProduct,
+  normalizeListingType,
+  normalizeTokenSpec,
+} from '~/lib/server/auction';
 import { upsertListingPreview } from '~/lib/server/listing-preview-store';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 
@@ -271,7 +276,15 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
       return null;
     }
   }
-  
+
+  const hiddenSellers = await getHiddenUserAddresses();
+  if (isListingBlockedFromProduct(listing, hiddenSellers)) {
+    console.warn(
+      `[fetchAuctionData] Blocked listing ${listingId} — hidden/blocked seller or BLOCKED_LISTING_IDS; skipping enrichment`
+    );
+    return null;
+  }
+
   const bidCount = listing.bids?.length || 0;
   const highestBid = listing.bids && listing.bids.length > 0 
     ? listing.bids[0] // Already sorted by amount desc

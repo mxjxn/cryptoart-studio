@@ -7,6 +7,7 @@ import {
   upsertListingPreview,
 } from "~/lib/server/listing-preview-store";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { getHiddenUserAddresses, isListingBlockedFromProduct } from "~/lib/server/auction";
 
 export const maxDuration = 120;
 
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
   const skipSubgraph = parseInt(req.nextUrl.searchParams.get("skip") || "0", 10) || 0;
 
   try {
+    const hiddenSellers = await getHiddenUserAddresses();
     const { listings } = await browseListings({
       first: Math.min(100, Math.max(limit * 2, 30)),
       skip: skipSubgraph,
@@ -58,11 +60,15 @@ export async function GET(req: NextRequest) {
       enrich: false,
     });
 
-    const ids = listings.map((l) => String(l.listingId));
+    const listingsUnblocked = listings.filter(
+      (l) => !isListingBlockedFromProduct(l, hiddenSellers),
+    );
+
+    const ids = listingsUnblocked.map((l) => String(l.listingId));
     const existing = await getListingPreviewsByIds(ids);
     const now = Date.now();
 
-    const needWork = listings
+    const needWork = listingsUnblocked
       .filter((l) => {
         const id = String(l.listingId);
         const row = existing.get(id);

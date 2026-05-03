@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { APP_NAME } from "~/lib/constants";
 import { browseListings } from "~/lib/server/browse-listings";
+import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
 import MarketClient, { type MarketInitialPayload } from "./MarketClient";
 
 export const metadata: Metadata = {
@@ -8,17 +9,27 @@ export const metadata: Metadata = {
   description: "Browse all listings on cryptoart.social",
 };
 
-/** Subgraph-only payload; no per-request IPFS/metadata. Ok to be hours stale. */
-export const revalidate = 86_400;
+/**
+ * ISR window for **auction** slice (bids, reserve, times) from the subgraph.
+ * **Artwork** (title, image, artist) is cached per token for 7d via `fetchNFTMetadataCached`
+ * in browse — cold IPFS once, then cheap on each regen.
+ */
+export const revalidate = 300;
 
-async function getInitialPayload(tab: "all" | "recent"): Promise<MarketInitialPayload> {
-  const orderBy = tab === "recent" ? "createdAt" : "listingId";
+function parseMarketTab(raw: string | undefined): MarketLifecycleTab {
+  if (raw === "upcoming" || raw === "finished") return raw;
+  return "active";
+}
+
+async function getInitialPayload(tab: MarketLifecycleTab): Promise<MarketInitialPayload> {
+  const orderBy = tab === "finished" ? "updatedAt" : "listingId";
   const result = await browseListings({
     first: 20,
     skip: 0,
     orderBy,
     orderDirection: "desc",
-    enrich: false,
+    enrich: true,
+    marketLifecycle: tab,
   });
   return {
     tab,
@@ -26,6 +37,7 @@ async function getInitialPayload(tab: "all" | "recent"): Promise<MarketInitialPa
     hasMore: result.listings.length === 20 && result.subgraphReturnedFullCount,
     subgraphDown: result.subgraphDown ?? false,
     degraded: false,
+    ssrEnriched: true,
   };
 }
 
@@ -35,7 +47,7 @@ export default async function MarketPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = sp.tab === "recent" ? "recent" : "all";
+  const tab = parseMarketTab(sp.tab);
   const initial = await getInitialPayload(tab);
 
   return <MarketClient key={tab} initial={initial} />;

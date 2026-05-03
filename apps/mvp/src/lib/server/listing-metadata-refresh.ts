@@ -1,6 +1,7 @@
 import type { Address } from "viem";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
+import { nftMetadataRevalidateTag } from "~/lib/server/nft-metadata-cache";
 
 const COOLDOWN_MS = 5 * 60 * 1000;
 const SNAPSHOT_TTL_MS = 30 * 60 * 1000;
@@ -137,8 +138,13 @@ async function refreshListingMetadataInternal(
     });
 
     try {
-      const { revalidatePath } = await import("next/cache");
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      revalidateTag(
+        nftMetadataRevalidateTag(tokenAddress as Address, tokenId),
+        "default"
+      );
       revalidatePath("/");
+      revalidatePath("/market");
       revalidatePath("/api/listings/browse");
       revalidatePath(`/listing/${listingId}`);
       revalidatePath(`/api/auctions/${listingId}`);
