@@ -222,6 +222,11 @@ export function ERC721AuctionConfigPage({
         {timeMode === "duration" ? (
           <div>
             <label className="mb-2 block text-xs text-neutral-700">Duration (from first bid)</label>
+            <p className="mb-2 text-xs leading-relaxed text-neutral-600">
+              No calendar start time yet: the listing begins timing when the <strong>first bid</strong> lands.
+              The contract stores a <strong>duration in seconds</strong> (always wall-clock seconds, not a
+              timezone). End time is derived on-chain from that moment.
+            </p>
             <DurationSelector
               value={durationSeconds}
               onChange={setDurationSeconds}
@@ -229,6 +234,11 @@ export function ERC721AuctionConfigPage({
           </div>
         ) : (
           <div className="space-y-4">
+            <p className="rounded border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs leading-relaxed text-neutral-700">
+              The inputs below use your device&apos;s <strong>local</strong> date and time. Each field shows
+              the same instant as <strong>UTC</strong> (ISO string) and as a <strong>Unix timestamp</strong> so
+              you can match calendars or block explorers exactly.
+            </p>
             {/* Start Time */}
             <DateSelector
               value={startTime}

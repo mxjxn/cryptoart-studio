@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { summarizeDatetimeLocalForUtc } from "~/lib/datetime-local-utc";
 
 interface DateSelectorProps {
   value: string;
@@ -11,6 +12,8 @@ interface DateSelectorProps {
   label?: string;
   required?: boolean;
   disabled?: boolean;
+  /** Show browser TZ + UTC instant + Unix (default true for create listing) */
+  showUtcPreview?: boolean;
 }
 
 /**
@@ -26,8 +29,14 @@ export function DateSelector({
   label,
   required = false,
   disabled = false,
+  showUtcPreview = true,
 }: DateSelectorProps) {
   const [hasBlurred, setHasBlurred] = useState(false);
+
+  const utcSummary = useMemo(() => {
+    if (!showUtcPreview || !value) return null;
+    return summarizeDatetimeLocalForUtc(value);
+  }, [value, showUtcPreview]);
 
   // Validation logic
   const validation = useMemo(() => {
@@ -99,6 +108,34 @@ export function DateSelector({
           showError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-neutral-200"
         }`}
       />
+      {showUtcPreview && (
+        <div className="mt-2 rounded border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-700">
+          {utcSummary ? (
+            <dl className="space-y-1.5">
+              <div>
+                <dt className="inline font-medium text-neutral-900">Your timezone</dt>
+                <dd className="mt-0.5 font-mono text-[11px] text-neutral-800">
+                  {utcSummary.ianaZone} ({utcSummary.offsetLabel} at this moment)
+                </dd>
+              </div>
+              <div>
+                <dt className="inline font-medium text-neutral-900">Same instant in UTC</dt>
+                <dd className="mt-0.5 font-mono text-[11px] text-neutral-800">{utcSummary.utcIso}</dd>
+              </div>
+              <div>
+                <dt className="inline font-medium text-neutral-900">Readable (UTC)</dt>
+                <dd className="mt-0.5 text-neutral-800">{utcSummary.utcReadable}</dd>
+              </div>
+              <div>
+                <dt className="inline font-medium text-neutral-900">Unix timestamp</dt>
+                <dd className="mt-0.5 font-mono text-[11px] text-neutral-800">{utcSummary.unixSeconds}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-neutral-600">Choose a date and time to see the exact UTC instant and Unix value.</p>
+          )}
+        </div>
+      )}
       {showError && validation.error && (
         <p className="mt-1 text-xs text-red-600">{validation.error}</p>
       )}

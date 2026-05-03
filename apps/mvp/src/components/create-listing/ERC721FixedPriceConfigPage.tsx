@@ -227,6 +227,11 @@ export function ERC721FixedPriceConfigPage({
 
         {useTimeframe && (
           <div className="mt-4 space-y-4">
+            <p className="rounded border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs leading-relaxed text-neutral-700">
+              The inputs below use your device&apos;s <strong>local</strong> date and time. Each field shows
+              the same instant as <strong>UTC</strong> (ISO string) and as a <strong>Unix timestamp</strong> so
+              you can match calendars or block explorers exactly.
+            </p>
             {/* Start Time */}
             <DateSelector
               value={startTime}
