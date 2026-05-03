@@ -21,26 +21,39 @@ export function formatEndTime(timestamp: number): string {
   });
 }
 
-/**
- * Format time remaining as "[days] days [h] hrs remaining"
- * Example: "3 days 5 hrs remaining" or "12 hrs remaining"
- */
-export function formatTimeRemaining(endTime: number, now?: number): string {
-  const currentTime = now || Math.floor(Date.now() / 1000);
-  const timeRemaining = endTime > currentTime ? endTime - currentTime : 0;
+export type TimeCountdownVerb = "ends" | "starts";
 
-  if (timeRemaining <= 0) {
-    return "Ended";
+/**
+ * Format countdown to a unix timestamp using "starts in …" or "ends in …".
+ */
+export function formatCountdownTo(
+  targetUnixSeconds: number,
+  now?: number,
+  verb: TimeCountdownVerb = "ends"
+): string {
+  const currentTime = now ?? Math.floor(Date.now() / 1000);
+  const delta = targetUnixSeconds > currentTime ? targetUnixSeconds - currentTime : 0;
+
+  if (delta <= 0) {
+    return verb === "ends" ? "Ended" : "Started";
   }
 
-  const days = Math.floor(timeRemaining / 86400);
-  const hours = Math.floor((timeRemaining % 86400) / 3600);
+  const days = Math.floor(delta / 86400);
+  const hours = Math.floor((delta % 86400) / 3600);
+  const prefix = verb === "ends" ? "ends" : "starts";
 
   if (days > 0) {
-    return `ends in ${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""}`;
-  } else {
-    return `ends in ${hours} hr${hours !== 1 ? "s" : ""}`;
+    return `${prefix} in ${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""}`;
   }
+  return `${prefix} in ${hours} hr${hours !== 1 ? "s" : ""}`;
+}
+
+/**
+ * Format time remaining as "ends in [days] days [h] hrs"
+ * Example: "ends in 3 days 5 hrs" or "ends in 12 hrs"
+ */
+export function formatTimeRemaining(endTime: number, now?: number): string {
+  return formatCountdownTo(endTime, now, "ends");
 }
 
 /**
@@ -109,11 +122,14 @@ export function getAuctionTimeStatus(
   } else {
     // Has fixed start time
     if (currentTime < startTime) {
-      // Not started yet
+      // Not started yet: show both until open and until close so "ends in …" is never
+      // confused with time-until-bidding (e.g. Mon 9am → Tue 4:45pm reads clearly).
+      const startsIn = formatCountdownTo(startTime, currentTime, "starts");
+      const endsIn = formatCountdownTo(endTime, currentTime, "ends");
       return {
         status: "Not started",
         endDate: formatEndTime(endTime),
-        timeRemaining: formatTimeRemaining(endTime, currentTime),
+        timeRemaining: `${startsIn} · ${endsIn}`,
         neverExpires: false,
       };
     } else {
