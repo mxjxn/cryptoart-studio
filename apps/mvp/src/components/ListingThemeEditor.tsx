@@ -1,11 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ListingThemeData, ListingThemeSource } from "~/lib/listing-theme";
+import type {
+  ListingCursorIcon,
+  ListingCursorMode,
+  ListingCursorSize,
+  ListingThemeData,
+  ListingThemeSource,
+} from "~/lib/listing-theme";
 import {
   DEFAULT_LISTING_THEME,
   LISTING_THEME_EDITOR_PRESETS,
   composeLinearGradientCss,
+  composeListingThemeCursorCss,
   hexForColorInput,
   listingThemeTypographyClasses,
   validateListingTheme,
@@ -197,6 +204,8 @@ export function ListingThemeEditor({
 
   const typo = listingThemeTypographyClasses(draft);
   const gradientCss = composeLinearGradientCss(draft);
+  const pointerPreviewCursor =
+    composeListingThemeCursorCss(draft) ?? ("default" as const);
 
   if (loading) {
     return (
@@ -370,6 +379,102 @@ export function ListingThemeEditor({
             <option value="md">Medium</option>
           </select>
         </label>
+      </div>
+
+      <div className={`space-y-3 rounded-lg border ${border} p-3`}>
+        <p className={`text-xs font-medium uppercase tracking-wide ${labelMuted}`}>
+          Pointer
+        </p>
+        <label className={`flex flex-col gap-1 text-xs ${labelMuted}`}>
+          Style
+          <select
+            value={draft.cursor.mode}
+            onChange={(e) =>
+              setDraft((d) => ({
+                ...cloneTheme(d),
+                cursor: {
+                  ...d.cursor,
+                  mode: e.target.value as ListingCursorMode,
+                },
+              }))
+            }
+            className={`rounded border px-2 py-1.5 text-sm ${inputBg}`}
+          >
+            <option value="system">Browser default</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        {draft.cursor.mode === "custom" && (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className={`flex flex-col gap-1 text-xs ${labelMuted}`}>
+              Icon
+              <select
+                value={draft.cursor.icon}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...cloneTheme(d),
+                    cursor: {
+                      ...d.cursor,
+                      icon: e.target.value as ListingCursorIcon,
+                    },
+                  }))
+                }
+                className={`rounded border px-2 py-1.5 text-sm ${inputBg}`}
+              >
+                <option value="dot">Dot</option>
+                <option value="ring">Ring</option>
+                <option value="cross">Cross</option>
+                <option value="arrow">Arrow</option>
+                <option value="spark">Spark</option>
+              </select>
+            </label>
+            <label className={`flex flex-col gap-1 text-xs ${labelMuted}`}>
+              <span className="flex flex-wrap items-center justify-between gap-2">
+                <span>Color</span>
+                <span className={`font-mek-mono text-[11px] ${labelMuted}`}>
+                  {hexForColorInput(draft.cursor.color, "#111827")}
+                </span>
+              </span>
+              <input
+                type="color"
+                value={hexForColorInput(draft.cursor.color, "#111827")}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...cloneTheme(d),
+                    cursor: { ...d.cursor, color: e.target.value },
+                  }))
+                }
+                className="h-9 w-full cursor-pointer rounded border-0 bg-transparent p-0"
+              />
+            </label>
+            <label className={`flex flex-col gap-1 text-xs ${labelMuted}`}>
+              Size
+              <select
+                value={draft.cursor.size}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...cloneTheme(d),
+                    cursor: {
+                      ...d.cursor,
+                      size: e.target.value as ListingCursorSize,
+                    },
+                  }))
+                }
+                className={`rounded border px-2 py-1.5 text-sm ${inputBg}`}
+              >
+                <option value="sm">Small</option>
+                <option value="md">Medium</option>
+                <option value="lg">Large</option>
+              </select>
+            </label>
+          </div>
+        )}
+        <div
+          className={`flex min-h-[4.5rem] items-center justify-center rounded-md border border-dashed px-2 text-center text-xs ${surface === "light" ? "border-neutral-300 bg-white text-neutral-500" : "border-[#444444] bg-[#111] text-[#888]"}`}
+          style={{ cursor: pointerPreviewCursor }}
+        >
+          Move your pointer here to preview the listing cursor
+        </div>
       </div>
 
       <div
