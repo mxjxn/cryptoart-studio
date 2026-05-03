@@ -1,4 +1,5 @@
 import type { EnrichedAuctionData } from "~/lib/types";
+import { formatCountdownTo } from "~/lib/time-utils";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getERC20TokenInfoServer } from "~/lib/server/erc20-token";
@@ -201,9 +202,17 @@ export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
   const formattedPrice = formatPrice(displayPrice, tokenInfo.decimals);
   const priceSymbol = tokenInfo.symbol || "ETH";
 
-  // Format end time
+  // Countdown: before a scheduled auction opens, show time until start (not until end)
+  const nowUnix = Math.floor(Date.now() / 1000);
   const endTime = parseInt(auction.endTime || "0");
-  const timeText = formatTimeRemaining(endTime);
+  const listingStartUnix = parseInt(auction.startTime || "0");
+  const isIndividualAuction = auction.listingType === "INDIVIDUAL_AUCTION";
+  const timeText =
+    isIndividualAuction && listingStartUnix > 0 && nowUnix < listingStartUnix
+      ? endTime > 0
+        ? `${formatCountdownTo(listingStartUnix, nowUnix, "starts")} · ${formatCountdownTo(endTime, nowUnix, "ends")}`
+        : formatCountdownTo(listingStartUnix, nowUnix, "starts")
+      : formatTimeRemaining(endTime);
 
   // Get NFT image URL - convert IPFS to gateway URL
   // Note: Next.js ImageResponse can fetch external URLs automatically
