@@ -120,7 +120,7 @@ export function TokenSelector({
                     className="h-full w-full"
                   />
                 </div>
-                <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
                   <p className="mb-1 truncate text-sm font-medium text-white">
                     {nft.name || `Token #${nft.tokenId}`}
                   </p>
