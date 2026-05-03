@@ -3,6 +3,8 @@ import { browseListings, browseListingsStreaming } from "~/lib/server/browse-lis
 import { emitRouteMetric } from "~/lib/server/route-metrics";
 
 const BROWSE_API_TIMEOUT_MS = 7000;
+/** Hard cap for streaming responses so clients never hang if subgraph/enrichment stalls */
+const BROWSE_STREAM_MAX_MS = 25_000;
 const BROWSE_LKG_TTL_MS = 10 * 60 * 1000;
 let browseTimeoutCount = 0;
 let browseDegradedCount = 0;
@@ -64,17 +66,23 @@ export async function GET(req: NextRequest) {
     
     console.log('[API /listings/browse] Request:', { first, skip, orderBy, orderDirection, enrich, stream });
 
-    // Use no-cache headers if noCache param is set (for admin revalidation)
-    // Otherwise use smart caching: 5 minute edge cache with stale-while-revalidate
+    // Enriched browse (IPFS/metadata) stays short-TTL. Subgraph-only responses can CDN-cache for a day.
     const cacheHeaders: Record<string, string> = noCache
-      ? { 
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+      ? {
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         }
-      : {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=120',
-        };
+      : enrich
+        ? {
+            "Cache-Control":
+              "public, s-maxage=300, stale-while-revalidate=120",
+          }
+        : {
+            "Cache-Control":
+              "public, s-maxage=86400, stale-while-revalidate=86400",
+          };
 
     // If streaming is enabled, use streaming response
     if (stream && enrich) {
@@ -82,6 +90,7 @@ export async function GET(req: NextRequest) {
         async start(controller) {
           const encoder = new TextEncoder();
 
+          let closed = false;
           const safeEnqueue = (chunk: string) => {
             try {
               controller.enqueue(encoder.encode(chunk));
@@ -90,12 +99,23 @@ export async function GET(req: NextRequest) {
             }
           };
           const safeClose = () => {
+            if (closed) return;
+            closed = true;
             try {
               controller.close();
             } catch {
               /* already closed */
             }
           };
+
+          let maxMs = BROWSE_STREAM_MAX_MS;
+          if (process.env.NODE_ENV !== "production") {
+            const raw = new URL(req.url).searchParams.get("__streamMaxMs");
+            const parsed = raw ? Number(raw) : NaN;
+            if (Number.isFinite(parsed) && parsed > 0) {
+              maxMs = Math.min(Math.floor(parsed), 120_000);
+            }
+          }
 
           try {
             // Send initial JSON structure
@@ -106,32 +126,64 @@ export async function GET(req: NextRequest) {
             let subgraphReturnedFullCount = false;
             let subgraphDown = false;
 
-            // Stream listings as they're enriched
-            for await (const listing of browseListingsStreaming({
-              first,
-              skip,
-              orderBy,
-              orderDirection,
-              enrich: true,
-            })) {
-              if (listing.type === 'listing') {
-                if (!firstItem) {
-                  safeEnqueue(',');
-                }
-                firstItem = false;
-                safeEnqueue(JSON.stringify(listing.data));
-                count++;
-              } else if (listing.type === 'metadata') {
-                subgraphReturnedFullCount = listing.subgraphReturnedFullCount ?? subgraphReturnedFullCount;
-                subgraphDown = listing.subgraphDown ?? subgraphDown;
-              }
-            }
+            const finishBody = () => {
+              if (closed) return;
+              const hasMore = count === first && subgraphReturnedFullCount;
+              safeEnqueue(
+                `],"count":${count},"subgraphDown":${subgraphDown},"degraded":false,"pagination":{"first":${first},"skip":${skip},"hasMore":${hasMore}}}`
+              );
+              safeClose();
+            };
 
-            const hasMore = count === first && subgraphReturnedFullCount;
-            safeEnqueue(
-              `],"count":${count},"subgraphDown":${subgraphDown},"pagination":{"first":${first},"skip":${skip},"hasMore":${hasMore}}}`
-            );
-            safeClose();
+            const finishBodyDegraded = () => {
+              if (closed) return;
+              const hasMore = count === first && subgraphReturnedFullCount;
+              safeEnqueue(
+                `],"count":${count},"subgraphDown":true,"degraded":true,"pagination":{"first":${first},"skip":${skip},"hasMore":${hasMore}}}`
+              );
+              safeClose();
+            };
+
+            const wallTimer = setTimeout(() => {
+              console.warn("[API /listings/browse] Streaming wall timeout — closing partial response", {
+                maxMs,
+                count,
+              });
+              finishBodyDegraded();
+            }, maxMs);
+
+            try {
+              // Stream listings as they're enriched
+              for await (const listing of browseListingsStreaming({
+                first,
+                skip,
+                orderBy,
+                orderDirection,
+                enrich: true,
+              })) {
+                if (closed) break;
+                if (listing.type === 'listing') {
+                  if (!firstItem) {
+                    safeEnqueue(',');
+                  }
+                  firstItem = false;
+                  safeEnqueue(JSON.stringify(listing.data));
+                  count++;
+                } else if (listing.type === 'metadata') {
+                  subgraphReturnedFullCount =
+                    listing.subgraphReturnedFullCount ?? subgraphReturnedFullCount;
+                  subgraphDown = listing.subgraphDown ?? subgraphDown;
+                }
+              }
+
+              clearTimeout(wallTimer);
+              if (!closed) {
+                finishBody();
+              }
+            } catch (loopErr) {
+              clearTimeout(wallTimer);
+              throw loopErr;
+            }
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to browse listings";
             console.error("[API /listings/browse] Streaming error:", errorMessage, error);
