@@ -203,7 +203,7 @@ export default function AuctionDetailClient({
 
   // If build status stays unresolved for too long, stop blocking the page forever.
   useEffect(() => {
-    if (pageStatus === 'building' && !auction) {
+    if ((pageStatus === 'building' || pageStatus === null) && !auction) {
       setBuildingTimedOut(false);
       const timeout = setTimeout(() => {
         setBuildingTimedOut(true);
@@ -1463,22 +1463,27 @@ export default function AuctionDetailClient({
     }
   }, [canUpdateAtRisk]);
 
-  // Only block when API explicitly reports `building`.
-  // Avoid treating unknown/null status as building forever.
-  const isBuilding = !buildingTimedOut && !auction && pageStatus === 'building';
-  
+  // Show interim state while page-status is unknown (null), explicitly building, or auction
+  // 404s before the subgraph has indexed — avoids flashing "Auction not found" on new listings.
+  const isBuilding =
+    !buildingTimedOut &&
+    !auction &&
+    (pageStatus === 'building' || pageStatus === null);
+
   if (loading || isBuilding) {
     return (
       <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-neutral-600">
-            {isBuilding ? 'Building listing page...' : 'Loading auction...'}
+            {isBuilding ? 'Loading listing…' : 'Loading auction...'}
           </p>
         </div>
         {isBuilding && (
           <p className="text-sm text-neutral-500 max-w-md text-center px-4">
-            Your listing is being processed. This usually takes a few seconds. We'll notify you when it's ready!
+            {pageStatus === 'building'
+              ? 'Your listing is being processed. This usually takes a few seconds. We will notify you when it is ready!'
+              : 'Checking the indexer. If this listing was just created, it can take a few seconds to appear.'}
           </p>
         )}
       </div>
@@ -1542,7 +1547,7 @@ export default function AuctionDetailClient({
     );
   }
 
-  if (!auction && !loading) {
+  if (!auction && !loading && pageStatus === 'not_found') {
     return (
       <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4">
         <p className="text-neutral-600">Auction not found</p>
@@ -1552,6 +1557,31 @@ export default function AuctionDetailClient({
         >
           Return to homepage
         </TransitionLink>
+      </div>
+    );
+  }
+
+  if (!auction && !loading && (pageStatus === 'ready' || pageStatus === 'error')) {
+    return (
+      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-neutral-600 text-center max-w-md">
+          Listing is indexed but details could not be loaded. Try again, or go home and open this lot from the feed.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => refetchAuction(true)}
+            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100"
+          >
+            Retry
+          </button>
+          <TransitionLink
+            href="/"
+            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100"
+          >
+            Home
+          </TransitionLink>
+        </div>
       </div>
     );
   }

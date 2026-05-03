@@ -47,7 +47,9 @@ export async function GET(
 
     if (statusRecord.length === 0) {
       // No status record exists - check if listing is available in subgraph.
-      // If it is, mark as ready; otherwise return not_found.
+      // If it is, mark as ready. If not, treat as **building**: the POST from create may not
+      // have landed yet, or the subgraph may still be indexing. Returning not_found here caused
+      // new listings to flash "Auction not found" until the indexer caught up.
       // Use subgraph-only resolution (no metadata/IPFS) so this route stays fast.
       try {
         const listing = await resolveListingFromSubgraph(listingId);
@@ -82,11 +84,56 @@ export async function GET(
           });
         }
       } catch {
-        // Listing lookup failed, fall through to not_found for missing record path
+        // Subgraph lookup failed — same as missing listing; treat as building below.
       }
-      
+
+      // Persist `building` so the poll path below can apply BUILDING_NO_AUCTION_GRACE_MS
+      // and eventually flip to not_found for stale/invalid IDs.
+      try {
+        await db.insert(listingPageStatus).values({
+          listingId,
+          status: 'building',
+          sellerAddress: '',
+          lastCheckedAt: new Date(),
+        });
+      } catch (insertError: any) {
+        const msg = String(insertError?.message ?? '');
+        if (insertError?.code === '42P01' || msg.includes('does not exist')) {
+          return NextResponse.json({
+            status: 'building',
+            listingId,
+            sellerAddress: null,
+          });
+        }
+        const isDup =
+          insertError?.code === '23505' ||
+          msg.includes('duplicate') ||
+          msg.includes('unique');
+        if (!isDup) {
+          throw insertError;
+        }
+      }
+
+      const rowAfterInsert = await db
+        .select()
+        .from(listingPageStatus)
+        .where(eq(listingPageStatus.listingId, listingId))
+        .limit(1);
+
+      if (rowAfterInsert.length > 0) {
+        const r = rowAfterInsert[0];
+        return NextResponse.json({
+          status: r.status,
+          listingId,
+          sellerAddress: r.sellerAddress || null,
+          readyAt: r.readyAt?.toISOString(),
+          errorMessage: r.errorMessage,
+          lastCheckedAt: r.lastCheckedAt?.toISOString(),
+        });
+      }
+
       return NextResponse.json({
-        status: 'not_found',
+        status: 'building',
         listingId,
         sellerAddress: null,
       });
