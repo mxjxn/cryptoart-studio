@@ -664,7 +664,7 @@ const REDESIGN_TIER1_LIMIT = 12;
 /** Browse enrichment batches metadata; keep headroom so first paint is real titles/artists, not subgraph-only stubs. */
 const REDESIGN_TIER1_TIMEOUT_MS = 18_000;
 const REDESIGN_FALLBACK_DESCRIPTION =
-  "Open this listing on CryptoArt for artwork details, provenance, and bidding.";
+  "Curated listing preview. Open the listing for live auction activity.";
 
 function shortHexAddress(addr: string | null | undefined): string | null {
   if (!addr || typeof addr !== "string") return null;
@@ -683,7 +683,7 @@ function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
     snapshot?.artist ||
     listing.artist ||
     shortHexAddress(listing.seller) ||
-    "Seller";
+    "—";
   return {
     listingId: listing.listingId,
     tokenId: listing.tokenId,

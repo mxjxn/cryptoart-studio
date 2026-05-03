@@ -1069,9 +1069,8 @@ export default function HomePageClientV2() {
     "CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what matters.";
   const heroDescriptionText =
     featuredHero?.description ||
-    "Browse live and fixed-price lots from the marketplace. Each card links through to the full listing with bidding and purchase controls.";
-  const lotIntroText =
-    "Recent listings from the graph, with artwork where metadata is available. Open any lot for the full detail page.";
+    "Placeholder event gallery. Replace this copy with the real room, artist, and bidding instructions before launch.";
+  const lotIntroText = "Individual lot previews. Click into a listing to place bids.";
 
   const heroTaglineMeasure = usePretextMeasure<HTMLParagraphElement>({
     text: heroTaglineText,
@@ -1244,11 +1243,11 @@ export default function HomePageClientV2() {
               <div className="absolute inset-0 bg-white/25" aria-hidden />
               <div ref={featuredCardMeasure.ref} className="relative flex min-h-[360px] flex-col justify-between p-4 sm:p-6">
                 <div className="font-space-grotesk text-sm uppercase tracking-[0.18em] text-black">
-                  Live on CryptoArt
+                  FarCon Live Auctions
                 </div>
                 <div className="max-w-xl">
                   <h3 className="!font-space-grotesk text-[clamp(2.5rem,12vw,6.5rem)] font-medium leading-[0.9] text-black">
-                    {featuredHero?.artist || featuredHero?.title || "Marketplace"}
+                    {featuredHero?.artist || "Kismet Casa"}
                   </h3>
                   <p ref={heroDescriptionMeasure.ref} className="mt-4 max-w-md !font-space-grotesk text-sm leading-normal text-black">
                     {heroDescriptionText}
@@ -1292,10 +1291,8 @@ export default function HomePageClientV2() {
             </>
           ) : (
             <>
-              <span className="text-black">From the marketplace</span>
-              <TransitionLink href="/market" prefetch={false} className="text-black underline decoration-black/40 underline-offset-2 hover:decoration-black">
-                View all listings
-              </TransitionLink>
+              <span className="text-black">Curated for FarCon</span>
+              <span className="text-black">live auction placeholders</span>
             </>
           )}
         </div>
@@ -1338,11 +1335,11 @@ export default function HomePageClientV2() {
       </section>
       )}
 
-      {/* One section per featured lot — plain section so lots never sit behind opacity:0 if in-view detection fails */}
+      {/* Kismet Casa: each lot gets a dedicated section preview — keep a plain section so lots never sit behind opacity:0 if in-view detection fails */}
       {!hideAuctionCards && (
       <section className={`${sectionFullBleed} bg-[#111111]`}>
         <h2 className={`pb-2 pt-5 font-space-grotesk text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-white ${gutter}`}>
-          Featured lots
+          Kismet Casa lots
         </h2>
         <p ref={lotIntroMeasure.ref} className={`pb-5 font-mek-mono text-sm text-[#aaaaaa] ${gutter}`}>
           {lotIntroText}
@@ -1465,7 +1462,7 @@ function StaticAuctionCard({
   gradient: string;
 }) {
   const price = formatStaticEth(auction.currentPrice || auction.initialAmount);
-  const status = auction.highestBid ? "Bidding active" : "Open listing";
+  const status = auction.highestBid ? "live bid placeholder" : "auction placeholder";
 
   return (
     <div className="overflow-hidden bg-[#1b1b1b] text-white">
@@ -1612,13 +1609,7 @@ function KismetLotSection({
             <h3 className="truncate font-space-grotesk text-[clamp(2rem,7vw,4.5rem)] font-medium leading-[0.9] text-white">
               {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
             </h3>
-            <p className="mt-2 font-space-grotesk text-sm text-[#d6d6d6]">
-              by{" "}
-              {auction.artist ||
-                (auction.seller
-                  ? `${auction.seller.slice(0, 6)}…${auction.seller.slice(-4)}`
-                  : "—")}
-            </p>
+            <p className="mt-2 font-space-grotesk text-sm text-[#d6d6d6]">by {auction.artist || "Kismet Casa"}</p>
           </div>
         </div>
 
