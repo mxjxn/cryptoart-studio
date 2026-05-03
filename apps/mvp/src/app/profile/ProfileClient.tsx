@@ -15,6 +15,11 @@ import { ProfileGalleriesSection } from "~/components/ProfileGalleriesSection";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { Logo } from "~/components/Logo";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { useMembershipStatus } from "~/hooks/useMembershipStatus";
+import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
+import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
+import { ListingThemeEditor } from "~/components/ListingThemeEditor";
+import { GRADIENT_CSS_PRESETS } from "~/lib/listing-theme";
 
 type TabType = "created" | "collected" | "bids" | "offers" | "saved" | "contracts" | "galleries";
 
@@ -29,6 +34,8 @@ export default function ProfileClient() {
   const { address, isConnected } = useAccount();
   const { context } = useMiniApp();
   const { isAdmin } = useIsAdmin();
+  const { isPro } = useMembershipStatus();
+  const { verifiedWalletAddresses } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
   const [activeTab, setActiveTab] = useState<TabType>("created");
   
   // Farcaster handles state
@@ -338,15 +345,6 @@ export default function ProfileClient() {
     ? context.user.displayName || context.user.username
     : ensName || `${userAddress?.slice(0, 6)}...${userAddress?.slice(-4)}`;
 
-  const gradients = [
-    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-    "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-    "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-    "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-    "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
-  ];
-
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -441,6 +439,16 @@ export default function ProfileClient() {
             </div>
           </div>
 
+          {(isPro || isAdmin) && userAddress && (
+            <div className="mt-6 max-w-2xl">
+              <ListingThemeEditor
+                mode="default"
+                userAddress={userAddress}
+                verifiedAddresses={verifiedWalletAddresses}
+              />
+            </div>
+          )}
+
           {/* Tabs */}
           <div className="flex gap-4 border-b border-[#333333] mb-6">
             <button
@@ -522,7 +530,7 @@ export default function ProfileClient() {
                       <AuctionCard
                         key={auction.id}
                         auction={auction as any}
-                        gradient={gradients[index % gradients.length]}
+                        gradient={GRADIENT_CSS_PRESETS[index % GRADIENT_CSS_PRESETS.length]!}
                         index={index}
                       />
                     ))}
@@ -630,7 +638,7 @@ export default function ProfileClient() {
                                   style={{
                                     background: image
                                       ? `url(${image}) center/cover`
-                                      : gradients[index % gradients.length],
+                                      : GRADIENT_CSS_PRESETS[index % GRADIENT_CSS_PRESETS.length],
                                   }}
                                 >
                                   <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
@@ -701,7 +709,7 @@ export default function ProfileClient() {
                         <AuctionCard
                           key={auction.id}
                           auction={auction as any}
-                          gradient={gradients[index % gradients.length]}
+                          gradient={GRADIENT_CSS_PRESETS[index % GRADIENT_CSS_PRESETS.length]!}
                           index={index}
                         />
                       ))}
@@ -720,7 +728,7 @@ export default function ProfileClient() {
                       <AuctionCard
                         key={auction.id}
                         auction={auction as any}
-                        gradient={gradients[index % gradients.length]}
+                        gradient={GRADIENT_CSS_PRESETS[index % GRADIENT_CSS_PRESETS.length]!}
                         index={index}
                       />
                     ))}
@@ -930,7 +938,7 @@ export default function ProfileClient() {
                       <AuctionCard
                         key={auction.listingId}
                         auction={auction}
-                        gradient={gradients[index % gradients.length]}
+                        gradient={GRADIENT_CSS_PRESETS[index % GRADIENT_CSS_PRESETS.length]!}
                         index={index}
                       />
                     ))}

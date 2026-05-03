@@ -19,8 +19,10 @@ export interface HasNFTAccessResult {
   loading: boolean;
   error: Error | null;
   addressesWithNFT: string[];
-  // Address that has the NFT (first one found, or null)
+  /** Address that has the NFT (first one found, or null) */
   addressWithNFT: string | null;
+  /** All connected / Farcaster-linked wallets checked for balance (lowercase). */
+  verifiedWalletAddresses: string[];
 }
 
 /**
@@ -149,5 +151,6 @@ export function useHasNFTAccess(nftContractAddress: Address | undefined): HasNFT
     error: null,
     addressesWithNFT: accessData.addressesWithNFT,
     addressWithNFT: accessData.addressWithNFT,
+    verifiedWalletAddresses: verifiedAddresses,
   };
 }

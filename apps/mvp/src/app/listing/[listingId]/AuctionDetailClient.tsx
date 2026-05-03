@@ -21,6 +21,7 @@ import { MediaDisplay } from "~/components/media";
 import { getMediaType, getMediaTypeFromFormat } from "~/lib/media-utils";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
+import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { useOffers } from "~/hooks/useOffers";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
@@ -38,6 +39,15 @@ import { AdminContextMenu } from "~/components/AdminContextMenu";
 import { MetadataViewer } from "~/components/MetadataViewer";
 import { ContractDetails } from "~/components/ContractDetails";
 import { BuyersList } from "~/components/BuyersList";
+import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
+import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
+import { ListingThemeEditor } from "~/components/ListingThemeEditor";
+import {
+  DEFAULT_LISTING_THEME,
+  composeLinearGradientCss,
+  listingThemeTypographyClasses,
+  type ListingThemeData,
+} from "~/lib/listing-theme";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -80,7 +90,13 @@ export default function AuctionDetailClient({
   const { switchToBase } = useNetworkGuard();
   const { hideOverlay } = useLoadingOverlay();
   const { isPro, loading: membershipLoading } = useMembershipStatus();
+  const { isAdmin } = useIsAdmin();
   const isMember = isPro;
+  const canEditListingTheme = isMember || isAdmin;
+  const { verifiedWalletAddresses } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
+
+  const [listingPageTheme, setListingPageTheme] =
+    useState<ListingThemeData>(DEFAULT_LISTING_THEME);
 
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
@@ -89,6 +105,27 @@ export default function AuctionDetailClient({
   const { auction, loading, error: auctionFetchError, refetch: refetchAuction, updateAuction } = useAuction(
     listingId
   );
+
+  useEffect(() => {
+    if (!auction?.listingId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/listing-theme?listingId=${encodeURIComponent(String(auction.listingId))}`
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { theme?: ListingThemeData };
+        if (cancelled || !data?.theme) return;
+        setListingPageTheme(data.theme);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [auction?.listingId]);
   
   // Track page building status
   const [pageStatus, setPageStatus] = useState<'building' | 'ready' | 'not_found' | 'error' | null>(null);
@@ -1455,6 +1492,17 @@ export default function AuctionDetailClient({
     address.toLowerCase() === auction.seller.toLowerCase();
   const canFix180DayIssue = isOwnAuction && has180DayIssue && auction?.status !== "CANCELLED";
 
+  const isListingSeller = useMemo(() => {
+    if (!auction?.seller) return false;
+    const s = auction.seller.toLowerCase();
+    return verifiedWalletAddresses.some((a) => a === s);
+  }, [auction?.seller, verifiedWalletAddresses]);
+
+  const listingTypo = useMemo(
+    () => listingThemeTypographyClasses(listingPageTheme),
+    [listingPageTheme]
+  );
+
   // Auto-show update form for at-risk listings (seller needs to fix it)
   // MUST be called before any conditional returns to avoid hook order violations
   useEffect(() => {
@@ -1772,6 +1820,18 @@ export default function AuctionDetailClient({
             </button>
           </div>
         )}
+        {canEditListingTheme && isListingSeller && address && (
+          <div className="mb-4">
+            <ListingThemeEditor
+              mode="listing"
+              listingId={listingId}
+              userAddress={address}
+              verifiedAddresses={verifiedWalletAddresses}
+              surface="light"
+              onThemeResolved={setListingPageTheme}
+            />
+          </div>
+        )}
         {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
         <div className="mb-4">
           <MediaDisplay
@@ -1783,6 +1843,7 @@ export default function AuctionDetailClient({
             animationUrl={auction.metadata?.animation_url}
             animationFormat={auction.metadata?.animation_details?.format}
             alt={title}
+            placeholderGradientCss={composeLinearGradientCss(listingPageTheme)}
             onImageClick={
               // Only enable fullscreen overlay for images (not audio/video/3D/HTML - they have their own controls)
               (() => {
@@ -1820,10 +1881,12 @@ export default function AuctionDetailClient({
         )}
 
         {/* Title + description (directly under title) + metadata — one light full-width block */}
-        <div className="listing-light-surface -mx-5 mb-4 w-full bg-white px-5 py-5 font-space-grotesk text-neutral-900">
+        <div
+          className={`listing-light-surface -mx-5 mb-4 w-full bg-white px-5 py-5 text-neutral-900 ${listingTypo.sectionFontClass}`}
+        >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h1 className="mb-1 text-2xl font-medium tracking-tight text-neutral-900">{title}</h1>
+              <h1 className={`mb-1 text-neutral-900 ${listingTypo.titleClass}`}>{title}</h1>
               {auction.tokenSpec === "ERC1155" && auction.erc1155TotalSupply && (
                 <p className="text-sm text-neutral-600">edition of {auction.erc1155TotalSupply}</p>
               )}
@@ -1832,7 +1895,9 @@ export default function AuctionDetailClient({
           </div>
 
           {auction.description ? (
-            <p className="mt-3 w-full max-w-none whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
+            <p
+              className={`mt-3 w-full max-w-none whitespace-pre-wrap text-neutral-700 ${listingTypo.bodyClass}`}
+            >
               {auction.description}
             </p>
           ) : null}
