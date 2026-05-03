@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { formatEther } from "viem";
 import { TransitionLink } from "~/components/TransitionLink";
@@ -13,6 +13,14 @@ import { useMiniApp } from "@neynar/react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import {
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { usePretextMeasure } from "~/hooks/usePretextMeasure";
 
@@ -30,6 +38,9 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
 const FARCON_STATIC_PREVIEW = true;
 const TIER1_TIMEOUT_MS = 2500;
 const TIER2_TIMEOUT_MS = 3000;
+const FEATURED_HEADER_TEXT = "Featured";
+/** Used until the featured `<h2>` is measured (clamp typography height is roughly 80–140px). */
+const FEATURED_HEADER_HEIGHT_FALLBACK_PX = 120;
 
 const KISMET_GRADIENTS = [
   "linear-gradient(135deg, #f5acd1 0%, #dcf54c 52%, #ecc100 100%)",
@@ -125,6 +136,9 @@ async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any
 
 /** Preview homepage matching Figma "Homepage" (Screens); served at /redesign */
 export default function HomePageClientV2() {
+  /** `NEXT_PUBLIC_HOME_TEASER=true` — same layout as the full homepage, without artwork grids, Bids, or per-lot sections. */
+  const hideAuctionCards = process.env.NEXT_PUBLIC_HOME_TEASER === "true";
+
   const [featuredHero, setFeaturedHero] = useState<Tier1ListingCard | null>(null);
   const [featuredArtworks, setFeaturedArtworks] = useState<Tier1ListingCard[]>([]);
   const [kismetTier1Lots, setKismetTier1Lots] = useState<Tier1ListingCard[]>(
@@ -430,7 +444,88 @@ export default function HomePageClientV2() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const featuredSectionRef = useRef<HTMLElement>(null);
+  const featuredHeaderMeasureRef = useRef<HTMLHeadingElement>(null);
+  const featuredHeaderHeightMv = useMotionValue(FEATURED_HEADER_HEIGHT_FALLBACK_PX);
+  const prefersReducedMotion = useReducedMotion();
+  /** Dev-only: preview motion when OS has “Reduce motion” on. Production still respects prefers-reduced-motion. */
+  const devForceMotion =
+    process.env.NODE_ENV !== "production" && searchParams.get("forceMotion") === "1";
+  const shouldAnimate = devForceMotion || !prefersReducedMotion;
   const pretextDebugEnabled = process.env.NODE_ENV !== "production" && searchParams.get("pretextDebug") === "1";
+  const motionDebugEnabled = process.env.NODE_ENV !== "production" && searchParams.get("motionDebug") === "1";
+  const { scrollYProgress } = useScroll({
+    target: pageRef,
+    offset: ["start start", "end end"],
+  });
+  const pageScrollLogBucketRef = useRef(-1);
+  const featuredScrollLogBucketRef = useRef(-1);
+  const heroY = useTransform(scrollYProgress, [0, 0.25], [0, shouldAnimate ? -28 : 0]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, shouldAnimate ? 0.82 : 1]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.25], [1, shouldAnimate ? 0.98 : 1]);
+  const { scrollYProgress: featuredProgress } = useScroll({
+    target: featuredSectionRef,
+    offset: ["start end", "end start"],
+  });
+  /** Progress 0 ≈ section entering; 1 ≈ section has scrolled through — cap overlap so ≤40% of the title is covered. */
+  const featuredContentY = useTransform([featuredProgress, featuredHeaderHeightMv], ([p, h]) => {
+    if (!shouldAnimate) return 0;
+    const H = typeof h === "number" && h > 0 ? h : FEATURED_HEADER_HEIGHT_FALLBACK_PX;
+    /** Negative Y pulls content up over the sticky title; limit to 40% of header height worth of overlap. */
+    const cap = -0.4 * H;
+    const mid = cap * (68 / 120);
+    const progress = typeof p === "number" ? p : 0;
+    if (progress <= 0.45) return (progress / 0.45) * mid;
+    return mid + ((progress - 0.45) / 0.55) * (cap - mid);
+  });
+
+  useLayoutEffect(() => {
+    const el = featuredHeaderMeasureRef.current;
+    if (!el) return;
+    const update = () => {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) featuredHeaderHeightMv.set(h);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [featuredHeaderHeightMv]);
+
+  useEffect(() => {
+    if (!motionDebugEnabled) return;
+    console.log("[motion-debug] mount", {
+      prefersReducedMotion,
+      devForceMotion,
+      shouldAnimate,
+      motionPolicy:
+        prefersReducedMotion && !devForceMotion
+          ? "reduced — matches prefers-reduced-motion (OS/browser). Add &forceMotion=1 in dev to preview animations."
+          : "full",
+      href: window.location.href,
+    });
+  }, [motionDebugEnabled, prefersReducedMotion, devForceMotion, shouldAnimate]);
+
+  useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    if (!motionDebugEnabled) return;
+    const value = Number(latest.toFixed(3));
+    const bucket = Math.min(10, Math.max(0, Math.floor(value * 10)));
+    if (bucket !== pageScrollLogBucketRef.current) {
+      pageScrollLogBucketRef.current = bucket;
+      console.log("[motion-debug] page scroll progress", value);
+    }
+  });
+
+  useMotionValueEvent(featuredProgress, "change", (latest) => {
+    if (!motionDebugEnabled) return;
+    const value = Number(latest.toFixed(3));
+    const bucket = Math.min(10, Math.max(0, Math.floor(value * 10)));
+    if (bucket !== featuredScrollLogBucketRef.current) {
+      featuredScrollLogBucketRef.current = bucket;
+      console.log("[motion-debug] featured section progress", value);
+    }
+  });
 
   // Hide loading modal when route changes away from homepage (navigation completes)
   useEffect(() => {
@@ -787,6 +882,7 @@ export default function HomePageClientV2() {
 
   // Initialize NFTs section
   useEffect(() => {
+    if (hideAuctionCards) return;
     if (FARCON_STATIC_PREVIEW) return;
     if (nftHasInitializedRef.current) return;
     nftHasInitializedRef.current = true;
@@ -811,10 +907,11 @@ export default function HomePageClientV2() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchRecentNFTs]);
+  }, [fetchRecentNFTs, hideAuctionCards]);
 
   // Initialize Editions section
   useEffect(() => {
+    if (hideAuctionCards) return;
     if (FARCON_STATIC_PREVIEW) return;
     if (editionHasInitializedRef.current) return;
     editionHasInitializedRef.current = true;
@@ -839,7 +936,7 @@ export default function HomePageClientV2() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchRecentEditions]);
+  }, [fetchRecentEditions, hideAuctionCards]);
 
   const displayHandle = isMiniApp
     ? context?.user?.username
@@ -883,6 +980,8 @@ export default function HomePageClientV2() {
     })
     .slice(0, 4);
   const gutter = "px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16";
+  /** Backgrounds span the full viewport while content stays in the centered column (via gutter). */
+  const sectionFullBleed = "relative w-[100vw] max-w-[100vw] shrink-0 ml-[calc(50%-50vw)]";
 
   useEffect(() => {
     let cancelled = false;
@@ -919,6 +1018,11 @@ export default function HomePageClientV2() {
   }, []);
 
   useEffect(() => {
+    if (hideAuctionCards) {
+      setKismetHydrationDone(true);
+      return;
+    }
+
     let cancelled = false;
     setKismetHydrationDone(false);
 
@@ -954,9 +1058,10 @@ export default function HomePageClientV2() {
     return () => {
       cancelled = true;
     };
-  }, [kismetTier1Lots]);
+  }, [kismetTier1Lots, hideAuctionCards]);
 
-  const showDataDegradedNotice = nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError;
+  const showDataDegradedNotice =
+    !hideAuctionCards && (nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError);
   const heroListingId = featuredHero?.listingId || kismetTier1Lots[0]?.listingId;
   const heroTaglineText =
     "CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what matters.";
@@ -980,25 +1085,18 @@ export default function HomePageClientV2() {
     font: "400 14px MEK-Mono",
     lineHeightPx: 21,
   });
+  const featuredCardMeasure = usePretextMeasure<HTMLDivElement>({
+    text: heroDescriptionText,
+    font: "400 14px Space Grotesk",
+    lineHeightPx: 21,
+  });
+
+  const heroCtaClassName =
+    "inline-flex min-h-[52px] w-full max-w-none items-center justify-center border-2 border-white bg-transparent px-6 py-3.5 !font-space-grotesk text-base font-medium leading-tight tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-black sm:min-h-[60px] sm:min-w-0 sm:flex-1 sm:px-8 sm:py-4 sm:text-lg";
 
   return (
-    <div className="min-h-screen bg-white text-black flex justify-center">
-      <div className="flex w-full max-w-[402px] sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] lg:max-w-[min(100%,1100px)] xl:max-w-[min(100%,1280px)] flex-col min-h-screen border-x border-[#222] bg-white shadow-2xl">
-      {/* Create Listing */}
-      {isMember && (
-        <section className="border-b border-[#333333]">
-          <div className={`flex justify-center py-3 ${gutter}`}>
-            <TransitionLink
-              href="/create"
-              prefetch={false}
-              className="font-mek-mono text-sm tracking-[0.5px] text-[#999999] transition-colors hover:text-white"
-            >
-              + Create Listing
-            </TransitionLink>
-          </div>
-        </section>
-      )}
-
+    <div ref={pageRef} className="flex min-h-screen justify-center overflow-x-clip bg-black">
+      <div className="flex w-full max-w-none flex-col border-x border-[#222] bg-transparent shadow-2xl sm:max-w-[min(100%,720px)] md:max-w-[min(100%,900px)] lg:max-w-[min(100%,1100px)] xl:max-w-[min(100%,1280px)]">
       {/* Figma: membership strip */}
       {!membershipLoading && (
         <button
@@ -1006,15 +1104,25 @@ export default function HomePageClientV2() {
           onClick={() => {
             router.push("/membership");
           }}
-          className="flex w-full flex-wrap items-center justify-center gap-1 bg-[#f5b0d3] px-2 py-1 font-space-grotesk text-[11px] font-medium leading-none text-black sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-xs"
+          className={`${sectionFullBleed} flex flex-col items-center justify-center gap-1 bg-[#f5b0d3] px-3 py-2.5 text-center font-space-grotesk text-[11px] font-medium leading-snug text-black sm:flex-row sm:flex-wrap sm:gap-x-2 sm:gap-y-0 sm:px-4 sm:py-2 sm:text-xs`}
         >
-          <span className="text-black">{isMember ? "Member" : "become a member"}</span>
-          {!isMember && <span className="text-black">0.0001 ETH /MONTH</span>}
+          {isMember ? (
+            <span className="text-black">
+              Member — thanks for supporting infrastructure & open-source
+            </span>
+          ) : (
+            <>
+              <span className="max-w-[42rem] text-black">
+                Support infrastructure & open-source behind cryptoart.social
+              </span>
+              <span className="text-black tabular-nums">0.0001 ETH / month</span>
+            </>
+          )}
         </button>
       )}
 
       {showDataDegradedNotice && (
-        <section className="w-full border-b border-[#333333] bg-[#221f12]">
+        <section className={`border-b border-[#333333] bg-[#221f12] ${sectionFullBleed}`}>
           <div className={`py-2 font-mek-mono text-xs text-[#f6d87d] ${gutter}`}>
             Live listing data is temporarily degraded. You may see placeholders or delayed updates while services recover.
           </div>
@@ -1022,7 +1130,7 @@ export default function HomePageClientV2() {
       )}
 
       {/* Figma: identity row */}
-      <div className={`flex w-full items-center justify-between bg-black py-5 font-mek-mono text-sm text-white ${gutter}`}>
+      <div className={`${sectionFullBleed} flex items-center justify-between bg-black py-5 font-mek-mono text-sm text-white ${gutter}`}>
         <span className="min-w-0 truncate">{displayHandle}</span>
         <div className="flex shrink-0 items-center gap-2">
           <span
@@ -1040,7 +1148,13 @@ export default function HomePageClientV2() {
       </div>
 
       {/* Figma: hero / logo + tagline — stack on mobile, row on desktop */}
-      <div className={`flex flex-col gap-4 bg-black pb-5 pt-5 md:flex-row md:items-center md:gap-8 md:pb-8 ${gutter}`}>
+      <motion.section
+        className={`${sectionFullBleed} flex flex-col gap-4 bg-black pb-5 pt-5 md:flex-row md:items-center md:gap-8 md:pb-8 ${gutter}`}
+        initial={shouldAnimate ? { opacity: 0, y: 22, scale: 0.985 } : false}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        style={{ y: heroY, opacity: heroOpacity, scale: heroScale }}
+      >
         <div className="relative aspect-[384/119] w-full md:w-1/2 md:max-w-xl md:shrink-0">
           <Image
             src="/cryptoart-logo-wgmeets.png"
@@ -1055,18 +1169,19 @@ export default function HomePageClientV2() {
           <p ref={heroTaglineMeasure.ref} className="font-space-grotesk text-sm leading-normal text-white">
             {heroTaglineText}
           </p>
-          <TransitionLink
-            href="/market"
-            prefetch={false}
-            className="mt-4 inline-flex w-fit border border-white px-3 py-1.5 !font-space-grotesk text-xs tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-black"
-          >
-            View all listings
-          </TransitionLink>
+          <div className="mt-6 flex w-full max-w-2xl flex-col gap-4 sm:mt-8 sm:flex-row sm:items-stretch sm:gap-5">
+            <TransitionLink href="/create" prefetch={false} className={heroCtaClassName}>
+              Create listing
+            </TransitionLink>
+            <TransitionLink href="/market" prefetch={false} className={heroCtaClassName}>
+              View all listings
+            </TransitionLink>
+          </div>
         </div>
-      </div>
+      </motion.section>
 
       {pretextDebugEnabled && (
-        <section className={`w-full border-y border-[#333333] bg-black py-3 font-space-grotesk text-xs text-[#f5b0d3] ${gutter}`}>
+        <section className={`${sectionFullBleed} border-y border-[#333333] bg-black py-3 font-space-grotesk text-xs text-[#f5b0d3] ${gutter}`}>
           <div className="grid gap-1 md:grid-cols-3">
             <p>
               heroTagline lines: actual {heroTaglineMeasure.actualLineCount} / predicted {heroTaglineMeasure.predicted.lineCount} (w{" "}
@@ -1080,17 +1195,43 @@ export default function HomePageClientV2() {
               lotIntro lines: actual {lotIntroMeasure.actualLineCount} / predicted {lotIntroMeasure.predicted.lineCount} (w{" "}
               {Math.round(lotIntroMeasure.width)}px)
             </p>
+            <p>
+              featured card width: {Math.round(featuredCardMeasure.width)}px
+            </p>
           </div>
         </section>
       )}
 
       {/* Figma: Galleries (lime) */}
-      <section className="w-full bg-[#dcf54c] text-[#272727]">
-        <h2 className={`pt-5 font-space-grotesk text-[clamp(3.25rem,15vw,5.85rem)] font-medium leading-[0.9] text-[#999] ${gutter}`}>
-          Featured
-        </h2>
-        <div className={`relative z-10 -mt-4 pb-6 md:-mt-[28px] ${gutter}`}>
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-stretch">
+      <motion.section
+        ref={featuredSectionRef}
+        className={`${sectionFullBleed} overflow-x-clip bg-[#dcf54c] text-[#272727]`}
+        initial={shouldAnimate ? { opacity: 0, y: 24 } : false}
+        whileInView={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <motion.h2
+          ref={featuredHeaderMeasureRef}
+          className={`sticky top-0 z-0 pt-5 font-space-grotesk font-medium leading-[0.9] text-[#999] ${gutter}`}
+        >
+          <span
+            className="block w-full whitespace-nowrap bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(3.25rem,15vw,5.85rem)] leading-[0.9] text-transparent"
+          >
+            {FEATURED_HEADER_TEXT}
+          </span>
+        </motion.h2>
+        <motion.div
+          className={`relative z-10 mt-0 bg-[#dcf54c] pb-6 ${gutter}`}
+          style={{ y: featuredContentY }}
+        >
+          <div
+            className={
+              hideAuctionCards
+                ? "grid gap-3"
+                : "grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-stretch"
+            }
+          >
             <div className="relative min-h-[360px] overflow-hidden border border-black/15 bg-[#dcf54c] text-black">
               <div
                 className="absolute inset-0"
@@ -1098,7 +1239,7 @@ export default function HomePageClientV2() {
                 aria-hidden
               />
               <div className="absolute inset-0 bg-white/25" aria-hidden />
-              <div className="relative flex min-h-[360px] flex-col justify-between p-4 sm:p-6">
+              <div ref={featuredCardMeasure.ref} className="relative flex min-h-[360px] flex-col justify-between p-4 sm:p-6">
                 <div className="font-space-grotesk text-sm uppercase tracking-[0.18em] text-black">
                   FarCon Live Auctions
                 </div>
@@ -1111,23 +1252,15 @@ export default function HomePageClientV2() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
-                  {heroListingId ? (
-                    <TransitionLink
-                      href={`/listing/${heroListingId}`}
-                      prefetch={false}
-                      className="bg-black px-2.5 py-1 text-white transition-colors hover:bg-[#222]"
-                    >
-                      View featured lot
-                    </TransitionLink>
-                  ) : (
-                    <span className="bg-black px-2.5 py-1 text-white">All lots shown below</span>
-                  )}
-                  <span className="border border-black px-2.5 py-1 text-black">All lots shown below</span>
+                  <span className="border border-black px-2.5 py-1 text-black">
+                    {hideAuctionCards ? "Full homepage with live lots — soon" : "All lots shown below"}
+                  </span>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-2">
-              {(featuredArtworks.length > 0 ? featuredArtworks : kismetTier1Lots.slice(0, 4)).map((auction, index) => (
+            {!hideAuctionCards && (
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2">
+              {(featuredArtworks.length > 0 ? featuredArtworks : kismetTier1Lots.slice(0, 6)).slice(0, 6).map((auction, index) => (
                 <StaticArtworkTile
                   key={auction.listingId}
                   auction={{
@@ -1144,62 +1277,27 @@ export default function HomePageClientV2() {
                 />
               ))}
             </div>
+            )}
           </div>
+        </motion.div>
+        <div className={`flex items-center justify-between border-t border-black/20 py-2.5 font-mek-mono text-sm text-black ${gutter}`}>
+          {hideAuctionCards ? (
+            <>
+              <span className="text-black">CryptoArt</span>
+              <span className="text-black">more sections soon</span>
+            </>
+          ) : (
+            <>
+              <span className="text-black">Curated for FarCon</span>
+              <span className="text-black">live auction placeholders</span>
+            </>
+          )}
         </div>
-        <div className={`flex items-center justify-between border-t border-black/10 py-5 font-mek-mono text-sm ${gutter}`}>
-          <span>Curated for FarCon</span>
-          <span>live auction placeholders</span>
-        </div>
-      </section>
+      </motion.section>
 
-      {/* Kismet Casa: each lot gets a dedicated section preview */}
-      <section className="w-full bg-[#111111]">
-        <h2 className={`pb-2 pt-5 font-space-grotesk text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-white ${gutter}`}>
-          Kismet Casa lots
-        </h2>
-        <p ref={lotIntroMeasure.ref} className={`pb-5 font-mek-mono text-sm text-[#aaaaaa] ${gutter}`}>
-          {lotIntroText}
-        </p>
-
-        <div className="flex flex-col">
-          {kismetTier1Lots.map((auction, index) => (
-            <KismetLotSection
-              key={auction.listingId}
-              auction={{
-                ...KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!,
-                listingId: auction.listingId,
-                tokenId: auction.tokenId || String(index + 1),
-                title: auction.title,
-                artist: auction.artist,
-                description: auction.description,
-                image: auction.image || undefined,
-                thumbnailUrl: auction.thumbnailUrl || undefined,
-              }}
-              hydratedListing={kismetHydratedLots[auction.listingId]}
-              hydrationDone={kismetHydrationDone}
-              gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
-              gutter={gutter}
-            />
-          ))}
-        </div>
-      </section>
-
-      {isMiniApp && !isMiniAppInstalled && actions && (
-        <section className="border-b border-[#333333]">
-          <div className={`flex items-center justify-center py-3 ${gutter}`}>
-            <button
-              type="button"
-              onClick={actions.addMiniApp}
-              className="font-mek-mono text-[#999999] underline decoration-[#999999] hover:text-[#cccccc]"
-            >
-              Add mini-app to Farcaster
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* Figma: Bids (white) */}
-      <section className="w-full bg-white text-black">
+      {/* Figma: Bids (white) — after featured, before per-lot sections */}
+      {!hideAuctionCards && (
+      <section className={`${sectionFullBleed} bg-white text-black`}>
         <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-black ${gutter}`}>
           Bids
         </h2>
@@ -1209,9 +1307,9 @@ export default function HomePageClientV2() {
           ) : bidListings.length === 0 ? (
             <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">No bids yet.</p>
           ) : (
-            bidListings.map((auction) => (
+            bidListings.map((auction, index) => (
               <div
-                key={auction.id}
+                key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
                 className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200"
               >
                 <div
@@ -1232,6 +1330,56 @@ export default function HomePageClientV2() {
           )}
         </div>
       </section>
+      )}
+
+      {/* Kismet Casa: each lot gets a dedicated section preview — keep a plain section so lots never sit behind opacity:0 if in-view detection fails */}
+      {!hideAuctionCards && (
+      <section className={`${sectionFullBleed} bg-[#111111]`}>
+        <h2 className={`pb-2 pt-5 font-space-grotesk text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-white ${gutter}`}>
+          Kismet Casa lots
+        </h2>
+        <p ref={lotIntroMeasure.ref} className={`pb-5 font-mek-mono text-sm text-[#aaaaaa] ${gutter}`}>
+          {lotIntroText}
+        </p>
+
+        <div className="flex flex-col">
+          {kismetTier1Lots.map((auction, index) => (
+            <KismetLotSection
+              key={auction.listingId}
+              shouldAnimate={shouldAnimate}
+              auction={{
+                ...KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!,
+                listingId: auction.listingId,
+                tokenId: auction.tokenId || String(index + 1),
+                title: auction.title,
+                artist: auction.artist,
+                description: auction.description,
+                image: auction.image || undefined,
+                thumbnailUrl: auction.thumbnailUrl || undefined,
+              }}
+              hydratedListing={kismetHydratedLots[auction.listingId]}
+              hydrationDone={kismetHydrationDone}
+              gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
+              gutter={gutter}
+            />
+          ))}
+        </div>
+      </section>
+      )}
+
+      {isMiniApp && !isMiniAppInstalled && actions && (
+        <section className={`${sectionFullBleed} border-b border-[#333333] bg-black`}>
+          <div className={`flex items-center justify-center py-3 ${gutter}`}>
+            <button
+              type="button"
+              onClick={actions.addMiniApp}
+              className="font-mek-mono text-[#999999] underline decoration-[#999999] hover:text-[#cccccc]"
+            >
+              Add mini-app to Farcaster
+            </button>
+          </div>
+        </section>
+      )}
 
       </div>
 
@@ -1337,66 +1485,177 @@ function KismetLotSection({
   hydrationDone,
   gradient,
   gutter,
+  shouldAnimate,
 }: {
   auction: EnrichedAuctionData;
   hydratedListing?: Tier2HydrationItem;
   hydrationDone?: boolean;
   gradient: string;
   gutter: string;
+  shouldAnimate: boolean;
 }) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress: lotScrollProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const lotScale = useTransform(lotScrollProgress, (p) => {
+    if (!shouldAnimate) return 1;
+    const d = Math.abs(p - 0.5) * 2;
+    return 1 - Math.min(1, d) * 0.15;
+  });
+  const lotOpacity = useTransform(lotScrollProgress, (p) => {
+    if (!shouldAnimate) return 1;
+    const d = Math.abs(p - 0.5) * 2;
+    return 0.68 + (1 - Math.min(1, d)) * 0.32;
+  });
+  const lotRadius = useTransform(lotScrollProgress, (p) => {
+    if (!shouldAnimate) return "0px";
+    const d = Math.abs(p - 0.5) * 2;
+    const t = Math.min(1, d);
+    return `${Math.round(t * 20)}px`;
+  });
+
   const displayListing = hydratedListing || auction;
+  const listingType = ((displayListing as Tier2HydrationItem).listingType || auction.listingType || "FIXED_PRICE");
   const price = formatStaticEth(
     (displayListing as Tier2HydrationItem).currentPrice || auction.currentPrice || auction.initialAmount
   );
-  const isAuction =
-    ((displayListing as Tier2HydrationItem).listingType || auction.listingType) === "INDIVIDUAL_AUCTION";
-  const statusText = isAuction ? "Auction lot" : "Fixed price lot";
+  const isAuction = listingType === "INDIVIDUAL_AUCTION";
+  const listingTypeLabel =
+    listingType === "INDIVIDUAL_AUCTION"
+      ? "Individual auction"
+      : listingType === "OFFERS_ONLY"
+        ? "Offers only"
+        : "Fixed price";
+  const listingStatus = (displayListing as Tier2HydrationItem).status || auction.status || "UNKNOWN";
   const bidCount = (displayListing as Tier2HydrationItem).bidCount || auction.bidCount || 0;
   const bidInfo = isAuction ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : "Buy now";
+  const highestBidAmount = auction.highestBid?.amount
+    ? formatStaticEth(auction.highestBid.amount)
+    : isAuction
+      ? hydrationDone
+        ? "No bids yet"
+        : "Loading..."
+      : "N/A";
+  const highestBidder = auction.highestBid?.bidder
+    ? `${auction.highestBid.bidder.slice(0, 6)}…${auction.highestBid.bidder.slice(-4)}`
+    : isAuction
+      ? "—"
+      : "N/A";
+  const seller = auction.seller ? `${auction.seller.slice(0, 6)}…${auction.seller.slice(-4)}` : "—";
+  const contract = auction.tokenAddress
+    ? `${auction.tokenAddress.slice(0, 6)}…${auction.tokenAddress.slice(-4)}`
+    : "—";
+  const tokenId = auction.tokenId || "—";
+  const quantity = `${auction.totalSold || "0"} / ${auction.totalAvailable || "1"}`;
+  const paymentToken =
+    !auction.erc20 || auction.erc20 === "0x0000000000000000000000000000000000000000" ? "ETH" : "ERC20";
+  const formatTime = (unixSeconds: string | undefined, fallback: string) => {
+    if (!unixSeconds || unixSeconds === "0") return fallback;
+    const n = Number(unixSeconds);
+    if (!Number.isFinite(n) || n <= 0) return fallback;
+    return new Date(n * 1000).toLocaleString();
+  };
+  const startsAt = formatTime(auction.startTime, "On first interaction");
+  const endsAt = formatTime(auction.endTime, listingType === "OFFERS_ONLY" ? "No end" : "Not set");
+  const endTimeSeconds = Number(auction.endTime || "0");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const remainingLabel = (() => {
+    if (!Number.isFinite(endTimeSeconds) || endTimeSeconds <= 0) {
+      return listingType === "OFFERS_ONLY" ? "No end" : "Not set";
+    }
+    const remaining = endTimeSeconds - nowSeconds;
+    if (remaining <= 0) return "Ended";
+    const days = Math.floor(remaining / 86400);
+    const hours = Math.floor((remaining % 86400) / 3600);
+    const minutes = Math.floor((remaining % 3600) / 60);
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${Math.max(minutes, 1)}m`;
+  })();
 
   return (
-    <article className="border-t border-[#2b2b2b] bg-black text-white">
-      <div className={`grid gap-4 py-5 md:grid-cols-[minmax(160px,220px)_minmax(0,1fr)] md:items-start ${gutter}`}>
-        <div className="relative aspect-square overflow-hidden border border-white/15" style={{ background: gradient }}>
-          <div className="absolute left-2 top-2 bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
+    <motion.article
+      ref={sectionRef}
+      className="border-t border-[#2b2b2b] bg-[#111111] py-2 text-white min-h-[100svh]"
+    >
+      <motion.div
+        className="flex min-h-[calc(100svh-1rem)] w-full flex-col overflow-hidden bg-black shadow-[0_24px_48px_rgba(0,0,0,0.35)]"
+        style={{
+          scale: lotScale,
+          opacity: lotOpacity,
+          borderRadius: lotRadius,
+          transformOrigin: "center center",
+          willChange: shouldAnimate ? "transform, opacity" : undefined,
+        }}
+      >
+        <div
+          className="relative flex min-h-[52svh] flex-shrink-0 flex-col justify-end overflow-hidden bg-black sm:min-h-[56svh]"
+          style={{ background: gradient }}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-black/10" />
+          <div className="absolute left-2 top-2 z-10 bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
             Lot {auction.tokenId}
           </div>
-          <div className="absolute bottom-2 left-2 bg-black/80 px-2 py-1 font-space-grotesk text-xs text-white">
-            {statusText}
+          <div className="absolute right-2 top-2 z-10 border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
+            {listingType === "INDIVIDUAL_AUCTION" ? "Auction" : "Open sale"}
+          </div>
+          <div className="relative z-[1] bg-gradient-to-t from-black/65 to-transparent px-0 pb-8 pt-16 sm:px-5 md:px-8 lg:px-12 xl:px-16">
+            <h3 className="truncate font-space-grotesk text-[clamp(2rem,7vw,4.5rem)] font-medium leading-[0.9] text-white">
+              {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
+            </h3>
+            <p className="mt-2 font-space-grotesk text-sm text-[#d6d6d6]">by {auction.artist || "Kismet Casa"}</p>
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="space-y-1">
-            <h3 className="truncate font-space-grotesk text-2xl font-medium text-white">
-              {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
-            </h3>
-            <p className="font-space-grotesk text-sm text-[#c9c9c9]">by {auction.artist || "Kismet Casa"}</p>
-          </div>
-
-          <p className="line-clamp-2 font-space-grotesk text-sm text-[#9f9f9f]">
+        <div className="flex flex-1 flex-col border-t border-[#2b2b2b] bg-black/95 px-0 py-4 sm:px-5 md:px-8 lg:px-12 xl:px-16">
+          <p className="font-space-grotesk text-sm leading-relaxed text-[#a9a9a9]">
             {auction.description || "Limited lot preview. Open listing for full details and bidding controls."}
           </p>
+          <div className="mt-3 rounded-sm border border-[#2b2b2b] bg-[#101010] p-3 sm:p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="font-mek-mono text-[10px] uppercase tracking-[0.14em] text-[#8f8f8f]">
+                  {isAuction ? "Current bid" : "Current price"}
+                </p>
+                <p className="mt-1 font-space-grotesk text-[clamp(1.5rem,4.8vw,2.25rem)] leading-none text-white">
+                  {price}
+                </p>
+                <p className="mt-2 font-mek-mono text-xs text-[#b8b8b8]">
+                  {isAuction ? `${bidInfo} · ${highestBidder}` : listingTypeLabel}
+                </p>
+              </div>
+              <div className="sm:text-right">
+                <p className="font-mek-mono text-[10px] uppercase tracking-[0.14em] text-[#8f8f8f]">
+                  Remaining time
+                </p>
+                <p className="mt-1 font-space-grotesk text-[clamp(1.35rem,4.2vw,2rem)] leading-none text-white">
+                  {remainingLabel}
+                </p>
+                <p className="mt-2 font-mek-mono text-xs text-[#b8b8b8]">{listingStatus}</p>
+              </div>
+            </div>
+            <div className="mt-3 border-t border-[#262626] pt-3 font-mek-mono text-xs text-[#9b9b9b]">
+              <p>
+                Recent: <span className="text-[#d7d7d7]">{highestBidAmount}</span>
+              </p>
+              <p className="mt-1">
+                Seller {seller} · Contract {contract} · #{tokenId}
+              </p>
+              <p className="mt-1">
+                Starts {startsAt} · Ends {endsAt} · {quantity} sold · {paymentToken}
+              </p>
+            </div>
+          </div>
 
-          {!hydratedListing ? (
-            <div className="border border-[#333333] bg-[#151515] p-2.5 font-space-grotesk text-sm text-white">
-              a xxx.xx ETH reserve auction
-              {hydrationDone ? "" : " ..."}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 font-mek-mono text-sm">
-              <div className="border border-[#333333] bg-[#151515] p-2.5">
-                <p className="text-[#8f8f8f]">Current</p>
-                <p className="text-white">{price}</p>
-              </div>
-              <div className="border border-[#333333] bg-[#151515] p-2.5">
-                <p className="text-[#8f8f8f]">Status</p>
-                <p className="text-white">{bidInfo}</p>
-              </div>
-            </div>
+          {!hydratedListing && (
+            <p className="mt-2 font-mek-mono text-xs text-[#8f8f8f]">
+              Loading enriched listing details{hydrationDone ? "." : "..."}
+            </p>
           )}
 
-          <div>
+          <div className="mt-3">
             <TransitionLink
               href={`/listing/${auction.listingId}`}
               prefetch={false}
@@ -1406,8 +1665,8 @@ function KismetLotSection({
             </TransitionLink>
           </div>
         </div>
-      </div>
-    </article>
+      </motion.div>
+    </motion.article>
   );
 }
 

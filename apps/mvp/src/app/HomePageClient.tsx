@@ -762,20 +762,18 @@ export default function HomePageClient() {
         </div>
       </header>
 
-      {/* Create Listing Button - Minimal */}
-      {isMember && (
-        <section className="border-b border-[#333333]">
-          <div className="px-5 py-3 flex justify-center">
-            <TransitionLink
-              href="/create"
-              prefetch={false}
-              className="text-sm text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
-            >
-              + Create Listing
-            </TransitionLink>
-          </div>
-        </section>
-      )}
+      {/* Create listing (open to all wallet users; /create handles requirements) */}
+      <section className="border-b border-[#333333]">
+        <div className="px-5 py-3 flex justify-center">
+          <TransitionLink
+            href="/create"
+            prefetch={false}
+            className="text-sm text-[#999999] hover:text-white transition-colors font-mek-mono tracking-[0.5px]"
+          >
+            + Create listing
+          </TransitionLink>
+        </div>
+      </section>
 
       {showDataDegradedNotice && (
         <section className="border-b border-[#333333] bg-[#221f12]">

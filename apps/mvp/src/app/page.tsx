@@ -9,7 +9,15 @@ import HomePageClientV2 from "./HomePageClientV2";
 // The cron job (every 15 minutes) provides additional revalidation when new listings appear
 export const revalidate = 60; // Revalidate every 60 seconds
 
+const homeTeaserEnabled = process.env.NEXT_PUBLIC_HOME_TEASER === "true";
+
 export async function generateMetadata(): Promise<Metadata> {
+  const teaserDescription =
+    process.env.NEXT_PUBLIC_TEASER_DESCRIPTION ||
+    "Coming soon — live auctions and curated lots on CryptoArt.";
+  const description = homeTeaserEnabled ? teaserDescription : APP_DESCRIPTION;
+  const title = homeTeaserEnabled ? `${APP_NAME} — Coming soon` : APP_NAME;
+
   // Use the opengraph-image route that shows recent listings with images
   // (not the /api/opengraph-image which is just text)
   const ogImageUrl = `${APP_URL}/opengraph-image`;
@@ -31,11 +39,11 @@ export async function generateMetadata(): Promise<Metadata> {
   );
   
   return {
-    title: APP_NAME,
-    description: APP_DESCRIPTION,
+    title,
+    description,
     openGraph: {
-      title: APP_NAME,
-      description: APP_DESCRIPTION,
+      title,
+      description,
       images: [ogImageUrl],
     },
     other: {
@@ -48,6 +56,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+/**
+ * Teaser mode: set `NEXT_PUBLIC_HOME_TEASER=true` — same homepage layout without artwork grids, Bids, or per-lot sections.
+ */
 export default async function Home() {
   return <HomePageClientV2 />;
 }

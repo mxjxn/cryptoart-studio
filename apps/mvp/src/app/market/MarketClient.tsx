@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { TransitionLink } from "~/components/TransitionLink";
@@ -8,6 +8,14 @@ import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { RecentListingsTable } from "~/components/RecentListingsTable";
 import type { EnrichedAuctionData } from "~/lib/types";
+
+type BrowseApiJson = {
+  success?: boolean;
+  listings?: EnrichedAuctionData[];
+  subgraphDown?: boolean;
+  degraded?: boolean;
+  pagination?: { hasMore?: boolean };
+};
 
 const gradients = [
   "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -18,22 +26,66 @@ const gradients = [
   "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
 ];
 
-export default function MarketClient() {
+export type MarketInitialPayload = {
+  tab: "all" | "recent";
+  listings: EnrichedAuctionData[];
+  hasMore: boolean;
+  subgraphDown: boolean;
+  degraded: boolean;
+};
+
+type MarketClientProps = {
+  initial: MarketInitialPayload;
+};
+
+const PAGE_SIZE = 20;
+/** Safety net for slow networks (subgraph-only responses should be fast) */
+const BROWSE_FETCH_MAX_MS = 45_000;
+
+export default function MarketClient({ initial }: MarketClientProps) {
   const searchParams = useSearchParams();
-  const tab = searchParams.get("tab") || "all";
-  const [listings, setListings] = useState<EnrichedAuctionData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tab = searchParams.get("tab") === "recent" ? "recent" : "all";
+
+  const [listings, setListings] = useState<EnrichedAuctionData[]>(initial.listings);
+  const [loading, setLoading] = useState(() => {
+    const needsClientFetch =
+      initial.degraded ||
+      (initial.listings.length === 0 && (initial.subgraphDown || initial.degraded));
+    const emptyOk =
+      initial.listings.length === 0 && !initial.subgraphDown && !initial.degraded;
+    if (emptyOk) return false;
+    if (initial.listings.length > 0) return false;
+    return needsClientFetch;
+  });
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const [subgraphDown, setSubgraphDown] = useState(false);
+  const [subgraphDown, setSubgraphDown] = useState(initial.subgraphDown);
+  const [degraded, setDegraded] = useState(initial.degraded);
   const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const pageSize = 20;
+  const [hasMore, setHasMore] = useState(initial.hasMore);
+  const [refetchNonce, setRefetchNonce] = useState(0);
+
+  const fetchAbortRef = useRef<AbortController | null>(null);
+
+  /** Prefer SSR / server-first paint; allow override after user Retry or client-only recovery. */
+  const shouldSkipStreamPageZero = useMemo(() => {
+    if (refetchNonce > 0) return false;
+    if (initial.degraded) return false;
+    if (initial.listings.length > 0) return true;
+    return initial.listings.length === 0 && !initial.subgraphDown && !initial.degraded;
+  }, [initial.degraded, initial.listings.length, initial.subgraphDown, refetchNonce]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchListings() {
       const isInitialLoad = page === 0;
+      if (isInitialLoad && shouldSkipStreamPageZero) {
+        setLoading(false);
+        return;
+      }
+
       if (isInitialLoad) {
         setLoading(true);
         setError(null);
@@ -41,177 +93,110 @@ export default function MarketClient() {
         setLoadingMore(true);
         setLoadMoreError(null);
       }
-      
+
+      fetchAbortRef.current?.abort();
+      const ac = new AbortController();
+      fetchAbortRef.current = ac;
+      let fetchTimedOut = false;
+      const maxTimer = setTimeout(() => {
+        fetchTimedOut = true;
+        ac.abort();
+      }, BROWSE_FETCH_MAX_MS);
+
       try {
-        const skip = page * pageSize;
-        let url: string;
-        
-        if (tab === "recent") {
-          // Recent listings ordered by creation date - use streaming for faster load
-          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=createdAt&orderDirection=desc&stream=true`;
-        } else {
-          // All listings ordered by listing ID - use streaming for faster load
-          url = `/api/listings/browse?first=${pageSize}&skip=${skip}&enrich=true&orderBy=listingId&orderDirection=desc&stream=true`;
-        }
-        
-        console.log('[MarketClient] Fetching listings from:', url);
-        const response = await fetch(url);
-        console.log('[MarketClient] Response status:', response.status, response.statusText);
+        const skip = page * PAGE_SIZE;
+        const orderBy = tab === "recent" ? "createdAt" : "listingId";
+        const url = `/api/listings/browse?first=${PAGE_SIZE}&skip=${skip}&enrich=false&stream=false&orderBy=${orderBy}&orderDirection=desc`;
+
+        const response = await fetch(url, { signal: ac.signal });
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[MarketClient] Response error:', errorText);
-          throw new Error(`Failed to fetch listings: ${response.status} ${response.statusText}`);
+          throw new Error(`HTTP ${response.status}`);
         }
 
-        // Handle streaming response
-        if (!response.body) {
-          throw new Error('Response body is null');
-        }
+        const json = (await response.json()) as BrowseApiJson;
+        const parsed = json.listings ?? [];
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let listings: EnrichedAuctionData[] = [];
-        let metadata: { subgraphDown?: boolean; degraded?: boolean; count?: number; pagination?: { hasMore?: boolean } } = {};
-        let listingsArrayStart = -1;
+        if (cancelled || ac.signal.aborted) return;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // Find the start of the listings array
-          if (listingsArrayStart === -1) {
-            const arrayStart = buffer.indexOf('"listings":[');
-            if (arrayStart !== -1) {
-              listingsArrayStart = arrayStart + 11; // Length of '"listings":[' 
-            }
-          }
-
-          if (listingsArrayStart !== -1) {
-            // Parse complete listing objects from the buffer
-            let braceCount = 0;
-            let startIdx = -1;
-            const listingsPart = buffer.substring(listingsArrayStart);
-            
-            for (let i = 0; i < listingsPart.length; i++) {
-              const char = listingsPart[i];
-              
-              if (char === '{') {
-                if (braceCount === 0) startIdx = i;
-                braceCount++;
-              } else if (char === '}') {
-                braceCount--;
-                if (braceCount === 0 && startIdx !== -1) {
-                  // Found a complete listing object
-                  try {
-                    const listingJson = listingsPart.substring(startIdx, i + 1);
-                    const listing = JSON.parse(listingJson);
-                    if (listing.listingId && !listings.find(l => l.listingId === listing.listingId)) {
-                      listings.push(listing);
-                      // Update state incrementally for first page
-                      if (page === 0) {
-                        setListings([...listings]);
-                      }
-                    }
-                  } catch (e) {
-                    // Partial JSON, will be completed in next chunk
-                  }
-                  startIdx = -1;
-                }
-              } else if (char === ']' && braceCount === 0) {
-                // End of listings array - try to parse final metadata
-                const afterArray = buffer.substring(listingsArrayStart + i);
-                try {
-                  const metaMatch = afterArray.match(/"count":(\d+)/);
-                  if (metaMatch) metadata.count = parseInt(metaMatch[1]);
-                  const subgraphMatch = afterArray.match(/"subgraphDown":(true|false)/);
-                  if (subgraphMatch) metadata.subgraphDown = subgraphMatch[1] === 'true';
-                  const degradedMatch = afterArray.match(/"degraded":(true|false)/);
-                  if (degradedMatch) metadata.degraded = degradedMatch[1] === 'true';
-                  const hasMoreMatch = afterArray.match(/"hasMore":(true|false)/);
-                  if (hasMoreMatch) {
-                    metadata.pagination = { hasMore: hasMoreMatch[1] === 'true' };
-                  }
-                } catch {
-                  // Continue
-                }
-                break;
-              }
-            }
-            
-            // Keep the unprocessed part of the buffer (incomplete JSON objects)
-            if (startIdx !== -1 && startIdx < listingsPart.length) {
-              buffer = buffer.substring(0, listingsArrayStart + startIdx);
-            }
-          }
-        }
-
-        // Final parse attempt for any remaining complete data
-        try {
-          const finalData = JSON.parse(buffer);
-          if (finalData.listings && Array.isArray(finalData.listings)) {
-            listings = finalData.listings;
-            if (page === 0) {
-              setListings(listings);
-            }
-          }
-          if (finalData.subgraphDown !== undefined) {
-            metadata.subgraphDown = finalData.subgraphDown;
-          }
-          if (finalData.degraded !== undefined) {
-            metadata.degraded = finalData.degraded;
-          }
-          if (finalData.pagination) {
-            metadata.pagination = finalData.pagination;
-          }
-        } catch {
-          // Buffer might be incomplete, that's okay - we already parsed what we could
-        }
-
-        const isSubgraphDown = metadata.subgraphDown || metadata.degraded || false;
-
-        console.log('[MarketClient] Received data:', {
-          success: true,
-          listingsCount: listings.length,
-          subgraphDown: isSubgraphDown,
-          hasMore: metadata.pagination?.hasMore,
-        });
+        const isBad =
+          !!json.subgraphDown ||
+          !!json.degraded ||
+          response.headers.get("X-Route-Degraded") === "true";
 
         if (page === 0) {
-          setListings(listings);
-          setSubgraphDown(isSubgraphDown);
+          setListings(parsed);
+          setSubgraphDown(!!json.subgraphDown);
+          setDegraded(!!json.degraded || isBad);
         } else {
-          // Deduplicate by listingId to prevent duplicates from pagination issues
           setListings((prev) => {
-            const existingIds = new Set(prev.map((l: EnrichedAuctionData) => l.listingId));
-            const newListings = listings.filter((l: EnrichedAuctionData) => !existingIds.has(l.listingId));
-            return [...prev, ...newListings];
+            const ids = new Set(prev.map((l) => l.listingId));
+            const next = parsed.filter((l) => !ids.has(l.listingId));
+            return [...prev, ...next];
           });
+          setSubgraphDown((prev) => prev || !!json.subgraphDown);
         }
-        setHasMore(metadata.pagination?.hasMore || false);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch listings';
-        console.error("[MarketClient] Error fetching listings:", errorMessage, error);
+
+        const more =
+          json.pagination?.hasMore ??
+          (parsed.length === PAGE_SIZE && parsed.length > 0);
+        setHasMore(!!more);
+      } catch (err: unknown) {
+        clearTimeout(maxTimer);
+        if (err instanceof Error && err.name === "AbortError") {
+          // Intentional abort (navigation / new fetch): ignore. Client max wait: show message.
+          if (!cancelled && fetchTimedOut) {
+            const timeoutMsg =
+              "Request took too long — the listings service may be slow or unavailable. Try again.";
+            if (isInitialLoad) {
+              setError(timeoutMsg);
+              setListings([]);
+            } else {
+              setLoadMoreError(timeoutMsg);
+            }
+          }
+          return;
+        }
+        const errorMessage = err instanceof Error ? err.message : "Failed to fetch listings";
         if (isInitialLoad) {
           setError(errorMessage);
-          // Set empty array on error to show error message instead of infinite loading
           setListings([]);
         } else {
           setLoadMoreError(errorMessage);
         }
       } finally {
-        if (isInitialLoad) {
-          setLoading(false);
-        } else {
-          setLoadingMore(false);
+        clearTimeout(maxTimer);
+        if (!cancelled) {
+          if (isInitialLoad) setLoading(false);
+          else setLoadingMore(false);
         }
       }
     }
 
-    fetchListings();
-  }, [page, tab]);
+    void fetchListings();
+
+    return () => {
+      cancelled = true;
+      fetchAbortRef.current?.abort();
+    };
+  }, [page, tab, shouldSkipStreamPageZero]);
+
+  useEffect(() => {
+    setListings(initial.listings);
+    setHasMore(initial.hasMore);
+    setSubgraphDown(initial.subgraphDown);
+    setDegraded(initial.degraded);
+    const needsClientFetch =
+      initial.degraded ||
+      (initial.listings.length === 0 && (initial.subgraphDown || initial.degraded));
+    const emptyOk =
+      initial.listings.length === 0 && !initial.subgraphDown && !initial.degraded;
+    setLoading(() => {
+      if (emptyOk) return false;
+      if (initial.listings.length > 0) return false;
+      return needsClientFetch;
+    });
+    setPage(0);
+  }, [initial]);
 
   const loadMore = () => {
     if (!loading && !loadingMore && hasMore) {
@@ -224,13 +209,8 @@ export default function MarketClient() {
     loadMore();
   };
 
-  // Reset page when tab changes
-  useEffect(() => {
-    setPage(0);
-    setListings([]);
-    setLoadMoreError(null);
-    setHasMore(true);
-  }, [tab]);
+  const showDegradedBanner =
+    (degraded || subgraphDown) && listings.length > 0;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -241,10 +221,17 @@ export default function MarketClient() {
         </div>
       </header>
 
+      {showDegradedBanner && (
+        <section className="border-b border-[#333333] bg-[#221f12] px-5 py-2">
+          <p className="font-mek-mono text-xs text-[#f6d87d]">
+            Live listing data may be incomplete or delayed while services catch up. Showing what we have.
+          </p>
+        </section>
+      )}
+
       <div className="px-5 py-8">
         <h1 className="text-2xl font-light mb-6">Market</h1>
 
-        {/* Tabs */}
         <div className="flex gap-6 mb-8 border-b border-[#333333]">
           <TransitionLink
             href="/market"
@@ -271,18 +258,19 @@ export default function MarketClient() {
         </div>
 
         {loading && listings.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-[#cccccc]">Loading listings...</p>
-          </div>
+          <MarketGridSkeleton tab={tab} />
         ) : error && listings.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-red-400 mb-2">Error loading listings</p>
             <p className="text-[#999999] text-sm mb-4">{error}</p>
             <button
+              type="button"
               onClick={() => {
+                setRefetchNonce((n) => n + 1);
                 setPage(0);
                 setListings([]);
                 setError(null);
+                setLoading(true);
               }}
               className="text-white hover:underline"
             >
@@ -294,10 +282,15 @@ export default function MarketClient() {
             {subgraphDown ? (
               <>
                 <p className="text-[#cccccc] mb-2">Unable to load listings</p>
-                <p className="text-[#999999] text-sm mb-4">The data service is temporarily unavailable. Please check back later.</p>
+                <p className="text-[#999999] text-sm mb-4">
+                  The data service is temporarily unavailable. Please check back later.
+                </p>
                 <button
+                  type="button"
                   onClick={() => {
+                    setRefetchNonce((n) => n + 1);
                     setSubgraphDown(false);
+                    setDegraded(false);
                     setPage(0);
                     setError(null);
                     setLoading(true);
@@ -313,23 +306,22 @@ export default function MarketClient() {
           </div>
         ) : tab === "recent" ? (
           <>
-            <RecentListingsTable listings={listings} loading={loading} />
+            <RecentListingsTable listings={listings} loading={false} />
 
-            {/* Loading more indicator */}
             {loadingMore && (
               <div className="mt-8 text-center py-6">
                 <div className="inline-flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <p className="text-[#cccccc] text-sm">Loading more listings...</p>
                 </div>
               </div>
             )}
 
-            {/* Load more error */}
             {loadMoreError && !loadingMore && (
               <div className="mt-8 text-center py-6">
                 <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
                 <button
+                  type="button"
                   onClick={retryLoadMore}
                   className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
                 >
@@ -338,10 +330,10 @@ export default function MarketClient() {
               </div>
             )}
 
-            {/* Load more button */}
             {hasMore && !loadingMore && !loadMoreError && (
               <div className="mt-8 text-center">
                 <button
+                  type="button"
                   onClick={loadMore}
                   disabled={loading}
                   className="px-6 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -351,7 +343,6 @@ export default function MarketClient() {
               </div>
             )}
 
-            {/* End of list indicator */}
             {!hasMore && listings.length > 0 && !loadingMore && (
               <div className="mt-8 text-center py-6">
                 <p className="text-[#666666] text-xs">No more listings to load</p>
@@ -371,21 +362,20 @@ export default function MarketClient() {
               ))}
             </div>
 
-            {/* Loading more indicator */}
             {loadingMore && (
               <div className="mt-8 text-center py-6">
                 <div className="inline-flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <p className="text-[#cccccc] text-sm">Loading more listings...</p>
                 </div>
               </div>
             )}
 
-            {/* Load more error */}
             {loadMoreError && !loadingMore && (
               <div className="mt-8 text-center py-6">
                 <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
                 <button
+                  type="button"
                   onClick={retryLoadMore}
                   className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
                 >
@@ -394,10 +384,10 @@ export default function MarketClient() {
               </div>
             )}
 
-            {/* Load more button */}
             {hasMore && !loadingMore && !loadMoreError && (
               <div className="mt-8 text-center">
                 <button
+                  type="button"
                   onClick={loadMore}
                   disabled={loading}
                   className="px-6 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -407,7 +397,6 @@ export default function MarketClient() {
               </div>
             )}
 
-            {/* End of list indicator */}
             {!hasMore && listings.length > 0 && !loadingMore && (
               <div className="mt-8 text-center py-6">
                 <p className="text-[#666666] text-xs">No more listings to load</p>
@@ -420,3 +409,27 @@ export default function MarketClient() {
   );
 }
 
+function MarketGridSkeleton({ tab }: { tab: "all" | "recent" }) {
+  if (tab === "recent") {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-16 animate-pulse rounded border border-[#2a2a2a] bg-[#141414]"
+          />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="aspect-[3/4] animate-pulse rounded border border-[#2a2a2a] bg-[#141414]"
+        />
+      ))}
+    </div>
+  );
+}
