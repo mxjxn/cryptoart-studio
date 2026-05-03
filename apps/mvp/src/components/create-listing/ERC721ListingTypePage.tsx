@@ -12,59 +12,40 @@ export function ERC721ListingTypePage({
   onSelectType,
   onBack,
 }: ERC721ListingTypePageProps) {
+  const cardClass =
+    "border border-neutral-200 bg-neutral-50 p-6 text-left font-space-grotesk transition-colors hover:border-neutral-400 hover:bg-white";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-space-grotesk">
       <div>
-        <h2 className="text-xl font-light mb-2">Choose Listing Type</h2>
-        <p className="text-sm text-[#999999] mb-4">
-          Select how you want to sell this artwork
-        </p>
+        <h2 className="mb-2 text-xl font-medium text-neutral-900">Choose listing type</h2>
+        <p className="mb-4 text-sm text-neutral-600">Select how you want to sell this artwork.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Auction Option */}
-        <button
-          type="button"
-          onClick={() => onSelectType("AUCTION")}
-          className="p-6 rounded-lg border border-[#333333] bg-[#0a0a0a] hover:border-[#555555] transition-colors text-left"
-        >
-          <h3 className="text-lg font-medium text-white mb-2">Auction</h3>
-          <p className="text-sm text-[#999999]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <button type="button" onClick={() => onSelectType("AUCTION")} className={cardClass}>
+          <h3 className="mb-2 text-lg font-medium text-neutral-900">Auction</h3>
+          <p className="text-sm text-neutral-600">
             Start an auction with a reserve price. Highest bidder wins.
           </p>
         </button>
 
-        {/* Fixed Price Option */}
-        <button
-          type="button"
-          onClick={() => onSelectType("FIXED_PRICE")}
-          className="p-6 rounded-lg border border-[#333333] bg-[#0a0a0a] hover:border-[#555555] transition-colors text-left"
-        >
-          <h3 className="text-lg font-medium text-white mb-2">Fixed Price</h3>
-          <p className="text-sm text-[#999999]">
-            Set a fixed price. First buyer pays the listed price.
-          </p>
+        <button type="button" onClick={() => onSelectType("FIXED_PRICE")} className={cardClass}>
+          <h3 className="mb-2 text-lg font-medium text-neutral-900">Fixed price</h3>
+          <p className="text-sm text-neutral-600">Set a fixed price. First buyer pays the listed price.</p>
         </button>
 
-        {/* Offers Only Option */}
-        <button
-          type="button"
-          onClick={() => onSelectType("OFFERS_ONLY")}
-          className="p-6 rounded-lg border border-[#333333] bg-[#0a0a0a] hover:border-[#555555] transition-colors text-left"
-        >
-          <h3 className="text-lg font-medium text-white mb-2">Offers Only</h3>
-          <p className="text-sm text-[#999999]">
-            Accept offers only. No buy now button.
-          </p>
+        <button type="button" onClick={() => onSelectType("OFFERS_ONLY")} className={cardClass}>
+          <h3 className="mb-2 text-lg font-medium text-neutral-900">Offers only</h3>
+          <p className="text-sm text-neutral-600">Accept offers only. No buy-now button.</p>
         </button>
       </div>
 
-      {/* Back Button */}
-      <div className="pt-4 border-t border-[#333333]">
+      <div className="border-t border-neutral-200 pt-4">
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-3 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium rounded hover:border-[#555555] transition-colors"
+          className="border border-neutral-300 bg-white px-6 py-3 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50"
         >
           Back
         </button>
@@ -72,10 +53,3 @@ export function ERC721ListingTypePage({
     </div>
   );
 }
-
-
-
-
-
-
-

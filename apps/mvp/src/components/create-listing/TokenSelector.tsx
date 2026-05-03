@@ -38,7 +38,6 @@ export function TokenSelector({
   const [hasMore, setHasMore] = useState(false);
   const limit = 20;
 
-  // Fetch NFTs when contract address or page changes
   useEffect(() => {
     if (!contractAddress || !address) return;
 
@@ -46,7 +45,7 @@ export function TokenSelector({
       setLoading(true);
       try {
         const response = await fetch(
-          `/api/nfts/for-owner?owner=${encodeURIComponent(address!)}&contractAddress=${encodeURIComponent(contractAddress)}&page=${page}&limit=${limit}`
+          `/api/nfts/for-owner?owner=${encodeURIComponent(address!)}&contractAddress=${encodeURIComponent(contractAddress)}&page=${page}&limit=${limit}`,
         );
         if (response.ok) {
           const data = await response.json();
@@ -83,87 +82,79 @@ export function TokenSelector({
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-space-grotesk">
       <div>
-        <h2 className="text-xl font-light mb-2">Select Token</h2>
-        <p className="text-sm text-[#999999] mb-4">
-          Choose a token from this contract to list
-        </p>
+        <h2 className="mb-2 text-xl font-medium text-neutral-900">Select token</h2>
+        <p className="mb-4 text-sm text-neutral-600">Choose a token from this contract to list.</p>
       </div>
 
       {loading && nfts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
-          <div className="h-8 w-8 border-2 border-[#666666] border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-[#999999]">Loading your tokens...</p>
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-600" />
+          <p className="text-neutral-600">Loading your tokens…</p>
         </div>
       ) : nfts.length === 0 ? (
-        <div className="bg-[#1a1a1a] border border-[#333333] rounded-lg p-6 text-center">
-          <p className="text-[#999999]">No tokens found in this contract.</p>
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-6 text-center">
+          <p className="text-neutral-600">No tokens found in this contract.</p>
         </div>
       ) : (
         <>
-          {/* NFT Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {nfts.map((nft) => (
               <button
                 key={nft.tokenId}
                 type="button"
                 onClick={() => onSelectToken(nft.tokenId)}
-                className={`group relative aspect-square rounded-lg border overflow-hidden transition-colors ${
+                className={`group relative aspect-square overflow-hidden rounded-lg border transition-colors ${
                   selectedTokenId === nft.tokenId
-                    ? "border-white ring-2 ring-white"
-                    : "border-[#333333] hover:border-[#555555]"
+                    ? "border-neutral-900 ring-2 ring-neutral-900"
+                    : "border-neutral-200 hover:border-neutral-400"
                 }`}
               >
-                <div className="w-full h-full bg-[#0a0a0a]">
+                <div className="h-full w-full bg-neutral-100">
                   <MediaDisplay
                     imageUrl={nft.image || undefined}
                     animationUrl={nft.animationUrl || undefined}
                     animationFormat={nft.animationFormat || undefined}
                     alt={nft.name || `Token #${nft.tokenId}`}
-                    className="w-full h-full"
+                    className="h-full w-full"
                   />
                 </div>
-                {/* Overlay with token info */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                  <p className="text-white text-sm font-medium truncate mb-1">
+                <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                  <p className="mb-1 truncate text-sm font-medium text-white">
                     {nft.name || `Token #${nft.tokenId}`}
                   </p>
                   {tokenType === "ERC1155" && nft.balance && (
-                    <p className="text-xs text-[#cccccc]">
-                      {nft.balance} available
-                    </p>
+                    <p className="text-xs text-neutral-200">{nft.balance} available</p>
                   )}
                 </div>
-                {/* Selected indicator */}
                 {selectedTokenId === nft.tokenId && (
-                  <div className="absolute top-2 right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                    <span className="text-black text-sm font-bold">✓</span>
+                  <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white">
+                    <span className="text-sm font-bold text-neutral-900">✓</span>
                   </div>
                 )}
               </button>
             ))}
           </div>
 
-          {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t border-[#333333]">
+            <div className="flex items-center justify-between border-t border-neutral-200 pt-4">
               <button
                 type="button"
                 onClick={handlePrevPage}
                 disabled={page === 1 || loading}
-                className="px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium rounded hover:border-[#555555] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Previous
               </button>
-              <span className="text-sm text-[#999999]">
+              <span className="text-sm text-neutral-600">
                 Page {page} of {totalPages} ({total} total)
               </span>
               <button
                 type="button"
                 onClick={handleNextPage}
                 disabled={!hasMore || loading}
-                className="px-4 py-2 bg-[#1a1a1a] border border-[#333333] text-white text-sm font-medium rounded hover:border-[#555555] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
               </button>
@@ -174,4 +165,3 @@ export function TokenSelector({
     </div>
   );
 }
-

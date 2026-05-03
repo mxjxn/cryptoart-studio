@@ -35,12 +35,7 @@ export function DurationSelector({ value, onChange, disabled = false }: Duration
   }, [value]);
 
   // Helper to adjust number with min/max bounds
-  const adjustNumber = (
-    current: number,
-    delta: number,
-    min: number = 0,
-    max: number = 999
-  ): number => {
+  const adjustNumber = (current: number, delta: number, min: number = 0, max: number = 999): number => {
     return Math.max(min, Math.min(max, current + delta));
   };
 
@@ -68,39 +63,38 @@ export function DurationSelector({ value, onChange, disabled = false }: Duration
     updateDuration(weeks, days, newHours);
   };
 
-  // Number input with up/down buttons
-  const NumberCounter = ({ 
-    value, 
-    onIncrement, 
-    onDecrement, 
+  const NumberCounter = ({
+    value,
+    onIncrement,
+    onDecrement,
     label,
-    max 
-  }: { 
-    value: number; 
-    onIncrement: () => void; 
+    max,
+  }: {
+    value: number;
+    onIncrement: () => void;
     onDecrement: () => void;
     label: string;
     max: number;
   }) => (
     <div className="flex flex-col items-center gap-1">
-      <label className="text-xs text-[#999999]">{label}</label>
+      <label className="text-xs text-neutral-600">{label}</label>
       <div className="flex flex-col items-center gap-0.5">
         <button
           type="button"
           onClick={onIncrement}
           disabled={disabled || value >= max}
-          className="w-8 h-6 flex items-center justify-center text-[#cccccc] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border border-[#333333] rounded-t hover:border-[#555555] transition-colors"
+          className="flex h-6 w-8 items-center justify-center rounded-t border border-neutral-200 bg-white text-neutral-700 transition-colors hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <span className="text-sm">^</span>
         </button>
-        <div className="w-12 h-10 flex items-center justify-center text-white text-sm font-mono border border-[#333333] bg-black">
+        <div className="flex h-10 w-12 items-center justify-center border border-neutral-200 bg-neutral-50 font-mono text-sm text-neutral-900">
           {value}
         </div>
         <button
           type="button"
           onClick={onDecrement}
           disabled={disabled || value <= 0}
-          className="w-8 h-6 flex items-center justify-center text-[#cccccc] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border border-[#333333] rounded-b hover:border-[#555555] transition-colors"
+          className="flex h-6 w-8 items-center justify-center rounded-b border border-neutral-200 bg-white text-neutral-700 transition-colors hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <span className="text-sm">v</span>
         </button>
@@ -134,4 +128,3 @@ export function DurationSelector({ value, onChange, disabled = false }: Duration
     </div>
   );
 }
-

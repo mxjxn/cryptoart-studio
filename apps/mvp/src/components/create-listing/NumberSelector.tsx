@@ -161,16 +161,14 @@ export function NumberSelector({
   return (
     <div>
       {label && (
-        <label className="block text-sm font-medium text-[#cccccc] mb-2">
-          {label}
-        </label>
+        <label className="mb-2 block text-sm font-medium text-neutral-700 font-space-grotesk">{label}</label>
       )}
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={handleDecrement}
           disabled={disabled || isAtMin}
-          className="w-10 h-10 flex items-center justify-center text-[#cccccc] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border border-[#333333] rounded hover:border-[#555555] transition-colors bg-black"
+          className="flex h-10 w-10 items-center justify-center rounded border border-neutral-200 bg-white text-neutral-700 transition-colors hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <span className="text-lg">−</span>
         </button>
@@ -185,19 +183,19 @@ export function NumberSelector({
             disabled={disabled}
             required={required}
             inputMode={step < 1 ? "decimal" : "numeric"}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-white focus:border-white text-white bg-black text-center ${
-              showError ? "border-red-500 focus:ring-red-500 focus:border-red-500" : "border-[#333333]"
+            className={`w-full rounded-lg border bg-white px-4 py-2 text-center text-neutral-900 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/20 font-mono ${
+              showError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-neutral-200"
             }`}
           />
           {showError && validation.error && (
-            <p className="mt-1 text-xs text-red-400">{validation.error}</p>
+            <p className="mt-1 text-xs text-red-600">{validation.error}</p>
           )}
         </div>
         <button
           type="button"
           onClick={handleIncrement}
           disabled={disabled || isAtMax}
-          className="w-10 h-10 flex items-center justify-center text-[#cccccc] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border border-[#333333] rounded hover:border-[#555555] transition-colors bg-black"
+          className="flex h-10 w-10 items-center justify-center rounded border border-neutral-200 bg-white text-neutral-700 transition-colors hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <span className="text-lg">+</span>
         </button>

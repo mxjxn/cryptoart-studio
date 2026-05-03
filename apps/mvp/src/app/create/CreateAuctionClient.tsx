@@ -27,6 +27,7 @@ import { ERC721AuctionConfigPage } from "~/components/create-listing/ERC721Aucti
 import { ERC721FixedPriceConfigPage } from "~/components/create-listing/ERC721FixedPriceConfigPage";
 import { ERC721OffersOnlyPage } from "~/components/create-listing/ERC721OffersOnlyPage";
 import { ShareableMomentButton } from "~/components/ShareableMomentButton";
+import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -173,6 +174,8 @@ export default function CreateAuctionClient() {
   const { isSDKLoaded } = useMiniApp();
   // Use the effective address context detection instead of separate hook
   const isMiniApp = isMiniAppContext;
+  const { isPro, loading: membershipLoading } = useMembershipStatus();
+  const isMember = isPro;
   const { isWrongNetwork, switchToBase, isSwitching } = useNetworkGuard();
   const chainId = useChainId();
   const [formData, setFormData] = useState({
@@ -1549,41 +1552,85 @@ export default function CreateAuctionClient() {
     };
   }, [isSDKLoaded, router]);
 
+  const stepBackClass =
+    "text-neutral-700 hover:text-neutral-950 transition-colors inline-flex items-center gap-2 font-space-grotesk text-sm font-medium";
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header - only show when not in miniapp */}
-      {!isMiniApp && (
-        <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
-          <Logo />
-          <div className="flex items-center gap-3">
-            <ProfileDropdown />
-          </div>
-        </header>
+    <div className="create-listing-page min-h-screen bg-neutral-50 text-neutral-900 animate-in fade-in duration-100">
+      {!membershipLoading && (
+        <button
+          type="button"
+          onClick={() => {
+            if (isMember) return;
+            router.push("/membership?from=create");
+          }}
+          className="flex w-full flex-col items-center justify-center gap-1 bg-[#f5b0d3] px-3 py-2.5 text-center font-space-grotesk text-sm font-medium leading-snug text-[#333333] sm:flex-row sm:flex-wrap sm:gap-x-2 sm:text-base"
+        >
+          {isMember ? (
+            <span>Member — thanks for supporting infrastructure & open-source</span>
+          ) : (
+            <>
+              <span className="max-w-[min(100%,42rem)]">
+                Support infrastructure & open-source behind cryptoart.social
+              </span>
+              <span className="tabular-nums">0.0001 ETH / month</span>
+            </>
+          )}
+        </button>
       )}
 
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <div className="mb-8">
+      {!isMiniApp && (
+        <section className="border-b border-neutral-200 bg-white">
+          <div className="container mx-auto flex max-w-4xl justify-center px-5 py-3">
+            <TransitionLink
+              href="/market"
+              prefetch={false}
+              className="font-mek-mono text-sm tracking-[0.5px] text-neutral-600 transition-colors hover:text-neutral-950"
+            >
+              View market
+            </TransitionLink>
+          </div>
+        </section>
+      )}
+
+      <div
+        className="listing-light-surface listing-page-chrome border-b border-neutral-200 bg-white text-neutral-900"
+        style={{ backgroundColor: "#ffffff" }}
+      >
+        {!isMiniApp && (
+          <div className="container mx-auto flex max-w-4xl items-center justify-between border-b border-neutral-200 px-4 py-3 sm:px-5">
+            <Logo compact />
+            <ProfileDropdown topBarVariant="light" />
+          </div>
+        )}
+        <div className="container mx-auto flex max-w-4xl items-center justify-between gap-3 px-5 py-3 font-space-grotesk text-sm font-medium">
           <TransitionLink
             href="/"
-            className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2 mb-6"
+            className="inline-flex shrink-0 items-center gap-2 text-neutral-900 underline-offset-2 hover:underline"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back
+            <span aria-hidden>←</span> back
           </TransitionLink>
-          <h1 className="text-3xl font-light mb-2">Create Listing</h1>
-          <p className="text-sm text-[#cccccc]">
-            List your NFT for sale. Choose between auction, fixed price, or offers-only.
+          {isMiniApp ? (
+            <div className="flex min-w-0 shrink-0 items-center justify-end">
+              <ProfileDropdown />
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="container mx-auto max-w-4xl px-5 py-6 sm:py-8">
+        <div className="mb-8 font-space-grotesk">
+          <h1 className="text-2xl font-medium tracking-tight text-neutral-900 sm:text-3xl">Create listing</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">
+            List an NFT on Base as an auction, fixed price, or offers-only. You will approve the marketplace contract
+            before submitting.
           </p>
-          <p className="text-xs text-[#888888] mt-2">
-            Only Base is supported.
-          </p>
+          <p className="mt-2 text-xs text-neutral-500">Only Base is supported.</p>
         </div>
 
         {!isConnected && (
-          <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-4 mb-6">
-            <p className="text-[#cccccc]">Please connect your wallet to create an auction.</p>
+          <div className="mb-6 border border-neutral-200 bg-white px-4 py-4 font-space-grotesk text-sm text-neutral-700">
+            Connect your wallet to continue.
           </div>
         )}
 
@@ -1592,8 +1639,8 @@ export default function CreateAuctionClient() {
           <input type="submit" />
         </form>
 
-        {/* Wizard Pages */}
-        <div className="bg-[#0a0a0a] border border-[#333333] rounded-lg p-6">
+        {/* Wizard — light surface aligned with listing detail blocks */}
+        <div className="border border-neutral-200 bg-white px-5 py-6 sm:px-6 sm:py-8">
           {wizardPage === 1 && (
             <ContractSelector
               selectedContract={selectedContract}
@@ -1609,7 +1656,7 @@ export default function CreateAuctionClient() {
                 <button
                   type="button"
                   onClick={handleWizardBack}
-                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className={stepBackClass}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1634,7 +1681,7 @@ export default function CreateAuctionClient() {
                 <button
                   type="button"
                   onClick={handleWizardBack}
-                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className={stepBackClass}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1645,8 +1692,8 @@ export default function CreateAuctionClient() {
 
               {/* Ownership Check */}
               {!ownershipStatus.isOwner && !ownershipStatus.loading && (
-                <div className="mb-6 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
-                  <p className="text-red-400 text-sm">✗ You do not own this token</p>
+                <div className="mb-6 border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm text-red-800">You do not own this token.</p>
                 </div>
               )}
 
@@ -1654,8 +1701,8 @@ export default function CreateAuctionClient() {
                 <>
                   {/* Approval Status */}
                   {!approvalStatus.isApproved && !approvalStatus.loading && (
-                    <div className="mb-6 bg-amber-900/20 border border-amber-700/50 rounded-lg p-4">
-                      <p className="text-amber-400 text-sm font-medium mb-2">⚠ Approval required</p>
+                    <div className="mb-6 border border-amber-200 bg-amber-50 p-4">
+                      <p className="mb-2 text-sm font-medium text-amber-900">Approval required</p>
                       <TransactionStatus
                         hash={approvalHash}
                         isPending={isApprovalPending}
@@ -1669,9 +1716,9 @@ export default function CreateAuctionClient() {
                         <button
                           type="button"
                           onClick={handleApprove}
-                          className="w-full mt-3 px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors"
+                          className="mt-3 w-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
                         >
-                          Approve All Tokens
+                          Approve all tokens
                         </button>
                       )}
                     </div>
@@ -1699,7 +1746,7 @@ export default function CreateAuctionClient() {
                 <button
                   type="button"
                   onClick={handleWizardBack}
-                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className={stepBackClass}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1710,8 +1757,8 @@ export default function CreateAuctionClient() {
 
               {/* Ownership Check */}
               {!ownershipStatus.isOwner && !ownershipStatus.loading && (
-                <div className="mb-6 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
-                  <p className="text-red-400 text-sm">✗ You do not own this token</p>
+                <div className="mb-6 border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm text-red-800">You do not own this token.</p>
                 </div>
               )}
 
@@ -1719,8 +1766,8 @@ export default function CreateAuctionClient() {
                 <>
                   {/* Approval Status */}
                   {!approvalStatus.isApproved && !approvalStatus.loading && (
-                    <div className="mb-6 bg-amber-900/20 border border-amber-700/50 rounded-lg p-4">
-                      <p className="text-amber-400 text-sm font-medium mb-2">⚠ Approval required</p>
+                    <div className="mb-6 border border-amber-200 bg-amber-50 p-4">
+                      <p className="mb-2 text-sm font-medium text-amber-900">Approval required</p>
                       <TransactionStatus
                         hash={approvalHash}
                         isPending={isApprovalPending}
@@ -1734,9 +1781,9 @@ export default function CreateAuctionClient() {
                         <button
                           type="button"
                           onClick={handleApprove}
-                          className="w-full mt-3 px-6 py-3 bg-white text-black text-sm font-medium hover:bg-[#e0e0e0] transition-colors"
+                          className="mt-3 w-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
                         >
-                          Approve Token #{selectedTokenId}
+                          Approve token #{selectedTokenId}
                         </button>
                       )}
                     </div>
@@ -1760,7 +1807,7 @@ export default function CreateAuctionClient() {
                 <button
                   type="button"
                   onClick={handleWizardBack}
-                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className={stepBackClass}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1786,7 +1833,7 @@ export default function CreateAuctionClient() {
                 <button
                   type="button"
                   onClick={handleWizardBack}
-                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className={stepBackClass}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1812,7 +1859,7 @@ export default function CreateAuctionClient() {
                 <button
                   type="button"
                   onClick={handleWizardBack}
-                  className="text-[#cccccc] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className={stepBackClass}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1853,25 +1900,25 @@ export default function CreateAuctionClient() {
                   <button
                     type="button"
                     onClick={() => transitionNavigate(router, `/listing/${createdListingId}`)}
-                    className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                    className="flex-1 bg-neutral-900 px-6 py-3 font-space-grotesk text-sm font-medium text-white transition-colors hover:bg-neutral-800"
                   >
-                    View Listing
+                    View listing
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => transitionNavigate(router, "/")}
-                    className="flex-1 px-6 py-3 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors"
+                    className="flex-1 bg-neutral-900 px-6 py-3 font-space-grotesk text-sm font-medium text-white transition-colors hover:bg-neutral-800"
                   >
-                    View Listings
+                    View listings
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="flex-1 px-6 py-3 bg-[#0a0a0a] border border-[#333333] text-white text-sm font-medium tracking-[0.5px] hover:bg-[#1a1a1a] transition-colors"
+                  className="flex-1 border border-neutral-300 bg-white px-6 py-3 font-space-grotesk text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50"
                 >
-                  Create Another
+                  Create another
                 </button>
               </div>
               {createdListingId !== null && (
