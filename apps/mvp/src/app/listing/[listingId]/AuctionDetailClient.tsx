@@ -45,6 +45,7 @@ import { ListingThemeEditor } from "~/components/ListingThemeEditor";
 import {
   DEFAULT_LISTING_THEME,
   composeLinearGradientCss,
+  composeListingThemeCursorCss,
   listingThemeTypographyClasses,
   type ListingThemeData,
   type ListingThemeSource,
@@ -1513,6 +1514,11 @@ export default function AuctionDetailClient({
     [listingPageTheme]
   );
 
+  const listingPageCursorCss = useMemo(
+    () => composeListingThemeCursorCss(listingPageTheme),
+    [listingPageTheme]
+  );
+
   // Auto-show update form for at-risk listings (seller needs to fix it)
   // MUST be called before any conditional returns to avoid hook order violations
   useEffect(() => {
@@ -1767,7 +1773,10 @@ export default function AuctionDetailClient({
   const isModifyLoading = isModifying || isConfirmingModify;
 
   return (
-    <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 animate-in fade-in duration-100">
+    <div
+      className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 animate-in fade-in duration-100"
+      style={listingPageCursorCss ? { cursor: listingPageCursorCss } : undefined}
+    >
       {/* Redesign: membership strip (matches HomePageClientV2) */}
       {!membershipLoading && (
         <button

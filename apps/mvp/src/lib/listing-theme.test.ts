@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   composeLinearGradientCss,
+  composeListingThemeCursorCss,
+  DEFAULT_LISTING_CURSOR,
   DEFAULT_LISTING_THEME,
   hexForColorInput,
   normalizeHexColor,
@@ -40,11 +42,33 @@ describe("validateListingTheme", () => {
       titleFont: "spaceGrotesk",
       titleSize: "md",
       bodySize: "md",
+      cursor: DEFAULT_LISTING_CURSOR,
     };
     const r = validateListingTheme(raw);
     assert.equal(r.ok, true);
     if (r.ok) {
       assert.equal(r.theme.gradient.stops[0]!.color, "#667eea");
+    }
+  });
+
+  it("defaults cursor when omitted (legacy stored themes)", () => {
+    const r = validateListingTheme({
+      gradient: {
+        kind: "linear",
+        angleDeg: 90,
+        stops: [
+          { color: "#000000", positionPct: 0 },
+          { color: "#ffffff", positionPct: 100 },
+        ],
+      },
+      titleFont: "spaceGrotesk",
+      titleSize: "md",
+      bodySize: "md",
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) {
+      assert.equal(r.theme.cursor.mode, "system");
+      assert.equal(r.theme.cursor.size, "md");
     }
   });
 
@@ -61,6 +85,7 @@ describe("validateListingTheme", () => {
       titleFont: "spaceGrotesk",
       titleSize: "md",
       bodySize: "md",
+      cursor: DEFAULT_LISTING_CURSOR,
     });
     assert.equal(r.ok, false);
   });
@@ -81,8 +106,30 @@ describe("validateListingTheme", () => {
       titleFont: "spaceGrotesk",
       titleSize: "md",
       bodySize: "md",
+      cursor: DEFAULT_LISTING_CURSOR,
     });
     assert.equal(r.ok, false);
+  });
+});
+
+describe("composeListingThemeCursorCss", () => {
+  it("returns undefined for system cursor", () => {
+    const t = { ...DEFAULT_LISTING_THEME, cursor: { ...DEFAULT_LISTING_CURSOR, mode: "system" as const } };
+    assert.equal(composeListingThemeCursorCss(t), undefined);
+  });
+  it("returns data URL for custom cursor", () => {
+    const t = {
+      ...DEFAULT_LISTING_THEME,
+      cursor: {
+        mode: "custom" as const,
+        icon: "dot" as const,
+        color: "#ff0000",
+        size: "sm" as const,
+      },
+    };
+    const css = composeListingThemeCursorCss(t);
+    assert.ok(css?.includes("data:image/svg+xml"));
+    assert.ok(css?.includes("url("));
   });
 });
 

@@ -7,6 +7,32 @@ export type ListingTitleFont = "spaceGrotesk" | "mekMono" | "system";
 export type ListingTitleSize = "sm" | "md" | "lg";
 export type ListingBodySize = "sm" | "md";
 
+/** Custom pointer = SVG data-URL cursor (enumerated shapes only). */
+export type ListingCursorMode = "system" | "custom";
+export type ListingCursorIcon = "dot" | "ring" | "cross" | "arrow" | "spark";
+export type ListingCursorSize = "sm" | "md" | "lg";
+
+export interface ListingThemeCursor {
+  mode: ListingCursorMode;
+  icon: ListingCursorIcon;
+  /** Used when mode is custom */
+  color: string;
+  size: ListingCursorSize;
+}
+
+export const DEFAULT_LISTING_CURSOR: ListingThemeCursor = {
+  mode: "system",
+  icon: "dot",
+  color: "#111827",
+  size: "md",
+};
+
+const CURSOR_SIZE_PX: Record<ListingCursorSize, number> = {
+  sm: 22,
+  md: 30,
+  lg: 40,
+};
+
 export interface ListingThemeGradientStop {
   color: string;
   positionPct: number;
@@ -23,6 +49,7 @@ export interface ListingThemeData {
   titleFont: ListingTitleFont;
   titleSize: ListingTitleSize;
   bodySize: ListingBodySize;
+  cursor: ListingThemeCursor;
 }
 
 /** CSS linear-gradient strings — shared with featured carousels/grids. */
@@ -49,6 +76,7 @@ export const LISTING_THEME_EDITOR_PRESETS: readonly ListingThemeData[] = [
     titleFont: "spaceGrotesk",
     titleSize: "md",
     bodySize: "md",
+    cursor: DEFAULT_LISTING_CURSOR,
   },
   {
     gradient: {
@@ -62,6 +90,7 @@ export const LISTING_THEME_EDITOR_PRESETS: readonly ListingThemeData[] = [
     titleFont: "spaceGrotesk",
     titleSize: "md",
     bodySize: "md",
+    cursor: DEFAULT_LISTING_CURSOR,
   },
   {
     gradient: {
@@ -75,6 +104,7 @@ export const LISTING_THEME_EDITOR_PRESETS: readonly ListingThemeData[] = [
     titleFont: "spaceGrotesk",
     titleSize: "md",
     bodySize: "md",
+    cursor: DEFAULT_LISTING_CURSOR,
   },
   {
     gradient: {
@@ -88,6 +118,7 @@ export const LISTING_THEME_EDITOR_PRESETS: readonly ListingThemeData[] = [
     titleFont: "spaceGrotesk",
     titleSize: "md",
     bodySize: "md",
+    cursor: DEFAULT_LISTING_CURSOR,
   },
   {
     gradient: {
@@ -101,6 +132,7 @@ export const LISTING_THEME_EDITOR_PRESETS: readonly ListingThemeData[] = [
     titleFont: "spaceGrotesk",
     titleSize: "md",
     bodySize: "md",
+    cursor: DEFAULT_LISTING_CURSOR,
   },
   {
     gradient: {
@@ -114,6 +146,7 @@ export const LISTING_THEME_EDITOR_PRESETS: readonly ListingThemeData[] = [
     titleFont: "spaceGrotesk",
     titleSize: "md",
     bodySize: "md",
+    cursor: DEFAULT_LISTING_CURSOR,
   },
 ] as const;
 
@@ -195,6 +228,25 @@ export function validateListingTheme(input: unknown): { ok: true; theme: Listing
   if (typeof o.bodySize !== "string" || !bodySizes.includes(o.bodySize as ListingBodySize)) {
     return { ok: false, error: "bodySize invalid" };
   }
+
+  const dc = DEFAULT_LISTING_CURSOR;
+  const cr = (o.cursor && typeof o.cursor === "object" ? o.cursor : {}) as Record<string, unknown>;
+  const cursorModes = ["system", "custom"] as const;
+  const mode = cursorModes.includes(cr.mode as ListingCursorMode)
+    ? (cr.mode as ListingCursorMode)
+    : dc.mode;
+  const cursorIcons = ["dot", "ring", "cross", "arrow", "spark"] as const;
+  const icon = cursorIcons.includes(cr.icon as ListingCursorIcon)
+    ? (cr.icon as ListingCursorIcon)
+    : dc.icon;
+  const cursorSizes = ["sm", "md", "lg"] as const;
+  const size = cursorSizes.includes(cr.size as ListingCursorSize)
+    ? (cr.size as ListingCursorSize)
+    : dc.size;
+  let cursorColor = typeof cr.color === "string" ? normalizeHexColor(cr.color) : null;
+  if (!cursorColor) cursorColor = dc.color;
+  const cursor: ListingThemeCursor = { mode, icon, color: cursorColor, size };
+
   return {
     ok: true,
     theme: {
@@ -206,6 +258,7 @@ export function validateListingTheme(input: unknown): { ok: true; theme: Listing
       titleFont: o.titleFont as ListingTitleFont,
       titleSize: o.titleSize as ListingTitleSize,
       bodySize: o.bodySize as ListingBodySize,
+      cursor,
     },
   };
 }
@@ -214,6 +267,51 @@ export function composeLinearGradientCss(theme: ListingThemeData): string {
   const { angleDeg, stops } = theme.gradient;
   const parts = stops.map((s) => `${s.color} ${s.positionPct}%`);
   return `linear-gradient(${angleDeg}deg, ${parts.join(", ")})`;
+}
+
+function buildCursorSvg(icon: ListingCursorIcon, color: string, n: number): string {
+  const cx = n / 2;
+  const cy = n / 2;
+  const t = Math.max(1.5, n / 18);
+  let inner: string;
+  switch (icon) {
+    case "dot":
+      inner = `<circle cx="${cx}" cy="${cy}" r="${n * 0.22}" fill="${color}"/>`;
+      break;
+    case "ring":
+      inner = `<circle cx="${cx}" cy="${cy}" r="${n * 0.28}" fill="none" stroke="${color}" stroke-width="${t * 1.4}"/>`;
+      break;
+    case "cross": {
+      const arm = n * 0.32;
+      inner = `<path d="M ${cx - arm} ${cy} L ${cx + arm} ${cy} M ${cx} ${cy - arm} L ${cx} ${cy + arm}" stroke="${color}" stroke-width="${t * 1.2}" stroke-linecap="round"/>`;
+      break;
+    }
+    case "arrow": {
+      const s = n * 0.35;
+      inner = `<path d="M ${cx - s * 0.3} ${cy + s * 0.6} L ${cx + s * 0.85} ${cy} L ${cx - s * 0.3} ${cy - s * 0.6} Z" fill="${color}"/>`;
+      break;
+    }
+    case "spark": {
+      const r = n * 0.32;
+      inner = `<path d="M ${cx} ${cy - r} L ${cx + r * 0.35} ${cy - r * 0.2} L ${cx + r} ${cy} L ${cx + r * 0.35} ${cy + r * 0.2} L ${cx} ${cy + r} L ${cx - r * 0.35} ${cy + r * 0.2} L ${cx - r} ${cy} L ${cx - r * 0.35} ${cy - r * 0.2} Z" fill="${color}"/>`;
+      break;
+    }
+    default:
+      inner = `<circle cx="${cx}" cy="${cy}" r="${n * 0.18}" fill="${color}"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n}" height="${n}" viewBox="0 0 ${n} ${n}">${inner}</svg>`;
+}
+
+/** CSS `cursor` value, or `undefined` to keep the browser default. */
+export function composeListingThemeCursorCss(theme: ListingThemeData): string | undefined {
+  const cur = theme.cursor;
+  if (!cur || cur.mode !== "custom") return undefined;
+  const n = CURSOR_SIZE_PX[cur.size];
+  const svg = buildCursorSvg(cur.icon, cur.color, n);
+  const encoded = encodeURIComponent(svg);
+  const hx = Math.floor(n / 2);
+  const hy = Math.floor(n / 2);
+  return `url("data:image/svg+xml,${encoded}") ${hx} ${hy}, auto`;
 }
 
 const TITLE_SIZE_CLASS: Record<ListingTitleSize, string> = {
