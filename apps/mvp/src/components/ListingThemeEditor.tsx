@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { ListingThemeData } from "~/lib/listing-theme";
+import type { ListingThemeData, ListingThemeSource } from "~/lib/listing-theme";
 import {
   DEFAULT_LISTING_THEME,
   LISTING_THEME_EDITOR_PRESETS,
   composeLinearGradientCss,
+  hexForColorInput,
   listingThemeTypographyClasses,
   validateListingTheme,
 } from "~/lib/listing-theme";
@@ -19,13 +19,18 @@ interface ListingThemeEditorProps {
   listingId?: string;
   /** Light page (listing detail) vs dark (profile) */
   surface?: "light" | "dark";
-  /** Called when GET returns a resolved theme (initial load and after save) */
-  onThemeResolved?: (theme: ListingThemeData) => void;
+  /** Called when resolved theme updates (load / save / refetch). Includes `source` for listing accent UI. */
+  onThemeResolved?: (theme: ListingThemeData, source: ListingThemeSource) => void;
 }
 
 type ThemeApiResponse = {
   theme: ListingThemeData;
   source: "override" | "default" | "fallback";
+};
+
+const fetchThemeInit: RequestInit = {
+  cache: "no-store",
+  headers: { "Cache-Control": "no-cache" },
 };
 
 function cloneTheme(t: ListingThemeData): ListingThemeData {
@@ -40,7 +45,6 @@ export function ListingThemeEditor({
   surface = "dark",
   onThemeResolved,
 }: ListingThemeEditorProps) {
-  const router = useRouter();
   const onThemeResolvedRef = useRef(onThemeResolved);
   onThemeResolvedRef.current = onThemeResolved;
   const [loading, setLoading] = useState(true);
@@ -49,41 +53,52 @@ export function ListingThemeEditor({
   const [draft, setDraft] = useState<ListingThemeData>(cloneTheme(DEFAULT_LISTING_THEME));
   /** Listing mode: whether a DB override row exists (or user chose custom) */
   const [hasOverride, setHasOverride] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
-  const fetchTheme = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (mode === "listing" && listingId) {
-        const res = await fetch(`/api/listing-theme?listingId=${encodeURIComponent(listingId)}`);
-        if (!res.ok) {
-          setError("Could not load theme");
-          setLoading(false);
-          return;
-        }
-        const data = (await res.json()) as ThemeApiResponse;
-        setDraft(cloneTheme(data.theme));
-        setHasOverride(data.source === "override");
-        onThemeResolvedRef.current?.(data.theme);
-      } else {
-        const res = await fetch(
-          `/api/listing-theme?seller=${encodeURIComponent(userAddress)}`
-        );
-        if (!res.ok) {
-          setError("Could not load theme");
-          setLoading(false);
-          return;
-        }
-        const data = (await res.json()) as ThemeApiResponse;
-        setDraft(cloneTheme(data.theme));
-        onThemeResolvedRef.current?.(data.theme);
+  const fetchTheme = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent === true;
+      if (!silent) {
+        setLoading(true);
       }
-    } catch {
-      setError("Could not load theme");
-    } finally {
-      setLoading(false);
-    }
-  }, [mode, listingId, userAddress]);
+      setError(null);
+      try {
+        if (mode === "listing" && listingId) {
+          const res = await fetch(
+            `/api/listing-theme?listingId=${encodeURIComponent(listingId)}`,
+            fetchThemeInit
+          );
+          if (!res.ok) {
+            setError("Could not load theme");
+            return;
+          }
+          const data = (await res.json()) as ThemeApiResponse;
+          setDraft(cloneTheme(data.theme));
+          setHasOverride(data.source === "override");
+          onThemeResolvedRef.current?.(data.theme, data.source);
+        } else {
+          const res = await fetch(
+            `/api/listing-theme?seller=${encodeURIComponent(userAddress)}`,
+            fetchThemeInit
+          );
+          if (!res.ok) {
+            setError("Could not load theme");
+            return;
+          }
+          const data = (await res.json()) as ThemeApiResponse;
+          setDraft(cloneTheme(data.theme));
+          onThemeResolvedRef.current?.(data.theme, data.source);
+        }
+      } catch {
+        setError("Could not load theme");
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [mode, listingId, userAddress]
+  );
 
   useEffect(() => {
     void fetchTheme();
@@ -138,8 +153,17 @@ export function ListingThemeEditor({
         await persistOverride(v.theme);
         setHasOverride(true);
       }
-      router.refresh();
-      await fetchTheme();
+      // Keep UI aligned with what we saved (canonical stops/order from validation).
+      setDraft(cloneTheme(v.theme));
+      onThemeResolvedRef.current?.(
+        v.theme,
+        mode === "listing" ? "override" : "default"
+      );
+      // Re-fetch without unmounting skeleton; no router.refresh() — it remounts and
+      // combined with HTTP caching previously showed stale/wrong colors.
+      await fetchTheme({ silent: true });
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 4000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -154,8 +178,7 @@ export function ListingThemeEditor({
     try {
       await persistOverride(null);
       setHasOverride(false);
-      router.refresh();
-      await fetchTheme();
+      await fetchTheme({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -228,10 +251,15 @@ export function ListingThemeEditor({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={`flex flex-col gap-1 text-xs ${labelMuted}`}>
-          Gradient start
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span>Gradient start</span>
+            <span className={`font-mek-mono text-[11px] ${labelMuted}`}>
+              {hexForColorInput(draft.gradient.stops[0]?.color, "#667eea")}
+            </span>
+          </span>
           <input
             type="color"
-            value={draft.gradient.stops[0]?.color ?? "#667eea"}
+            value={hexForColorInput(draft.gradient.stops[0]?.color, "#667eea")}
             onChange={(e) => {
               const c = e.target.value;
               setDraft((d) => {
@@ -244,12 +272,21 @@ export function ListingThemeEditor({
           />
         </label>
         <label className={`flex flex-col gap-1 text-xs ${labelMuted}`}>
-          Gradient end
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span>Gradient end</span>
+            <span className={`font-mek-mono text-[11px] ${labelMuted}`}>
+              {hexForColorInput(
+                draft.gradient.stops[draft.gradient.stops.length - 1]?.color,
+                "#764ba2"
+              )}
+            </span>
+          </span>
           <input
             type="color"
-            value={
-              draft.gradient.stops[draft.gradient.stops.length - 1]?.color ?? "#764ba2"
-            }
+            value={hexForColorInput(
+              draft.gradient.stops[draft.gradient.stops.length - 1]?.color,
+              "#764ba2"
+            )}
             onChange={(e) => {
               const c = e.target.value;
               setDraft((d) => {
@@ -351,18 +388,25 @@ export function ListingThemeEditor({
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <button
-        type="button"
-        disabled={saving}
-        onClick={() => void onSave()}
-        className={
-          surface === "light"
-            ? "rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-            : "rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
-        }
-      >
-        {saving ? "Saving…" : mode === "default" ? "Save default" : "Save for this listing"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void onSave()}
+          className={
+            surface === "light"
+              ? "rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+              : "rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+          }
+        >
+          {saving ? "Saving…" : mode === "default" ? "Save default" : "Save for this listing"}
+        </button>
+        {justSaved && (
+          <span className="text-sm font-medium text-emerald-600" role="status">
+            Saved — colors below match your listing accent.
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -134,6 +134,13 @@ export function normalizeHexColor(input: string): string | null {
   return s.toLowerCase();
 }
 
+/** `#rrggbb` for `<input type="color" />` (must be 7-char hex). */
+export function hexForColorInput(hex: string | undefined, fallback: string): string {
+  const n = normalizeHexColor(hex ?? "");
+  if (n) return n;
+  return normalizeHexColor(fallback) ?? "#667eea";
+}
+
 function isFiniteNumber(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }

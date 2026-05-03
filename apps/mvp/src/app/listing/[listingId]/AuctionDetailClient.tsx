@@ -47,6 +47,7 @@ import {
   composeLinearGradientCss,
   listingThemeTypographyClasses,
   type ListingThemeData,
+  type ListingThemeSource,
 } from "~/lib/listing-theme";
 
 // ERC20 ABI for approval functions
@@ -97,6 +98,8 @@ export default function AuctionDetailClient({
 
   const [listingPageTheme, setListingPageTheme] =
     useState<ListingThemeData>(DEFAULT_LISTING_THEME);
+  const [listingThemeSource, setListingThemeSource] =
+    useState<ListingThemeSource | null>(null);
 
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
@@ -112,12 +115,19 @@ export default function AuctionDetailClient({
     (async () => {
       try {
         const res = await fetch(
-          `/api/listing-theme?listingId=${encodeURIComponent(String(auction.listingId))}`
+          `/api/listing-theme?listingId=${encodeURIComponent(String(auction.listingId))}`,
+          { cache: "no-store", headers: { "Cache-Control": "no-cache" } }
         );
         if (!res.ok) return;
-        const data = (await res.json()) as { theme?: ListingThemeData };
+        const data = (await res.json()) as {
+          theme?: ListingThemeData;
+          source?: ListingThemeSource;
+        };
         if (cancelled || !data?.theme) return;
         setListingPageTheme(data.theme);
+        if (data.source) {
+          setListingThemeSource(data.source);
+        }
       } catch {
         /* ignore */
       }
@@ -1850,6 +1860,18 @@ export default function AuctionDetailClient({
             </button>
           </div>
         )}
+        {listingThemeSource !== null && listingThemeSource !== "fallback" && (
+          <div className="mb-4">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+              Listing accent
+            </p>
+            <div
+              className="h-2.5 w-full rounded-full shadow-sm ring-1 ring-inset ring-neutral-300/80"
+              style={{ background: composeLinearGradientCss(listingPageTheme) }}
+              aria-hidden
+            />
+          </div>
+        )}
         {canEditListingTheme && isListingSeller && address && (
           <div className="mb-4">
             <ListingThemeEditor
@@ -1858,7 +1880,10 @@ export default function AuctionDetailClient({
               userAddress={address}
               verifiedAddresses={verifiedWalletAddresses}
               surface="light"
-              onThemeResolved={setListingPageTheme}
+              onThemeResolved={(t, src) => {
+                setListingPageTheme(t);
+                setListingThemeSource(src);
+              }}
             />
           </div>
         )}
