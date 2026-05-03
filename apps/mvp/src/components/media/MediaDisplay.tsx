@@ -140,24 +140,36 @@ export function MediaDisplay({
       <p className="sr-only" aria-live="polite">
         {!imageLoaded && !imageError ? "Loading artwork…" : ""}
       </p>
-      <button
-        type="button"
-        onClick={onImageClick}
-        className="relative z-10 w-full cursor-zoom-in block"
-        disabled={!onImageClick}
-        style={{ cursor: onImageClick ? "zoom-in" : "default" }}
-        aria-label={onImageClick ? "View artwork fullscreen" : undefined}
-      >
-        <img
-          src={displayUrl}
-          alt={alt}
-          className={`w-full max-h-[80vh] object-contain transition-opacity duration-200 ${
-            imageLoaded ? "opacity-100" : "opacity-0"
-          }`}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => setImageError(true)}
-        />
-      </button>
+      {onImageClick ? (
+        <button
+          type="button"
+          onClick={onImageClick}
+          className="relative z-10 block w-full cursor-zoom-in"
+          aria-label="View artwork fullscreen"
+        >
+          <img
+            src={displayUrl}
+            alt={alt}
+            className={`max-h-[80vh] w-full object-contain transition-opacity duration-200 ${
+              imageLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
+          />
+        </button>
+      ) : (
+        <div className="relative z-10 block w-full">
+          <img
+            src={displayUrl}
+            alt={alt}
+            className={`max-h-[80vh] w-full object-contain transition-opacity duration-200 ${
+              imageLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
+          />
+        </div>
+      )}
     </div>
   );
 }
