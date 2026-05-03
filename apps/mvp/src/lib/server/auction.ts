@@ -9,6 +9,7 @@ import {
   primeListingMediaSnapshot,
   resolveMediaWithFallback,
 } from "~/lib/server/listing-metadata-refresh";
+import { upsertListingPreview } from "~/lib/server/listing-preview-store";
 
 const getSubgraphEndpoint = (): string => {
   const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
@@ -480,6 +481,17 @@ export async function getAuctionServer(
       metadata,
     };
     primeListingMediaSnapshot(enriched);
+
+    if (enriched.image || enriched.title) {
+      void upsertListingPreview({
+        listingId: String(listing.listingId),
+        tokenAddress: String(listing.tokenAddress),
+        tokenId: String(listing.tokenId),
+        imageUrl: enriched.image ?? null,
+        thumbnailSmallUrl: enriched.thumbnailUrl ?? null,
+        title: enriched.title ?? null,
+      });
+    }
 
     const elapsed = Date.now() - startTime;
     console.log(`[OG Image] [getAuctionServer] Auction data fetched successfully in ${elapsed}ms`);

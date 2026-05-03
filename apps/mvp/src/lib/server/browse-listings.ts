@@ -5,7 +5,7 @@ import { type Address } from "viem";
 import { normalizeListingType, getHiddenUserAddresses } from "~/lib/server/auction";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { getContractCreator } from "~/lib/contract-creator";
-import { getOrGenerateThumbnail } from "~/lib/server/thumbnail-generator";
+import { getListingPreviewsByIds } from "~/lib/server/listing-preview-store";
 import {
   getListingMediaSnapshot,
   primeListingMediaSnapshot,
@@ -32,6 +32,43 @@ const getSubgraphHeaders = (): Record<string, string> => {
   }
   return {};
 };
+
+/** Thumbnail cache reads hit Postgres; without a ceiling a stuck query blocks the whole browse batch */
+const THUMBNAIL_LOOKUP_TIMEOUT_MS = 2500;
+const HIDDEN_USERS_TIMEOUT_MS = 3500;
+
+async function lookupCachedThumbnailBounded(imageUrl: string): Promise<string | null> {
+  try {
+    const { getCachedThumbnail } = await import("./thumbnail-cache");
+    return await Promise.race([
+      getCachedThumbnail(imageUrl, "small"),
+      new Promise<string | null>((resolve) =>
+        setTimeout(() => resolve(null), THUMBNAIL_LOOKUP_TIMEOUT_MS)
+      ),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+async function getHiddenUserAddressesBounded(logLabel: string): Promise<Set<string>> {
+  const t0 = Date.now();
+  const raced = await Promise.race([
+    getHiddenUserAddresses().then((set) => ({ ok: true as const, set })),
+    new Promise<{ ok: false }>((resolve) =>
+      setTimeout(() => resolve({ ok: false }), HIDDEN_USERS_TIMEOUT_MS)
+    ),
+  ]);
+  const ms = Date.now() - t0;
+  if (!raced.ok) {
+    console.warn(`[${logLabel}] phase=hidden_users TIMEOUT — continuing without hidden-user filter`, {
+      budgetMs: HIDDEN_USERS_TIMEOUT_MS,
+    });
+    return new Set();
+  }
+  console.log(`[${logLabel}] phase=hidden_users`, { ms, count: raced.set.size });
+  return raced.set;
+}
 
 const BROWSE_LISTINGS_QUERY = gql`
   query BrowseListings($first: Int!, $skip: Int!, $orderBy: String!, $orderDirection: String!) {
@@ -208,7 +245,7 @@ export async function browseListings(
   }
   
   // Get hidden user addresses for filtering
-  const hiddenAddresses = await getHiddenUserAddresses();
+  const hiddenAddresses = await getHiddenUserAddressesBounded("Browse Listings");
   
   // Filter out cancelled listings, hidden users, and problematic auctions
   // Include finalized and sold-out listings in recent listings
@@ -240,9 +277,41 @@ export async function browseListings(
     return true;
   });
 
-  let enrichedListings: EnrichedAuctionData[] = activeListings;
+  let enrichedListings: EnrichedAuctionData[];
 
-  if (enrich) {
+  if (!enrich) {
+    enrichedListings = activeListings.map((listing) => {
+      const bidCount = listing.bids?.length || 0;
+      const highestBid =
+        listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
+      return {
+        ...listing,
+        listingType: normalizeListingType(listing.listingType, listing),
+        bidCount,
+        highestBid: highestBid
+          ? {
+              amount: highestBid.amount,
+              bidder: highestBid.bidder,
+              timestamp: highestBid.timestamp,
+            }
+          : undefined,
+      } as EnrichedAuctionData;
+    });
+
+    const previewMap = await getListingPreviewsByIds(
+      enrichedListings.map((l) => String(l.listingId)),
+    );
+    enrichedListings = enrichedListings.map((l) => {
+      const p = previewMap.get(String(l.listingId));
+      if (!p?.imageUrl && !p?.thumbnailSmallUrl && !p?.title) return l;
+      return {
+        ...l,
+        title: p.title ?? l.title,
+        image: p.imageUrl ?? l.image,
+        thumbnailUrl: p.thumbnailSmallUrl ?? p.imageUrl ?? l.thumbnailUrl,
+      } as EnrichedAuctionData;
+    });
+  } else {
     console.log('[Browse Listings] Enriching', activeListings.length, 'listings');
     
     // Collect all addresses that need user discovery
@@ -336,21 +405,9 @@ export async function browseListings(
         
         if (imageUrl && listing.status !== "CANCELLED") {
           try {
-            const { getCachedThumbnail } = await import('./thumbnail-cache');
-            
-            // OPTIMIZED: Only check cache - skip on-demand generation to avoid blocking
-            // This ensures fast page loads even if thumbnails aren't ready yet
-            // The original image will be used temporarily, and thumbnails will be ready on next load
-            const cached = await getCachedThumbnail(imageUrl, 'small');
-            if (cached) {
-              thumbnailUrl = cached;
-            } else {
-              // Not cached - use original image to avoid blocking page load
-              // Background generation will create thumbnail for next load
-              thumbnailUrl = imageUrl;
-            }
-          } catch (error) {
-            // If anything fails, use original image
+            const cached = await lookupCachedThumbnailBounded(imageUrl);
+            thumbnailUrl = cached ?? imageUrl;
+          } catch {
             thumbnailUrl = imageUrl;
           }
         }
@@ -487,7 +544,7 @@ export async function* browseListingsStreaming(
     return;
   }
   
-  const hiddenAddresses = await getHiddenUserAddresses();
+  const hiddenAddresses = await getHiddenUserAddressesBounded("Browse Listings Streaming");
   const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60; // 2592000 seconds
   
   const activeListings = data.listings.filter(listing => {
@@ -509,6 +566,11 @@ export async function* browseListingsStreaming(
     }
     
     return true;
+  });
+
+  console.log("[Browse Listings Streaming] phase=filtered", {
+    activeCount: activeListings.length,
+    subgraphRawCount: data.listings.length,
   });
 
   // Yield metadata first
@@ -554,7 +616,13 @@ export async function* browseListingsStreaming(
   
   for (let i = 0; i < activeListings.length && yieldedCount < first; i += BATCH_SIZE) {
     const batch = activeListings.slice(i, i + BATCH_SIZE);
-    
+    const batchStarted = Date.now();
+    console.log("[Browse Listings Streaming] phase=batch_start", {
+      batchOffset: i,
+      batchSize: batch.length,
+      listingIds: batch.map((l) => l.listingId),
+    });
+
     // Process batch in parallel
     const batchPromises = batch.map(async (listing) => {
       const bidCount = listing.bids?.length || 0;
@@ -611,19 +679,9 @@ export async function* browseListingsStreaming(
       
       if (imageUrl && listing.status !== "CANCELLED") {
         try {
-          const { getCachedThumbnail } = await import('./thumbnail-cache');
-          
-          // Only check cache - skip on-demand generation to avoid blocking
-          const cached = await getCachedThumbnail(imageUrl, 'small');
-          if (cached) {
-            thumbnailUrl = cached;
-          } else {
-            // Not cached - use original image to avoid blocking
-            // Background generation will create thumbnail for next load
-            thumbnailUrl = imageUrl;
-          }
-        } catch (error) {
-          // If anything fails, use original image
+          const cached = await lookupCachedThumbnailBounded(imageUrl);
+          thumbnailUrl = cached ?? imageUrl;
+        } catch {
           thumbnailUrl = imageUrl;
         }
       }
@@ -660,7 +718,7 @@ export async function* browseListingsStreaming(
 
     // Wait for batch to complete and yield each listing as it's ready
     const batchResults = await Promise.allSettled(batchPromises);
-    
+
     for (const result of batchResults) {
       if (yieldedCount >= first) break;
       
@@ -689,6 +747,13 @@ export async function* browseListingsStreaming(
         yieldedCount++;
       }
     }
+
+    console.log("[Browse Listings Streaming] phase=batch_done", {
+      batchOffset: i,
+      ms: Date.now() - batchStarted,
+      settled: batchResults.length,
+      yieldedTotal: yieldedCount,
+    });
   }
 }
 

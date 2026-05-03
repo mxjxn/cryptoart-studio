@@ -6,6 +6,7 @@ import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
 import { normalizeListingType, normalizeTokenSpec } from '~/lib/server/auction';
+import { upsertListingPreview } from '~/lib/server/listing-preview-store';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 
 // Set route timeout to 15 seconds (auction data may need more time)
@@ -387,6 +388,17 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     erc1155TotalSupply,
     erc721TotalSupply,
   };
+
+  if (metadata?.image || enriched.title) {
+    void upsertListingPreview({
+      listingId: String(listing.listingId),
+      tokenAddress: String(listing.tokenAddress),
+      tokenId: String(listing.tokenId),
+      imageUrl: metadata?.image ?? null,
+      thumbnailSmallUrl: thumbnailUrl ?? null,
+      title: enriched.title ?? null,
+    });
+  }
 
   return enriched;
 }

@@ -17,6 +17,10 @@
       "schedule": "0 0 * * *"
     },
     {
+      "path": "/api/cron/listing-previews",
+      "schedule": "0 */4 * * *"
+    },
+    {
       "path": "/api/cron/cleanup-cache",
       "schedule": "0 2 * * *"
     },
