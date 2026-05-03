@@ -35,10 +35,16 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
   return tokenSpec === "ERC1155" || String(tokenSpec) === "2";
 }
 
-const FARCON_STATIC_PREVIEW = true;
+const FARCON_STATIC_PREVIEW = false;
 const TIER1_TIMEOUT_MS = 2500;
 const TIER2_TIMEOUT_MS = 3000;
 const FEATURED_HEADER_TEXT = "Featured";
+/** Lime featured card — Kismet Casa drop (swap when the event passes). */
+const FEATURED_KISMET_EYEBROW = "Kismet Casa · tomorrow";
+const FEATURED_KISMET_HEADLINE = "Kismet Casa";
+const FEATURED_KISMET_DESCRIPTION =
+  "Six live auctions from the Rome residency that began one week ago. Participate live online on /cryptoart and in person. Place bids throughout Farcon, and be there for the concluding event on Tuesday at 4pm (UTC+2) in Rome.";
+
 /** Used until the featured `<h2>` is measured (clamp typography height is roughly 80–140px). */
 const FEATURED_HEADER_HEIGHT_FALLBACK_PX = 120;
 
@@ -95,6 +101,7 @@ const KISMET_CASA_PLACEHOLDERS: EnrichedAuctionData[] = Array.from({ length: 8 }
 type Tier1ListingCard = {
   listingId: string;
   tokenId?: string;
+  seller?: string | null;
   title: string;
   artist: string;
   description: string;
@@ -145,6 +152,7 @@ export default function HomePageClientV2() {
     KISMET_CASA_PLACEHOLDERS.map((auction) => ({
       listingId: auction.listingId,
       tokenId: auction.tokenId,
+      seller: auction.seller,
       title: auction.title || `Kismet Casa Lot ${auction.tokenId}`,
       artist: auction.artist || "Kismet Casa",
       description:
@@ -1062,12 +1070,10 @@ export default function HomePageClientV2() {
 
   const showDataDegradedNotice =
     !hideAuctionCards && (nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError);
-  const heroListingId = featuredHero?.listingId || kismetTier1Lots[0]?.listingId;
   const heroTaglineText =
     "CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what matters.";
   const heroDescriptionText =
-    featuredHero?.description ||
-    "Placeholder event gallery. Replace this copy with the real room, artist, and bidding instructions before launch.";
+    featuredHero?.description || FEATURED_KISMET_DESCRIPTION;
   const lotIntroText = "Individual lot previews. Click into a listing to place bids.";
 
   const heroTaglineMeasure = usePretextMeasure<HTMLParagraphElement>({
@@ -1241,11 +1247,11 @@ export default function HomePageClientV2() {
               <div className="absolute inset-0 bg-white/25" aria-hidden />
               <div ref={featuredCardMeasure.ref} className="relative flex min-h-[360px] flex-col justify-between p-4 sm:p-6">
                 <div className="font-space-grotesk text-sm uppercase tracking-[0.18em] text-black">
-                  FarCon Live Auctions
+                  {FEATURED_KISMET_EYEBROW}
                 </div>
                 <div className="max-w-xl">
                   <h3 className="!font-space-grotesk text-[clamp(2.5rem,12vw,6.5rem)] font-medium leading-[0.9] text-black">
-                    {featuredHero?.artist || "Kismet Casa"}
+                    {FEATURED_KISMET_HEADLINE}
                   </h3>
                   <p ref={heroDescriptionMeasure.ref} className="mt-4 max-w-md !font-space-grotesk text-sm leading-normal text-black">
                     {heroDescriptionText}
@@ -1253,7 +1259,9 @@ export default function HomePageClientV2() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
                   <span className="border border-black px-2.5 py-1 text-black">
-                    {hideAuctionCards ? "Full homepage with live lots — soon" : "All lots shown below"}
+                    {hideAuctionCards
+                      ? "6 auctions · live tomorrow"
+                      : "Six lots below · auctions open tomorrow"}
                   </span>
                 </div>
               </div>
@@ -1272,6 +1280,7 @@ export default function HomePageClientV2() {
                     description: auction.description,
                     image: auction.image || undefined,
                     thumbnailUrl: auction.thumbnailUrl || undefined,
+                    seller: auction.seller ?? KISMET_CASA_PLACEHOLDERS[index]!.seller,
                   }}
                   gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
                 />
@@ -1283,13 +1292,13 @@ export default function HomePageClientV2() {
         <div className={`flex items-center justify-between border-t border-black/20 py-2.5 font-mek-mono text-sm text-black ${gutter}`}>
           {hideAuctionCards ? (
             <>
-              <span className="text-black">CryptoArt</span>
-              <span className="text-black">more sections soon</span>
+              <span className="text-black">Kismet Casa</span>
+              <span className="text-black">6 auctions tomorrow</span>
             </>
           ) : (
             <>
-              <span className="text-black">Curated for FarCon</span>
-              <span className="text-black">live auction placeholders</span>
+              <span className="text-black">Kismet Casa</span>
+              <span className="text-black">Tomorrow · 6 live auctions</span>
             </>
           )}
         </div>
@@ -1356,6 +1365,7 @@ export default function HomePageClientV2() {
                 description: auction.description,
                 image: auction.image || undefined,
                 thumbnailUrl: auction.thumbnailUrl || undefined,
+                seller: auction.seller ?? KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!.seller,
               }}
               hydratedListing={kismetHydratedLots[auction.listingId]}
               hydrationDone={kismetHydrationDone}
