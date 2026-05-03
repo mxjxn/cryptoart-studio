@@ -672,6 +672,21 @@ function shortHexAddress(addr: string | null | undefined): string | null {
   if (!a.startsWith("0x") || a.length < 12) return a;
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
+
+/** Many token JSON files use this as a default; treat as missing so fallbacks apply. */
+function isJunkDisplayArtist(value: string | null | undefined): boolean {
+  if (value == null || typeof value !== "string") return true;
+  const v = value.trim().toLowerCase();
+  return (
+    v === "" ||
+    v === "unknown artist" ||
+    v === "unknown" ||
+    v === "n/a" ||
+    v === "null" ||
+    v === "anonymous"
+  );
+}
+
 let lastKnownRedesignSections: RedesignTieredSections | null = null;
 
 function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
@@ -679,11 +694,10 @@ function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
   const snapshot = getListingMediaSnapshot(listing.listingId);
   const title =
     snapshot?.title || listing.title || `Listing #${listing.listingId}`;
-  const artist =
-    snapshot?.artist ||
-    listing.artist ||
-    shortHexAddress(listing.seller) ||
-    "—";
+  const rawArtist = snapshot?.artist || listing.artist;
+  const artist = !isJunkDisplayArtist(rawArtist)
+    ? rawArtist!.trim()
+    : shortHexAddress(listing.seller) || "—";
   return {
     listingId: listing.listingId,
     tokenId: listing.tokenId,

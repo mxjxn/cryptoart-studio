@@ -117,6 +117,32 @@ type Tier2HydrationItem = {
   bidCount: number;
 };
 
+/** Matches server `homepage-layout` — metadata often contains this literal as a placeholder. */
+function isJunkTier1Artist(value: string | null | undefined): boolean {
+  if (value == null || typeof value !== "string") return true;
+  const v = value.trim().toLowerCase();
+  return (
+    v === "" ||
+    v === "unknown artist" ||
+    v === "unknown" ||
+    v === "n/a" ||
+    v === "null" ||
+    v === "anonymous"
+  );
+}
+
+function shortSellerLabel(seller: string | null | undefined): string {
+  if (!seller || seller.length < 12) return "—";
+  return `${seller.slice(0, 6)}…${seller.slice(-4)}`;
+}
+
+function sanitizeTier1Card(card: Tier1ListingCard): Tier1ListingCard {
+  return {
+    ...card,
+    artist: isJunkTier1Artist(card.artist) ? shortSellerLabel(card.seller) : card.artist.trim(),
+  };
+}
+
 function shouldSkipDynamicRedesignFetch(): boolean {
   if (typeof navigator === "undefined") return false;
   const nav = navigator as Navigator & {
@@ -146,7 +172,6 @@ export default function HomePageClientV2() {
   /** `NEXT_PUBLIC_HOME_TEASER=true` — same layout as the full homepage, without artwork grids, Bids, or per-lot sections. */
   const hideAuctionCards = process.env.NEXT_PUBLIC_HOME_TEASER === "true";
 
-  const [featuredHero, setFeaturedHero] = useState<Tier1ListingCard | null>(null);
   const [featuredArtworks, setFeaturedArtworks] = useState<Tier1ListingCard[]>([]);
   const [kismetTier1Lots, setKismetTier1Lots] = useState<Tier1ListingCard[]>(
     KISMET_CASA_PLACEHOLDERS.map((auction) => ({
@@ -1004,11 +1029,12 @@ export default function HomePageClientV2() {
         const data = await fetchJsonWithTimeout("/api/redesign/sections", TIER1_TIMEOUT_MS);
         if (!data?.success || !data?.sections || cancelled) return;
 
-        setFeaturedHero(data.sections.featured?.hero ?? null);
-        setFeaturedArtworks(data.sections.featured?.artworks ?? []);
+        setFeaturedArtworks(
+          (data.sections.featured?.artworks ?? []).map((c: Tier1ListingCard) => sanitizeTier1Card(c)),
+        );
 
         if (Array.isArray(data.sections.kismetLots) && data.sections.kismetLots.length > 0) {
-          setKismetTier1Lots(data.sections.kismetLots);
+          setKismetTier1Lots(data.sections.kismetLots.map((c: Tier1ListingCard) => sanitizeTier1Card(c)));
         }
         console.log(
           `[HomePageClientV2] Tier1 loaded in ${Math.round(performance.now() - startedAt)}ms`
@@ -1072,8 +1098,8 @@ export default function HomePageClientV2() {
     !hideAuctionCards && (nftSubgraphDown || editionSubgraphDown || !!nftError || !!editionError);
   const heroTaglineText =
     "CryptoArt is an auction marketplace for digital art, centered on human curation. Create galleries to surface what matters.";
-  const heroDescriptionText =
-    featuredHero?.description || FEATURED_KISMET_DESCRIPTION;
+  /** Lime card always uses curated Kismet copy — do not swap for `featuredHero.description` after tier-1 fetch (avoids flash + junk metadata). */
+  const heroDescriptionText = FEATURED_KISMET_DESCRIPTION;
   const lotIntroText = "Individual lot previews. Click into a listing to place bids.";
 
   const heroTaglineMeasure = usePretextMeasure<HTMLParagraphElement>({
