@@ -450,6 +450,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
                 src={(auction.thumbnailUrl || auction.image) ?? ''}
                 alt={title}
                 fill
+                quality={90}
                 className={`object-contain transition-opacity duration-200 pointer-events-none ${
                   imageLoading ? 'opacity-0' : 'opacity-100'
                 }`}

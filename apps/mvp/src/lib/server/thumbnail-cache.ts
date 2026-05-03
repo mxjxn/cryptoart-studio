@@ -14,7 +14,14 @@ async function getThumbnailCache(): Promise<any | null> {
 /**
  * Thumbnail size presets
  */
-export type ThumbnailSize = 'small' | 'medium' | 'large' | string;
+export type ThumbnailSize =
+  | 'small'
+  | 'medium'
+  | 'large'
+  | 'detail'
+  | 'homepage'
+  | 'embed'
+  | string;
 
 export interface ThumbnailDimensions {
   width: number;
@@ -25,11 +32,14 @@ export interface ThumbnailDimensions {
  * Size presets for common use cases
  */
 const SIZE_PRESETS: Record<string, ThumbnailDimensions> = {
-  small: { width: 400, height: 400 },   // For list views, cards (increased from 200x200 for better quality)
-  homepage: { width: 800, height: 800 }, // For homepage cards (280px display, need 2x for retina = 560px, using 800px for quality)
-  medium: { width: 500, height: 500 },  // For detail previews
-  large: { width: 1000, height: 1000 }, // For full detail views
-  embed: { width: 1180, height: 610 },   // For embeds: fits within 1200x630 with 10px margin
+  /** Market / browse cards (~280px display, ~2× retina) */
+  small: { width: 560, height: 560 },
+  homepage: { width: 800, height: 800 },
+  medium: { width: 500, height: 500 },
+  large: { width: 1000, height: 1000 },
+  /** Listing hero before fullscreen (wide / retina) */
+  detail: { width: 1400, height: 1400 },
+  embed: { width: 1180, height: 610 },
 };
 
 /**

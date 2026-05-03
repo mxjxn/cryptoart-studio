@@ -1775,7 +1775,11 @@ export default function AuctionDetailClient({
         {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
         <div className="mb-4">
           <MediaDisplay
-            imageUrl={auction.thumbnailUrl || auction.image}
+            imageUrl={
+              auction.detailThumbnailUrl ??
+              auction.image ??
+              auction.thumbnailUrl
+            }
             animationUrl={auction.metadata?.animation_url}
             animationFormat={auction.metadata?.animation_details?.format}
             alt={title}

@@ -21,6 +21,8 @@ interface MediaDisplayProps {
   /** View transition name for smooth page transitions */
   viewTransitionName?: string;
   className?: string;
+  /** Max height for inline image (default ~⅔ viewport for listing heroes) */
+  maxHeightClass?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export function MediaDisplay({
   onImageClick,
   viewTransitionName,
   className = "",
+  maxHeightClass = "max-h-[min(66vh,85dvh)]",
 }: MediaDisplayProps) {
   const [imageError, setImageError] = useState(false);
   const [animationError, setAnimationError] = useState(false);
@@ -150,7 +153,7 @@ export function MediaDisplay({
           <img
             src={displayUrl}
             alt={alt}
-            className={`max-h-[80vh] w-full object-contain transition-opacity duration-200 ${
+            className={`${maxHeightClass} w-full object-contain transition-opacity duration-200 ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
             onLoad={() => setImageLoaded(true)}
@@ -162,7 +165,7 @@ export function MediaDisplay({
           <img
             src={displayUrl}
             alt={alt}
-            className={`max-h-[80vh] w-full object-contain transition-opacity duration-200 ${
+            className={`${maxHeightClass} w-full object-contain transition-opacity duration-200 ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
             onLoad={() => setImageLoaded(true)}

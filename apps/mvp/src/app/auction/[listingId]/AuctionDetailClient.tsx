@@ -1470,9 +1470,9 @@ export default function AuctionDetailClient({
               aria-label="View artwork fullscreen"
             >
               <img
-                src={auction.image}
+                src={auction.detailThumbnailUrl ?? auction.image}
                 alt={title}
-                className="w-full max-h-[80vh] object-contain rounded-lg"
+                className="w-full max-h-[min(66vh,85dvh)] object-contain rounded-lg"
               />
             </button>
           ) : (

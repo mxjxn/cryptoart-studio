@@ -9,7 +9,7 @@ import { getCachedThumbnail } from '~/lib/server/thumbnail-cache';
  * 
  * Query parameters:
  * - imageUrl: The original image URL (required)
- * - size: Thumbnail size - 'small' (200x200), 'medium' (500x500), 'large' (1000x1000), or custom 'WxH' (optional, default: 'medium')
+ * - size: 'small' | 'medium' | 'large' | 'detail' | 'homepage' | 'embed' | WxH (default: 'medium')
  * 
  * Response:
  * {
@@ -56,11 +56,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate size format
-    const validSizes = ['small', 'medium', 'large', 'embed'];
+    const validSizes = ['small', 'medium', 'large', 'detail', 'homepage', 'embed'];
     const customSizePattern = /^\d+x\d+$/;
     if (!validSizes.includes(size) && !customSizePattern.test(size)) {
       return NextResponse.json(
-        { error: 'Invalid size. Use "small", "medium", "large", "embed", or "WxH" format' },
+        { error: 'Invalid size. Use "small", "medium", "large", "detail", "homepage", "embed", or "WxH" format' },
         { status: 400 }
       );
     }

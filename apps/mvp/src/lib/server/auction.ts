@@ -433,19 +433,43 @@ export async function getAuctionServer(
       console.warn(`[OG Image] [getAuctionServer] No tokenAddress or tokenId, skipping metadata fetch`);
     }
 
-    // Always generate a small thumbnail for consistency and reliability
-    // This ensures og-image embeds work reliably with optimized images
+    // Small thumbnail for cards/OG; detail preset for listing hero (parallel when both cold)
     let thumbnailUrl: string | undefined = undefined;
+    let detailThumbnailUrl: string | undefined = undefined;
     const imageUrl = metadata?.image;
     const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
     if (imageUrl) {
       try {
         const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
-        thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'small');
-        console.log(`[OG Image] [getAuctionServer] Generated thumbnail for listing ${listingId}`);
+        const { getCachedThumbnail } = await import('./thumbnail-cache');
+        const [smallResult, detailResult] = await Promise.allSettled([
+          getOrGenerateThumbnail(imageUrl, 'small'),
+          (async () => {
+            const cached = await getCachedThumbnail(imageUrl, 'detail');
+            if (cached) return cached;
+            return getOrGenerateThumbnail(imageUrl, 'detail');
+          })(),
+        ]);
+        thumbnailUrl =
+          smallResult.status === 'fulfilled' ? smallResult.value : imageUrl;
+        detailThumbnailUrl =
+          detailResult.status === 'fulfilled' ? detailResult.value : undefined;
+        if (smallResult.status === 'rejected') {
+          console.warn(
+            `[OG Image] [getAuctionServer] Failed small thumbnail for ${imageUrl}:`,
+            smallResult.reason
+          );
+          thumbnailUrl = imageUrl;
+        }
+        if (detailResult.status === 'rejected') {
+          console.warn(
+            `[OG Image] [getAuctionServer] Failed detail thumbnail for ${imageUrl}:`,
+            detailResult.reason
+          );
+        }
+        console.log(`[OG Image] [getAuctionServer] Thumbnails for listing ${listingId}`);
       } catch (error) {
-        console.warn(`[OG Image] [getAuctionServer] Failed to generate thumbnail for ${imageUrl}:`, error);
-        // Fall back to original image if thumbnail generation fails
+        console.warn(`[OG Image] [getAuctionServer] Failed to generate thumbnails for ${imageUrl}:`, error);
         thumbnailUrl = imageUrl;
       }
     }
@@ -486,6 +510,7 @@ export async function getAuctionServer(
       image: resolvedMedia.image,
       description: metadata?.description || mediaSnapshot?.description,
       thumbnailUrl: resolvedMedia.thumbnailUrl,
+      detailThumbnailUrl,
       metadata,
     };
     primeListingMediaSnapshot(enriched);

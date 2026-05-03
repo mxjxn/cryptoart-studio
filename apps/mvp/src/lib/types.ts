@@ -84,7 +84,9 @@ export interface EnrichedAuctionData extends AuctionData {
   description?: string;
   // Thumbnail/preview image URL (optimized for homepage display)
   thumbnailUrl?: string;
-  
+  /** Cached high-res preview for listing hero (before fullscreen); prefer over thumbnailUrl for artwork */
+  detailThumbnailUrl?: string;
+
   // Bid information
   bidCount: number;
   highestBid?: {

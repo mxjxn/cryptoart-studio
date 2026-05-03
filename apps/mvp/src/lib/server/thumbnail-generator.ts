@@ -249,6 +249,26 @@ function calculateEmbedDimensions(originalWidth: number, originalHeight: number)
   };
 }
 
+/** WebP quality by preset: market/grid lighter; listing hero heavier */
+function webpQualityForPreset(size: string | undefined): number {
+  switch (size) {
+    case 'small':
+      return 88;
+    case 'medium':
+      return 90;
+    case 'homepage':
+      return 90;
+    case 'embed':
+      return 88;
+    case 'large':
+      return 93;
+    case 'detail':
+      return 95;
+    default:
+      return 90;
+  }
+}
+
 /**
  * Fetch and resize an image to create a thumbnail
  * Requires sharp library: npm install sharp
@@ -353,7 +373,7 @@ async function resizeImage(
         fit: 'inside', // Maintain aspect ratio, fit within dimensions
         withoutEnlargement: true, // Don't enlarge small images
       })
-      .webp({ quality: 92 }) // WebP format with 92% quality (increased from 85% for better art quality)
+      .webp({ quality: webpQualityForPreset(size) })
       .toBuffer();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -377,7 +397,7 @@ async function resizeImage(
  * Generate a thumbnail for an image URL
  * 
  * @param imageUrl - Original image URL
- * @param size - Thumbnail size ('small', 'medium', 'large', 'embed', or 'WxH')
+ * @param size - Thumbnail size ('small', 'medium', 'large', 'detail', 'homepage', 'embed', or 'WxH')
  * @returns URL to the cached thumbnail
  */
 export async function generateThumbnail(
