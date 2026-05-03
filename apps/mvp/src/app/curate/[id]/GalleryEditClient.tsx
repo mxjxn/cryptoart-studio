@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
+import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
@@ -12,7 +13,7 @@ import { AuctionCard } from "~/components/AuctionCard";
 import { useUsername } from "~/hooks/useUsername";
 import { getGalleryUrl } from "~/lib/gallery-url";
 import type { EnrichedAuctionData } from "~/lib/types";
-import { APP_URL } from "~/lib/constants";
+import { APP_URL, STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 
 const gradients = [
   "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -46,6 +47,9 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const { hasAccess: hasNFTAccess, loading: isNFTAccessLoading } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
+  const hasGalleryFeatureAccess = isAdmin || hasNFTAccess;
+  const isLoadingGalleryFeatureAccess = isAdminLoading || isNFTAccessLoading;
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -227,14 +231,14 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
     ? `${APP_URL}${getGalleryUrl(data.gallery, username)}`
     : null;
 
-  // Redirect non-admins
+  // Same rule as /curate: members (NFT) or admins may use the editor — not admins-only.
   useEffect(() => {
-    if (!isAdminLoading && !isAdmin) {
+    if (!isLoadingGalleryFeatureAccess && !hasGalleryFeatureAccess) {
       router.replace("/");
     }
-  }, [isAdmin, isAdminLoading, router]);
+  }, [hasGalleryFeatureAccess, isLoadingGalleryFeatureAccess, router]);
 
-  if (isAdminLoading) {
+  if (isLoadingGalleryFeatureAccess) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -248,7 +252,7 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
     );
   }
 
-  if (!isAdmin) {
+  if (!hasGalleryFeatureAccess) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -256,7 +260,7 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
           <ProfileDropdown />
         </header>
         <div className="px-5 py-12 text-center">
-          <p className="text-[#cccccc]">Unauthorized</p>
+          <p className="text-[#cccccc]">Gallery features are available to members only.</p>
         </div>
       </div>
     );
