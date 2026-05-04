@@ -2,6 +2,8 @@ import { gql, request } from 'graphql-request';
 import {
   asc,
   eq,
+  curation,
+  curationItems,
   featuredSectionItems,
   featuredSections,
   getDatabase,
@@ -658,6 +660,45 @@ export interface RedesignTieredSections {
     artworks: Tier1ListingCard[];
   };
   kismetLots: Tier1ListingCard[];
+  /** When set, homepage Kismet strip uses these full rows (same order as `kismetLots`). */
+  kismetFullListings?: EnrichedAuctionData[];
+}
+
+/** Default featured gallery for redesign hero strip. Override with `HOMEPAGE_FEATURED_GALLERY_ID`. */
+const DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID = 'c3a947fa-da84-480e-a702-add1cfdeb8f7';
+const HOMEPAGE_FEATURED_GALLERY_MAX_LOTS = 12;
+
+async function getPublishedGalleryListingsEnriched(
+  galleryId: string
+): Promise<EnrichedAuctionData[]> {
+  const id = galleryId.trim();
+  if (!id) return [];
+  try {
+    const db = getDatabase();
+    const [gallery] = await db.select().from(curation).where(eq(curation.id, id)).limit(1);
+    if (!gallery?.isPublished) {
+      console.warn(
+        `[RedesignTier1] Gallery ${id} not found or not published — falling back to browse listings for kismet strip`
+      );
+      return [];
+    }
+    const items = await db
+      .select()
+      .from(curationItems)
+      .where(eq(curationItems.curationId, id))
+      .orderBy(asc(curationItems.displayOrder));
+    if (items.length === 0) return [];
+
+    const rows = await Promise.all(
+      items
+        .slice(0, HOMEPAGE_FEATURED_GALLERY_MAX_LOTS)
+        .map((item) => getAuctionServer(item.listingId))
+    );
+    return rows.filter((r): r is EnrichedAuctionData => r != null);
+  } catch (e) {
+    console.error('[RedesignTier1] Failed to load featured gallery listings', e);
+    return [];
+  }
 }
 
 const REDESIGN_TIER1_LIMIT = 12;
@@ -714,6 +755,10 @@ function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
 }
 
 async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSections> {
+  const featuredGalleryId =
+    process.env.HOMEPAGE_FEATURED_GALLERY_ID?.trim() || DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID;
+  const galleryListings = await getPublishedGalleryListingsEnriched(featuredGalleryId);
+
   const { listings } = await browseListings({
     first: REDESIGN_TIER1_LIMIT,
     skip: 0,
@@ -728,11 +773,21 @@ async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSe
 
   const hero = tier1Listings[0] || null;
   const artworks = tier1Listings.slice(0, 4);
-  const kismetLots = tier1Listings.slice(0, 8);
+
+  let kismetLots: Tier1ListingCard[];
+  let kismetFullListings: EnrichedAuctionData[] | undefined;
+  if (galleryListings.length > 0) {
+    kismetLots = galleryListings.map(toTier1Card);
+    kismetFullListings = galleryListings;
+  } else {
+    kismetLots = tier1Listings.slice(0, 8);
+    kismetFullListings = undefined;
+  }
 
   const resolved = {
     featured: { hero, artworks },
     kismetLots,
+    kismetFullListings,
   };
   lastKnownRedesignSections = resolved;
   return resolved;
@@ -744,6 +799,7 @@ async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTiered
     ({
       featured: { hero: null, artworks: [] },
       kismetLots: [],
+      kismetFullListings: undefined,
     } satisfies RedesignTieredSections);
 
   const startedAt = Date.now();
@@ -761,7 +817,7 @@ async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTiered
 
 export const getRedesignTieredSections = unstable_cache(
   async () => resolveRedesignTieredSectionsWithBudget(),
-  ["redesign-tiered-sections-v1"],
+  ["redesign-tiered-sections-v2-gallery"],
   {
     revalidate: 120,
     tags: ["redesign-tiered-sections"],
