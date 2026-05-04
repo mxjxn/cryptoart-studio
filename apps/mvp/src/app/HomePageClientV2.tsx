@@ -181,7 +181,10 @@ async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+    });
     if (!response.ok) {
       throw new Error(`Request failed: ${response.status}`);
     }
@@ -1319,8 +1322,10 @@ export default function HomePageClientV2() {
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
                   <span className="border border-black px-2.5 py-1 text-black">
                     {hideAuctionCards
-                      ? `${kismetLotCount || 6} auctions · live tomorrow`
-                      : `${kismetLotCount || 6} lots below · auctions open tomorrow`}
+                      ? "6 auctions · live tomorrow"
+                      : kismetLotCount > 0
+                        ? `${kismetLotCount} lots below · auctions open tomorrow`
+                        : "Featured lots unavailable — refresh shortly"}
                   </span>
                 </div>
               </div>
@@ -1346,13 +1351,15 @@ export default function HomePageClientV2() {
           {hideAuctionCards ? (
             <>
               <span className="text-black">Kismet Casa</span>
-              <span className="text-black">{kismetLotCount || 6} auctions tomorrow</span>
+              <span className="text-black">6 auctions tomorrow</span>
             </>
           ) : (
             <>
               <span className="text-black">Kismet Casa</span>
               <span className="text-black">
-                Tomorrow · {kismetLotCount || 6} live {kismetLotCount === 1 ? "auction" : "auctions"}
+                {kismetLotCount > 0
+                  ? `Tomorrow · ${kismetLotCount} live ${kismetLotCount === 1 ? "auction" : "auctions"}`
+                  : "Featured strip — waiting for listings"}
               </span>
             </>
           )}
@@ -1483,6 +1490,11 @@ function formatStaticEth(amount: string | undefined) {
   }
 }
 
+function listingArtworkUrl(auction: EnrichedAuctionData): string | undefined {
+  const u = auction.thumbnailUrl || auction.image || auction.metadata?.image;
+  return typeof u === "string" && u.trim().length > 0 ? u.trim() : undefined;
+}
+
 function StaticArtworkTile({
   auction,
   gradient,
@@ -1490,13 +1502,37 @@ function StaticArtworkTile({
   auction: EnrichedAuctionData;
   gradient: string;
 }) {
+  const artUrl = listingArtworkUrl(auction);
   return (
     <div className="min-h-[160px] border border-black/15 bg-black p-2 text-white">
-      <div className="flex h-full flex-col justify-between p-2" style={{ background: gradient }}>
-        <span className="self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
+      <div className="relative flex min-h-[140px] flex-col justify-between overflow-hidden p-2">
+        {artUrl ? (
+          <>
+            <Image
+              src={artUrl}
+              alt={auction.title || "Listing"}
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 45vw, 200px"
+              unoptimized
+            />
+            <div
+              className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/25 to-black/10"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-0 z-[1] opacity-50 mix-blend-soft-light"
+              style={{ background: gradient }}
+              aria-hidden
+            />
+          </>
+        ) : (
+          <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
+        )}
+        <span className="relative z-10 self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
           Lot {auction.tokenId}
         </span>
-        <div className="bg-black/70 p-2 font-space-grotesk text-xs">
+        <div className="relative z-10 bg-black/70 p-2 font-space-grotesk text-xs">
           <p className="truncate">{auction.title}</p>
           <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
         </div>
@@ -1639,6 +1675,8 @@ function KismetLotSection({
     return `${Math.max(minutes, 1)}m`;
   })();
 
+  const heroArtUrl = listingArtworkUrl(auction);
+
   return (
     <motion.article
       ref={sectionRef}
@@ -1654,18 +1692,39 @@ function KismetLotSection({
           willChange: shouldAnimate ? "transform, opacity" : undefined,
         }}
       >
-        <div
-          className="relative flex min-h-[52svh] flex-shrink-0 flex-col justify-end overflow-hidden bg-black sm:min-h-[56svh]"
-          style={{ background: gradient }}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-black/10" />
-          <div className="absolute left-2 top-2 z-10 bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
+        <div className="relative flex min-h-[52svh] flex-shrink-0 flex-col justify-end overflow-hidden bg-black sm:min-h-[56svh]">
+          {heroArtUrl ? (
+            <>
+              <Image
+                src={heroArtUrl}
+                alt={auction.title || "Listing artwork"}
+                fill
+                className="z-0 object-cover object-center"
+                sizes="100vw"
+                unoptimized
+                priority={false}
+              />
+              <div
+                className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black via-black/50 to-black/20"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute inset-0 z-[1] opacity-35 mix-blend-soft-light"
+                style={{ background: gradient }}
+                aria-hidden
+              />
+            </>
+          ) : (
+            <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
+          )}
+          <div className="pointer-events-none absolute inset-0 z-[2] bg-black/10" />
+          <div className="absolute left-2 top-2 z-[3] bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
             Lot {auction.tokenId}
           </div>
-          <div className="absolute right-2 top-2 z-10 border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
+          <div className="absolute right-2 top-2 z-[3] border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
             {listingType === "INDIVIDUAL_AUCTION" ? "Auction" : "Open sale"}
           </div>
-          <div className="relative z-[1] bg-gradient-to-t from-black/65 to-transparent px-0 pb-8 pt-16 sm:px-5 md:px-8 lg:px-12 xl:px-16">
+          <div className="relative z-[3] bg-gradient-to-t from-black/65 to-transparent px-0 pb-8 pt-16 sm:px-5 md:px-8 lg:px-12 xl:px-16">
             <h3 className="truncate font-space-grotesk text-[clamp(2rem,7vw,4.5rem)] font-medium leading-[0.9] text-white">
               {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
             </h3>

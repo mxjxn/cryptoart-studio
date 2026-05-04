@@ -9,6 +9,7 @@ import {
   featuredSections,
   getDatabase,
   homepageLayoutSections,
+  sql,
 } from '@cryptoart/db';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { getAuctionServer, fetchActiveAuctionsUncached, normalizeListingType, normalizeTokenSpec, getHiddenUserAddresses } from '~/lib/server/auction';
@@ -710,13 +711,14 @@ async function resolveFeaturedGalleryUuidForHomepage(): Promise<string> {
     }
     if (!slug || !addr) return null;
     const db = getDatabase();
+    const addrLower = addr.toLowerCase();
     const [g] = await db
       .select({ id: curation.id })
       .from(curation)
       .where(
         and(
           eq(curation.slug, slug),
-          eq(curation.curatorAddress, addr),
+          sql`lower(${curation.curatorAddress}) = ${addrLower}`,
           eq(curation.isPublished, true)
         )
       )
@@ -986,7 +988,7 @@ async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTiered
 
 export const getRedesignTieredSections = unstable_cache(
   async () => resolveRedesignTieredSectionsWithBudget(),
-  ["redesign-tiered-sections-v5-timeout-slug"],
+  ["redesign-tiered-sections-v6-curator-ci"],
   {
     revalidate: 120,
     tags: ["redesign-tiered-sections"],
