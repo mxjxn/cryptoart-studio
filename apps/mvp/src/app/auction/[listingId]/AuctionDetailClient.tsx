@@ -74,6 +74,25 @@ export default function AuctionDetailClient({
   const isMiniAppInstalled = context?.client?.added ?? false;
   const { auction, loading, updateAuction } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
+
+  /** Countdown clock + overlay fallbacks: must run before any early return (Rules of Hooks). */
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+  const auctionImageOverlayFallbackSrcs = useMemo(() => {
+    if (!auction) return [];
+    return [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
+      (u): u is string =>
+        typeof u === "string" &&
+        u.length > 0 &&
+        !!auction.image &&
+        u !== auction.image
+    );
+  }, [auction?.thumbnailUrl, auction?.detailThumbnailUrl, auction?.image]);
   const publicClient = usePublicClient();
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
@@ -227,7 +246,29 @@ export default function AuctionDetailClient({
   }, [auction, isPaymentETH, erc20Token.isLoading, erc20Token.symbol]);
   
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
-  
+
+  const shareText = useMemo(() => {
+    if (!auction || auction.status === "CANCELLED") return "";
+    const displayCreatorName = auction.artist || creatorName;
+    const displayCreatorAddress = creatorAddress || auction.seller;
+    return generateListingShareText(
+      auction,
+      contractName || undefined,
+      displayCreatorName || undefined,
+      displayCreatorAddress || undefined,
+      undefined,
+      paymentSymbol,
+      paymentDecimals
+    );
+  }, [
+    auction,
+    contractName,
+    creatorName,
+    creatorAddress,
+    paymentSymbol,
+    paymentDecimals,
+  ]);
+
   // Helper function to convert token address to CAIP-19 format
   const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
     if (!tokenAddress || isETH(tokenAddress)) return undefined;
@@ -1224,7 +1265,7 @@ export default function AuctionDetailClient({
       try {
         // Check if back navigation is supported
         const capabilities = await sdk.getCapabilities();
-        if (capabilities.includes("back")) {
+        if (Array.isArray(capabilities) && capabilities.includes("back")) {
           // Enable web navigation integration (automatically handles browser history)
           await sdk.back.enableWebNavigation();
 
@@ -1277,37 +1318,16 @@ export default function AuctionDetailClient({
   const currentPrice = auction.highestBid?.amount || auction.initialAmount;
   const endTime = parseInt(auction.endTime);
   const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
-  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   const isActive = endTime > now && auction.status === "ACTIVE";
   const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
-  const auctionImageOverlayFallbackSrcs = useMemo(
-    () =>
-      [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
-        (u): u is string =>
-          typeof u === "string" &&
-          u.length > 0 &&
-          !!auction.image &&
-          u !== auction.image
-      ),
-    [auction.thumbnailUrl, auction.detailThumbnailUrl, auction.image]
-  );
   // Use metadata artist, then resolved creator name from contract
   const displayCreatorName = auction.artist || creatorName;
   // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
   const displayCreatorAddress = creatorAddress || auction.seller;
   const bidCount = auction.bidCount || 0;
   const hasBid = bidCount > 0 || !!auction.highestBid;
-  
-  // Update countdown every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Math.floor(Date.now() / 1000));
-    }, 60000); // Update every minute
-    
-    return () => clearInterval(interval);
-  }, []);
-  
+
   // Check if the current user is the auction seller
   const isOwnAuction = isConnected && address && auction.seller && 
     address.toLowerCase() === auction.seller.toLowerCase();
@@ -1320,20 +1340,6 @@ export default function AuctionDetailClient({
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
   const canFinalize = isConnected && !isActive && !isCancelled && auction.status !== "FINALIZED";
   const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
-
-  // Generate share text
-  const shareText = useMemo(() => {
-    if (!auction || isCancelled) return "";
-    return generateListingShareText(
-      auction,
-      contractName || undefined,
-      displayCreatorName || undefined,
-      displayCreatorAddress || undefined,
-      undefined, // creatorUsername not available in this file
-      paymentSymbol,
-      paymentDecimals
-    );
-  }, [auction, contractName, displayCreatorName, displayCreatorAddress, paymentSymbol, paymentDecimals, isCancelled]);
 
   return (
     <div className="min-h-screen bg-black text-white">

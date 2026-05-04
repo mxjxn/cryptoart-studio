@@ -1528,7 +1528,7 @@ export default function CreateAuctionClient() {
       try {
         // Check if back navigation is supported
         const capabilities = await sdk.getCapabilities();
-        if (capabilities.includes('back')) {
+        if (Array.isArray(capabilities) && capabilities.includes('back')) {
           // Enable web navigation integration (automatically handles browser history)
           await sdk.back.enableWebNavigation();
           
