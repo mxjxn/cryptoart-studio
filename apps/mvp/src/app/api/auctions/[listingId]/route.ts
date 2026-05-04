@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { request, gql } from 'graphql-request';
 import { unstable_cache } from 'next/cache';
 import { CHAIN_ID } from '~/lib/contracts/marketplace';
+import { pickDisplayTitle } from '~/lib/metadata-display';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
 import { Address } from 'viem';
@@ -358,30 +359,30 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
       const { getOrGenerateThumbnail } = await import("~/lib/server/thumbnail-generator");
       const { getCachedThumbnail } = await import("~/lib/server/thumbnail-cache");
       const image = metadata.image;
-      const [smallResult, detailResult] = await Promise.allSettled([
-        getOrGenerateThumbnail(image, "small"),
-        (async () => {
-          const cached = await getCachedThumbnail(image, "detail");
-          if (cached) return cached;
-          return getOrGenerateThumbnail(image, "detail");
-        })(),
-      ]);
-      thumbnailUrl =
-        smallResult.status === "fulfilled" ? smallResult.value : image;
-      detailThumbnailUrl =
-        detailResult.status === "fulfilled" ? detailResult.value : undefined;
-      if (smallResult.status === "rejected") {
+      // Await small thumb only — detail generation on large images can exceed the route
+      // wall clock and cause 504s; hero falls back to `image` until detail exists in cache.
+      let smallThumb: string | undefined;
+      try {
+        smallThumb = await getOrGenerateThumbnail(image, "small");
+      } catch (e) {
         console.warn(
           `[fetchAuctionData] Failed to generate small thumbnail for ${image}:`,
-          smallResult.reason
+          e
         );
-        thumbnailUrl = image;
       }
-      if (detailResult.status === "rejected") {
-        console.warn(
-          `[fetchAuctionData] Failed to generate detail thumbnail for ${image}:`,
-          detailResult.reason
-        );
+      thumbnailUrl = smallThumb ?? image;
+      detailThumbnailUrl = (await getCachedThumbnail(image, "detail")) ?? undefined;
+      if (!detailThumbnailUrl) {
+        void (async () => {
+          try {
+            await getOrGenerateThumbnail(image, "detail");
+          } catch (e) {
+            console.warn(
+              `[fetchAuctionData] Background detail thumbnail failed for ${image}:`,
+              e
+            );
+          }
+        })();
       }
     } catch (error) {
       console.warn(
@@ -419,7 +420,7 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     } : undefined,
     // Include full bid history for auction detail pages
     bids: listing.bids || [],
-    title: metadata?.title || metadata?.name,
+    title: pickDisplayTitle(metadata) ?? metadata?.title ?? metadata?.name,
     artist: metadata?.artist || metadata?.creator,
     image: metadata?.image,
     thumbnailUrl,

@@ -1,4 +1,5 @@
 import type { EnrichedAuctionData } from "~/lib/types";
+import { pickDisplayTitle } from "~/lib/metadata-display";
 import { formatPreOpenAuctionTiming } from "~/lib/time-utils";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getArtistNameServer } from "~/lib/server/artist-name";
@@ -164,7 +165,10 @@ export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
 
   // Prepare text content
   const title = truncate(
-    auction.title || auction.metadata?.title || `Auction #${auction.listingId}`,
+    auction.title ||
+      pickDisplayTitle(auction.metadata) ||
+      auction.metadata?.title ||
+      `Auction #${auction.listingId}`,
     50
   );
   const collectionName = contractName ? truncate(contractName, 30) : null;
