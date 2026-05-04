@@ -37,9 +37,12 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
 }
 
 const FARCON_STATIC_PREVIEW = false;
+/** Reliability mode: keep Kismet lots static on homepage (no placeholder/live swap). */
+const HOMEPAGE_KISMET_STATIC_ONLY = true;
 /** Must exceed server `REDESIGN_TIER1_TIMEOUT_MS` (~55s) or fetches abort and placeholders never clear. */
 const TIER1_TIMEOUT_MS = 60_000;
-const TIER2_TIMEOUT_MS = 3000;
+/** Per-lot `getAuctionServer` + Neynar; must stay under route `maxDuration` and below client abort. */
+const TIER2_TIMEOUT_MS = 40_000;
 const FEATURED_HEADER_TEXT = "Featured";
 /** Lime featured card — Kismet Casa drop (swap when the event passes). */
 const FEATURED_KISMET_EYEBROW = "Kismet Casa · tomorrow";
@@ -61,46 +64,178 @@ const KISMET_GRADIENTS = [
   "linear-gradient(135deg, #dcf54c 0%, #f5acd1 55%, #ff0402 100%)",
 ];
 
-const KISMET_CASA_PLACEHOLDERS: EnrichedAuctionData[] = Array.from({ length: 8 }, (_, index) => {
-  const n = index + 1;
-  const amount = BigInt(n + 1) * 1000000000000000n;
-  const listingType = index % 3 === 0 ? "INDIVIDUAL_AUCTION" : "FIXED_PRICE";
-  return {
-    id: `kismet-placeholder-${n}`,
-    listingId: `kismet-placeholder-${n}`,
-    marketplace: "0x0000000000000000000000000000000000000000",
-    seller: "0x1111111111111111111111111111111111111111",
-    tokenAddress: "0x2222222222222222222222222222222222222222",
-    tokenId: String(n),
+const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
+  {
+    id: "129",
+    listingId: "129",
+    marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
+    seller: "0x1216083be36842278fb3cf9c3f56b7792ecc359b",
+    tokenAddress: "0x2d40ef321f02f0293a82a95b13422224a6934e48",
+    tokenId: "1",
     tokenSpec: "ERC721",
-    listingType,
-    initialAmount: amount.toString(),
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "100000000000000000",
     totalAvailable: "1",
     totalPerSale: "1",
-    startTime: "0",
-    endTime: "0",
+    startTime: "1777887900",
+    endTime: "1777992300",
     lazy: false,
     status: "ACTIVE",
     finalized: false,
     totalSold: "0",
-    currentPrice: amount.toString(),
-    createdAt: String(1777460000 + n),
-    createdAtBlock: String(30000000 + n),
-    bidCount: listingType === "INDIVIDUAL_AUCTION" ? n : 0,
-    highestBid: listingType === "INDIVIDUAL_AUCTION"
-      ? {
-          amount: amount.toString(),
-          bidder: `0x${String(n).repeat(40).slice(0, 40)}`,
-          timestamp: String(1777460000 + n),
-        }
-      : undefined,
-    title: `Kismet Casa Lot ${n}`,
-    artist: "Kismet Casa",
-    description: "Placeholder auction item for the FarCon live bidding preview.",
-  };
-});
+    currentPrice: "100000000000000000",
+    createdAt: "1777887331",
+    createdAtBlock: "45548992",
+    bidCount: 0,
+    title: "the edge of morrow",
+    artist: "tinyrainboot",
+    description: "Kismet Casa Rome auction lot.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/a71cb9afef3c39e6.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/a71cb9afef3c39e6.webp",
+  },
+  {
+    id: "127",
+    listingId: "127",
+    marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
+    seller: "0x6da0a1784de1abdde1734ba37eca3d560bf044c0",
+    tokenAddress: "0xb6fcc95d41e2d69179123d46016bd9dd3a43b9cf",
+    tokenId: "3",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "100000000000000000",
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1777887240",
+    endTime: "1777992300",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "100000000000000000",
+    createdAt: "1777886703",
+    createdAtBlock: "45548678",
+    bidCount: 0,
+    title: "Focal Point Tiburtina",
+    artist: "mxjxn.eth",
+    description: "Kismet Casa Rome auction lot.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/2778d25daac520b6.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/2778d25daac520b6.webp",
+  },
+  {
+    id: "133",
+    listingId: "133",
+    marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
+    seller: "0xa0be5a9b02b7b7290f89e4e2a01faf46ef00baf5",
+    tokenAddress: "0x52e696c69938df205d3526be4ee308964a34f3ab",
+    tokenId: "1",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "100000000000000000",
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1777895160",
+    endTime: "1777992300",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "100000000000000000",
+    createdAt: "1777894587",
+    createdAtBlock: "45552620",
+    bidCount: 0,
+    title: "EYE KISS",
+    artist: "dwn2erth.eth",
+    description: "Kismet Casa Rome auction lot.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/a5a1975b45df57e8.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/a5a1975b45df57e8.webp",
+  },
+  {
+    id: "130",
+    listingId: "130",
+    marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
+    seller: "0xfb287a6c936e6f5ee0e49700125aa5f8da4c262a",
+    tokenAddress: "0x928a1ccf1f7f17904b9ff181d037765f9960fc78",
+    tokenId: "4",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "14000000000000000",
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1777888800",
+    endTime: "1777992300",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "14000000000000000",
+    createdAt: "1777887593",
+    createdAtBlock: "45549123",
+    bidCount: 0,
+    title: "VESTIGIUM IV",
+    artist: "0xfb28…262a",
+    description: "Kismet Casa Rome auction lot.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/046175eb67066229.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/046175eb67066229.webp",
+  },
+  {
+    id: "131",
+    listingId: "131",
+    marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
+    seller: "0x6c1cbe8cfc32a74188a9d3bf364945ea53b01b04",
+    tokenAddress: "0x08ab6b515c1152fbfd6945428d64b81a1519df17",
+    tokenId: "1",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "100000000000000000",
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1777894860",
+    endTime: "1777992300",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "100000000000000000",
+    createdAt: "1777894303",
+    createdAtBlock: "45552478",
+    bidCount: 0,
+    title: "\" The Traveler \"",
+    artist: "turro",
+    description: "Kismet Casa Rome auction lot.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/e47b6c9a2acbac5b.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/e47b6c9a2acbac5b.webp",
+  },
+  {
+    id: "132",
+    listingId: "132",
+    marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
+    seller: "0x6c1cbe8cfc32a74188a9d3bf364945ea53b01b04",
+    tokenAddress: "0x08ab6b515c1152fbfd6945428d64b81a1519df17",
+    tokenId: "2",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "100000000000000000",
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1777894920",
+    endTime: "1777992300",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "100000000000000000",
+    createdAt: "1777894341",
+    createdAtBlock: "45552497",
+    bidCount: 0,
+    title: "\" Litoral valley \"",
+    artist: "turro",
+    description: "Kismet Casa Rome auction lot.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/690a9b560148fa02.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/690a9b560148fa02.webp",
+  },
+];
 
-/** Prefer full gallery rows from the API; otherwise merge tier-1 cards with placeholder stubs. */
+/** Prefer full gallery rows from the API; otherwise merge tier-1 cards with static Kismet rows. */
 function tier1CardToDisplayAuction(
   card: Tier1ListingCard,
   index: number,
@@ -111,7 +246,7 @@ function tier1CardToDisplayAuction(
     // Tier-1 API resolves "by …" from listing seller (Farcaster); full rows still carry metadata artist (e.g. gallery name).
     return { ...full, artist: card.artist };
   }
-  const ph = KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!;
+  const ph = KISMET_STATIC_LOTS[index % KISMET_STATIC_LOTS.length]!;
   return {
     ...ph,
     listingId: card.listingId,
@@ -142,7 +277,43 @@ type Tier2HydrationItem = {
   listingType: string;
   status: string;
   bidCount: number;
+  startTime?: string;
+  endTime?: string;
+  seller?: string | null;
+  /** Seller → Farcaster username (or short hex) from `/api/redesign/hydration`. */
+  creatorLabel?: string;
 };
+
+const ZERO_SELLER_HYDRATION = "0x0000000000000000000000000000000000000000";
+
+function mergeKismetAuctionWithHydration(
+  auction: EnrichedAuctionData,
+  h?: Tier2HydrationItem,
+): EnrichedAuctionData {
+  if (!h) return auction;
+  const startOk = h.startTime != null && h.startTime !== "" && h.startTime !== "0";
+  const endOk = h.endTime != null && h.endTime !== "" && h.endTime !== "0";
+  const sellerOk =
+    h.seller != null &&
+    typeof h.seller === "string" &&
+    h.seller.trim().toLowerCase() !== ZERO_SELLER_HYDRATION;
+  const creatorOk =
+    typeof h.creatorLabel === "string" &&
+    h.creatorLabel.trim().length > 0 &&
+    h.creatorLabel.trim() !== "—";
+
+  return {
+    ...auction,
+    startTime: startOk ? h.startTime! : auction.startTime,
+    endTime: endOk ? h.endTime! : auction.endTime,
+    seller: sellerOk ? h.seller! : auction.seller,
+    listingType: (h.listingType || auction.listingType) as EnrichedAuctionData["listingType"],
+    status: (h.status || auction.status) as EnrichedAuctionData["status"],
+    bidCount: h.bidCount ?? auction.bidCount,
+    currentPrice: h.currentPrice || auction.currentPrice,
+    artist: creatorOk ? h.creatorLabel!.trim() : auction.artist,
+  };
+}
 
 /** Matches server `homepage-layout` — metadata often contains this literal as a placeholder. */
 function isJunkTier1Artist(value: string | null | undefined): boolean {
@@ -164,9 +335,12 @@ function shortSellerLabel(seller: string | null | undefined): string {
 }
 
 function sanitizeTier1Card(card: Tier1ListingCard): Tier1ListingCard {
+  const trimmed = (card.artist ?? "").trim();
+  const artistMissing =
+    isJunkTier1Artist(card.artist) || trimmed === "—" || trimmed === "-" || trimmed === "…";
   return {
     ...card,
-    artist: isJunkTier1Artist(card.artist) ? shortSellerLabel(card.seller) : card.artist.trim(),
+    artist: artistMissing ? shortSellerLabel(card.seller) : trimmed,
   };
 }
 
@@ -204,12 +378,12 @@ export default function HomePageClientV2() {
 
   const [featuredArtworks, setFeaturedArtworks] = useState<Tier1ListingCard[]>([]);
   const [kismetTier1Lots, setKismetTier1Lots] = useState<Tier1ListingCard[]>(
-    KISMET_CASA_PLACEHOLDERS.map((auction) => ({
+    KISMET_STATIC_LOTS.map((auction) => ({
       listingId: auction.listingId,
       tokenId: auction.tokenId,
       seller: auction.seller,
-      title: auction.title || `Kismet Casa Lot ${auction.tokenId}`,
-      artist: auction.artist || "Kismet Casa",
+      title: auction.title || "Listing",
+      artist: auction.artist || "—",
       description:
         auction.description ||
         "Limited lot preview. Open listing for full details and bidding controls.",
@@ -218,12 +392,14 @@ export default function HomePageClientV2() {
     }))
   );
   const [kismetHydratedLots, setKismetHydratedLots] = useState<Record<string, Tier2HydrationItem>>({});
-  const [kismetHydrationDone, setKismetHydrationDone] = useState(false);
+  const [kismetHydrationDone, setKismetHydrationDone] = useState(HOMEPAGE_KISMET_STATIC_ONLY);
   /** Full enriched rows when homepage strip is backed by a published gallery (`/api/redesign/sections`). */
-  const [kismetFullListings, setKismetFullListings] = useState<EnrichedAuctionData[] | null>(null);
+  const [kismetFullListings, setKismetFullListings] = useState<EnrichedAuctionData[] | null>(
+    HOMEPAGE_KISMET_STATIC_ONLY ? KISMET_STATIC_LOTS : null,
+  );
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>(
-    FARCON_STATIC_PREVIEW ? KISMET_CASA_PLACEHOLDERS : [],
+    FARCON_STATIC_PREVIEW ? KISMET_STATIC_LOTS : [],
   );
   const [nftExpandedListings, setNftExpandedListings] = useState<EnrichedAuctionData[]>([]);
   const [nftLoading, setNftLoading] = useState(!FARCON_STATIC_PREVIEW);
@@ -237,7 +413,7 @@ export default function HomePageClientV2() {
 
   // Recent Editions (ERC1155) state
   const [editionListings, setEditionListings] = useState<EnrichedAuctionData[]>(
-    FARCON_STATIC_PREVIEW ? KISMET_CASA_PLACEHOLDERS.slice(0, 4) : [],
+    FARCON_STATIC_PREVIEW ? KISMET_STATIC_LOTS.slice(0, 4) : [],
   );
   const [editionExpandedListings, setEditionExpandedListings] = useState<EnrichedAuctionData[]>([]);
   const [editionLoading, setEditionLoading] = useState(!FARCON_STATIC_PREVIEW);
@@ -1052,6 +1228,25 @@ export default function HomePageClientV2() {
     let cancelled = false;
 
     const loadTier1 = async () => {
+      if (HOMEPAGE_KISMET_STATIC_ONLY) {
+        // Keep Kismet lots deterministic and immediate; no network dependency for these six cards.
+        setKismetTier1Lots(
+          KISMET_STATIC_LOTS.map((lot) =>
+            sanitizeTier1Card({
+              listingId: lot.listingId,
+              tokenId: lot.tokenId,
+              seller: lot.seller,
+              title: lot.title || "Listing",
+              artist: lot.artist || "—",
+              description: lot.description || "Kismet Casa Rome auction lot.",
+              image: lot.image || null,
+              thumbnailUrl: lot.thumbnailUrl || lot.image || null,
+            }),
+          ),
+        );
+        setKismetFullListings(KISMET_STATIC_LOTS);
+        return;
+      }
       const startedAt = performance.now();
       if (shouldSkipDynamicRedesignFetch()) {
         console.log("[HomePageClientV2] Skipping tier1 dynamic fetch on constrained network");
@@ -1090,7 +1285,7 @@ export default function HomePageClientV2() {
   }, []);
 
   useEffect(() => {
-    if (hideAuctionCards) {
+    if (hideAuctionCards || HOMEPAGE_KISMET_STATIC_ONLY) {
       setKismetHydrationDone(true);
       return;
     }
@@ -1421,7 +1616,10 @@ export default function HomePageClientV2() {
             <KismetLotSection
               key={auction.listingId}
               shouldAnimate={shouldAnimate}
-              auction={tier1CardToDisplayAuction(auction, index, kismetFullListings)}
+              auction={mergeKismetAuctionWithHydration(
+                tier1CardToDisplayAuction(auction, index, kismetFullListings),
+                kismetHydratedLots[auction.listingId],
+              )}
               hydratedListing={kismetHydratedLots[auction.listingId]}
               hydrationDone={kismetHydrationDone}
               gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
@@ -1610,11 +1808,9 @@ function KismetLotSection({
     return `${Math.round(t * 20)}px`;
   });
 
-  const displayListing = hydratedListing || auction;
-  const listingType = ((displayListing as Tier2HydrationItem).listingType || auction.listingType || "FIXED_PRICE");
-  const price = formatStaticEth(
-    (displayListing as Tier2HydrationItem).currentPrice || auction.currentPrice || auction.initialAmount
-  );
+  /** Parent merges `/api/redesign/hydration` into `auction` so pricing/times/creator stay consistent per lot. */
+  const listingType = auction.listingType || "FIXED_PRICE";
+  const price = formatStaticEth(auction.currentPrice || auction.initialAmount);
   const isAuction = listingType === "INDIVIDUAL_AUCTION";
   const listingTypeLabel =
     listingType === "INDIVIDUAL_AUCTION"
@@ -1622,8 +1818,8 @@ function KismetLotSection({
       : listingType === "OFFERS_ONLY"
         ? "Offers only"
         : "Fixed price";
-  const listingStatus = (displayListing as Tier2HydrationItem).status || auction.status || "UNKNOWN";
-  const bidCount = (displayListing as Tier2HydrationItem).bidCount || auction.bidCount || 0;
+  const listingStatus = auction.status || "UNKNOWN";
+  const bidCount = auction.bidCount || 0;
   const bidInfo = isAuction ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : "Buy now";
   const highestBidAmount = auction.highestBid?.amount
     ? formatStaticEth(auction.highestBid.amount)
@@ -1775,11 +1971,13 @@ function KismetLotSection({
             </div>
           </div>
 
-          {!hydratedListing && (
+          {!hydrationDone ? (
+            <p className="mt-2 font-mek-mono text-xs text-[#8f8f8f]">Loading live listing details…</p>
+          ) : !hydratedListing ? (
             <p className="mt-2 font-mek-mono text-xs text-[#8f8f8f]">
-              Loading enriched listing details{hydrationDone ? "." : "..."}
+              Live refresh unavailable for this lot. Open the listing for authoritative timing and seller info.
             </p>
-          )}
+          ) : null}
 
           <div className="mt-3">
             <TransitionLink
