@@ -102,8 +102,28 @@ export function DurationSelector({ value, onChange, disabled = false }: Duration
     </div>
   );
 
+  const presetSeconds = [
+    { label: "24h", seconds: 86400 },
+    { label: "3d", seconds: 3 * 86400 },
+    { label: "7d", seconds: 7 * 86400 },
+  ] as const;
+
   return (
-    <div className="flex items-center gap-4">
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {presetSeconds.map(({ label, seconds }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onChange(seconds)}
+            disabled={disabled}
+            className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:border-neutral-400 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-4">
       <NumberCounter
         value={weeks}
         onIncrement={() => handleWeeksChange(1)}
@@ -125,6 +145,7 @@ export function DurationSelector({ value, onChange, disabled = false }: Duration
         label="hours"
         max={23}
       />
+      </div>
     </div>
   );
 }

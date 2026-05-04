@@ -4,7 +4,17 @@ import { useState, useEffect, useMemo } from "react";
 import { useERC20Token } from "~/hooks/useERC20Token";
 import { DurationSelector } from "./DurationSelector";
 import { NumberSelector } from "./NumberSelector";
-import { DateSelector, getMinDateTime, getMaxDateTime, getDateTimeAfterHours } from "./DateSelector";
+import {
+  DateSelector,
+  getMaxDateTime,
+  getDateTimeAfterHours,
+  getDefaultScheduledListingStart,
+  DEFAULT_SCHEDULED_RUN_HOURS,
+  getListingScheduleStartMin,
+  getQuickScheduledListingRange,
+} from "./DateSelector";
+import { getKismetCasaShortcutScheduleTimes } from "~/lib/kismet-casa-schedule";
+import { KismetCasaScheduleShortcutButton } from "./KismetCasaScheduleShortcutButton";
 
 interface ERC721AuctionConfigPageProps {
   contractAddress: string;
@@ -20,6 +30,8 @@ interface ERC721AuctionConfigPageProps {
     durationSeconds: number;
   }) => void;
   isSubmitting?: boolean;
+  /** When true, show temporary Kismet Casa one-tap schedule (gated by env + wallet in parent). */
+  showKismetCasaScheduleShortcut?: boolean;
 }
 
 /**
@@ -31,6 +43,7 @@ export function ERC721AuctionConfigPage({
   onBack,
   onSubmit,
   isSubmitting = false,
+  showKismetCasaScheduleShortcut = false,
 }: ERC721AuctionConfigPageProps) {
   const [reservePrice, setReservePrice] = useState("0.1"); // Sensible default
   const [paymentType, setPaymentType] = useState<"ETH" | "ERC20">("ETH");
@@ -48,18 +61,32 @@ export function ERC721AuctionConfigPage({
   const [endTimeValid, setEndTimeValid] = useState(true);
   const [endTimeError, setEndTimeError] = useState<string | undefined>();
 
-  // Auto-fill start time when switching to start/end mode
+  // Entering calendar mode: seed defaults (deps only on mode so clearing the start field is not overwritten)
   useEffect(() => {
-    if (timeMode === "start_end" && !startTime) {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
-      const hours = String(now.getHours()).padStart(2, "0");
-      const minutes = String(now.getMinutes()).padStart(2, "0");
-      setStartTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+    if (timeMode !== "start_end") return;
+    if (!startTime) {
+      const s = getDefaultScheduledListingStart();
+      setStartTime(s);
+      setEndTime(getDateTimeAfterHours(s, DEFAULT_SCHEDULED_RUN_HOURS));
+    } else if (!endTime) {
+      setEndTime(getDateTimeAfterHours(startTime, DEFAULT_SCHEDULED_RUN_HOURS));
     }
-  }, [timeMode, startTime]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run only when switching to start/end mode
+  }, [timeMode]);
+
+  // Keep end filled and at least ~1h after start when dates change
+  useEffect(() => {
+    if (timeMode !== "start_end" || !startTime) return;
+    if (!endTime) {
+      setEndTime(getDateTimeAfterHours(startTime, DEFAULT_SCHEDULED_RUN_HOURS));
+      return;
+    }
+    const sMs = new Date(startTime).getTime();
+    const eMs = new Date(endTime).getTime();
+    if (!Number.isNaN(sMs) && !Number.isNaN(eMs) && eMs <= sMs + 60 * 60 * 1000) {
+      setEndTime(getDateTimeAfterHours(startTime, DEFAULT_SCHEDULED_RUN_HOURS));
+    }
+  }, [timeMode, startTime, endTime]);
 
   const erc20Token = useERC20Token(paymentType === "ERC20" ? erc20Address : undefined);
   const isValidERC20 = paymentType === "ETH" || (paymentType === "ERC20" && erc20Token.isValid);
@@ -197,6 +224,15 @@ export function ERC721AuctionConfigPage({
 
       {/* Time Choice */}
       <div>
+        <KismetCasaScheduleShortcutButton
+          visible={showKismetCasaScheduleShortcut}
+          onApply={() => {
+            setTimeMode("start_end");
+            const { start, end } = getKismetCasaShortcutScheduleTimes();
+            setStartTime(start);
+            setEndTime(end);
+          }}
+        />
         <label className="mb-3 block text-sm font-medium text-neutral-700">Auction timing</label>
         <div className="mb-4 space-y-3">
           <label className="flex items-center gap-2">
@@ -240,17 +276,42 @@ export function ERC721AuctionConfigPage({
               you can match calendars or block explorers exactly.
             </p>
             {/* Start Time */}
-            <DateSelector
-              value={startTime}
-              onChange={setStartTime}
-              onValidationChange={(isValid, error) => {
-                setStartTimeValid(isValid);
-                setStartTimeError(error);
-              }}
-              min={getMinDateTime()}
-              max={getMaxDateTime(10)}
-              label="Start Time"
-            />
+            <div>
+              <DateSelector
+                value={startTime}
+                onChange={setStartTime}
+                onValidationChange={(isValid, error) => {
+                  setStartTimeValid(isValid);
+                  setStartTimeError(error);
+                }}
+                min={getListingScheduleStartMin()}
+                max={getMaxDateTime(10)}
+                label="Start Time"
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-neutral-600">Start in:</span>
+                {(
+                  [
+                    { label: "15 min", minutes: 15 },
+                    { label: "1 hr", minutes: 60 },
+                    { label: "24 hr", minutes: 24 * 60 },
+                  ] as const
+                ).map(({ label, minutes }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      const { start, end } = getQuickScheduledListingRange(minutes);
+                      setStartTime(start);
+                      setEndTime(end);
+                    }}
+                    className="rounded border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* End Time with Quick Options */}
             <div>
@@ -261,7 +322,7 @@ export function ERC721AuctionConfigPage({
                   setEndTimeValid(isValid);
                   setEndTimeError(error);
                 }}
-                min={startTime ? getDateTimeAfterHours(startTime, 1) : getMinDateTime()}
+                min={startTime ? getDateTimeAfterHours(startTime, 1) : getListingScheduleStartMin()}
                 max={getMaxDateTime(10)}
                 label="End Time"
                 required

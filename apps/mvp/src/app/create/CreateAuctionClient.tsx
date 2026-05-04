@@ -28,6 +28,7 @@ import { ERC721FixedPriceConfigPage } from "~/components/create-listing/ERC721Fi
 import { ERC721OffersOnlyPage } from "~/components/create-listing/ERC721OffersOnlyPage";
 import { ShareableMomentButton } from "~/components/ShareableMomentButton";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
+import { viewerMatchesKismetCasaScheduleShortcut } from "~/lib/kismet-casa-schedule";
 import { isPlainDurationSecondsString } from "~/lib/create-listing-endtime";
 
 // ERC165 interface IDs
@@ -171,6 +172,12 @@ export default function CreateAuctionClient() {
     
     return addresses;
   }, [isMiniAppContext, context?.user, address]);
+
+  const showKismetCasaScheduleShortcut = useMemo(
+    () => viewerMatchesKismetCasaScheduleShortcut(allVerifiedAddresses),
+    [allVerifiedAddresses],
+  );
+
   const router = useRouter();
   const { isSDKLoaded } = useMiniApp();
   // Use the effective address context detection instead of separate hook
@@ -1735,6 +1742,7 @@ export default function CreateAuctionClient() {
                       onBack={handleWizardBack}
                       onSubmit={handleERC1155Submit}
                       isSubmitting={isSubmitting}
+                      showKismetCasaScheduleShortcut={showKismetCasaScheduleShortcut}
                     />
                   )}
                 </>
@@ -1825,6 +1833,7 @@ export default function CreateAuctionClient() {
                 onBack={handleWizardBack}
                 onSubmit={handleERC721AuctionSubmit}
                 isSubmitting={isSubmitting}
+                showKismetCasaScheduleShortcut={showKismetCasaScheduleShortcut}
               />
             </>
           )}
@@ -1851,6 +1860,7 @@ export default function CreateAuctionClient() {
                 onBack={handleWizardBack}
                 onSubmit={handleERC721FixedPriceSubmit}
                 isSubmitting={isSubmitting}
+                showKismetCasaScheduleShortcut={showKismetCasaScheduleShortcut}
               />
             </>
           )}

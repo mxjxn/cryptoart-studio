@@ -184,6 +184,48 @@ export function getDateTimeAfterHours(datetimeStr: string, hours: number): strin
   return `${year}-${month}-${day}T${hrs}:${mins}`;
 }
 
+/** `datetime-local` value (minute precision) for a Date in the user's local zone */
+export function formatDateAsDatetimeLocal(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
 
+/**
+ * Now + `minutesFromNow`, seconds cleared — for HTML datetime-local defaults.
+ */
+export function getDateTimeMinutesFromNow(minutesFromNow: number): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() + minutesFromNow);
+  return formatDateAsDatetimeLocal(d);
+}
 
+/**
+ * First selectable start for on-chain listings: the contract requires `startTime > block.timestamp`
+ * at create time, so "right now" in the picker often reverts — use a short buffer.
+ */
+export function getDefaultScheduledListingStart(): string {
+  return getDateTimeMinutesFromNow(15);
+}
+
+/** Typical default auction / sale length when picking calendar mode (1 week). */
+export const DEFAULT_SCHEDULED_RUN_HOURS = 24 * 7;
+
+/** Min `datetime-local` for listing start pickers — a few minutes ahead of “now”. */
+export function getListingScheduleStartMin(): string {
+  return getDateTimeMinutesFromNow(10);
+}
+
+/** One-tap start (relative to now) plus default 7-day run length for calendar listings. */
+export function getQuickScheduledListingRange(minutesFromNow: number): { start: string; end: string } {
+  const start = getDateTimeMinutesFromNow(minutesFromNow);
+  return {
+    start,
+    end: getDateTimeAfterHours(start, DEFAULT_SCHEDULED_RUN_HOURS),
+  };
+}
 
