@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type CSSProperties } from "react";
 import { getMediaType, getMediaTypeFromFormat, type MediaType } from "~/lib/media-utils";
+import { rewritePublicIpfsUrlForClient } from "~/lib/ipfs-gateway-public-url";
 import { AudioPlayer } from "./AudioPlayer";
 import { VideoPlayer } from "./VideoPlayer";
 import { ModelViewer } from "./ModelViewer";
@@ -125,6 +126,8 @@ export function MediaDisplay({
   // Default: Display image
   const displayUrl = imageUrl || animationUrl;
 
+  const imgSrc = displayUrl ? rewritePublicIpfsUrlForClient(displayUrl) : "";
+
   if (!displayUrl || imageError) {
     const placeholderStyle: CSSProperties = {
       viewTransitionName,
@@ -159,7 +162,7 @@ export function MediaDisplay({
           aria-label="View artwork fullscreen"
         >
           <img
-            src={displayUrl}
+            src={imgSrc}
             alt={alt}
             className={`${maxHeightClass} w-full object-contain transition-opacity duration-200 ${
               imageLoaded ? "opacity-100" : "opacity-0"
@@ -171,7 +174,7 @@ export function MediaDisplay({
       ) : (
         <div className="relative z-10 block w-full">
           <img
-            src={displayUrl}
+            src={imgSrc}
             alt={alt}
             className={`${maxHeightClass} w-full object-contain transition-opacity duration-200 ${
               imageLoaded ? "opacity-100" : "opacity-0"
