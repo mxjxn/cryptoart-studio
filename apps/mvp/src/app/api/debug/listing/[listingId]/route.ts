@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 import { base } from "viem/chains";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
+import { formatBiddingWindowAfterStart } from "~/lib/time-utils";
 import { request as graphqlRequest } from "graphql-request";
 
 // ERC1155 ABI for balance check
@@ -283,6 +284,11 @@ export async function GET(
       // Check if endTime looks like "never expires" (max uint48 or very large value)
       const isNeverExpiring = contractEndTime > 4000000000; // After year 2096
 
+      const YEAR_2000 = 946684800;
+      const biddingWindowSeconds =
+        contractEndTime > contractStartTime ? contractEndTime - contractStartTime : 0;
+      const biddingWindowLabel = formatBiddingWindowAfterStart(contractStartTime, contractEndTime);
+
       comparison.timing = {
         now,
         nowFormatted: safeFormatTime(now),
@@ -295,6 +301,14 @@ export async function GET(
           hasEnded: !isNeverExpiring && now >= contractEndTime,
           isActive: (contractStartTime === 0 || now >= contractStartTime) && (isNeverExpiring || now < contractEndTime),
           isNeverExpiring,
+          biddingWindowSeconds,
+          biddingWindowLabel,
+          endTimeSemantics:
+            contractStartTime > 0
+              ? "When startTime > 0, endTime is an absolute unix timestamp (auction close), not a duration. Small endTime values (< year ~2000 unix) would be invalid as closings."
+              : "When startTime === 0, endTime is a duration in seconds until first bid; the contract then rewrites endTime to an absolute timestamp.",
+          endTimeLooksLikeDurationMistake:
+            contractStartTime > 0 && contractEndTime > 0 && contractEndTime < YEAR_2000,
         },
         subgraph: {
           startTime: subgraphStartTime,

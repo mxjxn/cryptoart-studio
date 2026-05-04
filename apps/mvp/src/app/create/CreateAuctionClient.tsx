@@ -29,6 +29,7 @@ import { ERC721OffersOnlyPage } from "~/components/create-listing/ERC721OffersOn
 import { ShareableMomentButton } from "~/components/ShareableMomentButton";
 import { useMembershipStatus } from "~/hooks/useMembershipStatus";
 import { viewerMatchesKismetCasaScheduleShortcut } from "~/lib/kismet-casa-schedule";
+import { isPlainDurationSecondsString } from "~/lib/create-listing-endtime";
 
 // ERC165 interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -1065,9 +1066,11 @@ export default function CreateAuctionClient() {
         // OFFERS_ONLY listings are already handled above - this branch is for other types
         // Check if endTime is already a duration (number string) or a date string
         // When useDuration=true, endTime is set to String(durationSeconds), which is a number
-        const endTimeAsNumber = parseInt(effectiveFormData.endTime, 10);
-        const isDurationString = !isNaN(endTimeAsNumber) && endTimeAsNumber > 0 && endTimeAsNumber < 100000000; // Less than ~3 years in seconds
-        
+        const isDurationString = isPlainDurationSecondsString(effectiveFormData.endTime);
+        const endTimeAsNumber = isDurationString
+          ? parseInt(effectiveFormData.endTime.trim(), 10)
+          : NaN;
+
         if (startTime === 0) {
           // startTime=0 means auction starts on first bid
           if (isDurationString) {

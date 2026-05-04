@@ -22,6 +22,7 @@ import {
   useTransform,
 } from "framer-motion";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { formatPreOpenAuctionTiming } from "~/lib/time-utils";
 import { usePretextMeasure } from "~/hooks/usePretextMeasure";
 
 
@@ -1596,8 +1597,17 @@ function KismetLotSection({
   const startsAt = formatTime(auction.startTime, "On first interaction");
   const endsAt = formatTime(auction.endTime, listingType === "OFFERS_ONLY" ? "No end" : "Not set");
   const endTimeSeconds = Number(auction.endTime || "0");
+  const startTimeSeconds = Number(auction.startTime || "0");
   const nowSeconds = Math.floor(Date.now() / 1000);
+  const auctionNotYetOpen =
+    isAuction &&
+    Number.isFinite(startTimeSeconds) &&
+    startTimeSeconds > 0 &&
+    nowSeconds < startTimeSeconds;
   const remainingLabel = (() => {
+    if (auctionNotYetOpen) {
+      return formatPreOpenAuctionTiming(startTimeSeconds, endTimeSeconds, nowSeconds);
+    }
     if (!Number.isFinite(endTimeSeconds) || endTimeSeconds <= 0) {
       return listingType === "OFFERS_ONLY" ? "No end" : "Not set";
     }
@@ -1664,7 +1674,7 @@ function KismetLotSection({
               </div>
               <div className="sm:text-right">
                 <p className="font-mek-mono text-[10px] uppercase tracking-[0.14em] text-[#8f8f8f]">
-                  Remaining time
+                  {auctionNotYetOpen ? "Auction timing" : "Remaining time"}
                 </p>
                 <p className="mt-1 font-space-grotesk text-[clamp(1.35rem,4.2vw,2rem)] leading-none text-white">
                   {remainingLabel}
