@@ -5,6 +5,7 @@ import { generateSlug } from '~/lib/utils/slug';
 import { hasGalleryAccess } from '~/lib/server/nft-access';
 import { prerenderGalleryOGImage } from '~/lib/server/gallery-og-prerender';
 import { getUserFromCache } from '~/lib/server/user-cache';
+import { isAdminAddress } from '~/lib/server/admin';
 import { isAddress } from 'viem';
 
 /**
@@ -36,11 +37,13 @@ export async function GET(
       );
     }
     
-    // Check if user can view (must be owner or published)
+    // Check if user can view: published (anyone), owner, or admin (draft support for ops)
     const normalizedAddress = userAddress?.toLowerCase();
-    const isOwner = normalizedAddress && gallery.curatorAddress.toLowerCase() === normalizedAddress;
-    
-    if (!gallery.isPublished && !isOwner) {
+    const isOwner =
+      !!normalizedAddress && gallery.curatorAddress.toLowerCase() === normalizedAddress;
+    const isAdmin = isAdminAddress(userAddress);
+
+    if (!gallery.isPublished && !isOwner && !isAdmin) {
       return NextResponse.json(
         { error: 'Gallery not found' },
         { status: 404 }
