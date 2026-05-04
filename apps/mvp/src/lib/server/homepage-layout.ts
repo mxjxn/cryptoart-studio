@@ -16,6 +16,7 @@ import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import { type Address } from 'viem';
 import { unstable_cache } from "next/cache";
 import { getListingMediaSnapshot, primeListingMediaSnapshot } from "~/lib/server/listing-metadata-refresh";
+import { getListingPreviewsByIds } from "~/lib/server/listing-preview-store";
 import { withTimeout } from "~/lib/utils";
 
 type SectionType =
@@ -668,6 +669,56 @@ export interface RedesignTieredSections {
 const DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID = 'c3a947fa-da84-480e-a702-add1cfdeb8f7';
 const HOMEPAGE_FEATURED_GALLERY_MAX_LOTS = 12;
 
+const REDESIGN_TIER1_LIMIT = 12;
+/** Browse enrichment batches metadata; keep headroom so first paint is real titles/artists, not subgraph-only stubs. */
+const REDESIGN_TIER1_TIMEOUT_MS = 18_000;
+const REDESIGN_FALLBACK_DESCRIPTION =
+  "Curated listing preview. Open the listing for live auction activity.";
+
+/**
+ * When subgraph `getAuctionServer` misses (indexing lag, hidden filter, etc.) but we have a
+ * `listing_media_preview` row, still surface the lot on the homepage strip.
+ */
+function minimalEnrichedFromListingPreview(
+  listingId: string,
+  preview: {
+    tokenAddress: string;
+    tokenId: string;
+    title?: string | null;
+    imageUrl?: string | null;
+    thumbnailSmallUrl?: string | null;
+  },
+): EnrichedAuctionData {
+  const now = String(Math.floor(Date.now() / 1000));
+  return {
+    id: listingId,
+    listingId,
+    marketplace: "0x0000000000000000000000000000000000000000",
+    seller: "0x0000000000000000000000000000000000000000",
+    tokenAddress: preview.tokenAddress,
+    tokenId: String(preview.tokenId),
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "0",
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "0",
+    endTime: "0",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "0",
+    createdAt: now,
+    createdAtBlock: "0",
+    bidCount: 0,
+    title: preview.title ?? `Listing #${listingId}`,
+    image: preview.imageUrl ?? undefined,
+    thumbnailUrl: preview.thumbnailSmallUrl ?? preview.imageUrl ?? undefined,
+    description: REDESIGN_FALLBACK_DESCRIPTION,
+  };
+}
+
 async function getPublishedGalleryListingsEnriched(
   galleryId: string
 ): Promise<EnrichedAuctionData[]> {
@@ -676,9 +727,13 @@ async function getPublishedGalleryListingsEnriched(
   try {
     const db = getDatabase();
     const [gallery] = await db.select().from(curation).where(eq(curation.id, id)).limit(1);
-    if (!gallery?.isPublished) {
+    if (!gallery) {
+      console.warn(`[RedesignTier1] Gallery row not found for id=${id}`);
+      return [];
+    }
+    if (!gallery.isPublished) {
       console.warn(
-        `[RedesignTier1] Gallery ${id} not found or not published — falling back to browse listings for kismet strip`
+        `[RedesignTier1] Gallery ${id} exists but is_published=false — homepage strip will not use it`
       );
       return [];
     }
@@ -687,25 +742,42 @@ async function getPublishedGalleryListingsEnriched(
       .from(curationItems)
       .where(eq(curationItems.curationId, id))
       .orderBy(asc(curationItems.displayOrder));
-    if (items.length === 0) return [];
+    if (items.length === 0) {
+      console.warn(`[RedesignTier1] Gallery ${id} has zero curation_items`);
+      return [];
+    }
 
-    const rows = await Promise.all(
-      items
-        .slice(0, HOMEPAGE_FEATURED_GALLERY_MAX_LOTS)
-        .map((item) => getAuctionServer(item.listingId))
+    const slice = items.slice(0, HOMEPAGE_FEATURED_GALLERY_MAX_LOTS);
+    const listingIds = slice.map((it) => String(it.listingId));
+    const previews = await getListingPreviewsByIds(listingIds);
+
+    const rows: (EnrichedAuctionData | null)[] = await Promise.all(
+      slice.map(async (item) => {
+        const lid = String(item.listingId);
+        const full = await getAuctionServer(lid);
+        if (full) return full;
+        const p = previews.get(lid);
+        if (p?.tokenAddress) {
+          console.warn(
+            `[RedesignTier1] getAuctionServer returned null for listingId=${lid}; using listing_media_preview fallback`
+          );
+          return minimalEnrichedFromListingPreview(lid, p);
+        }
+        console.warn(`[RedesignTier1] No subgraph row and no preview for listingId=${lid}`);
+        return null;
+      })
     );
-    return rows.filter((r): r is EnrichedAuctionData => r != null);
+
+    const out = rows.filter((r): r is EnrichedAuctionData => r != null);
+    console.log(
+      `[RedesignTier1] Gallery ${id}: ${items.length} items in DB, ${out.length} resolved for homepage`
+    );
+    return out;
   } catch (e) {
     console.error('[RedesignTier1] Failed to load featured gallery listings', e);
     return [];
   }
 }
-
-const REDESIGN_TIER1_LIMIT = 12;
-/** Browse enrichment batches metadata; keep headroom so first paint is real titles/artists, not subgraph-only stubs. */
-const REDESIGN_TIER1_TIMEOUT_MS = 18_000;
-const REDESIGN_FALLBACK_DESCRIPTION =
-  "Curated listing preview. Open the listing for live auction activity.";
 
 function shortHexAddress(addr: string | null | undefined): string | null {
   if (!addr || typeof addr !== "string") return null;
@@ -757,19 +829,29 @@ function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
 async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSections> {
   const featuredGalleryId =
     process.env.HOMEPAGE_FEATURED_GALLERY_ID?.trim() || DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID;
-  const galleryListings = await getPublishedGalleryListingsEnriched(featuredGalleryId);
 
-  const { listings } = await browseListings({
-    first: REDESIGN_TIER1_LIMIT,
-    skip: 0,
-    orderBy: "createdAt",
-    orderDirection: "desc",
-    enrich: true,
-  });
+  const [galleryListings, browseResult] = await Promise.all([
+    getPublishedGalleryListingsEnriched(featuredGalleryId),
+    browseListings({
+      first: REDESIGN_TIER1_LIMIT,
+      skip: 0,
+      orderBy: "createdAt",
+      orderDirection: "desc",
+      enrich: true,
+    }),
+  ]);
 
+  const { listings } = browseResult;
   const tier1Listings = listings
     .filter((listing) => listing.status !== "CANCELLED")
     .map(toTier1Card);
+
+  if (tier1Listings.length === 0) {
+    console.warn("[RedesignTier1] Browse returned no tier-1 listings", {
+      subgraphDown: browseResult.subgraphDown,
+      rawCount: listings.length,
+    });
+  }
 
   const hero = tier1Listings[0] || null;
   const artworks = tier1Listings.slice(0, 4);
@@ -782,6 +864,12 @@ async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSe
   } else {
     kismetLots = tier1Listings.slice(0, 8);
     kismetFullListings = undefined;
+  }
+
+  if (kismetLots.length === 0 && tier1Listings.length === 0) {
+    console.warn("[RedesignTier1] Both gallery strip and browse tier-1 are empty", {
+      featuredGalleryId,
+    });
   }
 
   const resolved = {
@@ -817,7 +905,7 @@ async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTiered
 
 export const getRedesignTieredSections = unstable_cache(
   async () => resolveRedesignTieredSectionsWithBudget(),
-  ["redesign-tiered-sections-v2-gallery"],
+  ["redesign-tiered-sections-v4-preview-fallback"],
   {
     revalidate: 120,
     tags: ["redesign-tiered-sections"],
