@@ -1775,8 +1775,10 @@ export default function AuctionDetailClient({
   const isWinner = isConnected && address && auction.highestBid?.bidder &&
     address.toLowerCase() === auction.highestBid.bidder.toLowerCase();
   
-  // Check if cancellation is allowed (seller can only cancel if no bids and active)
-  const canCancel = isOwnAuction && bidCount === 0 && isActive && !isCancelled;
+  // Seller cancel matches contract: no bids, listing still active — not tied to `isActive`
+  // (scheduled / start-on-first-bid before first bid had `isActive` false and hid this control).
+  const canCancel =
+    isOwnAuction && !hasBid && !isCancelled && auction.status === "ACTIVE";
   const isCancelLoading = isCancelling || isConfirmingCancel;
   
   // Check contract state for potential issues
