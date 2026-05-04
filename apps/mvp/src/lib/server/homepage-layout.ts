@@ -1,5 +1,6 @@
 import { gql, request } from 'graphql-request';
 import {
+  and,
   asc,
   eq,
   curation,
@@ -15,6 +16,7 @@ import { browseListings } from '~/lib/server/browse-listings';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import { type Address } from 'viem';
 import { unstable_cache } from "next/cache";
+import { lookupNeynarByUsername } from "~/lib/artist-name-resolution";
 import { getListingMediaSnapshot, primeListingMediaSnapshot } from "~/lib/server/listing-metadata-refresh";
 import { getListingPreviewsByIds } from "~/lib/server/listing-preview-store";
 import { withTimeout } from "~/lib/utils";
@@ -670,10 +672,85 @@ const DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID = 'c3a947fa-da84-480e-a702-add1cfdeb8
 const HOMEPAGE_FEATURED_GALLERY_MAX_LOTS = 12;
 
 const REDESIGN_TIER1_LIMIT = 12;
-/** Browse enrichment batches metadata; keep headroom so first paint is real titles/artists, not subgraph-only stubs. */
-const REDESIGN_TIER1_TIMEOUT_MS = 18_000;
+/**
+ * Wall-clock budget for gallery + browse tier-1 (runs in parallel). Must stay under the
+ * `/api/redesign/sections` route `maxDuration` (60s). Previously 18s caused empty fallbacks
+ * whenever subgraph + metadata enrichment ran long.
+ */
+const REDESIGN_TIER1_TIMEOUT_MS = 55_000;
+/** Per-lot subgraph+metadata cap so one slow listing does not burn the whole budget. */
+const REDESIGN_GALLERY_PER_LISTING_MS = 9_000;
 const REDESIGN_FALLBACK_DESCRIPTION =
   "Curated listing preview. Open the listing for live auction activity.";
+
+/** Matches public URL `/user/kismet/gallery/kismet-casa-rome-auction` when the legacy UUID is absent. */
+const DEFAULT_FEATURED_GALLERY_SLUG = "kismet-casa-rome-auction";
+const DEFAULT_FEATURED_CURATOR_USERNAME = "kismet";
+
+/**
+ * Resolve which gallery powers the redesign strip: explicit UUID env, slug env, DB default UUID row, then slug fallback.
+ */
+async function resolveFeaturedGalleryUuidForHomepage(): Promise<string> {
+  const explicitId = process.env.HOMEPAGE_FEATURED_GALLERY_ID?.trim();
+  if (explicitId) return explicitId;
+
+  const slugEnv = process.env.HOMEPAGE_FEATURED_GALLERY_SLUG?.trim();
+  const curatorAddrEnv = process.env.HOMEPAGE_FEATURED_CURATOR_ADDRESS?.trim().toLowerCase();
+  const curatorUserEnv = process.env.HOMEPAGE_FEATURED_CURATOR_USERNAME?.trim();
+
+  const findPublishedBySlug = async (
+    slug: string,
+    curatorAddr: string | undefined,
+    curatorUsername: string | undefined,
+  ): Promise<string | null> => {
+    let addr = curatorAddr;
+    if (!addr && curatorUsername) {
+      const nu = await lookupNeynarByUsername(curatorUsername);
+      addr = nu?.address?.toLowerCase() ?? undefined;
+    }
+    if (!slug || !addr) return null;
+    const db = getDatabase();
+    const [g] = await db
+      .select({ id: curation.id })
+      .from(curation)
+      .where(
+        and(
+          eq(curation.slug, slug),
+          eq(curation.curatorAddress, addr),
+          eq(curation.isPublished, true)
+        )
+      )
+      .limit(1);
+    return g?.id ?? null;
+  };
+
+  if (slugEnv) {
+    const id = await findPublishedBySlug(slugEnv, curatorAddrEnv, curatorUserEnv);
+    if (id) return id;
+  }
+
+  const db = getDatabase();
+  const [uuidRow] = await db
+    .select({ id: curation.id })
+    .from(curation)
+    .where(eq(curation.id, DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID))
+    .limit(1);
+  if (uuidRow) return DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID;
+
+  const slugFallback = await findPublishedBySlug(
+    DEFAULT_FEATURED_GALLERY_SLUG,
+    undefined,
+    DEFAULT_FEATURED_CURATOR_USERNAME,
+  );
+  if (slugFallback) {
+    console.log(
+      `[RedesignTier1] Featured gallery UUID not in DB; using slug ${DEFAULT_FEATURED_CURATOR_USERNAME}/${DEFAULT_FEATURED_GALLERY_SLUG} -> ${slugFallback}`
+    );
+    return slugFallback;
+  }
+
+  return DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID;
+}
 
 /**
  * When subgraph `getAuctionServer` misses (indexing lag, hidden filter, etc.) but we have a
@@ -754,7 +831,12 @@ async function getPublishedGalleryListingsEnriched(
     const rows: (EnrichedAuctionData | null)[] = await Promise.all(
       slice.map(async (item) => {
         const lid = String(item.listingId);
-        const full = await getAuctionServer(lid);
+        const full = await Promise.race([
+          getAuctionServer(lid),
+          new Promise<EnrichedAuctionData | null>((resolve) =>
+            setTimeout(() => resolve(null), REDESIGN_GALLERY_PER_LISTING_MS)
+          ),
+        ]);
         if (full) return full;
         const p = previews.get(lid);
         if (p?.tokenAddress) {
@@ -827,8 +909,7 @@ function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
 }
 
 async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSections> {
-  const featuredGalleryId =
-    process.env.HOMEPAGE_FEATURED_GALLERY_ID?.trim() || DEFAULT_HOMEPAGE_FEATURED_GALLERY_ID;
+  const featuredGalleryId = await resolveFeaturedGalleryUuidForHomepage();
 
   const [galleryListings, browseResult] = await Promise.all([
     getPublishedGalleryListingsEnriched(featuredGalleryId),
@@ -905,7 +986,7 @@ async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTiered
 
 export const getRedesignTieredSections = unstable_cache(
   async () => resolveRedesignTieredSectionsWithBudget(),
-  ["redesign-tiered-sections-v4-preview-fallback"],
+  ["redesign-tiered-sections-v5-timeout-slug"],
   {
     revalidate: 120,
     tags: ["redesign-tiered-sections"],
