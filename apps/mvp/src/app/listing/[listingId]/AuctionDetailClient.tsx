@@ -1727,6 +1727,22 @@ export default function AuctionDetailClient({
   /** Fullscreen zoom: prefer detail, then full source, then small thumb. */
   const listingFullscreenImageUrl =
     auction.detailThumbnailUrl ?? auction.image ?? auction.thumbnailUrl;
+  /** If primary fullscreen URL fails (e.g. ipfs.io), try cached thumbs next. */
+  const listingImageOverlayFallbackSrcs = useMemo(
+    () =>
+      [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
+        (u): u is string =>
+          typeof u === "string" &&
+          u.length > 0 &&
+          !!listingFullscreenImageUrl &&
+          u !== listingFullscreenImageUrl
+      ),
+    [
+      auction.thumbnailUrl,
+      auction.detailThumbnailUrl,
+      listingFullscreenImageUrl,
+    ]
+  );
   // bidCount already calculated above
   const hasBid = bidCount > 0 || !!auction.highestBid;
   
@@ -1994,6 +2010,7 @@ export default function AuctionDetailClient({
         })() && (
           <ImageOverlay
             src={listingFullscreenImageUrl!}
+            fallbackSrcs={listingImageOverlayFallbackSrcs}
             alt={title}
             isOpen={isImageOverlayOpen}
             onClose={() => setIsImageOverlayOpen(false)}
