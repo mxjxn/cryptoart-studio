@@ -1,23 +1,50 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { rewritePublicIpfsUrlForClient } from "~/lib/ipfs-gateway-public-url";
 
 interface ImageOverlayProps {
   src: string;
+  /** Tried in order if `src` fails to load (e.g. flaky ipfs.io full file → cached WebP thumb). */
+  fallbackSrcs?: string[];
   alt: string;
   isOpen: boolean;
   onClose: () => void;
+}
+
+function dedupeUrls(urls: (string | undefined | null)[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const u of urls) {
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
 }
 
 /**
  * Full-screen image overlay for viewing artwork at maximum size.
  * Adapts layout for mini-app (true fullscreen) vs web (slight padding).
  */
-export function ImageOverlay({ src, alt, isOpen, onClose }: ImageOverlayProps) {
+export function ImageOverlay({ src, fallbackSrcs, alt, isOpen, onClose }: ImageOverlayProps) {
   const { isMiniApp } = useAuthMode();
+
+  const candidateUrls = useMemo(
+    () => dedupeUrls([src, ...(fallbackSrcs ?? [])]).map((u) => rewritePublicIpfsUrlForClient(u)),
+    [src, fallbackSrcs]
+  );
+
+  const [attemptIndex, setAttemptIndex] = useState(0);
+  const displaySrc = candidateUrls[attemptIndex] ?? candidateUrls[0] ?? "";
+
+  useEffect(() => {
+    if (isOpen) {
+      setAttemptIndex(0);
+    }
+  }, [isOpen, src, fallbackSrcs]);
 
   // Handle ESC key to close
   const handleKeyDown = useCallback(
@@ -43,8 +70,6 @@ export function ImageOverlay({ src, alt, isOpen, onClose }: ImageOverlayProps) {
   }, [isOpen, handleKeyDown]);
 
   if (!isOpen) return null;
-
-  const displaySrc = rewritePublicIpfsUrlForClient(src);
 
   return (
     <div
@@ -74,9 +99,13 @@ export function ImageOverlay({ src, alt, isOpen, onClose }: ImageOverlayProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <img
+          key={`${attemptIndex}-${displaySrc}`}
           src={displaySrc}
           alt={alt}
           className="max-w-full max-h-full object-contain"
+          onError={() => {
+            setAttemptIndex((i) => (i < candidateUrls.length - 1 ? i + 1 : i));
+          }}
         />
       </div>
     </div>

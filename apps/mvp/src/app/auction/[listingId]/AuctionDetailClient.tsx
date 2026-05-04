@@ -1281,6 +1281,17 @@ export default function AuctionDetailClient({
   const isActive = endTime > now && auction.status === "ACTIVE";
   const isCancelled = auction.status === "CANCELLED";
   const title = auction.title || `Auction #${listingId}`;
+  const auctionImageOverlayFallbackSrcs = useMemo(
+    () =>
+      [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
+        (u): u is string =>
+          typeof u === "string" &&
+          u.length > 0 &&
+          !!auction.image &&
+          u !== auction.image
+      ),
+    [auction.thumbnailUrl, auction.detailThumbnailUrl, auction.image]
+  );
   // Use metadata artist, then resolved creator name from contract
   const displayCreatorName = auction.artist || creatorName;
   // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
@@ -1485,6 +1496,7 @@ export default function AuctionDetailClient({
         {auction.image && (
           <ImageOverlay
             src={auction.image}
+            fallbackSrcs={auctionImageOverlayFallbackSrcs}
             alt={title}
             isOpen={isImageOverlayOpen}
             onClose={() => setIsImageOverlayOpen(false)}
