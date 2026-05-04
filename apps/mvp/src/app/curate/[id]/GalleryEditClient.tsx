@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
 import { useIsAdmin } from "~/hooks/useIsAdmin";
 import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
+import { usePrimaryWallet } from "~/hooks/usePrimaryWallet";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
@@ -45,7 +46,10 @@ interface GalleryData {
 
 export default function GalleryEditClient({ galleryId }: GalleryEditClientProps) {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address: wagmiAddress, isConnected } = useAccount();
+  const farcasterWallet = usePrimaryWallet();
+  /** Match useIsAdmin: Farcaster primary / custody wallet when wagmi address is unset */
+  const address = wagmiAddress || farcasterWallet || undefined;
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { hasAccess: hasNFTAccess, loading: isNFTAccessLoading } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
   const hasGalleryFeatureAccess = isAdmin || hasNFTAccess;
@@ -73,7 +77,8 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
       }
       return response.json() as Promise<GalleryData>;
     },
-    enabled: !!address && isConnected,
+    enabled:
+      !!address && (isConnected || !!farcasterWallet),
   });
 
   // Initialize form from fetched data
@@ -266,7 +271,7 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
     );
   }
 
-  if (!isConnected || !address) {
+  if (!address) {
     return (
       <div className="min-h-screen bg-black text-white">
         <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
@@ -304,6 +309,12 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
         <div className="px-5 py-12 text-center">
           <p className="text-red-400 mb-2">Error loading gallery</p>
           <p className="text-[#999999] text-sm mb-4">{error instanceof Error ? error.message : "Unknown error"}</p>
+          {error instanceof Error && error.message === "Gallery not found" && (
+            <p className="text-[#777777] text-sm max-w-md mx-auto mb-4">
+              Draft galleries only load for the curator&apos;s wallet (or an admin). If this gallery is
+              published, try the public link from your profile or the gallery directory.
+            </p>
+          )}
           <TransitionLink href="/curate" className="text-white hover:underline">
             ← Back to My Galleries
           </TransitionLink>
