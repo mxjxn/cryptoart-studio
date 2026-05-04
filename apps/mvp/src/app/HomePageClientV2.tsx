@@ -107,7 +107,10 @@ function tier1CardToDisplayAuction(
   fullList: EnrichedAuctionData[] | null | undefined,
 ): EnrichedAuctionData {
   const full = fullList?.[index];
-  if (full && full.listingId === card.listingId) return full;
+  if (full && full.listingId === card.listingId) {
+    // Tier-1 API resolves "by …" from listing seller (Farcaster); full rows still carry metadata artist (e.g. gallery name).
+    return { ...full, artist: card.artist };
+  }
   const ph = KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!;
   return {
     ...ph,

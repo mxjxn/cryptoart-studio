@@ -17,7 +17,7 @@ import { browseListings } from '~/lib/server/browse-listings';
 import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import { type Address } from 'viem';
 import { unstable_cache } from "next/cache";
-import { lookupNeynarByUsername } from "~/lib/artist-name-resolution";
+import { lookupNeynarByAddress, lookupNeynarByUsername } from "~/lib/artist-name-resolution";
 import { getListingMediaSnapshot, primeListingMediaSnapshot } from "~/lib/server/listing-metadata-refresh";
 import { getListingPreviewsByIds } from "~/lib/server/listing-preview-store";
 import { withTimeout } from "~/lib/utils";
@@ -863,11 +863,28 @@ async function getPublishedGalleryListingsEnriched(
   }
 }
 
+const ZERO_EXCLUDED_SELLER = "0x0000000000000000000000000000000000000000";
+
 function shortHexAddress(addr: string | null | undefined): string | null {
   if (!addr || typeof addr !== "string") return null;
   const a = addr.trim().toLowerCase();
   if (!a.startsWith("0x") || a.length < 12) return a;
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function hasNonZeroSeller(seller: string | null | undefined): seller is string {
+  if (!seller || typeof seller !== "string") return false;
+  return seller.trim().toLowerCase() !== ZERO_EXCLUDED_SELLER;
+}
+
+/** Homepage "by …" line: marketplace lister (seller), not NFT metadata artist (often gallery branding). */
+async function resolveListingSellerDisplayLabel(
+  seller: string | null | undefined,
+): Promise<string | null> {
+  if (!hasNonZeroSeller(seller)) return null;
+  const neynar = await lookupNeynarByAddress(seller.trim());
+  const name = neynar?.name?.trim();
+  return name && name.length > 0 ? name : null;
 }
 
 /** Many token JSON files use this as a default; treat as missing so fallbacks apply. */
@@ -886,15 +903,25 @@ function isJunkDisplayArtist(value: string | null | undefined): boolean {
 
 let lastKnownRedesignSections: RedesignTieredSections | null = null;
 
-function toTier1Card(listing: EnrichedAuctionData): Tier1ListingCard {
+async function toTier1Card(listing: EnrichedAuctionData): Promise<Tier1ListingCard> {
   primeListingMediaSnapshot(listing);
   const snapshot = getListingMediaSnapshot(listing.listingId);
   const title =
     snapshot?.title || listing.title || `Listing #${listing.listingId}`;
-  const rawArtist = snapshot?.artist || listing.artist;
-  const artist = !isJunkDisplayArtist(rawArtist)
-    ? rawArtist!.trim()
-    : shortHexAddress(listing.seller) || "—";
+  const rawMetaArtist = snapshot?.artist || listing.artist;
+  const sellerLabel = await resolveListingSellerDisplayLabel(listing.seller);
+
+  let artist: string;
+  if (sellerLabel) {
+    artist = sellerLabel;
+  } else if (hasNonZeroSeller(listing.seller)) {
+    artist = shortHexAddress(listing.seller) || "—";
+  } else if (!isJunkDisplayArtist(rawMetaArtist)) {
+    artist = rawMetaArtist!.trim();
+  } else {
+    artist = "—";
+  }
+
   return {
     listingId: listing.listingId,
     tokenId: listing.tokenId,
@@ -925,9 +952,11 @@ async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSe
   ]);
 
   const { listings } = browseResult;
-  const tier1Listings = listings
-    .filter((listing) => listing.status !== "CANCELLED")
-    .map(toTier1Card);
+  const tier1Listings = await Promise.all(
+    listings
+      .filter((listing) => listing.status !== "CANCELLED")
+      .map((listing) => toTier1Card(listing)),
+  );
 
   if (tier1Listings.length === 0) {
     console.warn("[RedesignTier1] Browse returned no tier-1 listings", {
@@ -942,7 +971,7 @@ async function resolveRedesignTieredSectionsUncached(): Promise<RedesignTieredSe
   let kismetLots: Tier1ListingCard[];
   let kismetFullListings: EnrichedAuctionData[] | undefined;
   if (galleryListings.length > 0) {
-    kismetLots = galleryListings.map(toTier1Card);
+    kismetLots = await Promise.all(galleryListings.map((l) => toTier1Card(l)));
     kismetFullListings = galleryListings;
   } else {
     kismetLots = tier1Listings.slice(0, 8);
@@ -988,7 +1017,7 @@ async function resolveRedesignTieredSectionsWithBudget(): Promise<RedesignTiered
 
 export const getRedesignTieredSections = unstable_cache(
   async () => resolveRedesignTieredSectionsWithBudget(),
-  ["redesign-tiered-sections-v6-curator-ci"],
+  ["redesign-tiered-sections-v7-tier1-seller-display"],
   {
     revalidate: 120,
     tags: ["redesign-tiered-sections"],
