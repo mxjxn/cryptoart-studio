@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type {
   ListingCursorIcon,
   ListingCursorMode,
@@ -208,42 +209,42 @@ export function ListingThemeEditor({
     composeListingThemeCursorCss(draft) ?? ("default" as const);
 
   if (loading) {
+    const loadingBox = `rounded-lg border ${border} ${labelMuted} text-sm`;
+    if (mode === "listing") {
+      return (
+        <div className={`${loadingBox} px-4 py-3`}>
+          Loading listing appearance…
+        </div>
+      );
+    }
     return (
-      <div className={`rounded-lg border ${border} p-4 ${labelMuted} text-sm`}>
+      <div className={`${loadingBox} p-4`}>
         Loading listing appearance…
       </div>
     );
   }
 
-  return (
-    <div className={`rounded-lg border ${border} p-4 space-y-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className={`text-sm font-medium uppercase tracking-wide ${labelMuted}`}>
-          Listing page appearance
-        </h3>
-        {mode === "listing" && (
-          <span className={`text-xs ${labelMuted}`}>
-            {hasOverride ? "Custom for this listing" : "Using your default"}
-          </span>
-        )}
+  const listingDefaultButton =
+    mode === "listing" ? (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saving || !hasOverride}
+          onClick={() => void onUseDefaultForListing()}
+          className={`rounded border px-3 py-1.5 text-xs ${
+            surface === "light"
+              ? "border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-40"
+              : "border-[#444444] bg-[#1a1a1a] hover:bg-[#222] disabled:opacity-40"
+          }`}
+        >
+          Use my default for this listing
+        </button>
       </div>
+    ) : null;
 
-      {mode === "listing" && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={saving || !hasOverride}
-            onClick={() => void onUseDefaultForListing()}
-            className={`rounded border px-3 py-1.5 text-xs ${
-              surface === "light"
-                ? "border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-40"
-                : "border-[#444444] bg-[#1a1a1a] hover:bg-[#222] disabled:opacity-40"
-            }`}
-          >
-            Use my default for this listing
-          </button>
-        </div>
-      )}
+  const editorFields = (
+    <>
+      {listingDefaultButton}
 
       <div className="flex flex-wrap gap-2">
         {LISTING_THEME_EDITOR_PRESETS.map((preset, i) => (
@@ -512,6 +513,48 @@ export function ListingThemeEditor({
           </span>
         )}
       </div>
+    </>
+  );
+
+  if (mode === "listing") {
+    const summaryHover =
+      surface === "light" ? "hover:bg-neutral-50" : "hover:bg-[#222222]";
+    return (
+      <details className={`group rounded-lg border ${border} overflow-hidden`}>
+        <summary
+          className={`flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left outline-offset-2 [&::-webkit-details-marker]:hidden ${summaryHover}`}
+        >
+          <div className="min-w-0 flex-1">
+            <h3 className={`text-sm font-medium uppercase tracking-wide ${labelMuted}`}>
+              Listing page appearance
+            </h3>
+            <p className={`mt-0.5 text-xs ${labelMuted}`}>
+              Optional — gradient, type, and cursor. Tap to expand.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`hidden text-xs sm:inline ${labelMuted}`}>
+              {hasOverride ? "Custom for listing" : "Your default"}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform duration-200 group-open:rotate-180 ${labelMuted}`}
+              aria-hidden
+            />
+          </div>
+        </summary>
+        <div className={`space-y-4 border-t ${border} p-4`}>{editorFields}</div>
+      </details>
+    );
+  }
+
+  return (
+    <div className={`rounded-lg border ${border} p-4 space-y-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className={`text-sm font-medium uppercase tracking-wide ${labelMuted}`}>
+          Listing page appearance
+        </h3>
+      </div>
+      {editorFields}
     </div>
   );
 }
