@@ -219,10 +219,16 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
     }
   };
 
-  const handlePublishToggle = () => {
-    const newPublished = !isPublished;
-    setIsPublished(newPublished);
-    updateGallery.mutate({ isPublished: newPublished });
+  const handlePublish = () => {
+    if (isPublished) return;
+    setIsPublished(true);
+    updateGallery.mutate({ isPublished: true });
+  };
+
+  const handleUnpublish = () => {
+    if (!isPublished) return;
+    setIsPublished(false);
+    updateGallery.mutate({ isPublished: false });
   };
 
   const handleDelete = () => {
@@ -358,43 +364,80 @@ export default function GalleryEditClient({ galleryId }: GalleryEditClientProps)
             rows={2}
           />
 
-          {/* Publish Toggle and Actions */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isPublished}
-                  onChange={handlePublishToggle}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">Published</span>
-              </label>
-              {galleryUrl && (
-                <div className="text-xs text-[#666666]">
-                  URL: <span className="text-[#999999] font-mono">{galleryUrl}</span>
+          {/* Publish visibility — draft callout is hard to miss */}
+          <div className="mt-6 space-y-3">
+            {!isPublished ? (
+              <div className="rounded-lg border border-amber-500/45 bg-amber-950/30 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-100">This gallery is a draft</p>
+                  <p className="text-xs text-[#b9b9b9] mt-1 max-w-xl leading-relaxed">
+                    Only you (and admins) can open this edit link. Publish to show it on your profile and
+                    get a shareable public URL.
+                  </p>
                 </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {galleryUrl && (
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(galleryUrl);
-                    alert("URL copied to clipboard!");
-                  }}
-                  className="px-4 py-2 text-sm bg-[#1a1a1a] border border-[#333333] hover:border-[#666666] transition-colors"
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={updateGallery.isPending}
+                  className="shrink-0 px-6 py-2.5 text-sm font-semibold tracking-wide bg-white text-black hover:bg-[#e8e8e8] disabled:opacity-50 transition-colors"
                 >
-                  Copy URL
+                  {updateGallery.isPending ? "Publishing…" : "Publish gallery"}
                 </button>
-              )}
-              <button
-                onClick={handleDelete}
-                disabled={deleteGallery.isPending}
-                className="px-4 py-2 text-sm bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
-              >
-                {deleteGallery.isPending ? "Deleting..." : "Delete Gallery"}
-              </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-green-500/40 bg-green-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-sm font-medium text-green-400">Published</span>
+                  <span className="text-xs text-[#999999]">Visible on your profile with a public link.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUnpublish}
+                  disabled={updateGallery.isPending}
+                  className="text-xs text-[#999999] hover:text-white underline underline-offset-2 disabled:opacity-50 self-start sm:self-auto"
+                >
+                  {updateGallery.isPending ? "Updating…" : "Make private (draft again)"}
+                </button>
+              </div>
+            )}
+
+            <div
+              className={`flex flex-col sm:flex-row sm:items-center gap-3 pt-1 ${
+                galleryUrl || (isPublished && !username) ? "sm:justify-between" : "sm:justify-end"
+              }`}
+            >
+              {galleryUrl ? (
+                <div className="text-xs text-[#666666] min-w-0">
+                  <span className="text-[#888888]">Public URL:</span>{" "}
+                  <span className="text-[#cccccc] font-mono break-all">{galleryUrl}</span>
+                </div>
+              ) : isPublished && !username ? (
+                <div className="text-xs text-[#888888]">
+                  Public URL appears when your username is available.
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {galleryUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(galleryUrl);
+                      alert("URL copied to clipboard!");
+                    }}
+                    className="px-4 py-2 text-sm bg-[#1a1a1a] border border-[#333333] hover:border-[#666666] transition-colors"
+                  >
+                    Copy URL
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleteGallery.isPending}
+                  className="px-4 py-2 text-sm bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                >
+                  {deleteGallery.isPending ? "Deleting..." : "Delete Gallery"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
