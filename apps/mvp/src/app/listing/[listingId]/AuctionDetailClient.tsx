@@ -267,8 +267,8 @@ export default function AuctionDetailClient({
       (auction.metadata as { animationUrl?: string } | undefined)?.animationUrl;
     const hasDisplayMedia = !!(
       auction.detailThumbnailUrl ||
-      auction.image ||
       auction.thumbnailUrl ||
+      auction.image ||
       anim
     );
     const hasTitle = !!(
@@ -1721,6 +1721,12 @@ export default function AuctionDetailClient({
     (typeof auction.title === "string" && auction.title.trim()) ||
     pickDisplayTitle(auction.metadata) ||
     `Auction #${listingId}`;
+  /** Inline hero: prefer detail cache, then small thumb, then raw metadata image. Raw IPFS/gateway URLs can be very large and never finish loading in the browser. */
+  const listingHeroImageUrl =
+    auction.detailThumbnailUrl ?? auction.thumbnailUrl ?? auction.image;
+  /** Fullscreen zoom: prefer detail, then full source, then small thumb. */
+  const listingFullscreenImageUrl =
+    auction.detailThumbnailUrl ?? auction.image ?? auction.thumbnailUrl;
   // bidCount already calculated above
   const hasBid = bidCount > 0 || !!auction.highestBid;
   
@@ -1950,11 +1956,7 @@ export default function AuctionDetailClient({
         {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
         <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
           <MediaDisplay
-            imageUrl={
-              auction.detailThumbnailUrl ??
-              auction.image ??
-              auction.thumbnailUrl
-            }
+            imageUrl={listingHeroImageUrl}
             animationUrl={auction.metadata?.animation_url}
             animationFormat={auction.metadata?.animation_details?.format}
             alt={title}
@@ -1964,7 +1966,8 @@ export default function AuctionDetailClient({
               (() => {
                 const animUrl = auction.metadata?.animation_url;
                 const animFormat = auction.metadata?.animation_details?.format;
-                if (!animUrl) return auction.image ? () => setIsImageOverlayOpen(true) : undefined;
+                if (!animUrl)
+                  return listingHeroImageUrl ? () => setIsImageOverlayOpen(true) : undefined;
                 // Check both URL extension and format hint to determine if it's non-image media
                 let mediaType = getMediaType(animUrl);
                 if (mediaType === 'image' && animFormat) {
@@ -1985,10 +1988,12 @@ export default function AuctionDetailClient({
           if (mediaType === 'image' && animFormat) {
             mediaType = getMediaTypeFromFormat(animFormat);
           }
-          return auction.image && (!animUrl || mediaType === 'image');
+          return (
+            !!listingFullscreenImageUrl && (!animUrl || mediaType === "image")
+          );
         })() && (
           <ImageOverlay
-            src={auction.image!}
+            src={listingFullscreenImageUrl!}
             alt={title}
             isOpen={isImageOverlayOpen}
             onClose={() => setIsImageOverlayOpen(false)}
