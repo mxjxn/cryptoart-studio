@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabase, listingPageStatus, eq } from "@cryptoart/db";
-import { resolveListingFromSubgraph } from "~/lib/server/auction";
+import {
+  resolveListingFromSubgraph,
+  getHiddenUserAddresses,
+  isListingBlockedFromProduct,
+} from "~/lib/server/auction";
 
 /** After this long in `building` with no subgraph listing, treat as missing (stale row or invalid ID). */
 const BUILDING_NO_AUCTION_GRACE_MS = 3 * 60 * 1000;
+
+/**
+ * DB rows can stay `ready` forever while `/api/auctions` returns 404 (moderation, cancelled listing
+ * dropped from subgraph, etc.). Re-resolve periodically so page-status matches product APIs.
+ */
+const READY_SUBGRAPH_RECHECK_MS = 60 * 1000;
 
 /**
  * GET /api/listings/[listingId]/page-status
@@ -140,7 +150,71 @@ export async function GET(
     }
 
     const record = statusRecord[0];
-    
+
+    if (record.status === "ready") {
+      const lastCheckedMs = record.lastCheckedAt
+        ? new Date(record.lastCheckedAt).getTime()
+        : 0;
+      const shouldRecheckReady =
+        !lastCheckedMs || Date.now() - lastCheckedMs >= READY_SUBGRAPH_RECHECK_MS;
+
+      if (shouldRecheckReady) {
+        try {
+          const listing = await resolveListingFromSubgraph(listingId);
+          if (!listing) {
+            await db
+              .update(listingPageStatus)
+              .set({
+                status: "not_found",
+                lastCheckedAt: new Date(),
+              })
+              .where(eq(listingPageStatus.listingId, listingId));
+            return NextResponse.json({
+              status: "not_found",
+              listingId,
+              sellerAddress: record.sellerAddress,
+              lastCheckedAt: new Date().toISOString(),
+            });
+          }
+
+          const hiddenSellers = await getHiddenUserAddresses();
+          if (isListingBlockedFromProduct(listing, hiddenSellers)) {
+            await db
+              .update(listingPageStatus)
+              .set({
+                status: "not_found",
+                lastCheckedAt: new Date(),
+              })
+              .where(eq(listingPageStatus.listingId, listingId));
+            return NextResponse.json({
+              status: "not_found",
+              listingId,
+              sellerAddress: record.sellerAddress,
+              lastCheckedAt: new Date().toISOString(),
+            });
+          }
+
+          await db
+            .update(listingPageStatus)
+            .set({ lastCheckedAt: new Date() })
+            .where(eq(listingPageStatus.listingId, listingId));
+        } catch (recheckError) {
+          console.warn(
+            `[page-status/${listingId}] ready-row recheck failed (subgraph/db):`,
+            recheckError
+          );
+          try {
+            await db
+              .update(listingPageStatus)
+              .set({ lastCheckedAt: new Date() })
+              .where(eq(listingPageStatus.listingId, listingId));
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+
     // If status is building, check if it's ready now
     if (record.status === 'building') {
       try {
