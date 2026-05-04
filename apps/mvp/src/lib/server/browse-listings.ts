@@ -55,6 +55,31 @@ async function lookupCachedThumbnailBounded(imageUrl: string): Promise<string | 
   }
 }
 
+/**
+ * When the DB has no small thumb yet, run the same on-demand path as `/api/auctions/[id]`
+ * (bounded). Browse used to fall back to the raw metadata image; huge Arweave/IPFS originals
+ * often break or time out in `next/image` on market cards.
+ */
+const THUMBNAIL_GENERATE_BUDGET_MS = 10_000;
+
+async function tryGenerateSmallThumbnailBounded(imageUrl: string): Promise<string | null> {
+  try {
+    const { getOrGenerateThumbnail } = await import("./thumbnail-generator");
+    return await Promise.race([
+      getOrGenerateThumbnail(imageUrl, "small"),
+      new Promise<string | null>((resolve) =>
+        setTimeout(() => resolve(null), THUMBNAIL_GENERATE_BUDGET_MS)
+      ),
+    ]);
+  } catch (e) {
+    console.warn(
+      `[Browse Listings] Small thumbnail generation failed for ${imageUrl.slice(0, 100)}…`,
+      e instanceof Error ? e.message : e
+    );
+    return null;
+  }
+}
+
 async function getHiddenUserAddressesBounded(logLabel: string): Promise<Set<string>> {
   const t0 = Date.now();
   const raced = await Promise.race([
@@ -429,8 +454,11 @@ export async function browseListings(
         
         if (imageUrl && listing.status !== "CANCELLED") {
           try {
-            const cached = await lookupCachedThumbnailBounded(imageUrl);
-            thumbnailUrl = cached ?? imageUrl;
+            let small = await lookupCachedThumbnailBounded(imageUrl);
+            if (!small) {
+              small = await tryGenerateSmallThumbnailBounded(imageUrl);
+            }
+            thumbnailUrl = small ?? imageUrl;
           } catch {
             thumbnailUrl = imageUrl;
           }
@@ -694,8 +722,11 @@ export async function* browseListingsStreaming(
       
       if (imageUrl && listing.status !== "CANCELLED") {
         try {
-          const cached = await lookupCachedThumbnailBounded(imageUrl);
-          thumbnailUrl = cached ?? imageUrl;
+          let small = await lookupCachedThumbnailBounded(imageUrl);
+          if (!small) {
+            small = await tryGenerateSmallThumbnailBounded(imageUrl);
+          }
+          thumbnailUrl = small ?? imageUrl;
         } catch {
           thumbnailUrl = imageUrl;
         }
