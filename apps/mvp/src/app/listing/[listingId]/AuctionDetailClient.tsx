@@ -1934,7 +1934,7 @@ export default function AuctionDetailClient({
           </div>
         )}
         {canEditListingTheme && isListingSeller && address && (
-          <div className="mb-4">
+          <div className="-mx-5 mb-4 w-full">
             <ListingThemeEditor
               mode="listing"
               listingId={listingId}
@@ -1948,7 +1948,7 @@ export default function AuctionDetailClient({
           </div>
         )}
         {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
-        <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
           <MediaDisplay
             imageUrl={
               auction.detailThumbnailUrl ??
@@ -2141,14 +2141,14 @@ export default function AuctionDetailClient({
 
         {/* Cancelled Auction Message */}
         {isCancelled && (
-          <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="-mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-900 font-medium">Auction has been cancelled</p>
           </div>
         )}
 
         {/* Warning for at-risk listings */}
         {isAtRiskListing && !isCancelled && (
-          <div className="mb-4 rounded-2xl border border-yellow-600/30 bg-yellow-900/20 p-4">
+          <div className="-mx-5 mb-4 w-full rounded-2xl border border-yellow-600/30 bg-yellow-900/20 p-4">
             <p className="text-yellow-400 font-medium mb-2">⚠️ Auction Configuration Issue</p>
             <p className="text-yellow-300 text-sm mb-3">
               This auction has a configuration issue that would prevent proper finalization. 
@@ -2160,7 +2160,7 @@ export default function AuctionDetailClient({
 
         {/* Update Listing Form - Show when update button is clicked OR for at-risk listings */}
         {showUpdateForm && (canUpdate || canUpdateAtRisk) && !isCancelled && (
-          <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             {isAtRiskListing && (
               <p className="text-sm text-neutral-600 mb-3">
                 Update your auction configuration. Set a start time and end time, or use duration mode.
@@ -2186,7 +2186,7 @@ export default function AuctionDetailClient({
 
         {/* Update Listing Button (for seller before auction has started) - Hidden if cancelled or update form is shown */}
         {canUpdate && !isCancelled && !showUpdateForm && (
-          <div className="mb-4 overflow-hidden rounded-2xl shadow-sm">
+          <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
             <button
               onClick={() => setShowUpdateForm(true)}
               disabled={isModifyLoading}
@@ -2200,7 +2200,7 @@ export default function AuctionDetailClient({
 
         {/* Cancel Listing Button (for seller with no bids) - Hidden if cancelled */}
         {canCancel && !isCancelled && (
-          <div className="mb-4 overflow-hidden rounded-2xl shadow-sm">
+          <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
             <button
               onClick={handleCancel}
               disabled={isCancelLoading}
@@ -2224,7 +2224,7 @@ export default function AuctionDetailClient({
 
         {/* Auction Ended Message - Only for INDIVIDUAL_AUCTION */}
         {isEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && (
-          <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="-mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-900 font-medium mb-2">Auction Ended</p>
             {auction.highestBid && hasBid ? (
               <div className="space-y-2">
@@ -2266,7 +2266,7 @@ export default function AuctionDetailClient({
           (auction.listingType === "INDIVIDUAL_AUCTION" && (isOwnAuction || isWinner)) ||
           (auction.listingType === "FIXED_PRICE" && isOwnAuction)
         ) && (
-          <div className="mb-4 overflow-hidden rounded-2xl shadow-sm">
+          <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
             <button
               onClick={handleFinalize}
               disabled={isFinalizeLoading || !canFinalize}
@@ -2305,7 +2305,7 @@ export default function AuctionDetailClient({
 
         {/* 180-Day Duration Fix Form (for sellers) */}
         {!isCancelled && canFix180DayIssue && (
-          <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <Fix180DayDurationForm
               listingId={listingId}
               onSubmit={handleFix180DayDuration}
@@ -2321,7 +2321,7 @@ export default function AuctionDetailClient({
 
         {/* Warning message for non-sellers when 180-day issue exists */}
         {!isCancelled && has180DayIssue && !isOwnAuction && (
-          <div className="mb-4 rounded-2xl border border-red-700/50 bg-red-900/20 p-4">
+          <div className="-mx-5 mb-4 w-full rounded-2xl border border-red-700/50 bg-red-900/20 p-4">
             <p className="text-sm text-red-400 font-medium mb-1">
               Bidding Temporarily Disabled
             </p>
@@ -2336,7 +2336,7 @@ export default function AuctionDetailClient({
           <>
             {/* INDIVIDUAL_AUCTION - Place Bid (show if active or not started yet, and not at-risk, and not 180-day issue) */}
             {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && !has180DayIssue && (
-              <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="-mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {!isConnected ? (
                   <p className="text-xs text-neutral-600">
                     Please connect your wallet to place a bid.
@@ -2450,7 +2450,7 @@ export default function AuctionDetailClient({
               
               if (isERC721SoldOut) {
                 return (
-                  <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+                  <div className="-mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <p className="text-center text-lg font-medium text-neutral-500 py-4">
                       Sold Out
                     </p>
@@ -2459,7 +2459,7 @@ export default function AuctionDetailClient({
               }
               
               return (
-                <div className="mb-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                <div className="-mx-5 mb-4 w-full space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   {auction.tokenSpec === "ERC1155" && (
                   <div>
                     <label className="block text-sm font-medium text-neutral-600 mb-2">
@@ -2637,7 +2637,7 @@ export default function AuctionDetailClient({
 
             {/* OFFERS_ONLY - Make Offer */}
             {auction.listingType === "OFFERS_ONLY" && showControls && (
-              <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="-mx-5 mb-4 w-full space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {!isConnected ? (
                   <p className="text-xs text-neutral-600">
                     Please connect your wallet to make an offer.
@@ -2766,7 +2766,7 @@ export default function AuctionDetailClient({
 
         {/* Listing details - Different display based on listing type - Hidden if cancelled */}
         {!isCancelled && (
-          <div className="listing-light-surface mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
+          <div className="listing-light-surface -mx-5 mb-4 w-full space-y-4 rounded-2xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
             {auction.listingType === "INDIVIDUAL_AUCTION" && (() => {
               // Use actualEndTime for time status calculation
               // When startTime=0 and auction has started, actualEndTime is the calculated end timestamp
@@ -3144,7 +3144,7 @@ export default function AuctionDetailClient({
 
         {/* Buy Token Button - Always show for ERC-20 paired listings when not own auction */}
         {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
-          <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+          <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
             {isMiniApp ? (
               <button
                 type="button"
