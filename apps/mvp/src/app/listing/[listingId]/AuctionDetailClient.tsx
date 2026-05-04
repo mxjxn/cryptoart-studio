@@ -134,6 +134,12 @@ export default function AuctionDetailClient({
   const pageStatusCheckInFlight = useRef(false);
   const [buildingTimedOut, setBuildingTimedOut] = useState(false);
   const BUILDING_TIMEOUT_MS = 12000;
+  /** One-shot: when page-status says ready but auction API still had a stale null, force refresh. */
+  const bustStaleReadyAuctionRef = useRef(false);
+
+  useEffect(() => {
+    bustStaleReadyAuctionRef.current = false;
+  }, [listingId]);
 
   // Poll for page status when listing is not found or page is building
   useEffect(() => {
@@ -239,6 +245,16 @@ export default function AuctionDetailClient({
       }
     };
   }, [listingId, pageStatus, auction, loading, address]);
+
+  // Page-status can flip to `ready` (subgraph-only) before `/api/auctions` clears a cached
+  // negative entry. One forced refetch avoids flashing "indexed but details could not be loaded".
+  useEffect(() => {
+    if (pageStatus !== "ready" && pageStatus !== "error") return;
+    if (loading || auction || auctionFetchError) return;
+    if (bustStaleReadyAuctionRef.current) return;
+    bustStaleReadyAuctionRef.current = true;
+    void refetchAuction(true);
+  }, [pageStatus, auction, loading, auctionFetchError, refetchAuction]);
 
   // If build status stays unresolved for too long, stop blocking the page forever.
   useEffect(() => {

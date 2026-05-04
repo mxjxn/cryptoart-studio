@@ -522,7 +522,39 @@ export async function GET(
       throw outcome.err;
     }
 
-    const enriched = outcome.data;
+    let enriched = outcome.data;
+    // Cached path can hold `null` for ~120s from a pre-index miss. Page-status may already
+    // report `ready` (subgraph-only). Retry uncached once so listing pages recover without
+    // waiting for the negative cache entry to expire.
+    if (!enriched && !forceRefresh) {
+      console.warn(
+        `[auctions/${listingId}] Cached auction was null — one uncached retry (stale negative cache / indexer race)`
+      );
+      const retryOutcome = await Promise.race([
+        fetchAuctionData(listingId)
+          .then((data): RaceOk => ({ kind: 'ok', data }))
+          .catch((err): RaceErr => ({ kind: 'err', err })),
+        new Promise<RaceTimeout>((resolve) => setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs)),
+      ]);
+      if (retryOutcome.kind === 'timeout') {
+        console.warn(
+          `[auctions/${listingId}] Uncached retry exceeded ${timeoutMs}ms — returning 504`
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Auction lookup timed out',
+            code: 'TIMEOUT',
+          },
+          { status: 504 }
+        );
+      }
+      if (retryOutcome.kind === 'err') {
+        throw retryOutcome.err;
+      }
+      enriched = retryOutcome.data;
+    }
+
     if (!enriched) {
       return NextResponse.json(
         { error: 'Auction not found' },
