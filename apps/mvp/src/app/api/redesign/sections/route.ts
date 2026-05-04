@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+
 import { getRedesignTieredSections } from "~/lib/server/homepage-layout";
 
 /** Homepage tier-1 runs subgraph + per-token metadata enrichment. */
 export const maxDuration = 60;
+/** Avoid serving a stale empty payload from static optimization; tier-1 still uses unstable_cache. */
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const startedAt = Date.now();
