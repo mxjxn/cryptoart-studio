@@ -99,6 +99,28 @@ const KISMET_CASA_PLACEHOLDERS: EnrichedAuctionData[] = Array.from({ length: 8 }
   };
 });
 
+/** Prefer full gallery rows from the API; otherwise merge tier-1 cards with placeholder stubs. */
+function tier1CardToDisplayAuction(
+  card: Tier1ListingCard,
+  index: number,
+  fullList: EnrichedAuctionData[] | null | undefined,
+): EnrichedAuctionData {
+  const full = fullList?.[index];
+  if (full && full.listingId === card.listingId) return full;
+  const ph = KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!;
+  return {
+    ...ph,
+    listingId: card.listingId,
+    tokenId: card.tokenId || ph.tokenId,
+    title: card.title,
+    artist: card.artist,
+    description: card.description,
+    image: card.image ?? undefined,
+    thumbnailUrl: card.thumbnailUrl ?? undefined,
+    seller: card.seller ?? ph.seller,
+  };
+}
+
 type Tier1ListingCard = {
   listingId: string;
   tokenId?: string;
@@ -190,6 +212,8 @@ export default function HomePageClientV2() {
   );
   const [kismetHydratedLots, setKismetHydratedLots] = useState<Record<string, Tier2HydrationItem>>({});
   const [kismetHydrationDone, setKismetHydrationDone] = useState(false);
+  /** Full enriched rows when homepage strip is backed by a published gallery (`/api/redesign/sections`). */
+  const [kismetFullListings, setKismetFullListings] = useState<EnrichedAuctionData[] | null>(null);
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>(
     FARCON_STATIC_PREVIEW ? KISMET_CASA_PLACEHOLDERS : [],
@@ -1037,6 +1061,11 @@ export default function HomePageClientV2() {
         if (Array.isArray(data.sections.kismetLots) && data.sections.kismetLots.length > 0) {
           setKismetTier1Lots(data.sections.kismetLots.map((c: Tier1ListingCard) => sanitizeTier1Card(c)));
         }
+        if (Array.isArray(data.sections.kismetFullListings) && data.sections.kismetFullListings.length > 0) {
+          setKismetFullListings(data.sections.kismetFullListings);
+        } else {
+          setKismetFullListings(null);
+        }
         console.log(
           `[HomePageClientV2] Tier1 loaded in ${Math.round(performance.now() - startedAt)}ms`
         );
@@ -1102,6 +1131,7 @@ export default function HomePageClientV2() {
   /** Lime card always uses curated Kismet copy — do not swap for `featuredHero.description` after tier-1 fetch (avoids flash + junk metadata). */
   const heroDescriptionText = FEATURED_KISMET_DESCRIPTION;
   const lotIntroText = "Individual lot previews. Click into a listing to place bids.";
+  const kismetLotCount = kismetTier1Lots.length;
 
   const heroTaglineMeasure = usePretextMeasure<HTMLParagraphElement>({
     text: heroTaglineText,
@@ -1287,8 +1317,8 @@ export default function HomePageClientV2() {
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
                   <span className="border border-black px-2.5 py-1 text-black">
                     {hideAuctionCards
-                      ? "6 auctions · live tomorrow"
-                      : "Six lots below · auctions open tomorrow"}
+                      ? `${kismetLotCount || 6} auctions · live tomorrow`
+                      : `${kismetLotCount || 6} lots below · auctions open tomorrow`}
                   </span>
                 </div>
               </div>
@@ -1298,17 +1328,11 @@ export default function HomePageClientV2() {
               {(featuredArtworks.length > 0 ? featuredArtworks : kismetTier1Lots.slice(0, 6)).slice(0, 6).map((auction, index) => (
                 <StaticArtworkTile
                   key={auction.listingId}
-                  auction={{
-                    ...KISMET_CASA_PLACEHOLDERS[index]!,
-                    listingId: auction.listingId,
-                    tokenId: auction.tokenId || String(index + 1),
-                    title: auction.title,
-                    artist: auction.artist,
-                    description: auction.description,
-                    image: auction.image || undefined,
-                    thumbnailUrl: auction.thumbnailUrl || undefined,
-                    seller: auction.seller ?? KISMET_CASA_PLACEHOLDERS[index]!.seller,
-                  }}
+                  auction={tier1CardToDisplayAuction(
+                    auction,
+                    index,
+                    featuredArtworks.length > 0 ? null : kismetFullListings,
+                  )}
                   gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}
                 />
               ))}
@@ -1320,12 +1344,14 @@ export default function HomePageClientV2() {
           {hideAuctionCards ? (
             <>
               <span className="text-black">Kismet Casa</span>
-              <span className="text-black">6 auctions tomorrow</span>
+              <span className="text-black">{kismetLotCount || 6} auctions tomorrow</span>
             </>
           ) : (
             <>
               <span className="text-black">Kismet Casa</span>
-              <span className="text-black">Tomorrow · 6 live auctions</span>
+              <span className="text-black">
+                Tomorrow · {kismetLotCount || 6} live {kismetLotCount === 1 ? "auction" : "auctions"}
+              </span>
             </>
           )}
         </div>
@@ -1383,17 +1409,7 @@ export default function HomePageClientV2() {
             <KismetLotSection
               key={auction.listingId}
               shouldAnimate={shouldAnimate}
-              auction={{
-                ...KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!,
-                listingId: auction.listingId,
-                tokenId: auction.tokenId || String(index + 1),
-                title: auction.title,
-                artist: auction.artist,
-                description: auction.description,
-                image: auction.image || undefined,
-                thumbnailUrl: auction.thumbnailUrl || undefined,
-                seller: auction.seller ?? KISMET_CASA_PLACEHOLDERS[index % KISMET_CASA_PLACEHOLDERS.length]!.seller,
-              }}
+              auction={tier1CardToDisplayAuction(auction, index, kismetFullListings)}
               hydratedListing={kismetHydratedLots[auction.listingId]}
               hydrationDone={kismetHydrationDone}
               gradient={KISMET_GRADIENTS[index % KISMET_GRADIENTS.length]}

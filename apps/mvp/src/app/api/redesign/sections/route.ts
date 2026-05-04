@@ -24,7 +24,11 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        sections: { featured: { hero: null, artworks: [] }, kismetLots: [] },
+        sections: {
+          featured: { hero: null, artworks: [] },
+          kismetLots: [],
+          kismetFullListings: undefined,
+        },
         timingMs: elapsed,
       },
       {
