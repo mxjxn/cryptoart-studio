@@ -1301,8 +1301,9 @@ export default function AuctionDetailClient({
   const isOwnAuction = isConnected && address && auction.seller && 
     address.toLowerCase() === auction.seller.toLowerCase();
   
-  // Check if cancellation is allowed (seller can only cancel if no bids and active)
-  const canCancel = isOwnAuction && bidCount === 0 && isActive && !isCancelled;
+  // Seller cancel matches contract: no bids, listing still active — not tied to countdown `isActive`.
+  const canCancel =
+    isOwnAuction && !hasBid && !isCancelled && auction.status === "ACTIVE";
   const isCancelLoading = isCancelling || isConfirmingCancel;
   
   // Check if finalization is allowed (auction has ended and not finalized or cancelled)
