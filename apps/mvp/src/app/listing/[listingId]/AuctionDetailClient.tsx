@@ -49,6 +49,7 @@ import {
   listingThemeTypographyClasses,
   type ListingThemeData,
 } from "~/lib/listing-theme";
+import { pickDisplayTitle } from "~/lib/metadata-display";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -136,9 +137,12 @@ export default function AuctionDetailClient({
   const BUILDING_TIMEOUT_MS = 12000;
   /** One-shot: when page-status says ready but auction API still had a stale null, force refresh. */
   const bustStaleReadyAuctionRef = useRef(false);
+  /** One-shot: cached payload missing title/media — bust with refresh=1 (indexer/metadata race). */
+  const incompleteEnrichmentRefetchDone = useRef(false);
 
   useEffect(() => {
     bustStaleReadyAuctionRef.current = false;
+    incompleteEnrichmentRefetchDone.current = false;
   }, [listingId]);
 
   // Poll for page status when listing is not found or page is building
@@ -255,6 +259,27 @@ export default function AuctionDetailClient({
     bustStaleReadyAuctionRef.current = true;
     void refetchAuction(true);
   }, [pageStatus, auction, loading, auctionFetchError, refetchAuction]);
+
+  useEffect(() => {
+    if (!auction || auction.status !== "ACTIVE") return;
+    const anim =
+      auction.metadata?.animation_url ||
+      (auction.metadata as { animationUrl?: string } | undefined)?.animationUrl;
+    const hasDisplayMedia = !!(
+      auction.detailThumbnailUrl ||
+      auction.image ||
+      auction.thumbnailUrl ||
+      anim
+    );
+    const hasTitle = !!(
+      (typeof auction.title === "string" && auction.title.trim()) ||
+      pickDisplayTitle(auction.metadata)
+    );
+    if (hasDisplayMedia && hasTitle) return;
+    if (incompleteEnrichmentRefetchDone.current) return;
+    incompleteEnrichmentRefetchDone.current = true;
+    void refetchAuction(true);
+  }, [auction, refetchAuction]);
 
   // If build status stays unresolved for too long, stop blocking the page forever.
   useEffect(() => {
@@ -1692,7 +1717,10 @@ export default function AuctionDetailClient({
   const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";
   // endTime, startTime already calculated above for at-risk detection
   // Use `now` state variable for isActive/isEnded to ensure countdown updates properly
-  const title = auction.title || `Auction #${listingId}`;
+  const title =
+    (typeof auction.title === "string" && auction.title.trim()) ||
+    pickDisplayTitle(auction.metadata) ||
+    `Auction #${listingId}`;
   // bidCount already calculated above
   const hasBid = bidCount > 0 || !!auction.highestBid;
   

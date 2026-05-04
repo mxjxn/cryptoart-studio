@@ -2,7 +2,8 @@ import { Address } from 'viem';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { CHAIN_ID } from './contracts/marketplace';
-import { isDataURI, isJsonDataURI, parseJsonDataURI } from './media-utils';
+import { getMediaType, isDataURI, isJsonDataURI, parseJsonDataURI } from './media-utils';
+import { pickDisplayTitle } from './metadata-display';
 
 // Minimal ERC721 ABI for tokenURI
 const ERC721_ABI = [
@@ -464,6 +465,52 @@ async function fetchMetadataJsonWithFallback(
   return null;
 }
 
+function strMeta(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim() ? v.trim() : undefined;
+}
+
+/**
+ * Fill `image` / `name` / `title` from common alternate JSON shapes before gateway + IPFS resolution.
+ */
+function coerceFlexibleNFTMetadata(metadata: NFTMetadata): void {
+  const r = metadata as Record<string, unknown>;
+
+  let img: unknown = metadata.image;
+  if (img != null && typeof img === "object" && !Array.isArray(img)) {
+    const o = img as Record<string, unknown>;
+    img = strMeta(o.uri) || strMeta(o.url) || strMeta(o.gateway);
+  }
+  if (!img || typeof img !== "string") {
+    img = strMeta(r.image_url) || strMeta(r.imageUrl);
+    if (!img && r.properties && typeof r.properties === "object") {
+      const p = r.properties as Record<string, unknown>;
+      let pi: unknown = p.image;
+      if (pi != null && typeof pi === "object" && !Array.isArray(pi)) {
+        const io = pi as Record<string, unknown>;
+        pi = strMeta(io.uri) || strMeta(io.url);
+      }
+      if (typeof pi === "string") img = strMeta(pi);
+    }
+  }
+  if (typeof img === "string" && img) {
+    metadata.image = img;
+  }
+
+  const rawAnim =
+    strMeta(metadata.animation_url) ||
+    strMeta(metadata.animationUrl) ||
+    strMeta(r.animation_url);
+  if (!metadata.image && rawAnim && getMediaType(rawAnim) === "image") {
+    metadata.image = rawAnim;
+  }
+
+  const picked = pickDisplayTitle(metadata);
+  if (picked) {
+    if (!metadata.name) metadata.name = picked;
+    if (!metadata.title) metadata.title = picked;
+  }
+}
+
 /**
  * Fetch NFT metadata from token URI
  * Handles both HTTP/IPFS URLs and data URIs (onchain metadata)
@@ -527,6 +574,8 @@ export async function fetchNFTMetadata(
       }
       metadata = fetched;
     }
+
+    coerceFlexibleNFTMetadata(metadata);
 
     // Convert image URL if it's IPFS (skip if already a data URI)
     if (metadata.image) {
