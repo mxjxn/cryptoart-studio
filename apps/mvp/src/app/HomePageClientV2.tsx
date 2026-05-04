@@ -37,7 +37,8 @@ function isERC1155(tokenSpec: EnrichedAuctionData["tokenSpec"]): boolean {
 }
 
 const FARCON_STATIC_PREVIEW = false;
-const TIER1_TIMEOUT_MS = 2500;
+/** Must exceed server `REDESIGN_TIER1_TIMEOUT_MS` (~55s) or fetches abort and placeholders never clear. */
+const TIER1_TIMEOUT_MS = 60_000;
 const TIER2_TIMEOUT_MS = 3000;
 const FEATURED_HEADER_TEXT = "Featured";
 /** Lime featured card — Kismet Casa drop (swap when the event passes). */
@@ -1058,9 +1059,10 @@ export default function HomePageClientV2() {
           (data.sections.featured?.artworks ?? []).map((c: Tier1ListingCard) => sanitizeTier1Card(c)),
         );
 
-        if (Array.isArray(data.sections.kismetLots) && data.sections.kismetLots.length > 0) {
-          setKismetTier1Lots(data.sections.kismetLots.map((c: Tier1ListingCard) => sanitizeTier1Card(c)));
-        }
+        const rawLots = Array.isArray(data.sections.kismetLots) ? data.sections.kismetLots : [];
+        setKismetTier1Lots(
+          rawLots.length > 0 ? rawLots.map((c: Tier1ListingCard) => sanitizeTier1Card(c)) : [],
+        );
         if (Array.isArray(data.sections.kismetFullListings) && data.sections.kismetFullListings.length > 0) {
           setKismetFullListings(data.sections.kismetFullListings);
         } else {
