@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { rewritePublicIpfsUrlForClient } from "~/lib/ipfs-gateway-public-url";
 
 interface ImageOverlayProps {
   src: string;
@@ -43,6 +44,8 @@ export function ImageOverlay({ src, alt, isOpen, onClose }: ImageOverlayProps) {
 
   if (!isOpen) return null;
 
+  const displaySrc = rewritePublicIpfsUrlForClient(src);
+
   return (
     <div
       className={`fixed z-50 flex items-center justify-center bg-black/95 animate-in fade-in duration-200 ${
@@ -71,7 +74,7 @@ export function ImageOverlay({ src, alt, isOpen, onClose }: ImageOverlayProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={src}
+          src={displaySrc}
           alt={alt}
           className="max-w-full max-h-full object-contain"
         />
