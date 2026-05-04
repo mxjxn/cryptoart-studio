@@ -39,11 +39,30 @@ export function getLocalWallClockAtLeastOneHourAfterStart(
   return formatDateAsDatetimeLocal(c);
 }
 
-/** Start ≈ now+10m, end = next 4:45 PM local that is ≥ 1h after start. */
+/**
+ * Start ≈ now+10m, end = **4:45 PM on the calendar day after** start (local wall clock),
+ * bumped by whole days if needed so end is ≥ 1h after start.
+ *
+ * This matches “tomorrow 4:45 PM” when start is today; the previous implementation used
+ * “next 4:45 PM”, which was **today** 4:45 PM whenever that was still ≥1h after start —
+ * listing pages then showed ~5–6h to end instead of ~24h+.
+ */
 export function getKismetCasaShortcutScheduleTimes(): { start: string; end: string } {
   const start = getKismetCasaImmediateStartDatetimeLocal();
-  const end = getLocalWallClockAtLeastOneHourAfterStart(start, 16, 45);
-  return { start, end };
+  const startMs = new Date(start).getTime();
+  if (Number.isNaN(startMs)) {
+    return {
+      start,
+      end: getLocalWallClockAtLeastOneHourAfterStart(start, 16, 45),
+    };
+  }
+  const s = new Date(startMs);
+  let endMs = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 1, 16, 45, 0, 0).getTime();
+  const minEnd = startMs + MIN_END_AFTER_START_MS;
+  while (endMs < minEnd) {
+    endMs += 24 * 60 * 60 * 1000;
+  }
+  return { start, end: formatDateAsDatetimeLocal(new Date(endMs)) };
 }
 
 /**
