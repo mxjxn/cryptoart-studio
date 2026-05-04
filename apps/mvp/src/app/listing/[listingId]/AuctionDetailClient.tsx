@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction, AUCTION_FETCH_TIMEOUT } from "~/hooks/useAuction";
@@ -48,7 +48,6 @@ import {
   composeListingThemeCursorCss,
   listingThemeTypographyClasses,
   type ListingThemeData,
-  type ListingThemeSource,
 } from "~/lib/listing-theme";
 
 // ERC20 ABI for approval functions
@@ -99,8 +98,6 @@ export default function AuctionDetailClient({
 
   const [listingPageTheme, setListingPageTheme] =
     useState<ListingThemeData>(DEFAULT_LISTING_THEME);
-  const [listingThemeSource, setListingThemeSource] =
-    useState<ListingThemeSource | null>(null);
 
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
@@ -120,15 +117,9 @@ export default function AuctionDetailClient({
           { cache: "no-store", headers: { "Cache-Control": "no-cache" } }
         );
         if (!res.ok) return;
-        const data = (await res.json()) as {
-          theme?: ListingThemeData;
-          source?: ListingThemeSource;
-        };
+        const data = (await res.json()) as { theme?: ListingThemeData };
         if (cancelled || !data?.theme) return;
         setListingPageTheme(data.theme);
-        if (data.source) {
-          setListingThemeSource(data.source);
-        }
       } catch {
         /* ignore */
       }
@@ -1519,6 +1510,18 @@ export default function AuctionDetailClient({
     [listingPageTheme]
   );
 
+  const listingBgGradient = useMemo(
+    () => composeLinearGradientCss(listingPageTheme),
+    [listingPageTheme]
+  );
+
+  const listingShellStyle = useMemo((): CSSProperties => {
+    return {
+      background: listingBgGradient,
+      ...(listingPageCursorCss ? { cursor: listingPageCursorCss } : {}),
+    };
+  }, [listingBgGradient, listingPageCursorCss]);
+
   // Auto-show update form for at-risk listings (seller needs to fix it)
   // MUST be called before any conditional returns to avoid hook order violations
   useEffect(() => {
@@ -1536,7 +1539,10 @@ export default function AuctionDetailClient({
 
   if (loading || isBuilding) {
     return (
-      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4">
+      <div
+        className="listing-detail-page min-h-screen flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4"
+        style={{ background: listingBgGradient }}
+      >
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-neutral-400 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-neutral-600">
@@ -1556,7 +1562,10 @@ export default function AuctionDetailClient({
 
   if (!loading && !auction && auctionFetchError?.message === AUCTION_FETCH_TIMEOUT) {
     return (
-      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4 px-4">
+      <div
+        className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4 px-4"
+        style={{ background: listingBgGradient }}
+      >
         <p className="max-w-md text-center text-neutral-600">
           This listing took too long to load (slow metadata or network). It may still exist — try again.
         </p>
@@ -1581,7 +1590,10 @@ export default function AuctionDetailClient({
 
   if (!loading && !auction && buildingTimedOut) {
     return (
-      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4 px-4">
+      <div
+        className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4 px-4"
+        style={{ background: listingBgGradient }}
+      >
         <p className="text-neutral-600 text-center">
           This listing is taking longer than expected to build.
         </p>
@@ -1613,7 +1625,10 @@ export default function AuctionDetailClient({
 
   if (!auction && !loading && pageStatus === 'not_found') {
     return (
-      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4">
+      <div
+        className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4"
+        style={{ background: listingBgGradient }}
+      >
         <p className="text-neutral-600">Auction not found</p>
         <TransitionLink
           href="/"
@@ -1627,7 +1642,10 @@ export default function AuctionDetailClient({
 
   if (!auction && !loading && (pageStatus === 'ready' || pageStatus === 'error')) {
     return (
-      <div className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 flex flex-col items-center justify-center gap-4 px-4">
+      <div
+        className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4 px-4"
+        style={{ background: listingBgGradient }}
+      >
         <p className="text-neutral-600 text-center max-w-md">
           Listing is indexed but details could not be loaded. Try again, or go home and open this lot from the feed.
         </p>
@@ -1774,8 +1792,8 @@ export default function AuctionDetailClient({
 
   return (
     <div
-      className="listing-detail-page min-h-screen bg-neutral-50 text-neutral-900 animate-in fade-in duration-100"
-      style={listingPageCursorCss ? { cursor: listingPageCursorCss } : undefined}
+      className="listing-detail-page min-h-screen animate-in fade-in duration-100"
+      style={listingShellStyle}
     >
       {/* Redesign: membership strip (matches HomePageClientV2) */}
       {!membershipLoading && (
@@ -1869,18 +1887,6 @@ export default function AuctionDetailClient({
             </button>
           </div>
         )}
-        {listingThemeSource !== null && listingThemeSource !== "fallback" && (
-          <div className="mb-4">
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-              Listing accent
-            </p>
-            <div
-              className="h-2.5 w-full rounded-full shadow-sm ring-1 ring-inset ring-neutral-300/80"
-              style={{ background: composeLinearGradientCss(listingPageTheme) }}
-              aria-hidden
-            />
-          </div>
-        )}
         {canEditListingTheme && isListingSeller && address && (
           <div className="mb-4">
             <ListingThemeEditor
@@ -1889,9 +1895,8 @@ export default function AuctionDetailClient({
               userAddress={address}
               verifiedAddresses={verifiedWalletAddresses}
               surface="light"
-              onThemeResolved={(t, src) => {
+              onThemeResolved={(t) => {
                 setListingPageTheme(t);
-                setListingThemeSource(src);
               }}
             />
           </div>
@@ -1950,7 +1955,7 @@ export default function AuctionDetailClient({
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h1 className={`mb-1 text-neutral-900 ${listingTypo.titleClass}`}>{title}</h1>
+              <h1 className={`mb-1 ${listingTypo.titleClass}`}>{title}</h1>
               {auction.tokenSpec === "ERC1155" && auction.erc1155TotalSupply && (
                 <p className="text-sm text-neutral-600">edition of {auction.erc1155TotalSupply}</p>
               )}
@@ -1960,7 +1965,7 @@ export default function AuctionDetailClient({
 
           {auction.description ? (
             <p
-              className={`mt-3 w-full max-w-none whitespace-pre-wrap text-neutral-700 ${listingTypo.bodyClass}`}
+              className={`mt-3 w-full max-w-none whitespace-pre-wrap ${listingTypo.bodyClass}`}
             >
               {auction.description}
             </p>

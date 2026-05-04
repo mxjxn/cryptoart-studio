@@ -26,7 +26,7 @@ interface ListingThemeEditorProps {
   listingId?: string;
   /** Light page (listing detail) vs dark (profile) */
   surface?: "light" | "dark";
-  /** Called when resolved theme updates (load / save / refetch). Includes `source` for listing accent UI. */
+  /** Called when resolved theme updates (load / save / refetch). */
   onThemeResolved?: (theme: ListingThemeData, source: ListingThemeSource) => void;
 }
 
