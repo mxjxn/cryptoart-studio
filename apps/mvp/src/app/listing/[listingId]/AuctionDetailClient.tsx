@@ -108,6 +108,25 @@ export default function AuctionDetailClient({
     listingId
   );
 
+  /** Must run before any early return (Rules of Hooks). */
+  const listingImageOverlayFallbackSrcs = useMemo(() => {
+    if (!auction) return [];
+    const fullscreen =
+      auction.detailThumbnailUrl ?? auction.image ?? auction.thumbnailUrl;
+    return [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
+      (u): u is string =>
+        typeof u === "string" &&
+        u.length > 0 &&
+        !!fullscreen &&
+        u !== fullscreen
+    );
+  }, [
+    auction?.listingId,
+    auction?.thumbnailUrl,
+    auction?.detailThumbnailUrl,
+    auction?.image,
+  ]);
+
   useEffect(() => {
     if (!auction?.listingId) return;
     let cancelled = false;
@@ -1432,7 +1451,7 @@ export default function AuctionDetailClient({
       try {
         // Check if back navigation is supported
         const capabilities = await sdk.getCapabilities();
-        if (capabilities.includes("back")) {
+        if (Array.isArray(capabilities) && capabilities.includes("back")) {
           // Enable web navigation integration (automatically handles browser history)
           await sdk.back.enableWebNavigation();
 
@@ -1727,22 +1746,6 @@ export default function AuctionDetailClient({
   /** Fullscreen zoom: prefer detail, then full source, then small thumb. */
   const listingFullscreenImageUrl =
     auction.detailThumbnailUrl ?? auction.image ?? auction.thumbnailUrl;
-  /** If primary fullscreen URL fails (e.g. ipfs.io), try cached thumbs next. */
-  const listingImageOverlayFallbackSrcs = useMemo(
-    () =>
-      [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
-        (u): u is string =>
-          typeof u === "string" &&
-          u.length > 0 &&
-          !!listingFullscreenImageUrl &&
-          u !== listingFullscreenImageUrl
-      ),
-    [
-      auction.thumbnailUrl,
-      auction.detailThumbnailUrl,
-      listingFullscreenImageUrl,
-    ]
-  );
   // bidCount already calculated above
   const hasBid = bidCount > 0 || !!auction.highestBid;
   
