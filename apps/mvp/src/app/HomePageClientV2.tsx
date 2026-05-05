@@ -1643,7 +1643,6 @@ export default function HomePageClientV2() {
           {kismetTier1Lots.map((auction, index) => (
             <KismetLotSection
               key={auction.listingId}
-              lotNumber={index + 1}
               shouldAnimate={shouldAnimate}
               auction={mergeKismetAuctionWithHydration(
                 tier1CardToDisplayAuction(auction, index, kismetFullListings),
@@ -1764,9 +1763,6 @@ function StaticArtworkTile({
           ) : (
             <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
           )}
-          <span className="relative z-10 self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
-            Lot {auction.tokenId}
-          </span>
           <div className="relative z-10 bg-black/70 p-2 font-space-grotesk text-xs">
             <p className="truncate">{auction.title}</p>
             <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
@@ -1807,7 +1803,6 @@ function StaticAuctionCard({
 }
 
 function KismetLotSection({
-  lotNumber,
   auction,
   hydratedListing,
   hydrationDone,
@@ -1815,7 +1810,6 @@ function KismetLotSection({
   gutter,
   shouldAnimate,
 }: {
-  lotNumber: number;
   auction: EnrichedAuctionData;
   hydratedListing?: Tier2HydrationItem;
   hydrationDone?: boolean;
@@ -1959,9 +1953,6 @@ function KismetLotSection({
               <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
             )}
             <div className="pointer-events-none absolute inset-0 z-[2] bg-black/10" />
-            <div className="absolute left-2 top-2 z-[3] bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
-              Lot {lotNumber}
-            </div>
             <div className="absolute right-2 top-2 z-[3] border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
               {listingType === "INDIVIDUAL_AUCTION" ? "Auction" : "Open sale"}
             </div>
