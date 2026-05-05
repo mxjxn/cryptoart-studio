@@ -1522,7 +1522,7 @@ export default function HomePageClientV2() {
                     {hideAuctionCards
                       ? "6 auctions · live tomorrow"
                       : kismetLotCount > 0
-                        ? `${kismetLotCount} lots below · auctions open tomorrow`
+                        ? `${kismetLotCount} lots below · auctions open for bids`
                         : "Featured lots unavailable — refresh shortly"}
                   </span>
                 </div>
