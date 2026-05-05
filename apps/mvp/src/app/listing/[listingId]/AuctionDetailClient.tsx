@@ -1497,11 +1497,11 @@ export default function AuctionDetailClient({
   // State for current time (must be called before conditional returns)
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
   
-  // Update countdown every minute (must be called before conditional returns)
+  // Update countdown every second (must be called before conditional returns)
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(Math.floor(Date.now() / 1000));
-    }, 60000); // Update every minute
+    }, 1000);
     
     return () => clearInterval(interval);
   }, []);
