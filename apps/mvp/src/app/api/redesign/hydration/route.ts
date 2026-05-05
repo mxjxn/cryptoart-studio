@@ -11,6 +11,11 @@ type HydrationItem = {
   listingType: string;
   status: string;
   bidCount: number;
+  highestBid?: {
+    amount: string;
+    bidder: string;
+    timestamp: string;
+  };
 };
 
 function parseIds(searchParams: URLSearchParams): string[] {
@@ -35,7 +40,7 @@ export async function GET(req: NextRequest) {
     const fallback: Record<string, HydrationItem> = {};
     const items = await withTimeout(
       (async () => {
-        const auctions = await getCachedActiveAuctions(60, 0, false);
+        const auctions = await getCachedActiveAuctions(250, 0, false);
         const byId: Record<string, HydrationItem> = {};
         for (const listing of auctions) {
           if (!ids.includes(String(listing.listingId))) continue;
@@ -46,6 +51,13 @@ export async function GET(req: NextRequest) {
             listingType: String(listing.listingType || "INDIVIDUAL_AUCTION"),
             status: String(listing.status || "ACTIVE"),
             bidCount: listing.bidCount || (listing.bids?.length ?? 0),
+            highestBid: listing.highestBid
+              ? {
+                  amount: String(listing.highestBid.amount || "0"),
+                  bidder: String(listing.highestBid.bidder || ""),
+                  timestamp: String(listing.highestBid.timestamp || "0"),
+                }
+              : undefined,
           };
         }
         return byId;

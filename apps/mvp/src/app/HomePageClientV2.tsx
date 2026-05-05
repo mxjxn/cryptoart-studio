@@ -277,6 +277,11 @@ type Tier2HydrationItem = {
   listingType: string;
   status: string;
   bidCount: number;
+  highestBid?: {
+    amount: string;
+    bidder: string;
+    timestamp: string;
+  };
   startTime?: string;
   endTime?: string;
   seller?: string | null;
@@ -311,6 +316,13 @@ function mergeKismetAuctionWithHydration(
     status: (h.status || auction.status) as EnrichedAuctionData["status"],
     bidCount: h.bidCount ?? auction.bidCount,
     currentPrice: h.currentPrice || auction.currentPrice,
+    highestBid: h.highestBid
+      ? {
+          amount: h.highestBid.amount,
+          bidder: h.highestBid.bidder,
+          timestamp: h.highestBid.timestamp,
+        }
+      : auction.highestBid,
     artist: creatorOk ? h.creatorLabel!.trim() : auction.artist,
   };
 }
@@ -1308,7 +1320,7 @@ export default function HomePageClientV2() {
   }, []);
 
   useEffect(() => {
-    if (hideAuctionCards || HOMEPAGE_KISMET_STATIC_ONLY) {
+    if (hideAuctionCards) {
       setKismetHydrationDone(true);
       return;
     }
