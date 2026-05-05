@@ -1210,8 +1210,11 @@ export default function HomePageClientV2() {
     }
   };
 
-  const formatBidder = (bidder: string | undefined) => {
-    if (!bidder) return "Unknown bidder";
+  const formatBidder = (bidder: string | undefined, bidCount?: number) => {
+    if (!bidder) {
+      const count = bidCount || 0;
+      return count > 0 ? `${count} bid${count === 1 ? "" : "s"}` : "Unknown bidder";
+    }
     return `${bidder.slice(0, 6)}…${bidder.slice(-4)}`;
   };
 
@@ -1635,7 +1638,7 @@ export default function HomePageClientV2() {
                         currentPrice: auction.highestBid?.amount || auction.currentPrice,
                       })}
                     </p>
-                    <p className="text-black">{formatBidder(auction.highestBid?.bidder)}</p>
+                    <p className="text-black">{formatBidder(auction.highestBid?.bidder, auction.bidCount)}</p>
                   </div>
                 </div>
               </TransitionLink>

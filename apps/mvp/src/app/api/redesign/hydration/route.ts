@@ -45,6 +45,16 @@ export async function GET(req: NextRequest) {
         for (const listing of auctions) {
           if (!ids.includes(String(listing.listingId))) continue;
           const bidAmount = listing.highestBid?.amount;
+          const topBidBidder =
+            listing.highestBid?.bidder ||
+            (Array.isArray(listing.bids) && listing.bids.length > 0
+              ? String(listing.bids[0]?.bidder || "")
+              : "");
+          const topBidTimestamp =
+            listing.highestBid?.timestamp ||
+            (Array.isArray(listing.bids) && listing.bids.length > 0
+              ? String(listing.bids[0]?.timestamp || "0")
+              : "0");
           byId[String(listing.listingId)] = {
             listingId: String(listing.listingId),
             currentPrice: bidAmount || listing.currentPrice || listing.initialAmount || "0",
@@ -54,8 +64,8 @@ export async function GET(req: NextRequest) {
             highestBid: listing.highestBid
               ? {
                   amount: String(listing.highestBid.amount || "0"),
-                  bidder: String(listing.highestBid.bidder || ""),
-                  timestamp: String(listing.highestBid.timestamp || "0"),
+                  bidder: String(topBidBidder),
+                  timestamp: String(topBidTimestamp),
                 }
               : undefined,
           };
