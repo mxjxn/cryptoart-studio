@@ -18,9 +18,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const description = homeTeaserEnabled ? teaserDescription : APP_DESCRIPTION;
   const title = homeTeaserEnabled ? `${APP_NAME} — Coming soon` : APP_NAME;
 
-  // Use the opengraph-image route that shows recent listings with images
-  // (not the /api/opengraph-image which is just text)
-  const ogImageUrl = `${APP_URL}/opengraph-image`;
+  // Use the lightweight API OG image endpoint for miniapp embed reliability.
+  // The heavier `/opengraph-image` route can exceed crawler latency budgets.
+  const ogImageUrl = `${APP_URL}/api/opengraph-image`;
   const homepageUrl = APP_URL;
   
   // Create separate metadata objects for fc:miniapp and fc:frame
@@ -57,11 +57,6 @@ export async function generateMetadata(): Promise<Metadata> {
       "fc:miniapp": JSON.stringify(miniappMetadata),
       // For backward compatibility - use launch_frame type
       "fc:frame": JSON.stringify(frameMetadata),
-      // Legacy frame fields still used by some crawlers/clients.
-      "fc:frame:image": ogImageUrl,
-      "fc:frame:button:1": "Open Cryptoart",
-      "fc:frame:button:1:action": "link",
-      "fc:frame:button:1:target": homepageUrl,
     },
   };
 }
