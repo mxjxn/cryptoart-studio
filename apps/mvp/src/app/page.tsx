@@ -1,6 +1,7 @@
 import { Metadata } from "next";
-import { APP_NAME, APP_DESCRIPTION, APP_URL } from "~/lib/constants";
+import { APP_NAME, APP_DESCRIPTION } from "~/lib/constants";
 import { getMiniAppEmbedMetadata } from "~/lib/utils";
+import { getRequestSiteUrl } from "~/lib/server/request-site-url";
 import HomePageClientV2 from "./HomePageClientV2";
 
 // Enable ISR (Incremental Static Regeneration) for fast homepage rendering
@@ -18,10 +19,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const description = homeTeaserEnabled ? teaserDescription : APP_DESCRIPTION;
   const title = homeTeaserEnabled ? `${APP_NAME} — Coming soon` : APP_NAME;
 
+  // Match listing-page metadata behavior: derive site URL from incoming request host.
+  // This avoids host mismatch issues (`www` vs apex) in embed/action URLs.
+  const siteUrl = await getRequestSiteUrl();
   // Use the lightweight API OG image endpoint for miniapp embed reliability.
-  // The heavier `/opengraph-image` route can exceed crawler latency budgets.
-  const ogImageUrl = `${APP_URL}/api/opengraph-image`;
-  const homepageUrl = APP_URL;
+  const ogImageUrl = `${siteUrl}/api/opengraph-image`;
+  const homepageUrl = siteUrl;
   
   // Create separate metadata objects for fc:miniapp and fc:frame
   // fc:frame needs useFrameType: true for backward compatibility
@@ -39,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
   );
   
   return {
-    metadataBase: new URL(APP_URL),
+    metadataBase: new URL(siteUrl),
     title,
     description,
     alternates: {
