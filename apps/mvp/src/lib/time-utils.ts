@@ -24,7 +24,7 @@ export function formatEndTime(timestamp: number): string {
 export type TimeCountdownVerb = "ends" | "starts";
 
 /**
- * Countdown to a unix second using "starts in …" or "ends in …" (hours granularity).
+ * Countdown to a unix second using "starts in …" or "ends in …" (second granularity).
  */
 export function formatCountdownTo(
   targetUnixSeconds: number,
@@ -40,12 +40,20 @@ export function formatCountdownTo(
 
   const days = Math.floor(delta / 86400);
   const hours = Math.floor((delta % 86400) / 3600);
+  const minutes = Math.floor((delta % 3600) / 60);
+  const seconds = delta % 60;
   const prefix = verb === "ends" ? "ends" : "starts";
 
   if (days > 0) {
-    return `${prefix} in ${days} day${days !== 1 ? "s" : ""} ${hours} hr${hours !== 1 ? "s" : ""}`;
+    return `${prefix} in ${days}d ${hours}h ${minutes}m ${seconds}s`;
   }
-  return `${prefix} in ${hours} hr${hours !== 1 ? "s" : ""}`;
+  if (hours > 0) {
+    return `${prefix} in ${hours}h ${minutes}m ${seconds}s`;
+  }
+  if (minutes > 0) {
+    return `${prefix} in ${minutes}m ${seconds}s`;
+  }
+  return `${prefix} in ${seconds}s`;
 }
 
 /**
