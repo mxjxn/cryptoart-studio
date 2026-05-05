@@ -206,32 +206,32 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
     thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/e47b6c9a2acbac5b.webp",
   },
   {
-    id: "132",
-    listingId: "132",
+    id: "134",
+    listingId: "134",
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
-    seller: "0x6c1cbe8cfc32a74188a9d3bf364945ea53b01b04",
-    tokenAddress: "0x08ab6b515c1152fbfd6945428d64b81a1519df17",
-    tokenId: "2",
+    seller: "0x5576274800a2c36489320b2d6994590dc0cf9d1f",
+    tokenAddress: "0xc4847c6f1aca6923d90d97b7099afb80e97e47b2",
+    tokenId: "1",
     tokenSpec: "ERC721",
     listingType: "INDIVIDUAL_AUCTION",
-    initialAmount: "100000000000000000",
+    initialAmount: "20000000000000000",
     totalAvailable: "1",
     totalPerSale: "1",
-    startTime: "1777894920",
+    startTime: "1777896300",
     endTime: "1777992300",
     lazy: false,
     status: "ACTIVE",
     finalized: false,
     totalSold: "0",
-    currentPrice: "100000000000000000",
-    createdAt: "1777894341",
-    createdAtBlock: "45552497",
+    currentPrice: "20000000000000000",
+    createdAt: "1777895755",
+    createdAtBlock: "45553204",
     bidCount: 0,
-    title: "\" Litoral valley \"",
-    artist: "turro",
-    description: "Kismet Casa Rome auction lot.",
-    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/690a9b560148fa02.webp",
-    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/690a9b560148fa02.webp",
+    title: "Path of expansion",
+    artist: "jotta",
+    description: "Digital generative art created with TouchDesigner during the Kismet Casa Rome residency.",
+    image: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/86a87ed18672a2a5.webp",
+    thumbnailUrl: "https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/86a87ed18672a2a5.webp",
   },
 ];
 
@@ -1615,6 +1615,7 @@ export default function HomePageClientV2() {
           {kismetTier1Lots.map((auction, index) => (
             <KismetLotSection
               key={auction.listingId}
+              lotNumber={index + 1}
               shouldAnimate={shouldAnimate}
               auction={mergeKismetAuctionWithHydration(
                 tier1CardToDisplayAuction(auction, index, kismetFullListings),
@@ -1772,6 +1773,7 @@ function StaticAuctionCard({
 }
 
 function KismetLotSection({
+  lotNumber,
   auction,
   hydratedListing,
   hydrationDone,
@@ -1779,6 +1781,7 @@ function KismetLotSection({
   gutter,
   shouldAnimate,
 }: {
+  lotNumber: number;
   auction: EnrichedAuctionData;
   hydratedListing?: Tier2HydrationItem;
   hydrationDone?: boolean;
@@ -1918,7 +1921,7 @@ function KismetLotSection({
           )}
           <div className="pointer-events-none absolute inset-0 z-[2] bg-black/10" />
           <div className="absolute left-2 top-2 z-[3] bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
-            Lot {auction.tokenId}
+            Lot {lotNumber}
           </div>
           <div className="absolute right-2 top-2 z-[3] border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
             {listingType === "INDIVIDUAL_AUCTION" ? "Auction" : "Open sale"}
