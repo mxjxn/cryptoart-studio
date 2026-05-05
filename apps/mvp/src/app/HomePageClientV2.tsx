@@ -1856,7 +1856,17 @@ function KismetLotSection({
   });
 
   /** Parent merges `/api/redesign/hydration` into `auction` so pricing/times/creator stay consistent per lot. */
-  const listingType = auction.listingType || "FIXED_PRICE";
+  const listingTypeRaw = String(auction.listingType || "FIXED_PRICE");
+  const listingType =
+    listingTypeRaw === "1"
+      ? "INDIVIDUAL_AUCTION"
+      : listingTypeRaw === "2"
+        ? "FIXED_PRICE"
+        : listingTypeRaw === "3"
+          ? "DYNAMIC_PRICE"
+          : listingTypeRaw === "4"
+            ? "OFFERS_ONLY"
+            : listingTypeRaw;
   const price = formatStaticEth(auction.currentPrice || auction.initialAmount);
   const isAuction = listingType === "INDIVIDUAL_AUCTION";
   const listingTypeLabel =
@@ -1864,7 +1874,7 @@ function KismetLotSection({
       ? "Individual auction"
       : listingType === "OFFERS_ONLY"
         ? "Offers only"
-        : "Fixed price";
+        : "Reserve";
   const listingStatus = auction.status || "UNKNOWN";
   const bidCount = auction.bidCount || 0;
   const bidInfo = isAuction ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : "Buy now";
