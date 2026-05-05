@@ -39,11 +39,16 @@ export async function generateMetadata(): Promise<Metadata> {
   );
   
   return {
+    metadataBase: new URL(APP_URL),
     title,
     description,
+    alternates: {
+      canonical: homepageUrl,
+    },
     openGraph: {
       title,
       description,
+      url: homepageUrl,
       images: [ogImageUrl],
     },
     other: {
@@ -52,6 +57,11 @@ export async function generateMetadata(): Promise<Metadata> {
       "fc:miniapp": JSON.stringify(miniappMetadata),
       // For backward compatibility - use launch_frame type
       "fc:frame": JSON.stringify(frameMetadata),
+      // Legacy frame fields still used by some crawlers/clients.
+      "fc:frame:image": ogImageUrl,
+      "fc:frame:button:1": "Open Cryptoart",
+      "fc:frame:button:1:action": "link",
+      "fc:frame:button:1:target": homepageUrl,
     },
   };
 }
