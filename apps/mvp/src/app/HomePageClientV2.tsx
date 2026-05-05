@@ -1612,29 +1612,33 @@ export default function HomePageClientV2() {
             <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">No bids yet.</p>
           ) : (
             bidListings.map((auction, index) => (
-              <div
+              <TransitionLink
                 key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
-                className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200"
+                href={`/listing/${auction.listingId}`}
+                prefetch={false}
+                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
               >
-                <div
-                  className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
-                  style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1 font-space-grotesk text-sm">
-                  <p className="truncate text-black">{auction.title || "Listing"}</p>
-                  <p className="truncate text-black">by {auction.artist || "—"}</p>
+                <div className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200">
+                  <div
+                    className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
+                    style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
+                    aria-hidden
+                  />
+                  <div className="min-w-0 flex-1 font-space-grotesk text-sm">
+                    <p className="truncate text-black">{auction.title || "Listing"}</p>
+                    <p className="truncate text-black">by {auction.artist || "—"}</p>
+                  </div>
+                  <div className="shrink-0 text-right font-mek-mono text-sm text-black">
+                    <p className="text-black">
+                      {formatListingEth({
+                        ...auction,
+                        currentPrice: auction.highestBid?.amount || auction.currentPrice,
+                      })}
+                    </p>
+                    <p className="text-black">{formatBidder(auction.highestBid?.bidder)}</p>
+                  </div>
                 </div>
-                <div className="shrink-0 text-right font-mek-mono text-sm text-black">
-                  <p className="text-black">
-                    {formatListingEth({
-                      ...auction,
-                      currentPrice: auction.highestBid?.amount || auction.currentPrice,
-                    })}
-                  </p>
-                  <p className="text-black">{formatBidder(auction.highestBid?.bidder)}</p>
-                </div>
-              </div>
+              </TransitionLink>
             ))
           )}
         </div>
