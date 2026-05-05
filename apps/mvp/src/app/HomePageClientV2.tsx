@@ -1707,38 +1707,44 @@ function StaticArtworkTile({
   const artUrl = listingArtworkUrl(auction);
   return (
     <div className="min-h-[160px] border border-black/15 bg-black p-2 text-white">
-      <div className="relative flex min-h-[140px] flex-col justify-between overflow-hidden p-2">
-        {artUrl ? (
-          <>
-            <Image
-              src={artUrl}
-              alt={auction.title || "Listing"}
-              fill
-              className="object-cover"
-              sizes="(max-width: 640px) 45vw, 200px"
-              unoptimized
-            />
-            <div
-              className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/25 to-black/10"
-              aria-hidden
-            />
-            <div
-              className="pointer-events-none absolute inset-0 z-[1] opacity-50 mix-blend-soft-light"
-              style={{ background: gradient }}
-              aria-hidden
-            />
-          </>
-        ) : (
-          <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
-        )}
-        <span className="relative z-10 self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
-          Lot {auction.tokenId}
-        </span>
-        <div className="relative z-10 bg-black/70 p-2 font-space-grotesk text-xs">
-          <p className="truncate">{auction.title}</p>
-          <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
+      <TransitionLink
+        href={`/listing/${auction.listingId}`}
+        prefetch={false}
+        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+      >
+        <div className="relative flex min-h-[140px] flex-col justify-between overflow-hidden p-2">
+          {artUrl ? (
+            <>
+              <Image
+                src={artUrl}
+                alt={auction.title || "Listing"}
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 45vw, 200px"
+                unoptimized
+              />
+              <div
+                className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/25 to-black/10"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute inset-0 z-[1] opacity-50 mix-blend-soft-light"
+                style={{ background: gradient }}
+                aria-hidden
+              />
+            </>
+          ) : (
+            <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
+          )}
+          <span className="relative z-10 self-start bg-black/75 px-2 py-1 font-mek-mono text-xs text-white">
+            Lot {auction.tokenId}
+          </span>
+          <div className="relative z-10 bg-black/70 p-2 font-space-grotesk text-xs">
+            <p className="truncate">{auction.title}</p>
+            <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
+          </div>
         </div>
-      </div>
+      </TransitionLink>
     </div>
   );
 }
@@ -1894,45 +1900,51 @@ function KismetLotSection({
           willChange: shouldAnimate ? "transform, opacity" : undefined,
         }}
       >
-        <div className="relative flex min-h-[52svh] flex-shrink-0 flex-col justify-end overflow-hidden bg-black sm:min-h-[56svh]">
-          {heroArtUrl ? (
-            <>
-              <Image
-                src={heroArtUrl}
-                alt={auction.title || "Listing artwork"}
-                fill
-                className="z-0 object-cover object-center"
-                sizes="100vw"
-                unoptimized
-                priority={false}
-              />
-              <div
-                className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black via-black/50 to-black/20"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute inset-0 z-[1] opacity-35 mix-blend-soft-light"
-                style={{ background: gradient }}
-                aria-hidden
-              />
-            </>
-          ) : (
-            <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
-          )}
-          <div className="pointer-events-none absolute inset-0 z-[2] bg-black/10" />
-          <div className="absolute left-2 top-2 z-[3] bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
-            Lot {lotNumber}
+        <TransitionLink
+          href={`/listing/${auction.listingId}`}
+          prefetch={false}
+          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+        >
+          <div className="relative flex min-h-[52svh] flex-shrink-0 flex-col justify-end overflow-hidden bg-black sm:min-h-[56svh]">
+            {heroArtUrl ? (
+              <>
+                <Image
+                  src={heroArtUrl}
+                  alt={auction.title || "Listing artwork"}
+                  fill
+                  className="z-0 object-cover object-center"
+                  sizes="100vw"
+                  unoptimized
+                  priority={false}
+                />
+                <div
+                  className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black via-black/50 to-black/20"
+                  aria-hidden
+                />
+                <div
+                  className="pointer-events-none absolute inset-0 z-[1] opacity-35 mix-blend-soft-light"
+                  style={{ background: gradient }}
+                  aria-hidden
+                />
+              </>
+            ) : (
+              <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
+            )}
+            <div className="pointer-events-none absolute inset-0 z-[2] bg-black/10" />
+            <div className="absolute left-2 top-2 z-[3] bg-black/75 px-2 py-1 font-space-grotesk text-xs text-white">
+              Lot {lotNumber}
+            </div>
+            <div className="absolute right-2 top-2 z-[3] border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
+              {listingType === "INDIVIDUAL_AUCTION" ? "Auction" : "Open sale"}
+            </div>
+            <div className="relative z-[3] bg-gradient-to-t from-black/65 to-transparent px-0 pb-8 pt-16 sm:px-5 md:px-8 lg:px-12 xl:px-16">
+              <h3 className="truncate font-space-grotesk text-[clamp(2rem,7vw,4.5rem)] font-medium leading-[0.9] text-white">
+                {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
+              </h3>
+              <p className="mt-2 font-space-grotesk text-sm text-[#d6d6d6]">by {auction.artist || "Kismet Casa"}</p>
+            </div>
           </div>
-          <div className="absolute right-2 top-2 z-[3] border border-white/30 bg-black/60 px-2 py-1 font-mek-mono text-[11px] uppercase tracking-[0.12em] text-white/90">
-            {listingType === "INDIVIDUAL_AUCTION" ? "Auction" : "Open sale"}
-          </div>
-          <div className="relative z-[3] bg-gradient-to-t from-black/65 to-transparent px-0 pb-8 pt-16 sm:px-5 md:px-8 lg:px-12 xl:px-16">
-            <h3 className="truncate font-space-grotesk text-[clamp(2rem,7vw,4.5rem)] font-medium leading-[0.9] text-white">
-              {auction.title || `Kismet Casa Lot ${auction.tokenId}`}
-            </h3>
-            <p className="mt-2 font-space-grotesk text-sm text-[#d6d6d6]">by {auction.artist || "Kismet Casa"}</p>
-          </div>
-        </div>
+        </TransitionLink>
 
         <div className="flex flex-1 flex-col border-t border-[#2b2b2b] bg-black/95 px-0 py-4 sm:px-5 md:px-8 lg:px-12 xl:px-16">
           <p className="font-space-grotesk text-sm leading-relaxed text-[#a9a9a9]">
