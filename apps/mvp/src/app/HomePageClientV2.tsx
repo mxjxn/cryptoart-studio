@@ -1211,13 +1211,36 @@ export default function HomePageClientV2() {
     }
   };
 
-  const bidListings = [...nftListings, ...editionListings]
-    .filter((auction) => auction.highestBid?.amount)
+  const featuredBidListings = kismetTier1Lots
+    .slice(0, 6)
+    .map((lot, index) => {
+      const base = tier1CardToDisplayAuction(lot, index, kismetFullListings);
+      const hydrated = kismetHydratedLots[lot.listingId];
+      const bidCount = hydrated?.bidCount ?? base.bidCount ?? 0;
+      if (bidCount <= 0 && !base.highestBid?.amount) return null;
+      const merged = mergeKismetAuctionWithHydration(base, hydrated);
+      return {
+        ...merged,
+        bidCount,
+      };
+    })
+    .filter((v): v is EnrichedAuctionData => v != null);
+
+  const marketBidListings = [...nftListings, ...editionListings]
+    .filter((auction) => auction.highestBid?.amount);
+
+  const seenBidIds = new Set<string>();
+  const bidListings = [...featuredBidListings, ...marketBidListings]
+    .filter((auction) => {
+      if (seenBidIds.has(auction.listingId)) return false;
+      seenBidIds.add(auction.listingId);
+      return true;
+    })
     .sort((a, b) => {
       const bt = bidTimestamp(b);
       const at = bidTimestamp(a);
-      if (bt === at) return 0;
-      return bt > at ? 1 : -1;
+      if (bt !== at) return bt > at ? 1 : -1;
+      return (b.bidCount || 0) - (a.bidCount || 0);
     })
     .slice(0, 4);
   const gutter = "px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16";
@@ -1591,7 +1614,12 @@ export default function HomePageClientV2() {
                   <p className="truncate text-black">by {auction.artist || "—"}</p>
                 </div>
                 <div className="shrink-0 text-right font-mek-mono text-sm text-black">
-                  <p className="text-black">{formatListingEth({ ...auction, currentPrice: auction.highestBid?.amount })}</p>
+                  <p className="text-black">
+                    {formatListingEth({
+                      ...auction,
+                      currentPrice: auction.highestBid?.amount || auction.currentPrice,
+                    })}
+                  </p>
                   <p className="text-black">{formatBidder(auction.highestBid?.bidder)}</p>
                 </div>
               </div>
