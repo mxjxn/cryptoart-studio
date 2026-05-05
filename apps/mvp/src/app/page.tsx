@@ -22,8 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
   // Match listing-page metadata behavior: derive site URL from incoming request host.
   // This avoids host mismatch issues (`www` vs apex) in embed/action URLs.
   const siteUrl = await getRequestSiteUrl();
-  // Use the lightweight API OG image endpoint for miniapp embed reliability.
-  const ogImageUrl = `${siteUrl}/api/opengraph-image`;
+  // Temporary homepage miniapp embed image: Kismet-focused 3:2 card for composer reliability.
+  const ogImageUrl = `${siteUrl}/api/opengraph-image-home-kismet`;
   const homepageUrl = siteUrl;
   
   // Create separate metadata objects for fc:miniapp and fc:frame
