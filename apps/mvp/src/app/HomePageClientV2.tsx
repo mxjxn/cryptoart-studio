@@ -45,7 +45,7 @@ const TIER1_TIMEOUT_MS = 60_000;
 const TIER2_TIMEOUT_MS = 40_000;
 const FEATURED_HEADER_TEXT = "Featured";
 /** Lime featured card — Kismet Casa drop (swap when the event passes). */
-const FEATURED_KISMET_EYEBROW = "Kismet Casa · tomorrow";
+const FEATURED_KISMET_EYEBROW = "Kismet Casa · Rome Residency";
 const FEATURED_KISMET_HEADLINE = "Kismet Casa";
 const FEATURED_KISMET_DESCRIPTION =
   "Six live auctions from the Rome residency that began one week ago. Participate live online on /cryptoart and in person. Place bids throughout Farcon, and be there for the concluding event on Tuesday at 4pm (UTC+2) in Rome.";
@@ -1520,7 +1520,7 @@ export default function HomePageClientV2() {
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
                   <span className="border border-black px-2.5 py-1 text-black">
                     {hideAuctionCards
-                      ? "6 auctions · live tomorrow"
+                      ? "6 auctions · live now"
                       : kismetLotCount > 0
                         ? `${kismetLotCount} lots below · auctions open for bids`
                         : "Featured lots unavailable — refresh shortly"}
@@ -1549,14 +1549,14 @@ export default function HomePageClientV2() {
           {hideAuctionCards ? (
             <>
               <span className="text-black">Kismet Casa</span>
-              <span className="text-black">6 auctions tomorrow</span>
+              <span className="text-black">6 auctions</span>
             </>
           ) : (
             <>
               <span className="text-black">Kismet Casa</span>
               <span className="text-black">
                 {kismetLotCount > 0
-                  ? `Tomorrow · ${kismetLotCount} live ${kismetLotCount === 1 ? "auction" : "auctions"}`
+                  ? `Now · ${kismetLotCount} live ${kismetLotCount === 1 ? "auction" : "auctions"}`
                   : "Featured strip — waiting for listings"}
               </span>
             </>
