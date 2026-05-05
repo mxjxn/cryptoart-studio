@@ -1426,7 +1426,7 @@ export default function HomePageClientV2() {
             src="/cryptoart-logo-wgmeets.png"
             alt="CryptoArt"
             fill
-            className="object-contain object-left md:object-center"
+            className="object-contain object-center"
             sizes="(max-width: 768px) 100vw, (max-width: 1280px) 45vw, 576px"
             priority
           />
