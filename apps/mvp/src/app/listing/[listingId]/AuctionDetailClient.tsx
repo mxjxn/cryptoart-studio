@@ -2328,6 +2328,29 @@ export default function AuctionDetailClient({
           </div>
         )}
 
+        {/* Ended listing info when finalize action is restricted to another wallet */}
+        {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && !canFinalize && (
+          <div className="-mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-medium text-neutral-900">
+              Finalization is available to the authorized wallet.
+            </p>
+            {auction.listingType === "INDIVIDUAL_AUCTION" ? (
+              <p className="mt-1 text-xs text-neutral-600">
+                Seller or winning bidder can finalize this auction.
+                {auction.seller ? ` Seller: ${auction.seller.slice(0, 6)}...${auction.seller.slice(-4)}.` : ""}
+                {auction.highestBid?.bidder
+                  ? ` Winner: ${auction.highestBid.bidder.slice(0, 6)}...${auction.highestBid.bidder.slice(-4)}.`
+                  : ""}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-neutral-600">
+                Seller can finalize this listing.
+                {auction.seller ? ` Seller: ${auction.seller.slice(0, 6)}...${auction.seller.slice(-4)}.` : ""}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* 180-Day Duration Fix Form (for sellers) */}
         {!isCancelled && canFix180DayIssue && (
           <div className="-mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
