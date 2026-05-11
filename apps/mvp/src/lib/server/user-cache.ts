@@ -1,12 +1,20 @@
-import { 
-  getDatabase, 
-  userCache, 
+import {
+  getDatabase,
+  userCache,
   contractCache,
   type UserCacheData,
   type ContractCacheData,
   eq,
-  sql
-} from '@cryptoart/db';
+  and,
+  sql,
+} from "@cryptoart/db";
+
+/** Default chain for contract_cache when omitted (Base mainnet). */
+const DEFAULT_CONTRACT_CACHE_CHAIN_ID = 8453;
+
+function contractCacheMemoryKey(chainId: number, contractAddress: string): string {
+  return `${chainId}:${contractAddress.toLowerCase()}`;
+}
 
 /**
  * In-memory cache for user lookups within a single request/worker run
@@ -331,42 +339,45 @@ const MAX_CONTRACT_MEMORY_CACHE_SIZE = 500;
 /**
  * Get contract from in-memory cache (fastest layer)
  */
-function getContractFromMemoryCache(contractAddress: string): ContractCacheData | null {
-  const normalizedAddress = contractAddress.toLowerCase();
-  const cached = contractMemoryCache.get(normalizedAddress);
-  
+function getContractFromMemoryCache(
+  chainId: number,
+  contractAddress: string
+): ContractCacheData | null {
+  const key = contractCacheMemoryKey(chainId, contractAddress);
+  const cached = contractMemoryCache.get(key);
+
   if (!cached) {
     return null;
   }
-  
+
   // Check if expired
   if (Date.now() - cached.timestamp > CONTRACT_MEMORY_CACHE_TTL_MS) {
-    contractMemoryCache.delete(normalizedAddress);
+    contractMemoryCache.delete(key);
     return null;
   }
-  
+
   return cached.data;
 }
 
 /**
  * Store contract in in-memory cache
  */
-function setContractMemoryCache(contractAddress: string, data: ContractCacheData): void {
-  const normalizedAddress = contractAddress.toLowerCase();
-  
+function setContractMemoryCache(chainId: number, contractAddress: string, data: ContractCacheData): void {
+  const key = contractCacheMemoryKey(chainId, contractAddress);
+
   // Prevent unbounded growth
   if (contractMemoryCache.size >= MAX_CONTRACT_MEMORY_CACHE_SIZE) {
     const toRemove = Math.floor(MAX_CONTRACT_MEMORY_CACHE_SIZE * 0.1);
     const entries = [...contractMemoryCache.entries()]
       .sort((a, b) => a[1].timestamp - b[1].timestamp)
       .slice(0, toRemove);
-    
-    for (const [key] of entries) {
-      contractMemoryCache.delete(key);
+
+    for (const [k] of entries) {
+      contractMemoryCache.delete(k);
     }
   }
-  
-  contractMemoryCache.set(normalizedAddress, {
+
+  contractMemoryCache.set(key, {
     data,
     timestamp: Date.now(),
   });
@@ -375,18 +386,22 @@ function setContractMemoryCache(contractAddress: string, data: ContractCacheData
 /**
  * Get contract info from cache
  * Returns null if cache miss
+ *
+ * @param contractAddress - NFT contract address (lowercased internally)
+ * @param chainId - Chain where the contract is deployed (8453 Base, 1 Ethereum)
  */
 export async function getContractFromCache(
-  contractAddress: string
+  contractAddress: string,
+  chainId: number = DEFAULT_CONTRACT_CACHE_CHAIN_ID
 ): Promise<ContractCacheData | null> {
   const normalizedAddress = contractAddress.toLowerCase();
-  
+
   // Layer 1: Check in-memory cache first (fastest)
-  const memoryCached = getContractFromMemoryCache(normalizedAddress);
+  const memoryCached = getContractFromMemoryCache(chainId, normalizedAddress);
   if (memoryCached) {
     return memoryCached;
   }
-  
+
   // Layer 2: Check database cache
   if (!isDatabaseAvailable()) {
     return null;
@@ -394,20 +409,26 @@ export async function getContractFromCache(
 
   try {
     const db = getDatabase();
-    
-    const [cached] = await db.select()
+
+    const [cached] = await db
+      .select()
       .from(contractCache)
-      .where(eq(contractCache.contractAddress, normalizedAddress))
+      .where(
+        and(
+          eq(contractCache.chainId, chainId),
+          eq(contractCache.contractAddress, normalizedAddress)
+        )
+      )
       .limit(1);
-    
+
     // Check if cache is expired
     if (cached && cached.expiresAt > new Date()) {
       const cacheData = cached as ContractCacheData;
       // Store in memory cache for faster subsequent lookups
-      setContractMemoryCache(normalizedAddress, cacheData);
+      setContractMemoryCache(chainId, normalizedAddress, cacheData);
       return cacheData;
     }
-    
+
     // Cache expired or doesn't exist
     return null;
   } catch (error) {
@@ -419,6 +440,8 @@ export async function getContractFromCache(
 /**
  * Cache contract information
  * Uses upsert pattern to handle existing records
+ *
+ * @param chainId - Chain where the contract lives (8453 Base, 1 Ethereum)
  */
 export async function cacheContractInfo(
   contractAddress: string,
@@ -426,20 +449,22 @@ export async function cacheContractInfo(
     name?: string | null;
     symbol?: string | null;
     creatorAddress?: string | null;
-    source: 'onchain' | 'alchemy' | 'manual' | 'etherscan';
-  }
+    source: "onchain" | "alchemy" | "manual" | "etherscan";
+  },
+  chainId: number = DEFAULT_CONTRACT_CACHE_CHAIN_ID
 ): Promise<ContractCacheData | null> {
   const normalizedAddress = contractAddress.toLowerCase();
   const normalizedCreator = data.creatorAddress?.toLowerCase() || null;
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
   // Map 'etherscan' to 'onchain' for storage (both are external data sources)
-  const normalizedSource: 'onchain' | 'alchemy' | 'manual' = 
-    data.source === 'etherscan' ? 'onchain' : data.source;
-  
+  const normalizedSource: "onchain" | "alchemy" | "manual" =
+    data.source === "etherscan" ? "onchain" : data.source;
+
   // Check if database is configured
   if (!isDatabaseAvailable()) {
     // Return a mock object that matches the expected structure
     const mockData: ContractCacheData = {
+      chainId,
       contractAddress: normalizedAddress,
       name: data.name ?? null,
       symbol: data.symbol ?? null,
@@ -449,26 +474,33 @@ export async function cacheContractInfo(
       expiresAt,
       refreshedAt: new Date(),
     };
-    
+
     // Still store in memory cache even without database
-    setContractMemoryCache(normalizedAddress, mockData);
+    setContractMemoryCache(chainId, normalizedAddress, mockData);
     return mockData;
   }
 
   try {
     const db = getDatabase();
-    
+
     // Check if record exists
-    const [existing] = await db.select()
+    const [existing] = await db
+      .select()
       .from(contractCache)
-      .where(eq(contractCache.contractAddress, normalizedAddress))
+      .where(
+        and(
+          eq(contractCache.chainId, chainId),
+          eq(contractCache.contractAddress, normalizedAddress)
+        )
+      )
       .limit(1);
-    
+
     let result: ContractCacheData;
-    
+
     if (existing) {
       // Update existing record - only update fields that are provided
-      const [updated] = await db.update(contractCache)
+      const [updated] = await db
+        .update(contractCache)
         .set({
           name: data.name ?? existing.name,
           symbol: data.symbol ?? existing.symbol,
@@ -477,29 +509,40 @@ export async function cacheContractInfo(
           expiresAt,
           refreshedAt: new Date(),
         })
-        .where(eq(contractCache.contractAddress, normalizedAddress))
+        .where(
+          and(
+            eq(contractCache.chainId, chainId),
+            eq(contractCache.contractAddress, normalizedAddress)
+          )
+        )
         .returning();
-      
+
       result = updated as ContractCacheData;
     } else {
       // Insert new record
-      const [inserted] = await db.insert(contractCache).values({
-        contractAddress: normalizedAddress,
-        name: data.name ?? null,
-        symbol: data.symbol ?? null,
-        creatorAddress: normalizedCreator,
-        source: normalizedSource,
-        cachedAt: new Date(),
-        expiresAt,
-        refreshedAt: new Date(),
-      }).returning();
-      
+      const [inserted] = await db
+        .insert(contractCache)
+        .values({
+          chainId,
+          contractAddress: normalizedAddress,
+          name: data.name ?? null,
+          symbol: data.symbol ?? null,
+          creatorAddress: normalizedCreator,
+          source: normalizedSource,
+          cachedAt: new Date(),
+          expiresAt,
+          refreshedAt: new Date(),
+        })
+        .returning();
+
       result = inserted as ContractCacheData;
     }
-    
+
     // Store in memory cache for fast subsequent lookups
-    setContractMemoryCache(normalizedAddress, result);
-    console.log(`[cacheContractInfo] Cached contract ${normalizedAddress} with creator ${normalizedCreator}`);
+    setContractMemoryCache(chainId, normalizedAddress, result);
+    console.log(
+      `[cacheContractInfo] Cached contract chain=${chainId} ${normalizedAddress} with creator ${normalizedCreator}`
+    );
     return result;
   } catch (error) {
     console.warn(`[cacheContractInfo] Database error:`, error instanceof Error ? error.message : String(error));

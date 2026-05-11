@@ -1,5 +1,6 @@
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
-import { base } from "viem/chains";
+import { base, mainnet } from "viem/chains";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
 
 // Standard ERC20 ABI for the functions we need
 const ERC20_ABI = [
@@ -45,10 +46,12 @@ function isETH(tokenAddress: string | undefined | null): boolean {
  * Fetches symbol and decimals for a given ERC20 token address.
  * 
  * @param tokenAddress - The ERC20 token address to query
+ * @param chainId - Chain where the listing settles (`1` = Ethereum, `8453` = Base)
  * @returns Token info with symbol and decimals, or defaults for ETH
  */
 export async function getERC20TokenInfoServer(
-  tokenAddress: string | undefined | null
+  tokenAddress: string | undefined | null,
+  chainId: number = CHAIN_ID
 ): Promise<ERC20TokenInfo> {
   // If no address or zero address, it's ETH
   if (isETH(tokenAddress)) {
@@ -69,15 +72,18 @@ export async function getERC20TokenInfoServer(
   }
 
   const address = tokenAddress as Address;
+  const onMainnet = chainId === 1;
 
   try {
     const publicClient = createPublicClient({
-      chain: base,
+      chain: onMainnet ? mainnet : base,
       transport: http(
-        process.env.NEXT_PUBLIC_RPC_URL || 
-        process.env.RPC_URL || 
-        process.env.NEXT_PUBLIC_BASE_RPC_URL || 
-        "https://mainnet.base.org"
+        onMainnet
+          ? process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"
+          : process.env.NEXT_PUBLIC_RPC_URL ||
+            process.env.RPC_URL ||
+            process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+            "https://mainnet.base.org"
       ),
     });
 

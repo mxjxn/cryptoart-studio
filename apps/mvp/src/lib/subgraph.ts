@@ -1,5 +1,9 @@
 import type { AuctionData, EnrichedAuctionData } from './types';
 import { Address } from 'viem';
+import {
+  AmbiguousListingError,
+  parseAmbiguousChainsFromBody,
+} from '~/lib/auction-errors';
 
 const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '8453', 10);
 
@@ -50,20 +54,37 @@ export async function getActiveAuctions(options?: {
  * Returns enriched auction with metadata and bid information
  * Includes retry logic with exponential backoff for rate limiting
  */
-export async function getAuction(listingId: string): Promise<EnrichedAuctionData | null> {
+export async function getAuction(
+  listingId: string,
+  options?: { chainId?: number }
+): Promise<EnrichedAuctionData | null> {
   const maxRetries = 3;
   const initialDelay = 1000;
-  
+  const cid = options?.chainId;
+  const qs = cid != null ? `?chainId=${cid}` : "";
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // Use relative URL for client-side calls
-      const response = await fetch(`/api/auctions/${listingId}`);
+      const response = await fetch(`/api/auctions/${listingId}${qs}`);
       
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        
+        if (response.status === 409) {
+          let body: unknown;
+          try {
+            body = await response.json();
+          } catch {
+            body = {};
+          }
+          throw new AmbiguousListingError(
+            listingId,
+            parseAmbiguousChainsFromBody(body)
+          );
+        }
+
         // Handle rate limiting with retry
         if (response.status === 429 && attempt < maxRetries) {
           const delay = initialDelay * Math.pow(2, attempt);

@@ -5,6 +5,11 @@ import { type Address } from 'viem';
 export const MARKETPLACE_ADDRESS = (process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ||
   '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9') as Address;
 
+/** Ethereum mainnet marketplace proxy (listings at `/listing/eth/…`). Override via env when redeploying. */
+export const ETHEREUM_MAINNET_MARKETPLACE_ADDRESS = (process.env
+  .NEXT_PUBLIC_MARKETPLACE_ADDRESS_ETHEREUM ||
+  '0x3CEE515879FFe4620a1F8aC9bf09B97e858815Ef') as Address;
+
 // Base Mainnet chain ID
 export const CHAIN_ID = base.id; // 8453
 

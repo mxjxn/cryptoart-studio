@@ -1,5 +1,6 @@
 "use client";
 
+import { base, mainnet } from "wagmi/chains";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useAuthMode } from "~/hooks/useAuthMode";
 
@@ -8,14 +9,28 @@ interface ChainSwitchPromptProps {
   show: boolean;
   /** Callback when user dismisses the prompt */
   onDismiss?: () => void;
+  /** Target chain for the switch button (defaults to Base). */
+  requiredChainId?: number;
+  /** Display name for the target chain (e.g. "Base", "Ethereum"). */
+  targetNetworkLabel?: string;
 }
 
 /**
- * Minimal, low-attention prompt to switch to Base network.
- * Appears as a small toast-style notification when chainId is missing or wrong.
+ * Minimal toast-style prompt to switch networks when the wallet is on the wrong chain.
  */
-export function ChainSwitchPrompt({ show, onDismiss }: ChainSwitchPromptProps) {
-  const { switchToBase, isSwitching } = useNetworkGuard();
+export function ChainSwitchPrompt({
+  show,
+  onDismiss,
+  requiredChainId,
+  targetNetworkLabel,
+}: ChainSwitchPromptProps) {
+  const resolvedChainId = requiredChainId ?? base.id;
+  const label =
+    targetNetworkLabel ??
+    (resolvedChainId === mainnet.id ? "Ethereum" : "Base");
+  const { switchToRequiredChain, isSwitching } = useNetworkGuard({
+    requiredChainId: resolvedChainId,
+  });
   const { isMiniApp } = useAuthMode();
 
   if (!show || isMiniApp) {
@@ -28,15 +43,15 @@ export function ChainSwitchPrompt({ show, onDismiss }: ChainSwitchPromptProps) {
         <div className="flex items-start gap-3">
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-900 mb-1">
-              Switch to Base
+              Switch to {label}
             </p>
             <p className="text-xs text-gray-600">
-              Please switch to Base network to continue.
+              Please switch to the {label} network to continue.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={switchToBase}
+              onClick={switchToRequiredChain}
               disabled={isSwitching}
               className="px-3 py-1.5 text-xs font-medium text-white bg-black rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

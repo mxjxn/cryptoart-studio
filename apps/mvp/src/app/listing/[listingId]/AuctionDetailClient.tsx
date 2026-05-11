@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
+import { mainnet } from "wagmi/chains";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction, AUCTION_FETCH_TIMEOUT } from "~/hooks/useAuction";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
@@ -28,7 +29,15 @@ import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address, isAddress } from "viem";
 import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
+import {
+  MARKETPLACE_ADDRESS,
+  MARKETPLACE_ABI,
+  CHAIN_ID,
+  PURCHASE_ABI_NO_REFERRER,
+  PURCHASE_ABI_WITH_REFERRER,
+  ETHEREUM_MAINNET_MARKETPLACE_ADDRESS,
+} from "~/lib/contracts/marketplace";
+import { BASE_CHAIN_ID, ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
@@ -50,6 +59,8 @@ import {
   type ListingThemeData,
 } from "~/lib/listing-theme";
 import { pickDisplayTitle } from "~/lib/metadata-display";
+import { getChainNetworkInfo } from "~/lib/chain-display";
+import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
 
 // ERC20 ABI for approval functions
 const ERC20_ABI = [
@@ -77,11 +88,22 @@ const ERC20_ABI = [
 
 interface AuctionDetailClientProps {
   listingId: string;
+  /**
+   * When set (e.g. `1` for `/listing/eth/…`), auction API, marketplace reads/writes,
+   * ERC20 hooks, and chain switch prompts use this chain.
+   */
+  listingApiChainId?: number;
 }
 
 export default function AuctionDetailClient({
   listingId,
+  listingApiChainId,
 }: AuctionDetailClientProps) {
+  const isExplicitEthereumListing = listingApiChainId === ETHEREUM_MAINNET_CHAIN_ID;
+  const marketplaceReadAddress = isExplicitEthereumListing
+    ? ETHEREUM_MAINNET_MARKETPLACE_ADDRESS
+    : MARKETPLACE_ADDRESS;
+  const marketplaceReadChainId = isExplicitEthereumListing ? mainnet.id : CHAIN_ID;
   // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
   const { address, isConnected } = useEffectiveAddress();
   const router = useRouter();
@@ -89,7 +111,9 @@ export default function AuctionDetailClient({
   const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const chainId = useChainId();
-  const { switchToBase } = useNetworkGuard();
+  const { switchToRequiredChain } = useNetworkGuard({
+    requiredChainId: marketplaceReadChainId,
+  });
   const { hideOverlay } = useLoadingOverlay();
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const { isAdmin } = useIsAdmin();
@@ -104,9 +128,14 @@ export default function AuctionDetailClient({
   const isMiniAppInstalled = context?.client?.added ?? false;
   // Use cached auction API by default; `?refresh=1` on first load was bypassing unstable_cache
   // and stacking with page-status + metadata work, which made listing pages very slow.
-  const { auction, loading, error: auctionFetchError, refetch: refetchAuction, updateAuction } = useAuction(
-    listingId
-  );
+  const {
+    auction,
+    loading,
+    error: auctionFetchError,
+    ambiguousChains,
+    refetch: refetchAuction,
+    updateAuction,
+  } = useAuction(listingId, { chainId: listingApiChainId });
 
   /** Must run before any early return (Rules of Hooks). */
   const listingImageOverlayFallbackSrcs = useMemo(() => {
@@ -150,7 +179,12 @@ export default function AuctionDetailClient({
   }, [auction?.listingId]);
   
   // Track page building status
-  const [pageStatus, setPageStatus] = useState<'building' | 'ready' | 'not_found' | 'error' | null>(null);
+  const [pageStatus, setPageStatus] = useState<
+    "building" | "ready" | "not_found" | "error" | "ambiguous" | null
+  >(null);
+  const [pageStatusAmbiguousChains, setPageStatusAmbiguousChains] = useState<
+    number[] | null
+  >(null);
   const pageStatusCheckInFlight = useRef(false);
   const [buildingTimedOut, setBuildingTimedOut] = useState(false);
   const BUILDING_TIMEOUT_MS = 12000;
@@ -164,6 +198,10 @@ export default function AuctionDetailClient({
     incompleteEnrichmentRefetchDone.current = false;
   }, [listingId]);
 
+  useEffect(() => {
+    setPageStatusAmbiguousChains(null);
+  }, [listingId, listingApiChainId]);
+
   // Poll for page status when listing is not found or page is building
   useEffect(() => {
     if (!listingId) return;
@@ -176,7 +214,11 @@ export default function AuctionDetailClient({
       pageStatusCheckInFlight.current = true;
 
       try {
-        const response = await fetch(`/api/listings/${listingId}/page-status`, {
+        const ps =
+          listingApiChainId != null
+            ? `?chainId=${encodeURIComponent(String(listingApiChainId))}`
+            : "";
+        const response = await fetch(`/api/listings/${listingId}/page-status${ps}`, {
           signal: AbortSignal.timeout(5000), // 5 second timeout
         });
         if (!response.ok) {
@@ -191,17 +233,39 @@ export default function AuctionDetailClient({
           return;
         }
         const data = await response.json();
-        
+
         if (isMounted) {
+          if (data.status === "ambiguous") {
+            const raw = Array.isArray(data.chains)
+              ? data.chains
+                  .map((x: unknown) =>
+                    typeof x === "number" ? x : parseInt(String(x), 10)
+                  )
+                  .filter((n: number) => Number.isFinite(n))
+              : [];
+            setPageStatusAmbiguousChains(
+              raw.length >= 2
+                ? raw
+                : [ETHEREUM_MAINNET_CHAIN_ID, BASE_CHAIN_ID]
+            );
+            setPageStatus("ambiguous");
+            if (pollInterval) {
+              clearInterval(pollInterval);
+              pollInterval = null;
+            }
+            return;
+          }
+
+          setPageStatusAmbiguousChains(null);
           setPageStatus(data.status);
-          
+
           // If page is ready, stop polling
           if (data.status === 'ready') {
             if (pollInterval) {
               clearInterval(pollInterval);
               pollInterval = null;
             }
-            
+
             // Refetch auction data now that page is ready
             refetchAuction();
             
@@ -257,7 +321,11 @@ export default function AuctionDetailClient({
     checkPageStatus();
     
     // Poll every 3 seconds if status is building or if auction is not found
-    if (pageStatus !== 'not_found' && (pageStatus === 'building' || (!auction && !loading))) {
+    if (
+      pageStatus !== "not_found" &&
+      pageStatus !== "ambiguous" &&
+      (pageStatus === "building" || (!auction && !loading))
+    ) {
       pollInterval = setInterval(checkPageStatus, 3000);
     }
     
@@ -267,11 +335,12 @@ export default function AuctionDetailClient({
         clearInterval(pollInterval);
       }
     };
-  }, [listingId, pageStatus, auction, loading, address]);
+  }, [listingId, listingApiChainId, pageStatus, auction, loading, address]);
 
   // Page-status can flip to `ready` (subgraph-only) before `/api/auctions` clears a cached
   // negative entry. One forced refetch avoids flashing "indexed but details could not be loaded".
   useEffect(() => {
+    if (pageStatus === "ambiguous") return;
     if (pageStatus !== "ready" && pageStatus !== "error") return;
     if (loading || auction || auctionFetchError) return;
     if (bustStaleReadyAuctionRef.current) return;
@@ -321,7 +390,10 @@ export default function AuctionDetailClient({
       return () => clearTimeout(timer);
     }
   }, [loading, auction, hideOverlay]);
-  const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
+  const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(
+    listingId,
+    { chainId: listingApiChainId }
+  );
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
@@ -337,48 +409,56 @@ export default function AuctionDetailClient({
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
   const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
     hash: cancelHash,
+    chainId: marketplaceReadChainId,
   });
   
   // Finalize auction transaction
   const { writeContract: finalizeAuction, data: finalizeHash, isPending: isFinalizing, error: finalizeError } = useWriteContract();
   const { isLoading: isConfirmingFinalize, isSuccess: isFinalizeConfirmed } = useWaitForTransactionReceipt({
     hash: finalizeHash,
+    chainId: marketplaceReadChainId,
   });
 
   // Modify listing transaction
   const { writeContract: modifyListing, data: modifyHash, isPending: isModifying, error: modifyError } = useWriteContract();
   const { isLoading: isConfirmingModify, isSuccess: isModifyConfirmed } = useWaitForTransactionReceipt({
     hash: modifyHash,
+    chainId: marketplaceReadChainId,
   });
 
   // Purchase transaction (for FIXED_PRICE)
   const { writeContract: purchaseListing, data: purchaseHash, isPending: isPurchasing, error: purchaseError } = useWriteContract();
   const { isLoading: isConfirmingPurchase, isSuccess: isPurchaseConfirmed } = useWaitForTransactionReceipt({
     hash: purchaseHash,
+    chainId: marketplaceReadChainId,
   });
 
   // Offer transaction (for OFFERS_ONLY)
   const { writeContract: makeOffer, data: offerHash, isPending: isOffering, error: offerError } = useWriteContract();
   const { isLoading: isConfirmingOffer, isSuccess: isOfferConfirmed } = useWaitForTransactionReceipt({
     hash: offerHash,
+    chainId: marketplaceReadChainId,
   });
 
   // Accept offer transaction (for sellers)
   const { writeContract: acceptOffer, data: acceptHash, isPending: isAccepting, error: acceptError } = useWriteContract();
   const { isLoading: isConfirmingAccept, isSuccess: isAcceptConfirmed } = useWaitForTransactionReceipt({
     hash: acceptHash,
+    chainId: marketplaceReadChainId,
   });
 
   // Bid transaction (for INDIVIDUAL_AUCTION)
   const { writeContract: placeBid, data: bidHash, isPending: isBidding, error: bidError } = useWriteContract();
   const { isLoading: isConfirmingBid, isSuccess: isBidConfirmed } = useWaitForTransactionReceipt({
     hash: bidHash,
+    chainId: marketplaceReadChainId,
   });
 
   // ERC20 approval transaction
   const { writeContract: approveERC20, data: approveHash, isPending: isApproving, error: approveError } = useWriteContract();
   const { isLoading: isConfirmingApprove, isSuccess: isApproveConfirmed } = useWaitForTransactionReceipt({
     hash: approveHash,
+    chainId: marketplaceReadChainId,
   });
 
   // Resolve creator name from contract address (NFT creator, not auction seller)
@@ -390,7 +470,8 @@ export default function AuctionDetailClient({
   } = useArtistName(
     null, // Don't pass seller address - we want the contract creator, not seller
     auction?.tokenAddress || undefined,
-    auction?.tokenId ? BigInt(auction.tokenId) : undefined
+    auction?.tokenId ? BigInt(auction.tokenId) : undefined,
+    typeof auction?.chainId === "number" ? auction.chainId : undefined
   );
 
   // Resolve seller name separately (for display in auction details)
@@ -411,20 +492,29 @@ export default function AuctionDetailClient({
 
   // Fetch contract name
   const { contractName, isLoading: contractNameLoading } = useContractName(
-    auction?.tokenAddress as Address | undefined
+    auction?.tokenAddress as Address | undefined,
+    typeof auction?.chainId === "number" ? auction.chainId : undefined
   );
 
   // Fetch ERC20 token info and user balance (only if not ETH and not own auction)
   const isPaymentETH = isETH(auction?.erc20);
-  const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined);
-  const userBalance = useERC20Balance(auction?.erc20, address);
+  const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined, {
+    chainId: marketplaceReadChainId,
+  });
+  const userBalance = useERC20Balance(auction?.erc20, address, {
+    chainId: marketplaceReadChainId,
+  });
   
   // Check ERC20 allowance (only for ERC20 payments)
   const { data: erc20Allowance, refetch: refetchAllowance } = useReadContract({
     address: !isPaymentETH && auction?.erc20 ? (auction.erc20 as Address) : undefined,
     abi: ERC20_ABI,
     functionName: "allowance",
-    args: address && !isPaymentETH && auction?.erc20 ? [address, MARKETPLACE_ADDRESS] : undefined,
+    args:
+      address && !isPaymentETH && auction?.erc20
+        ? [address, marketplaceReadAddress]
+        : undefined,
+    chainId: marketplaceReadChainId,
     query: {
       enabled: !isPaymentETH && !!auction?.erc20 && !!address,
     },
@@ -436,8 +526,9 @@ export default function AuctionDetailClient({
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
-    address: MARKETPLACE_ADDRESS,
+    address: marketplaceReadAddress,
     abi: MARKETPLACE_ABI,
+    chainId: marketplaceReadChainId,
     functionName: "getListing",
     args: [Number(listingId)],
     query: {
@@ -473,7 +564,7 @@ export default function AuctionDetailClient({
   // Helper function to convert token address to CAIP-19 format
   const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
     if (!tokenAddress || isETH(tokenAddress)) return undefined;
-    return `eip155:${CHAIN_ID}/erc20:${tokenAddress}`;
+    return `eip155:${listingApiChainId ?? CHAIN_ID}/erc20:${tokenAddress}`;
   };
 
   // Prefill amount for swap (only for fixed-price listings)
@@ -603,8 +694,8 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
-            chainId: CHAIN_ID,
-            args: [MARKETPLACE_ADDRESS, bidAmountBigInt],
+            chainId: marketplaceReadChainId,
+            args: [marketplaceReadAddress, bidAmountBigInt],
           });
           // Wait for approval to be confirmed before proceeding
           return;
@@ -615,19 +706,19 @@ export default function AuctionDetailClient({
       // Pass referrer if available and listing supports referrers
       if (referrer) {
         await placeBid({
-          address: MARKETPLACE_ADDRESS,
+          address: marketplaceReadAddress,
           abi: MARKETPLACE_ABI,
           functionName: 'bid',
-          chainId: CHAIN_ID,
+          chainId: marketplaceReadChainId,
           args: [referrer, Number(listingId), false] as const,
           value: isPaymentETH ? bidAmountBigInt : BigInt(0),
         });
       } else {
         await placeBid({
-          address: MARKETPLACE_ADDRESS,
+          address: marketplaceReadAddress,
           abi: MARKETPLACE_ABI,
           functionName: 'bid',
-          chainId: CHAIN_ID,
+          chainId: marketplaceReadChainId,
           args: [Number(listingId), false] as const,
           value: isPaymentETH ? bidAmountBigInt : BigInt(0),
         });
@@ -661,8 +752,8 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
-            chainId: CHAIN_ID,
-            args: [MARKETPLACE_ADDRESS, totalPrice],
+            chainId: marketplaceReadChainId,
+            args: [marketplaceReadAddress, totalPrice],
           });
           // Wait for approval to be confirmed before proceeding
           return;
@@ -691,19 +782,19 @@ export default function AuctionDetailClient({
       // Use referrer if available and listing supports referrers
       if (referrer) {
         await purchaseListing({
-          address: MARKETPLACE_ADDRESS,
+          address: marketplaceReadAddress,
           abi: PURCHASE_ABI_WITH_REFERRER,
           functionName: 'purchase',
-          chainId: CHAIN_ID,
+          chainId: marketplaceReadChainId,
           args: [referrer, Number(listingId), purchaseQuantity],
           value: purchaseValue,
         });
       } else {
         await purchaseListing({
-          address: MARKETPLACE_ADDRESS,
+          address: marketplaceReadAddress,
           abi: PURCHASE_ABI_NO_REFERRER,
           functionName: 'purchase',
-          chainId: CHAIN_ID,
+          chainId: marketplaceReadChainId,
           args: [Number(listingId), purchaseQuantity],
           value: purchaseValue,
         });
@@ -735,17 +826,19 @@ export default function AuctionDetailClient({
             // Use referrer if available and listing supports referrers
             if (referrer) {
               purchaseListing({
-                address: MARKETPLACE_ADDRESS,
+                address: marketplaceReadAddress,
                 abi: PURCHASE_ABI_WITH_REFERRER,
                 functionName: 'purchase',
+                chainId: marketplaceReadChainId,
                 args: [referrer, Number(listingId), purchaseQuantity],
                 value: BigInt(0),
               });
             } else {
               purchaseListing({
-                address: MARKETPLACE_ADDRESS,
+                address: marketplaceReadAddress,
                 abi: PURCHASE_ABI_NO_REFERRER,
                 functionName: 'purchase',
+                chainId: marketplaceReadChainId,
                 args: [Number(listingId), purchaseQuantity],
                 value: BigInt(0),
               });
@@ -763,7 +856,20 @@ export default function AuctionDetailClient({
         if (timer) clearTimeout(timer);
       };
     }
-  }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing, referrer]);
+  }, [
+    isApproveConfirmed,
+    pendingPurchaseAfterApproval,
+    isPaymentETH,
+    auction,
+    address,
+    purchaseQuantity,
+    listingId,
+    refetchAllowance,
+    purchaseListing,
+    referrer,
+    marketplaceReadChainId,
+    marketplaceReadAddress,
+  ]);
 
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {
@@ -786,8 +892,8 @@ export default function AuctionDetailClient({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
-            chainId: CHAIN_ID,
-            args: [MARKETPLACE_ADDRESS, offerAmountBigInt],
+            chainId: marketplaceReadChainId,
+            args: [marketplaceReadAddress, offerAmountBigInt],
           });
           // Wait for approval to be confirmed before proceeding
           return;
@@ -796,10 +902,10 @@ export default function AuctionDetailClient({
 
       // Make offer with correct value (0 for ERC20, offerAmountBigInt for ETH)
       await makeOffer({
-        address: MARKETPLACE_ADDRESS,
+        address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'offer',
-        chainId: CHAIN_ID,
+        chainId: marketplaceReadChainId,
         args: [Number(listingId), false],
         value: isPaymentETH ? offerAmountBigInt : BigInt(0),
       });
@@ -817,10 +923,10 @@ export default function AuctionDetailClient({
       const offerAmountBigInt = BigInt(offerAmount);
       
       await acceptOffer({
-        address: MARKETPLACE_ADDRESS,
+        address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'accept',
-        chainId: CHAIN_ID,
+        chainId: marketplaceReadChainId,
         args: [
           Number(listingId),
           [offererAddress as Address],
@@ -847,10 +953,10 @@ export default function AuctionDetailClient({
     
     try {
       await cancelListing({
-        address: MARKETPLACE_ADDRESS,
+        address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'cancel',
-        chainId: CHAIN_ID, // Explicitly pass chainId to avoid getChainId errors
+        chainId: marketplaceReadChainId, // Explicitly pass chainId to avoid getChainId errors
         args: [Number(listingId), 0], // holdbackBPS = 0 as per requirements
       });
     } catch (err: any) {
@@ -862,7 +968,7 @@ export default function AuctionDetailClient({
         setShowChainSwitchPrompt(true);
         if (!isMiniApp) {
           try {
-            switchToBase();
+            switchToRequiredChain();
           } catch (switchErr) {
             console.error('[AuctionDetail] Error switching chain:', switchErr);
           }
@@ -878,10 +984,10 @@ export default function AuctionDetailClient({
     
     try {
       await finalizeAuction({
-        address: MARKETPLACE_ADDRESS,
+        address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'finalize',
-        chainId: CHAIN_ID,
+        chainId: marketplaceReadChainId,
         args: [Number(listingId)],
       });
     } catch (err: any) {
@@ -903,10 +1009,10 @@ export default function AuctionDetailClient({
       const endTime48 = durationSeconds; // Duration in seconds
 
       await modifyListing({
-        address: MARKETPLACE_ADDRESS,
+        address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'modifyListing',
-        chainId: CHAIN_ID,
+        chainId: marketplaceReadChainId,
         args: [
           Number(listingId),
           initialAmount,
@@ -957,10 +1063,10 @@ export default function AuctionDetailClient({
       }
 
       await modifyListing({
-        address: MARKETPLACE_ADDRESS,
+        address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'modifyListing',
-        chainId: CHAIN_ID,
+        chainId: marketplaceReadChainId,
         args: [
           Number(listingId),
           initialAmount,
@@ -985,7 +1091,7 @@ export default function AuctionDetailClient({
           setShowChainSwitchPrompt(true);
           if (!isMiniApp) {
             try {
-              switchToBase();
+              switchToRequiredChain();
             } catch (switchErr) {
               console.error('[AuctionDetail] Error switching chain:', switchErr);
             }
@@ -994,7 +1100,18 @@ export default function AuctionDetailClient({
         }
       }
     }
-  }, [cancelError, finalizeError, modifyError, purchaseError, offerError, acceptError, bidError, approveError, isMiniApp, switchToBase]);
+  }, [
+    cancelError,
+    finalizeError,
+    modifyError,
+    purchaseError,
+    offerError,
+    acceptError,
+    bidError,
+    approveError,
+    isMiniApp,
+    switchToRequiredChain,
+  ]);
 
   // Redirect after successful cancellation
   useEffect(() => {
@@ -1597,6 +1714,33 @@ export default function AuctionDetailClient({
     !auction &&
     (pageStatus === 'building' || pageStatus === null);
 
+  const mergedAmbiguousChains = useMemo(() => {
+    if (listingApiChainId != null) return null;
+    if (ambiguousChains?.length) return ambiguousChains;
+    if (pageStatus === "ambiguous" && pageStatusAmbiguousChains?.length) {
+      return pageStatusAmbiguousChains;
+    }
+    return null;
+  }, [
+    listingApiChainId,
+    ambiguousChains,
+    pageStatus,
+    pageStatusAmbiguousChains,
+  ]);
+
+  if (
+    mergedAmbiguousChains &&
+    (!loading || pageStatus === "ambiguous")
+  ) {
+    return (
+      <AmbiguousListingPicker
+        listingId={listingId}
+        chains={mergedAmbiguousChains}
+        variant="light"
+      />
+    );
+  }
+
   if (loading || isBuilding) {
     return (
       <div
@@ -1740,6 +1884,16 @@ export default function AuctionDetailClient({
     (typeof auction.title === "string" && auction.title.trim()) ||
     pickDisplayTitle(auction.metadata) ||
     `Auction #${listingId}`;
+  const resolvedListingChainId =
+    typeof auction.chainId === "number" && Number.isFinite(auction.chainId)
+      ? auction.chainId
+      : listingApiChainId ?? CHAIN_ID;
+  const listingChainInfo = getChainNetworkInfo(resolvedListingChainId);
+  const chainScopeMismatch =
+    listingApiChainId != null &&
+    typeof auction.chainId === "number" &&
+    Number.isFinite(auction.chainId) &&
+    auction.chainId !== listingApiChainId;
   /** Inline hero: prefer detail cache, then small thumb, then raw metadata image. Raw IPFS/gateway URLs can be very large and never finish loading in the browser. */
   const listingHeroImageUrl =
     auction.detailThumbnailUrl ?? auction.thumbnailUrl ?? auction.image;
@@ -2027,8 +2181,26 @@ export default function AuctionDetailClient({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <h1 className={`mb-1 ${listingTypo.titleClass}`}>{title}</h1>
+              <div
+                className="mt-2 flex flex-wrap items-center gap-2"
+                role="status"
+                aria-label={`Listing on ${listingChainInfo.displayName}, chain ID ${listingChainInfo.chainId}`}
+              >
+                <span className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-semibold tracking-wide text-neutral-900">
+                  {listingChainInfo.displayName}
+                </span>
+                <span className="inline-flex items-center rounded-md border border-neutral-200 bg-white px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-neutral-700">
+                  chain ID {listingChainInfo.chainId}
+                </span>
+              </div>
+              {chainScopeMismatch ? (
+                <p className="mt-2 text-xs text-amber-800">
+                  This page was opened for chain ID {listingApiChainId}, but indexer data is for chain ID{" "}
+                  {auction.chainId}. Verify you are viewing the correct network.
+                </p>
+              ) : null}
               {auction.tokenSpec === "ERC1155" && auction.erc1155TotalSupply && (
-                <p className="text-sm text-neutral-600">edition of {auction.erc1155TotalSupply}</p>
+                <p className="mt-2 text-sm text-neutral-600">edition of {auction.erc1155TotalSupply}</p>
               )}
             </div>
             <AdminContextMenu listingId={listingId} sellerAddress={auction.seller} />
@@ -2136,6 +2308,7 @@ export default function AuctionDetailClient({
           {auction.tokenAddress && (
             <ContractDetails
               contractAddress={auction.tokenAddress as Address}
+              chainId={typeof auction.chainId === "number" ? auction.chainId : undefined}
               imageUrl={auction.image || auction.metadata?.image || null}
               variant="light"
             />
@@ -2151,7 +2324,9 @@ export default function AuctionDetailClient({
               )}
               {auction.tokenAddress && auction.tokenId && (
                 <a
-                  href={`https://opensea.io/item/base/${auction.tokenAddress}/${auction.tokenId}`}
+                  href={`https://opensea.io/item/${
+                    auction.chainId === ETHEREUM_MAINNET_CHAIN_ID ? "ethereum" : "base"
+                  }/${auction.tokenAddress}/${auction.tokenId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-neutral-600 underline-offset-2 hover:text-neutral-900 hover:underline"
@@ -3219,9 +3394,11 @@ export default function AuctionDetailClient({
       </div>
       
       {/* Chain Switch Prompt */}
-      <ChainSwitchPrompt 
-        show={showChainSwitchPrompt} 
-        onDismiss={() => setShowChainSwitchPrompt(false)} 
+      <ChainSwitchPrompt
+        show={showChainSwitchPrompt}
+        onDismiss={() => setShowChainSwitchPrompt(false)}
+        requiredChainId={marketplaceReadChainId}
+        targetNetworkLabel={isExplicitEthereumListing ? "Ethereum" : "Base"}
       />
     </div>
   );

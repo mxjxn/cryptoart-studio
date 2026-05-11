@@ -2,24 +2,28 @@ import { request, gql } from "graphql-request";
 import { unstable_cache } from "next/cache";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { Address } from "viem";
 import { getDatabase, hiddenUsers } from '@cryptoart/db';
+import {
+  getConfiguredSubgraphEndpoints,
+} from "~/lib/server/subgraph-endpoints";
 import {
   getListingMediaSnapshot,
   primeListingMediaSnapshot,
   resolveMediaWithFallback,
 } from "~/lib/server/listing-metadata-refresh";
-import { upsertListingPreview } from "~/lib/server/listing-preview-store";
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error(
-    "Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL"
-  );
-};
+import {
+  makeListingPreviewId,
+  upsertListingPreview,
+} from "~/lib/server/listing-preview-store";
+import {
+  AmbiguousListingError,
+  chainIdsFromSubgraphRows,
+  isAmbiguousListingError,
+} from "~/lib/auction-errors";
+import { pickDisplayTitle } from "~/lib/metadata-display";
+import { enrichListingMediaAndSupplyCapped } from "~/lib/server/listing-enrichment-capped";
 
 /**
  * Get headers for subgraph requests, including API key if available
@@ -43,6 +47,7 @@ const LISTING_BY_ID_QUERY = gql`
     listing(id: $id) {
       id
       listingId
+      chainId
       marketplace
       seller
       tokenAddress
@@ -81,6 +86,7 @@ const LISTING_BY_LISTING_ID_QUERY = gql`
     ) {
       id
       listingId
+      chainId
       marketplace
       seller
       tokenAddress
@@ -122,6 +128,7 @@ const ACTIVE_LISTINGS_QUERY = gql`
     ) {
       id
       listingId
+      chainId
       marketplace
       seller
       tokenAddress
@@ -295,99 +302,70 @@ export function normalizeTokenSpec(
  * Used by page-status and as the first step of getAuctionServer.
  */
 export async function resolveListingFromSubgraph(
-  listingId: string
+  listingId: string,
+  chainIdFilter?: number
 ): Promise<any | null> {
-  const endpoint = getSubgraphEndpoint();
+  const configured = getConfiguredSubgraphEndpoints();
+  const endpoints =
+    chainIdFilter == null
+      ? configured
+      : configured.filter((e) => e.chainId === chainIdFilter);
+  if (chainIdFilter != null && endpoints.length === 0) {
+    return null;
+  }
   const headers = getSubgraphHeaders();
 
-  let data = await request<{ listing: any | null }>(
-    endpoint,
-    LISTING_BY_ID_QUERY,
-    { id: listingId },
-    headers
+  const listingIdNum = parseInt(listingId, 10);
+  const isNumeric = !Number.isNaN(listingIdNum);
+
+  const settled = await Promise.allSettled(
+    endpoints.map((ep) => {
+      if (isNumeric) {
+        return request<{ listings: any[] }>(
+          ep.url,
+          LISTING_BY_LISTING_ID_QUERY,
+          { listingId: listingIdNum },
+          headers
+        );
+      }
+
+      return request<{ listing: any | null }>(
+        ep.url,
+        LISTING_BY_ID_QUERY,
+        { id: listingId },
+        headers
+      ).then((r) => ({
+        listings: r.listing ? [r.listing] : [],
+      }));
+    })
   );
 
-  let listing = data.listing;
-
-  if (listing) {
-    const returnedListingId = String(listing.listingId || listing.id || "");
-    const requestedListingId = String(listingId);
-
-    if (returnedListingId !== requestedListingId) {
-      console.warn(
-        `[resolveListingFromSubgraph] Listing ID mismatch with entity id query! Requested: ${requestedListingId}, Got: ${returnedListingId}, Entity ID: ${listing.id}, Status: ${listing.status}`
-      );
-      const listingIdNum = parseInt(listingId, 10);
-      if (!isNaN(listingIdNum)) {
-        const listingData = await request<{ listings: any[] }>(
-          endpoint,
-          LISTING_BY_LISTING_ID_QUERY,
-          { listingId: listingIdNum },
-          headers
-        );
-
-        if (listingData.listings && listingData.listings.length > 0) {
-          listing = listingData.listings[0];
-          const newReturnedListingId = String(listing.listingId || listing.id || "");
-          if (newReturnedListingId !== requestedListingId) {
-            console.error(
-              `[resolveListingFromSubgraph] Still got wrong listing! Requested: ${requestedListingId}, Got: ${newReturnedListingId}`
-            );
-            return null;
-          }
-          console.log(
-            `[resolveListingFromSubgraph] Found correct listing using listingId query: listingId=${listing.listingId}, status=${listing.status}`
-          );
-        } else {
-          console.warn(
-            `[resolveListingFromSubgraph] No listing found using listingId query for: ${listingId}`
-          );
-          return null;
-        }
-      } else {
-        console.error(`[resolveListingFromSubgraph] Invalid listingId format: ${listingId}`);
-        return null;
-      }
-    }
+  const matched: any[] = [];
+  for (const s of settled) {
+    if (s.status !== "fulfilled") continue;
+    matched.push(...(s.value.listings ?? []));
   }
 
-  if (!listing) {
-    const listingIdNum = parseInt(listingId, 10);
-    if (!isNaN(listingIdNum)) {
-      try {
-        const listingData = await request<{ listings: any[] }>(
-          endpoint,
-          LISTING_BY_LISTING_ID_QUERY,
-          { listingId: listingIdNum },
-          headers
-        );
-
-        if (listingData.listings && listingData.listings.length > 0) {
-          listing = listingData.listings[0];
-          console.log(
-            `[resolveListingFromSubgraph] Found listing using listingId query fallback: listingId=${listing.listingId}, status=${listing.status}`
-          );
-        }
-      } catch (error) {
-        console.error(`[resolveListingFromSubgraph] Fallback query also failed:`, error);
-      }
-    }
+  if (matched.length === 0) return null;
+  if (matched.length > 1) {
+    throw new AmbiguousListingError(listingId, chainIdsFromSubgraphRows(matched));
   }
 
-  return listing || null;
+  return matched[0];
 }
 
 /**
  * Fetch auction data server-side (for use in route handlers, etc.)
  */
 export async function getAuctionServer(
-  listingId: string
+  listingId: string,
+  opts?: { chainId?: number }
 ): Promise<EnrichedAuctionData | null> {
   const startTime = Date.now();
   console.log(`[OG Image] [getAuctionServer] Fetching auction ${listingId}...`);
   
   try {
-    const listing = await resolveListingFromSubgraph(listingId);
+    const listing = await resolveListingFromSubgraph(listingId, opts?.chainId);
     if (!listing) {
       console.warn(`[OG Image] [getAuctionServer] No listing found for ID: ${listingId}`);
       return null;
@@ -408,71 +386,19 @@ export async function getAuctionServer(
         ? listing.bids[0] // Already sorted by amount desc
         : undefined;
 
-    // Fetch NFT metadata
-    let metadata = null;
-    if (listing.tokenAddress && listing.tokenId) {
-      try {
-        console.log(`[OG Image] [getAuctionServer] Fetching NFT metadata for ${listing.tokenAddress}:${listing.tokenId}...`);
-        metadata = await fetchNFTMetadata(
-          listing.tokenAddress as Address,
-          listing.tokenId,
-          listing.tokenSpec
-        );
-        console.log(`[OG Image] [getAuctionServer] Metadata fetched:`, {
-          hasTitle: !!metadata?.title,
-          hasImage: !!metadata?.image,
-          hasArtist: !!metadata?.artist,
-        });
-      } catch (error) {
-        console.error(
-          `[OG Image] [getAuctionServer] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`,
-          error
-        );
-      }
-    } else {
-      console.warn(`[OG Image] [getAuctionServer] No tokenAddress or tokenId, skipping metadata fetch`);
-    }
+    const capped = await enrichListingMediaAndSupplyCapped(
+      listing as Record<string, unknown>,
+      { listingIdForLog: listingId, requestChainId: opts?.chainId }
+    );
+    const {
+      metadata,
+      thumbnailUrl: cappedThumb,
+      detailThumbnailUrl: cappedDetailThumb,
+      erc1155TotalSupply,
+      erc721TotalSupply,
+    } = capped;
 
-    // Small thumbnail for cards/OG; detail preset for listing hero (parallel when both cold)
-    let thumbnailUrl: string | undefined = undefined;
-    let detailThumbnailUrl: string | undefined = undefined;
-    const imageUrl = metadata?.image;
     const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
-    if (imageUrl) {
-      try {
-        const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
-        const { getCachedThumbnail } = await import('./thumbnail-cache');
-        const [smallResult, detailResult] = await Promise.allSettled([
-          getOrGenerateThumbnail(imageUrl, 'small'),
-          (async () => {
-            const cached = await getCachedThumbnail(imageUrl, 'detail');
-            if (cached) return cached;
-            return getOrGenerateThumbnail(imageUrl, 'detail');
-          })(),
-        ]);
-        thumbnailUrl =
-          smallResult.status === 'fulfilled' ? smallResult.value : imageUrl;
-        detailThumbnailUrl =
-          detailResult.status === 'fulfilled' ? detailResult.value : undefined;
-        if (smallResult.status === 'rejected') {
-          console.warn(
-            `[OG Image] [getAuctionServer] Failed small thumbnail for ${imageUrl}:`,
-            smallResult.reason
-          );
-          thumbnailUrl = imageUrl;
-        }
-        if (detailResult.status === 'rejected') {
-          console.warn(
-            `[OG Image] [getAuctionServer] Failed detail thumbnail for ${imageUrl}:`,
-            detailResult.reason
-          );
-        }
-        console.log(`[OG Image] [getAuctionServer] Thumbnails for listing ${listingId}`);
-      } catch (error) {
-        console.warn(`[OG Image] [getAuctionServer] Failed to generate thumbnails for ${imageUrl}:`, error);
-        thumbnailUrl = imageUrl;
-      }
-    }
 
     // Normalize listing type and token spec for consistent handling
     const normalizedListingType = normalizeListingType(listing.listingType, listing);
@@ -487,7 +413,7 @@ export async function getAuctionServer(
 
     const resolvedMedia = resolveMediaWithFallback({
       freshImage: metadata?.image,
-      cachedThumbnail: thumbnailUrl,
+      cachedThumbnail: cappedThumb,
       lastKnownImage: mediaSnapshot?.image,
       lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
       originalImage: metadata?.image,
@@ -505,19 +431,25 @@ export async function getAuctionServer(
             timestamp: highestBid.timestamp,
           }
         : undefined,
-      title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+      title:
+        pickDisplayTitle(metadata) ??
+        metadata?.title ??
+        metadata?.name ??
+        mediaSnapshot?.title,
       artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
       image: resolvedMedia.image,
       description: metadata?.description || mediaSnapshot?.description,
       thumbnailUrl: resolvedMedia.thumbnailUrl,
-      detailThumbnailUrl,
+      detailThumbnailUrl: cappedDetailThumb,
       metadata,
+      erc1155TotalSupply,
+      erc721TotalSupply,
     };
     primeListingMediaSnapshot(enriched);
 
     if (enriched.image || enriched.title) {
       void upsertListingPreview({
-        listingId: String(listing.listingId),
+        listingId: makeListingPreviewId(listing.chainId, String(listing.listingId)),
         tokenAddress: String(listing.tokenAddress),
         tokenId: String(listing.tokenId),
         imageUrl: enriched.image ?? null,
@@ -530,6 +462,9 @@ export async function getAuctionServer(
     console.log(`[OG Image] [getAuctionServer] Auction data fetched successfully in ${elapsed}ms`);
     return enriched;
   } catch (error) {
+    if (isAmbiguousListingError(error)) {
+      throw error;
+    }
     const elapsed = Date.now() - startTime;
     console.error(`[OG Image] [getAuctionServer] Error fetching auction server-side (${elapsed}ms):`, error);
     if (error instanceof Error) {
@@ -610,38 +545,37 @@ async function fetchActiveAuctions(
   skip: number,
   enrich: boolean
 ): Promise<EnrichedAuctionData[]> {
-  const endpoint = getSubgraphEndpoint();
+  const endpoints = getConfiguredSubgraphEndpoints();
+  const headers = getSubgraphHeaders();
 
-  let data: { listings: any[] } = { listings: [] };
+  if (Object.keys(headers).length === 0 && (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.NEXT_PHASE === 'phase-production-build')) {
+    console.warn('[Active Listings] No subgraph auth headers - request may fail. Set GRAPH_STUDIO_API_KEY or NEXT_PUBLIC_GRAPH_STUDIO_API_KEY');
+  }
 
-  try {
-    const headers = getSubgraphHeaders();
-    // Log if headers are missing during build
-    if (Object.keys(headers).length === 0 && (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.NEXT_PHASE === 'phase-production-build')) {
-      console.warn('[Active Listings] No subgraph auth headers - request may fail. Set GRAPH_STUDIO_API_KEY or NEXT_PUBLIC_GRAPH_STUDIO_API_KEY');
-    }
-    
-    data = await request<{ listings: any[] }>(
-      endpoint,
-      ACTIVE_LISTINGS_QUERY,
-      {
-        first: Math.min(first, 1000),
-        skip,
-      },
-      headers
-    );
-  } catch (error: any) {
-    // Check if it's an auth error
-    const isAuthError = error?.response?.errors?.some((e: any) => 
-      e?.message?.includes('auth error') || e?.message?.includes('authorization')
-    ) || error?.message?.includes('auth error') || error?.message?.includes('authorization');
-    
-    if (isAuthError) {
-      console.warn(`[Active Listings] Subgraph authentication error - ensure GRAPH_STUDIO_API_KEY is set. Using last-known cache if available.`);
-    } else {
-      console.error(`[Active Listings] Subgraph error, using last-known cache if available:`, error);
-    }
-    
+  // Dual-network query: request the same listing window from each subgraph deployment,
+  // then merge results at the application layer.
+  const settled = await Promise.allSettled(
+    endpoints.map((ep) => {
+      return request<{ listings: any[] }>(
+        ep.url,
+        ACTIVE_LISTINGS_QUERY,
+        {
+          first: Math.min(first, 1000),
+          skip,
+        },
+        headers
+      );
+    })
+  );
+
+  const mergedListings: any[] = [];
+  const fulfilled = settled.filter((s): s is PromiseFulfilledResult<{ listings: any[] }> => s.status === "fulfilled");
+  for (const s of fulfilled) {
+    mergedListings.push(...(s.value.listings ?? []));
+  }
+
+  if (mergedListings.length === 0) {
+    // If both endpoints failed, fall back to last-known cache (stale-while-revalidate).
     const now = Date.now();
     if (LAST_ACTIVE_CACHE.value && LAST_ACTIVE_CACHE.value.expiresAt > now) {
       console.log(`[Active Listings] Using cached data (expires at ${new Date(LAST_ACTIVE_CACHE.value.expiresAt).toISOString()})`);
@@ -649,6 +583,8 @@ async function fetchActiveAuctions(
     }
     return [];
   }
+
+  const data = { listings: mergedListings };
 
   // Get hidden user addresses to filter out
   const hiddenAddresses = await getHiddenUserAddresses();
@@ -693,10 +629,17 @@ async function fetchActiveAuctions(
         let metadata = null;
         if (listing.tokenAddress && listing.tokenId) {
           try {
+            const rawCid = listing.chainId;
+            const parsedCid =
+              typeof rawCid === "number"
+                ? rawCid
+                : parseInt(String(rawCid ?? ""), 10);
+            const nftChainId = Number.isFinite(parsedCid) ? parsedCid : CHAIN_ID;
             metadata = await fetchNFTMetadata(
               listing.tokenAddress as Address,
               listing.tokenId,
-              listing.tokenSpec
+              listing.tokenSpec,
+              nftChainId
             );
           } catch (error) {
             console.error(`Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);

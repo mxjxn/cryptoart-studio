@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { prepareAuctionOGImageData } from "./og-image-generator";
 import { formatPriceForShare } from "./share-moments";
 import { getERC20TokenInfoServer } from "./server/erc20-token";
@@ -26,7 +27,12 @@ export async function generateShareOGImage(
 
   // Prepare base auction data
   const ogData = await prepareAuctionOGImageData(auction);
-  const tokenInfo = await getERC20TokenInfoServer(auction.erc20);
+  const parsedListingChain =
+    typeof auction.chainId === "number"
+      ? auction.chainId
+      : parseInt(String(auction.chainId ?? ""), 10);
+  const listingChainForRpc = Number.isFinite(parsedListingChain) ? parsedListingChain : CHAIN_ID;
+  const tokenInfo = await getERC20TokenInfoServer(auction.erc20, listingChainForRpc);
 
   // Look up top bidder name if needed
   let topBidderName: string | null = null;

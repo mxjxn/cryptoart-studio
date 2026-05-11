@@ -13,6 +13,12 @@ export type UpsertListingPreviewInput = {
 
 const ID_CHUNK = 80;
 
+/** Namespaces a listing preview key to avoid collisions across chains. */
+export function makeListingPreviewId(chainId: number | undefined, listingId: string): string {
+  if (chainId == null) return listingId;
+  return `${chainId}-${listingId}`;
+}
+
 /**
  * Persist preview row for market merge. Fire-and-forget safe — swallows errors.
  * Optionally kicks background thumbnail generation when we have an image but no small thumb URL.

@@ -16,6 +16,8 @@ import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
 import { getAuction } from "~/lib/subgraph";
 import type { PrerenderedListingCardData } from "~/lib/server/listing-card-prerender";
+import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
+import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 
 interface AuctionCardClientProps {
   listingId: string;
@@ -151,15 +153,23 @@ export function AuctionCardClient({
   const bidCount = auction?.bidCount || 0;
   
   // Resolve artist name
+  const nftChainIdForArtist =
+    typeof auction?.chainId === "number"
+      ? auction.chainId
+      : typeof staticData?.chainId === "number"
+        ? staticData.chainId
+        : undefined;
   const { artistName, isLoading: artistNameLoading, creatorAddress } = useArtistName(
     (!displayArtist && auction?.seller) ? auction.seller : null,
     staticData?.tokenAddress || auction?.tokenAddress || undefined,
-    (staticData?.tokenId || auction?.tokenId) ? BigInt(staticData?.tokenId || auction?.tokenId || "0") : undefined
+    (staticData?.tokenId || auction?.tokenId) ? BigInt(staticData?.tokenId || auction?.tokenId || "0") : undefined,
+    nftChainIdForArtist
   );
 
   // Fetch contract name
   const { contractName } = useContractName(
-    (staticData?.tokenAddress || auction?.tokenAddress) as Address | undefined
+    (staticData?.tokenAddress || auction?.tokenAddress) as Address | undefined,
+    nftChainIdForArtist
   );
 
   // Determine what to show for artist
@@ -376,9 +386,11 @@ export function AuctionCardClient({
     }
   }
 
+  const listingChainId = auction?.chainId ?? BASE_CHAIN_ID;
+  const detailPath = canonicalListingDetailPath(listingChainId, listingId);
   const href = referralAddress
-    ? `/auction/${listingId}?ref=${referralAddress}`
-    : `/auction/${listingId}`;
+    ? `${detailPath}?ref=${encodeURIComponent(referralAddress)}`
+    : detailPath;
 
   // Use the same JSX structure as the original AuctionCard
   // This is a simplified version - you may need to copy the full JSX from AuctionCard.tsx

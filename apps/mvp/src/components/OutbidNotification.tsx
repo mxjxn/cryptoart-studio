@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { ShareableMomentButton } from "./ShareableMomentButton";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
+import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 
 interface OutbidNotificationProps {
   listingId: string;
@@ -22,7 +24,11 @@ export function OutbidNotification({
   const router = useRouter();
 
   const handleViewListing = () => {
-    router.push(`/auction/${listingId}`);
+    const path = canonicalListingDetailPath(
+      auction?.chainId ?? BASE_CHAIN_ID,
+      listingId
+    );
+    router.push(path);
     onDismiss?.();
   };
 

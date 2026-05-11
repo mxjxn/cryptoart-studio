@@ -4,6 +4,7 @@ import { base } from "viem/chains";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI } from "~/lib/contracts/marketplace";
 import { formatBiddingWindowAfterStart } from "~/lib/time-utils";
 import { request as graphqlRequest } from "graphql-request";
+import { getSubgraphEndpoint } from "~/lib/server/subgraph-endpoints";
 
 // ERC1155 ABI for balance check
 const ERC1155_ABI = parseAbi([
@@ -14,14 +15,6 @@ const ERC1155_ABI = parseAbi([
 const ERC721_ABI = parseAbi([
   'function ownerOf(uint256 tokenId) view returns (address)',
 ]);
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error("Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL");
-};
 
 const getSubgraphHeaders = (): Record<string, string> => {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY || process.env.NEXT_PUBLIC_GRAPH_STUDIO_API_KEY;

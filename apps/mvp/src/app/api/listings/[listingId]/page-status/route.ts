@@ -5,6 +5,7 @@ import {
   getHiddenUserAddresses,
   isListingBlockedFromProduct,
 } from "~/lib/server/auction";
+import { isAmbiguousListingError } from "~/lib/auction-errors";
 
 /** After this long in `building` with no subgraph listing, treat as missing (stale row or invalid ID). */
 const BUILDING_NO_AUCTION_GRACE_MS = 3 * 60 * 1000;
@@ -32,6 +33,15 @@ export async function GET(
         { status: 400 }
       );
     }
+
+    const chainIdParam = req.nextUrl.searchParams.get("chainId");
+    const chainIdFilter =
+      chainIdParam != null && chainIdParam.trim() !== ""
+        ? (() => {
+            const v = parseInt(chainIdParam, 10);
+            return Number.isNaN(v) ? undefined : v;
+          })()
+        : undefined;
 
     const db = getDatabase();
     
@@ -62,7 +72,7 @@ export async function GET(
       // new listings to flash "Auction not found" until the indexer caught up.
       // Use subgraph-only resolution (no metadata/IPFS) so this route stays fast.
       try {
-        const listing = await resolveListingFromSubgraph(listingId);
+        const listing = await resolveListingFromSubgraph(listingId, chainIdFilter);
         if (listing) {
           // Listing exists in subgraph, create ready status
           try {
@@ -93,7 +103,16 @@ export async function GET(
             readyAt: new Date().toISOString(),
           });
         }
-      } catch {
+      } catch (e) {
+        if (isAmbiguousListingError(e)) {
+          return NextResponse.json({
+            status: "ambiguous",
+            listingId,
+            chains: e.chains,
+            message:
+              "This listing id exists on more than one network. Use a chain-specific listing URL or pass chainId.",
+          });
+        }
         // Subgraph lookup failed — same as missing listing; treat as building below.
       }
 
@@ -160,7 +179,7 @@ export async function GET(
 
       if (shouldRecheckReady) {
         try {
-          const listing = await resolveListingFromSubgraph(listingId);
+          const listing = await resolveListingFromSubgraph(listingId, chainIdFilter);
           if (!listing) {
             await db
               .update(listingPageStatus)
@@ -199,6 +218,15 @@ export async function GET(
             .set({ lastCheckedAt: new Date() })
             .where(eq(listingPageStatus.listingId, listingId));
         } catch (recheckError) {
+          if (isAmbiguousListingError(recheckError)) {
+            return NextResponse.json({
+              status: "ambiguous",
+              listingId,
+              chains: recheckError.chains,
+              message:
+                "This listing id exists on more than one network. Use a chain-specific listing URL or pass chainId.",
+            });
+          }
           console.warn(
             `[page-status/${listingId}] ready-row recheck failed (subgraph/db):`,
             recheckError
@@ -220,7 +248,7 @@ export async function GET(
       try {
         // Subgraph-only: avoid getAuctionServer + HEAD opengraph (duplicated heavy work
         // that blocked listing pages). OG image generates on first real request/share.
-        const listing = await resolveListingFromSubgraph(listingId);
+        const listing = await resolveListingFromSubgraph(listingId, chainIdFilter);
         if (listing) {
           try {
             await db
@@ -312,6 +340,15 @@ export async function GET(
           }
         }
       } catch (error) {
+        if (isAmbiguousListingError(error)) {
+          return NextResponse.json({
+            status: "ambiguous",
+            listingId,
+            chains: error.chains,
+            message:
+              "This listing id exists on more than one network. Use a chain-specific listing URL or pass chainId.",
+          });
+        }
         // Listing still not available in subgraph
         try {
           await db

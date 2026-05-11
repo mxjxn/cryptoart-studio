@@ -5,7 +5,10 @@ import { type Address } from "viem";
 import { normalizeListingType, getHiddenUserAddresses } from "~/lib/server/auction";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { getContractCreator } from "~/lib/contract-creator";
-import { getListingPreviewsByIds } from "~/lib/server/listing-preview-store";
+import {
+  getListingPreviewsByIds,
+  makeListingPreviewId,
+} from "~/lib/server/listing-preview-store";
 import {
   getListingMediaSnapshot,
   primeListingMediaSnapshot,
@@ -15,14 +18,11 @@ import {
   classifyMarketLifecycle,
   type MarketLifecycleTab,
 } from "~/lib/market-lifecycle";
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
-};
+import {
+  BASE_CHAIN_ID,
+  getConfiguredSubgraphEndpoints,
+  getSubgraphEndpoint,
+} from "~/lib/server/subgraph-endpoints";
 
 /**
  * Get headers for subgraph requests, including API key if available
@@ -109,6 +109,7 @@ const BROWSE_LISTINGS_QUERY = gql`
     ) {
       id
       listingId
+      chainId
       marketplace
       seller
       tokenAddress
@@ -258,7 +259,7 @@ export async function browseListings(
     marketLifecycle,
   } = options;
 
-  const endpoint = getSubgraphEndpoint();
+  const endpoints = getConfiguredSubgraphEndpoints();
 
   const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
   const fetchCount = Math.min(
@@ -268,60 +269,59 @@ export async function browseListings(
     marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
   );
   
-  let data: { listings: any[] };
+  const headers = getSubgraphHeaders();
+  let mergedListings: any[] = [];
   try {
-    console.log('[Browse Listings] Fetching from subgraph:', { endpoint, fetchCount, skip, orderBy, orderDirection });
-    
-    // Use retry logic for subgraph requests to handle transient errors
-    data = await retrySubgraphRequest(async () => {
-      return await request<{ listings: any[] }>(
-        endpoint,
-        BROWSE_LISTINGS_QUERY,
-        {
-          first: fetchCount,
-          skip,
-          orderBy: subgraphOrderByField(orderBy),
-          orderDirection: orderDirection === "asc" ? "asc" : "desc",
-        },
-        getSubgraphHeaders()
-      );
+    console.log('[Browse Listings] Fetching from subgraphs:', {
+      endpoints: endpoints.map((e) => ({ chainId: e.chainId, hasUrl: !!e.url })),
+      fetchCount,
+      skip,
+      orderBy,
+      orderDirection,
     });
-    
-    console.log('[Browse Listings] Subgraph returned', data.listings?.length || 0, 'listings');
+
+    const settled = await Promise.allSettled(
+      endpoints.map((ep) =>
+        retrySubgraphRequest(async () => {
+          return await request<{ listings: any[] }>(
+            ep.url,
+            BROWSE_LISTINGS_QUERY,
+            {
+              first: fetchCount,
+              skip,
+              orderBy: subgraphOrderByField(orderBy),
+              orderDirection: orderDirection === "asc" ? "asc" : "desc",
+            },
+            headers
+          );
+        })
+      )
+    );
+
+    for (const s of settled) {
+      if (s.status === "fulfilled") {
+        mergedListings.push(...(s.value.listings ?? []));
+      } else {
+        console.warn('[Browse Listings] Subgraph endpoint failed:', s.reason);
+      }
+    }
+
+    console.log('[Browse Listings] Merged listings:', mergedListings.length);
   } catch (error: any) {
-    const errorMessage = error?.message || String(error);
-    console.error('[Browse Listings] Subgraph error after retries:', errorMessage, {
-      endpoint,
-      errorType: error?.constructor?.name,
-      stack: error?.stack?.substring(0, 500),
-    });
-    
-    // Detect if this is a subgraph availability issue
-    const isSubgraphDown = 
-      errorMessage.includes('bad indexers') ||
-      errorMessage.includes('BadResponse') ||
-      errorMessage.includes('ENOTFOUND') ||
-      errorMessage.includes('ECONNREFUSED') ||
-      errorMessage.includes('ETIMEDOUT') ||
-      errorMessage.includes('network') ||
-      error?.response?.errors?.some((e: any) => 
-        e.message?.includes('bad indexers') || 
-        e.message?.includes('indexer')
-      );
-    
-    // Return empty result with subgraph status - let client handle gracefully
-    return {
-      listings: [],
-      subgraphReturnedFullCount: false,
-      subgraphDown: isSubgraphDown,
-    };
+    // This catch is mainly for unexpected exceptions outside retrySubgraphRequest.
+    // If all endpoints fail, the Promise.allSettled loop above leaves mergedListings empty.
+    console.error('[Browse Listings] Unexpected error while querying subgraphs:', error);
+  }
+
+  if (mergedListings.length === 0) {
+    return { listings: [], subgraphReturnedFullCount: false, subgraphDown: true };
   }
   
   // Get hidden user addresses for filtering
   const hiddenAddresses = await getHiddenUserAddressesBounded("Browse Listings");
   
   const activeListings = filterBrowseCandidateListings(
-    data.listings,
+    mergedListings,
     hiddenAddresses,
     marketLifecycle
   );
@@ -348,10 +348,14 @@ export async function browseListings(
     });
 
     const previewMap = await getListingPreviewsByIds(
-      enrichedListings.map((l) => String(l.listingId)),
+      enrichedListings.map((l) =>
+        makeListingPreviewId(l.chainId, String(l.listingId))
+      ),
     );
     enrichedListings = enrichedListings.map((l) => {
-      const p = previewMap.get(String(l.listingId));
+      const p = previewMap.get(
+        makeListingPreviewId(l.chainId, String(l.listingId))
+      );
       if (!p?.imageUrl && !p?.thumbnailSmallUrl && !p?.title) return l;
       return {
         ...l,
@@ -399,10 +403,15 @@ export async function browseListings(
         // getContractCreator already checks cache first, so this should be fast
         if (listing.tokenAddress && listing.tokenId) {
           try {
+            const listingChain =
+              typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
+                ? listing.chainId
+                : BASE_CHAIN_ID;
             // Add timeout to avoid blocking on slow onchain calls
             const creatorPromise = getContractCreator(
               listing.tokenAddress,
-              listing.tokenId
+              listing.tokenId,
+              { chainId: listingChain }
             );
             const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) => 
               setTimeout(() => resolve({ creator: null, source: null }), 3000) // 3 second timeout
@@ -531,7 +540,7 @@ export async function browseListings(
 
   // Check if subgraph returned the full amount we requested
   // This helps determine if there might be more listings available
-  const subgraphReturnedFullCount = data.listings.length === fetchCount;
+  const subgraphReturnedFullCount = mergedListings.length >= fetchCount;
   
   const finalListings = enrichedListings.slice(0, first);
   console.log('[Browse Listings] Returning', finalListings.length, 'listings (requested', first, ', filtered from', activeListings.length, 'active)');
@@ -676,7 +685,13 @@ export async function* browseListingsStreaming(
       // getContractCreator already checks cache first, so this should be fast
       if (listing.tokenAddress && listing.tokenId) {
         try {
-          const creatorPromise = getContractCreator(listing.tokenAddress, listing.tokenId);
+          const listingChain =
+            typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
+              ? listing.chainId
+              : BASE_CHAIN_ID;
+          const creatorPromise = getContractCreator(listing.tokenAddress, listing.tokenId, {
+            chainId: listingChain,
+          });
           const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) => 
             setTimeout(() => resolve({ creator: null, source: null }), 3000) // 3 second timeout
           );

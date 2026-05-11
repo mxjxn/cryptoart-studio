@@ -1,4 +1,4 @@
-import { getContractCreator } from "~/lib/contract-creator";
+import { getContractCreator, type GetContractCreatorOptions } from "~/lib/contract-creator";
 import {
   lookupNeynarByAddress,
   resolveEnsName,
@@ -24,13 +24,18 @@ export interface ArtistNameResult {
  * 
  * @param contractAddress - The NFT contract address
  * @param tokenId - Optional token ID for contract creator lookup
+ * @param options - Pass `chainId` where the NFT contract is deployed (1 = Ethereum, 8453 = Base)
  * @returns Artist name and source
  */
 export async function getArtistNameServer(
   contractAddress: string,
-  tokenId?: string | bigint
+  tokenId?: string | bigint,
+  options?: GetContractCreatorOptions
 ): Promise<ArtistNameResult> {
-  console.log(`[OG Image] [getArtistNameServer] Fetching artist name for contract ${contractAddress}, tokenId: ${tokenId || 'none'}`);
+  const chainId = options?.chainId;
+  console.log(
+    `[OG Image] [getArtistNameServer] Fetching artist name for contract ${contractAddress}, tokenId: ${tokenId || "none"}, chainId: ${chainId ?? "default"}`
+  );
   
   if (!contractAddress || !/^0x[a-fA-F0-9]{40}$/i.test(contractAddress)) {
     console.warn(`[OG Image] [getArtistNameServer] Invalid contract address: ${contractAddress}`);
@@ -40,7 +45,7 @@ export async function getArtistNameServer(
   // Step 1: Get contract creator address via Etherscan API (or on-chain methods)
   try {
     const tokenIdBigInt = tokenId ? (typeof tokenId === 'bigint' ? tokenId : BigInt(tokenId)) : undefined;
-    const creatorResult = await getContractCreator(contractAddress, tokenIdBigInt);
+    const creatorResult = await getContractCreator(contractAddress, tokenIdBigInt, options);
 
     if (creatorResult.creator && creatorResult.creator !== "0x0000000000000000000000000000000000000000") {
       const creatorAddress = creatorResult.creator.toLowerCase();

@@ -772,6 +772,7 @@ function minimalEnrichedFromListingPreview(
   return {
     id: listingId,
     listingId,
+    chainId: 8453,
     marketplace: "0x0000000000000000000000000000000000000000",
     seller: "0x0000000000000000000000000000000000000000",
     tokenAddress: preview.tokenAddress,

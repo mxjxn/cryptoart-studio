@@ -23,12 +23,24 @@ export interface ContractInfo {
   source: 'alchemy' | 'onchain';
 }
 
+/** Alchemy NFT API base path for `getContractMetadata` / `getNFTsForOwner` (v3). */
+export function alchemyNftApiBaseUrl(chainId: number): string {
+  if (chainId === 1) {
+    return "https://eth-mainnet.g.alchemy.com/nft/v3";
+  }
+  return "https://base-mainnet.g.alchemy.com/nft/v3";
+}
+
 /**
  * Fetches contract information from Alchemy API
  * First tries getContractMetadata, then falls back to getNFTsForOwner
+ *
+ * @param contractAddress - NFT contract address
+ * @param chainId - `1` for Ethereum mainnet, `8453` for Base (default)
  */
 export async function fetchContractInfoFromAlchemy(
-  contractAddress: string
+  contractAddress: string,
+  chainId: number = 8453
 ): Promise<ContractInfo | null> {
   const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
   if (!apiKey) {
@@ -36,11 +48,14 @@ export async function fetchContractInfoFromAlchemy(
     return null;
   }
 
-  console.log(`[ContractInfo] Fetching from Alchemy for contract: ${contractAddress}`);
+  const apiRoot = `${alchemyNftApiBaseUrl(chainId)}/${apiKey}`;
+  console.log(
+    `[ContractInfo] Fetching from Alchemy for contract: ${contractAddress} (chainId=${chainId})`
+  );
 
   try {
     // First, try to get contract metadata directly
-    const metadataUrl = `https://base-mainnet.g.alchemy.com/nft/v3/${apiKey}/getContractMetadata?contractAddress=${contractAddress}`;
+    const metadataUrl = `${apiRoot}/getContractMetadata?contractAddress=${contractAddress}`;
     console.log(`[ContractInfo] Trying getContractMetadata: ${metadataUrl}`);
     
     const metadataResponse = await fetch(metadataUrl);
@@ -68,7 +83,7 @@ export async function fetchContractInfoFromAlchemy(
     // Fallback: Use getNFTsForOwner to get contract info from NFTs
     // NOTE: This gets NFTs owned BY the address, not FROM the contract
     // This is a fallback and may not be accurate if the address owns NFTs from other contracts
-    const url = `https://base-mainnet.g.alchemy.com/nft/v3/${apiKey}/getNFTsForOwner?owner=${contractAddress}&withMetadata=true&pageSize=1`;
+    const url = `${apiRoot}/getNFTsForOwner?owner=${contractAddress}&withMetadata=true&pageSize=1`;
     console.log(`[ContractInfo] Fallback: Trying getNFTsForOwner: ${url}`);
     
     const response = await fetch(url);

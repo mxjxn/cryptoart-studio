@@ -1,11 +1,15 @@
 {
   "name": "@cryptoart/auctionhouse-subgraph",
   "version": "0.1.0",
-  "description": "The Graph subgraph for indexing Creator Core and Auctionhouse events on Base Mainnet",
+  "description": "The Graph subgraph for indexing Creator Core and Auctionhouse events (Base + Ethereum mainnet)",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --ipfs https://ipfs.thegraph.com/ cryptoart-auctionhouse",
+    "build:base": "graph build --network base --network-file networks.json",
+    "build:mainnet": "graph build --network mainnet --network-file networks.json",
+    "deploy": "graph deploy --studio --ipfs https://ipfs.network.thegraph.com cryptoart-auctionhouse",
+    "deploy:base": "graph deploy --studio --ipfs https://ipfs.network.thegraph.com --network base --network-file networks.json cryptoart-auctionhouse",
+    "deploy:mainnet": "graph deploy --studio --ipfs https://ipfs.network.thegraph.com --network mainnet --network-file networks.json cryptoart-auctionhouse-ethereum",
     "create-local": "graph create --node http://localhost:8020/ cryptoart-auctionhouse-subgraph",
     "remove-local": "graph remove --node http://localhost:8020/ cryptoart-auctionhouse-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 cryptoart-auctionhouse-subgraph"

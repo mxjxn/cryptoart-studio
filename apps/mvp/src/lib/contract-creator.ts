@@ -1,5 +1,5 @@
 import { type Address, createPublicClient, http, isAddress } from "viem";
-import { base } from "viem/chains";
+import { base, mainnet } from "viem/chains";
 import { CHAIN_ID } from "./contracts/marketplace";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { cacheContractInfo, getContractFromCache } from "~/lib/server/user-cache";
@@ -53,17 +53,24 @@ const ROYALTY_INFO_ABI = [
   },
 ] as const;
 
-// Create public client for Base (where contracts are deployed)
-const getPublicClient = () => {
+function getPublicClientForChain(chainId: number) {
+  const onMainnet = chainId === 1;
   return createPublicClient({
-    chain: base,
+    chain: onMainnet ? mainnet : base,
     transport: http(
-      process.env.NEXT_PUBLIC_RPC_URL || 
-      process.env.RPC_URL || 
-      process.env.NEXT_PUBLIC_BASE_RPC_URL || 
-      "https://mainnet.base.org"
+      onMainnet
+        ? process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"
+        : process.env.NEXT_PUBLIC_RPC_URL ||
+          process.env.RPC_URL ||
+          process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+          "https://mainnet.base.org"
     ),
   });
+}
+
+export type GetContractCreatorOptions = {
+  /** Chain where `contractAddress` is deployed (`1` = Ethereum, `8453` = Base). Defaults to app Base. */
+  chainId?: number;
 };
 
 export interface ContractCreatorResult {
@@ -122,20 +129,22 @@ async function getContractCreatorFromEtherscan(
  */
 export async function getContractCreator(
   contractAddress: string,
-  tokenId?: bigint | number
+  tokenId?: bigint | number,
+  options?: GetContractCreatorOptions
 ): Promise<ContractCreatorResult> {
   if (!isAddress(contractAddress)) {
     return { creator: null, source: null };
   }
 
   const address = contractAddress as Address;
+  const chainId = options?.chainId ?? CHAIN_ID;
 
   // 0. Cache-first: check memory+DB before hitting external APIs
   try {
-    const cached = await getContractFromCache(address);
+    const cached = await getContractFromCache(address, chainId);
     if (cached?.creatorAddress) {
       const cachedCreator = cached.creatorAddress as Address;
-      type CachedSource = (typeof cached)['source'] | 'etherscan';
+      type CachedSource = (typeof cached)["source"] | "etherscan";
       const cachedSource = cached.source as CachedSource;
       // Map cache source to return type; default onchain-ish sources to 'owner'
       const source: ContractCreatorResult["source"] =
@@ -152,15 +161,21 @@ export async function getContractCreator(
 
   // 1. Try Etherscan/Basescan API first (most reliable - gets actual deployer)
   try {
-    const etherscanCreator = await getContractCreatorFromEtherscan(address, CHAIN_ID);
+    const etherscanCreator = await getContractCreatorFromEtherscan(address, chainId);
     if (etherscanCreator && etherscanCreator !== "0x0000000000000000000000000000000000000000") {
       // Discover and cache user data for the creator (non-blocking)
       discoverAndCacheUserBackground(etherscanCreator);
       // Cache the contract-creator relationship (non-blocking)
-      cacheContractInfo(contractAddress, {
-        creatorAddress: etherscanCreator,
-        source: 'etherscan',
-      }).catch(() => { /* ignore cache errors */ });
+      cacheContractInfo(
+        contractAddress,
+        {
+          creatorAddress: etherscanCreator,
+          source: "etherscan",
+        },
+        chainId
+      ).catch(() => {
+        /* ignore cache errors */
+      });
       return { creator: etherscanCreator, source: "etherscan" };
     }
   } catch (error) {
@@ -168,7 +183,7 @@ export async function getContractCreator(
   }
 
   // 2. Fall back to on-chain methods
-  const client = getPublicClient();
+  const client = getPublicClientForChain(chainId);
 
   try {
     // Try owner() (most common on-chain method)
@@ -182,10 +197,16 @@ export async function getContractCreator(
         // Discover and cache user data for the creator (non-blocking)
         discoverAndCacheUserBackground(owner);
         // Cache the contract-creator relationship (non-blocking)
-        cacheContractInfo(contractAddress, {
-          creatorAddress: owner,
-          source: 'onchain',
-        }).catch(() => { /* ignore cache errors */ });
+        cacheContractInfo(
+          contractAddress,
+          {
+            creatorAddress: owner,
+            source: "onchain",
+          },
+          chainId
+        ).catch(() => {
+          /* ignore cache errors */
+        });
         return { creator: owner as Address, source: "owner" };
       }
     } catch (error) {
@@ -204,10 +225,16 @@ export async function getContractCreator(
         // Discover and cache user data for the creator (non-blocking)
         discoverAndCacheUserBackground(creator);
         // Cache the contract-creator relationship (non-blocking)
-        cacheContractInfo(contractAddress, {
-          creatorAddress: creator,
-          source: 'onchain',
-        }).catch(() => { /* ignore cache errors */ });
+        cacheContractInfo(
+          contractAddress,
+          {
+            creatorAddress: creator,
+            source: "onchain",
+          },
+          chainId
+        ).catch(() => {
+          /* ignore cache errors */
+        });
         return { creator: creator as Address, source: "creator" };
       }
     } catch (error) {
@@ -228,10 +255,16 @@ export async function getContractCreator(
         // Discover and cache user data for the creator (non-blocking)
         discoverAndCacheUserBackground(receiver);
         // Cache the contract-creator relationship (non-blocking)
-        cacheContractInfo(contractAddress, {
-          creatorAddress: receiver,
-          source: 'onchain',
-        }).catch(() => { /* ignore cache errors */ });
+        cacheContractInfo(
+          contractAddress,
+          {
+            creatorAddress: receiver,
+            source: "onchain",
+          },
+          chainId
+        ).catch(() => {
+          /* ignore cache errors */
+        });
         return { creator: receiver as Address, source: "royalty" };
       }
     } catch (error) {
@@ -257,10 +290,11 @@ export async function getContractCreator(
  */
 export async function getContractCreatorWithFallback(
   contractAddress: string,
-  tokenId?: bigint | number
+  tokenId?: bigint | number,
+  options?: GetContractCreatorOptions
 ): Promise<ContractCreatorResult> {
   // Try on-chain methods first
-  const onChainResult = await getContractCreator(contractAddress, tokenId);
+  const onChainResult = await getContractCreator(contractAddress, tokenId, options);
   if (onChainResult.creator) {
     return onChainResult;
   }

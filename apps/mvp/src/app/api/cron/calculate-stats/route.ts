@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, analyticsSnapshots } from '@cryptoart/db';
 import { getCachedActiveAuctions } from '~/lib/server/auction';
 import { request, gql } from 'graphql-request';
-
-const getSubgraphEndpoint = (): string => {
-  return process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL || '';
-};
+import { getSubgraphEndpoint } from '~/lib/server/subgraph-endpoints';
 
 const COMPLETED_LISTINGS_QUERY = gql`
   query CompletedListings($startTimestamp: BigInt!) {

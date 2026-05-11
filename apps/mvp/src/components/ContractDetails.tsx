@@ -9,6 +9,8 @@ import { cn } from "~/lib/utils";
 
 interface ContractDetailsProps {
   contractAddress: Address;
+  /** Chain where the contract is deployed (1 or 8453); omit for app default (Base). */
+  chainId?: number;
   imageUrl?: string | null;
   /** `light`: black text on white listing panel. `dark`: original minimal theme. */
   variant?: "dark" | "light";
@@ -16,10 +18,14 @@ interface ContractDetailsProps {
 
 export function ContractDetails({
   contractAddress,
+  chainId,
   imageUrl,
   variant = "dark",
 }: ContractDetailsProps) {
-  const { contractName, isLoading: contractNameLoading } = useContractName(contractAddress);
+  const { contractName, isLoading: contractNameLoading } = useContractName(
+    contractAddress,
+    typeof chainId === "number" ? chainId : undefined
+  );
   const [deploymentBlock, setDeploymentBlock] = useState<number | null>(null);
   const [deploymentLoading, setDeploymentLoading] = useState(false);
   const [floorPrice, setFloorPrice] = useState<FloorPriceInfo | null>(null);
@@ -64,7 +70,8 @@ export function ContractDetails({
   const { artistName: deployerName, creatorAddress: deployerAddress } = useArtistName(
     null,
     contractAddress,
-    undefined
+    undefined,
+    typeof chainId === "number" ? chainId : undefined
   );
 
   const displayDeployer = deployerName || deployerAddress || "Unknown";

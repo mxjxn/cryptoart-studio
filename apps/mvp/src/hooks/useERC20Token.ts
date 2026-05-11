@@ -59,11 +59,19 @@ export function isETH(tokenAddress: string | undefined | null): boolean {
   return tokenAddress.toLowerCase() === zeroAddress.toLowerCase();
 }
 
+export type UseERC20ReadOptions = {
+  chainId?: number;
+};
+
 /**
  * Hook to fetch ERC20 token information (name, symbol, decimals)
  * Returns null data if the address is invalid or the zero address (ETH)
  */
-export function useERC20Token(tokenAddress: string | undefined): ERC20TokenData {
+export function useERC20Token(
+  tokenAddress: string | undefined,
+  options?: UseERC20ReadOptions
+): ERC20TokenData {
+  const readChainId = options?.chainId ?? CHAIN_ID;
   const isValidAddress = tokenAddress && isAddress(tokenAddress) && !isETH(tokenAddress);
   const address = isValidAddress ? (tokenAddress as Address) : undefined;
 
@@ -74,19 +82,19 @@ export function useERC20Token(tokenAddress: string | undefined): ERC20TokenData 
             address,
             abi: ERC20_ABI,
             functionName: "name",
-            chainId: CHAIN_ID,
+            chainId: readChainId,
           },
           {
             address,
             abi: ERC20_ABI,
             functionName: "symbol",
-            chainId: CHAIN_ID,
+            chainId: readChainId,
           },
           {
             address,
             abi: ERC20_ABI,
             functionName: "decimals",
-            chainId: CHAIN_ID,
+            chainId: readChainId,
           },
         ]
       : undefined,
@@ -162,7 +170,7 @@ export function useERC20Token(tokenAddress: string | undefined): ERC20TokenData 
       isLoading: false,
       error: null,
     };
-  }, [isValidAddress, address, tokenAddress, isLoading, isError, data]);
+  }, [isValidAddress, address, tokenAddress, isLoading, isError, data, readChainId]);
 }
 
 /**
@@ -171,8 +179,10 @@ export function useERC20Token(tokenAddress: string | undefined): ERC20TokenData 
  */
 export function useERC20Balance(
   tokenAddress: string | undefined,
-  userAddress: Address | undefined
+  userAddress: Address | undefined,
+  options?: UseERC20ReadOptions
 ): ERC20BalanceData {
+  const readChainId = options?.chainId ?? CHAIN_ID;
   const isNativeETH = isETH(tokenAddress);
   const isValidToken = tokenAddress && isAddress(tokenAddress) && !isNativeETH;
   const address = isValidToken ? (tokenAddress as Address) : undefined;
@@ -180,7 +190,7 @@ export function useERC20Balance(
   // Fetch ETH balance
   const { data: ethBalance, isLoading: ethLoading } = useBalance({
     address: userAddress,
-    chainId: CHAIN_ID,
+    chainId: readChainId,
     query: {
       enabled: isNativeETH && !!userAddress,
     },
@@ -195,13 +205,13 @@ export function useERC20Balance(
             abi: ERC20_ABI,
             functionName: "balanceOf",
             args: [userAddress],
-            chainId: CHAIN_ID,
+            chainId: readChainId,
           },
           {
             address,
             abi: ERC20_ABI,
             functionName: "decimals",
-            chainId: CHAIN_ID,
+            chainId: readChainId,
           },
         ]
       : undefined,
@@ -240,7 +250,15 @@ export function useERC20Balance(
       formatted,
       isLoading: tokenLoading,
     };
-  }, [isNativeETH, isValidToken, ethBalance, ethLoading, tokenBalanceData, tokenLoading]);
+  }, [
+    isNativeETH,
+    isValidToken,
+    ethBalance,
+    ethLoading,
+    tokenBalanceData,
+    tokenLoading,
+    readChainId,
+  ]);
 }
 
 /**

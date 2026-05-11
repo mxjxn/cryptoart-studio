@@ -102,11 +102,15 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
   const { artistName, isLoading: artistNameLoading, creatorAddress } = useArtistName(
     auction.seller && !auction.artist ? auction.seller : null,
     auction.tokenAddress || undefined,
-    auction.tokenId ? BigInt(auction.tokenId) : undefined
+    auction.tokenId ? BigInt(auction.tokenId) : undefined,
+    typeof auction.chainId === "number" ? auction.chainId : undefined
   );
 
   // Fetch contract name
-  const { contractName } = useContractName(auction.tokenAddress as Address | undefined);
+  const { contractName } = useContractName(
+    auction.tokenAddress as Address | undefined,
+    typeof auction.chainId === "number" ? auction.chainId : undefined
+  );
 
   // Determine what to show for artist
   const displayArtist = auction.artist || artistName;

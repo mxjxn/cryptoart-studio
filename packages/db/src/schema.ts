@@ -25,24 +25,31 @@ export const userCache = pgTable('user_cache', {
 
 /**
  * Contract cache table - Cache contract information (name, symbol, creator)
- * Primary key: contract_address (lowercase)
+ * Composite primary key: (chain_id, contract_address) — same hex on Base vs mainnet are different contracts.
  */
-export const contractCache = pgTable('contract_cache', {
-  contractAddress: text('contract_address').primaryKey().notNull(),
-  name: text('name'), // Contract name from name() or Alchemy
-  symbol: text('symbol'), // Contract symbol
-  creatorAddress: text('creator_address'), // Contract creator/deployer
-  tokenType: text('token_type'), // 'ERC721' | 'ERC1155'
-  lastCheckedBlock: bigint('last_checked_block', { mode: 'number' }), // Last block checked for contract deployments (nullable)
-  source: text('source').notNull(), // 'onchain' | 'alchemy' | 'manual'
-  cachedAt: timestamp('cached_at').defaultNow().notNull(),
-  expiresAt: timestamp('expires_at').notNull(), // TTL: 30 days
-  refreshedAt: timestamp('refreshed_at'), // Manual refresh timestamp
-}, (table) => ({
-  creatorAddressIdx: index('contract_cache_creator_address_idx').on(table.creatorAddress),
-  expiresAtIdx: index('contract_cache_expires_at_idx').on(table.expiresAt),
-  lastCheckedBlockIdx: index('contract_cache_last_checked_block_idx').on(table.lastCheckedBlock),
-}));
+export const contractCache = pgTable(
+  'contract_cache',
+  {
+    chainId: integer('chain_id').notNull().default(8453),
+    contractAddress: text('contract_address').notNull(),
+    name: text('name'), // Contract name from name() or Alchemy
+    symbol: text('symbol'), // Contract symbol
+    creatorAddress: text('creator_address'), // Contract creator/deployer
+    tokenType: text('token_type'), // 'ERC721' | 'ERC1155'
+    lastCheckedBlock: bigint('last_checked_block', { mode: 'number' }), // Last block checked for contract deployments (nullable)
+    source: text('source').notNull(), // 'onchain' | 'alchemy' | 'manual'
+    cachedAt: timestamp('cached_at').defaultNow().notNull(),
+    expiresAt: timestamp('expires_at').notNull(), // TTL: 30 days
+    refreshedAt: timestamp('refreshed_at'), // Manual refresh timestamp
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.chainId, table.contractAddress] }),
+    contractAddressIdx: index('contract_cache_contract_address_idx').on(table.contractAddress),
+    creatorAddressIdx: index('contract_cache_creator_address_idx').on(table.creatorAddress),
+    expiresAtIdx: index('contract_cache_expires_at_idx').on(table.expiresAt),
+    lastCheckedBlockIdx: index('contract_cache_last_checked_block_idx').on(table.lastCheckedBlock),
+  })
+);
 
 // Type definitions for cached data
 export interface UserCacheData {
@@ -60,6 +67,7 @@ export interface UserCacheData {
 }
 
 export interface ContractCacheData {
+  chainId: number;
   contractAddress: string;
   name?: string | null;
   symbol?: string | null;

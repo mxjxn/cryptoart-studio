@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getContractCreator } from "~/lib/contract-creator";
+import { resolveRequestChainIdParam } from "~/lib/server/resolve-request-chain-id";
 
 /**
  * Contract creator lookup API endpoint.
  * 
- * GET /api/contract-creator/[address]?tokenId=123
+ * GET /api/contract-creator/[address]?tokenId=123&chainId=8453
  * 
  * Returns: { creator: string | null, source: 'owner' | 'creator' | 'royalty' | null }
  */
@@ -15,6 +16,7 @@ export async function GET(
   const { address } = await params;
   const { searchParams } = new URL(request.url);
   const tokenIdParam = searchParams.get("tokenId");
+  const chainId = resolveRequestChainIdParam(searchParams.get("chainId"));
 
   if (!address || !/^0x[a-fA-F0-9]{40}$/i.test(address)) {
     return NextResponse.json(
@@ -26,7 +28,7 @@ export async function GET(
   const tokenId = tokenIdParam ? BigInt(tokenIdParam) : undefined;
 
   try {
-    const result = await getContractCreator(address, tokenId);
+    const result = await getContractCreator(address, tokenId, { chainId });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error getting contract creator:", error);

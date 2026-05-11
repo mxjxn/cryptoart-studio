@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { request, gql } from 'graphql-request';
 import { getDatabase, userCache, inArray } from '@cryptoart/db';
 import { discoverAndCacheUsers } from '~/lib/server/user-discovery';
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
-};
+import { getConfiguredSubgraphEndpoints } from '~/lib/server/subgraph-endpoints';
 
 const getSubgraphHeaders = (): Record<string, string> => {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY;
@@ -58,32 +51,77 @@ export async function GET(
       );
     }
 
-    const endpoint = getSubgraphEndpoint();
+    const chainIdParam = req.nextUrl.searchParams.get('chainId');
+    const chainId =
+      chainIdParam != null && chainIdParam.trim() !== ''
+        ? (() => {
+            const v = parseInt(chainIdParam, 10);
+            return Number.isNaN(v) ? null : v;
+          })()
+        : null;
+
+    if (chainIdParam != null && chainId == null) {
+      return NextResponse.json({ error: 'Invalid chainId query param' }, { status: 400 });
+    }
+
+    const endpoints = getConfiguredSubgraphEndpoints();
+    const endpointsToQuery =
+      chainId == null ? endpoints : endpoints.filter((e) => e.chainId === chainId);
+
+    if (endpointsToQuery.length === 0) {
+      return NextResponse.json({ buyers: [] }, { status: 200 });
+    }
     const db = getDatabase();
 
-    // Fetch purchases from subgraph
-    const purchasesData = await request<{
-      purchases: Array<{
-        id: string;
-        buyer: string;
-        count: number;
-        amount: string;
-        timestamp: string;
-        transactionHash: string;
-      }>;
-    }>(
-      endpoint,
-      PURCHASES_BY_LISTING_QUERY,
-      { listingId },
-      getSubgraphHeaders()
+    const headers = getSubgraphHeaders();
+    const settled = await Promise.all(
+      endpointsToQuery.map(async (ep) => {
+        const purchasesData = await request<{
+          purchases: Array<{
+            id: string;
+            buyer: string;
+            count: number;
+            amount: string;
+            timestamp: string;
+            transactionHash: string;
+          }>;
+        }>(
+          ep.url,
+          PURCHASES_BY_LISTING_QUERY,
+          { listingId },
+          headers
+        );
+
+        return { chainId: ep.chainId, purchases: purchasesData.purchases ?? [] };
+      })
     );
 
-    if (!purchasesData.purchases || purchasesData.purchases.length === 0) {
-      return NextResponse.json({ buyers: [] }, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-        },
-      });
+    if (chainId == null) {
+      const nonEmpty = settled.filter((r) => r.purchases.length > 0);
+      if (nonEmpty.length > 1) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Ambiguous listingId ${listingId}. Provide chainId to disambiguate.`,
+            code: 'AMBIGUOUS_LISTING_ID',
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const purchasesData = settled.find((r) => r.purchases.length > 0) ?? settled[0];
+    const purchases = purchasesData?.purchases ?? [];
+
+    if (purchases.length === 0) {
+      return NextResponse.json(
+        { buyers: [] },
+        {
+          headers: {
+            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+          },
+        }
+      );
     }
 
     // Group purchases by buyer and sum quantities

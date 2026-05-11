@@ -12,6 +12,8 @@ import type { EnrichedAuctionData } from '../types';
 
 export interface PrerenderedListingCardData {
   listingId: string;
+  /** Chain where the NFT contract lives (e.g. 1 = Ethereum, 8453 = Base). */
+  chainId: number;
   thumbnailUrl: string | null; // Processed image data URL
   title: string;
   description: string | null;
@@ -130,6 +132,7 @@ export async function prerenderListingCardData(
     // Build pre-rendered data
     const prerendered: PrerenderedListingCardData = {
       listingId,
+      chainId: listing.chainId,
       thumbnailUrl,
       title: listing.title || listing.metadata?.title || `Listing #${listingId}`,
       description: listing.metadata?.description || listing.description || null,

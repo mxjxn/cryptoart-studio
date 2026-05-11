@@ -1,6 +1,7 @@
 import type { EnrichedAuctionData } from "~/lib/types";
 import { pickDisplayTitle } from "~/lib/metadata-display";
 import { formatPreOpenAuctionTiming } from "~/lib/time-utils";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { getContractNameServer } from "~/lib/server/contract-name";
 import { getArtistNameServer } from "~/lib/server/artist-name";
 import { getERC20TokenInfoServer } from "~/lib/server/erc20-token";
@@ -143,20 +144,27 @@ function truncate(text: string, maxLength: number): string {
 export async function prepareAuctionOGImageData(auction: EnrichedAuctionData) {
   const startTime = Date.now();
   console.log(`[OG Image] [prepareAuctionOGImageData] Starting data preparation for auction ${auction.listingId}`);
-  
+
+  const parsedListingChain =
+    typeof auction.chainId === "number"
+      ? auction.chainId
+      : parseInt(String(auction.chainId ?? ""), 10);
+  const listingChainForRpc = Number.isFinite(parsedListingChain) ? parsedListingChain : CHAIN_ID;
+
   // Fetch contract name, artist name, and ERC20 token info
   console.log(`[OG Image] [prepareAuctionOGImageData] Fetching contract name, artist name, and ERC20 token info...`);
   const [contractName, artistResult, tokenInfo] = await Promise.all([
     auction.tokenAddress
-      ? getContractNameServer(auction.tokenAddress)
+      ? getContractNameServer(auction.tokenAddress, { chainId: listingChainForRpc })
       : Promise.resolve(null),
     auction.tokenAddress
       ? getArtistNameServer(
           auction.tokenAddress,
-          auction.tokenId ? BigInt(auction.tokenId) : undefined
+          auction.tokenId ? BigInt(auction.tokenId) : undefined,
+          { chainId: listingChainForRpc }
         )
       : Promise.resolve({ name: null, source: null }),
-    getERC20TokenInfoServer(auction.erc20),
+    getERC20TokenInfoServer(auction.erc20, listingChainForRpc),
   ]);
   
   console.log(`[OG Image] [prepareAuctionOGImageData] Contract name: ${contractName || 'null'}`);

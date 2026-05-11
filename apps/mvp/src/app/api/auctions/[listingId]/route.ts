@@ -1,30 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { request, gql } from 'graphql-request';
 import { unstable_cache } from 'next/cache';
-import { CHAIN_ID } from '~/lib/contracts/marketplace';
 import { pickDisplayTitle } from '~/lib/metadata-display';
-import { fetchNFTMetadata } from '~/lib/nft-metadata';
 import type { EnrichedAuctionData } from '~/lib/types';
-import { Address } from 'viem';
+import {
+  getConfiguredSubgraphEndpoints,
+} from "~/lib/server/subgraph-endpoints";
+import { enrichListingMediaAndSupplyCapped } from "~/lib/server/listing-enrichment-capped";
 import {
   getHiddenUserAddresses,
   isListingBlockedFromProduct,
   normalizeListingType,
   normalizeTokenSpec,
 } from '~/lib/server/auction';
-import { upsertListingPreview } from '~/lib/server/listing-preview-store';
+import { makeListingPreviewId, upsertListingPreview } from '~/lib/server/listing-preview-store';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
+import {
+  AmbiguousListingError,
+  chainIdsFromSubgraphRows,
+  isAmbiguousListingError,
+} from '~/lib/auction-errors';
 
-// Set route timeout to 15 seconds (auction data may need more time)
-export const maxDuration = 15;
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
-};
+// Mainnet metadata + IPFS + cold thumbnail work often exceeds 12–15s; keep headroom below typical platform caps.
+export const maxDuration = 60;
 
 /**
  * Get headers for subgraph requests, including API key if available
@@ -44,6 +42,7 @@ const LISTING_BY_ID_QUERY = gql`
     listing(id: $id) {
       id
       listingId
+      chainId
       marketplace
       seller
       tokenAddress
@@ -82,6 +81,7 @@ const LISTING_BY_LISTING_ID_QUERY = gql`
     ) {
       id
       listingId
+      chainId
       marketplace
       seller
       tokenAddress
@@ -191,92 +191,62 @@ async function retryWithBackoff<T>(
  * This function is cached for 2 minutes to reduce subgraph load
  * Includes retry logic with exponential backoff for rate limiting
  */
-async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData | null> {
-  const endpoint = getSubgraphEndpoint();
+async function fetchAuctionData(
+  listingId: string,
+  chainId?: number
+): Promise<EnrichedAuctionData | null> {
   const headers = getSubgraphHeaders();
-  
-  // Use retry logic with exponential backoff for rate limiting
-  let data = await retryWithBackoff(
-    () => request<{ listing: any | null }>(
-      endpoint,
-      LISTING_BY_ID_QUERY,
-      { id: listingId },
-      headers
-    ),
-    3, // Max 3 retries
-    1000 // Start with 1 second delay
-  );
 
-  let listing = data.listing;
-  
-  // Validate that the returned listing actually matches the requested listingId
-  // This prevents issues where old cancelled listings might be returned for the same NFT
-  if (listing) {
-    const returnedListingId = String(listing.listingId || listing.id || '');
-    const requestedListingId = String(listingId);
-    
-    if (returnedListingId !== requestedListingId) {
-      console.warn(`[fetchAuctionData] Listing ID mismatch with entity id query! Requested: ${requestedListingId}, Got: ${returnedListingId}, Entity ID: ${listing.id}, Status: ${listing.status}`);
-      // Try querying by listingId field instead
-      const listingIdNum = parseInt(listingId);
-      if (!isNaN(listingIdNum)) {
-        try {
-          const listingData = await request<{ listings: any[] }>(
-            endpoint,
-            LISTING_BY_LISTING_ID_QUERY,
-            { listingId: listingIdNum },
+  const configured = getConfiguredSubgraphEndpoints();
+  const endpoints =
+    chainId == null
+      ? configured
+      : configured.filter((e) => e.chainId === chainId);
+  if (chainId != null && endpoints.length === 0) {
+    return null;
+  }
+  const listingIdNum = parseInt(listingId, 10);
+  const isNumeric = !Number.isNaN(listingIdNum);
+
+  const settled = await Promise.allSettled(
+    endpoints.map((ep) =>
+      retryWithBackoff(
+        async () => {
+          if (isNumeric) {
+            return await request<{ listings: any[] }>(
+              ep.url,
+              LISTING_BY_LISTING_ID_QUERY,
+              { listingId: listingIdNum },
+              headers
+            );
+          }
+
+          const r = await request<{ listing: any | null }>(
+            ep.url,
+            LISTING_BY_ID_QUERY,
+            { id: listingId },
             headers
           );
-          
-          if (listingData.listings && listingData.listings.length > 0) {
-            listing = listingData.listings[0];
-            const newReturnedListingId = String(listing.listingId || listing.id || '');
-            if (newReturnedListingId === requestedListingId) {
-              console.log(`[fetchAuctionData] Found correct listing using listingId query: listingId=${listing.listingId}, status=${listing.status}`);
-            } else {
-              console.error(`[fetchAuctionData] Still got wrong listing! Requested: ${requestedListingId}, Got: ${newReturnedListingId}`);
-              return null;
-            }
-          } else {
-            console.warn(`[fetchAuctionData] No listing found using listingId query for: ${listingId}`);
-            return null;
-          }
-        } catch (error) {
-          console.error(`[fetchAuctionData] Fallback query failed:`, error);
-          return null;
-        }
-      } else {
-        console.error(`[fetchAuctionData] Invalid listingId format: ${listingId}`);
-        return null;
-      }
-    }
+          return { listings: r.listing ? [r.listing] : [] };
+        },
+        3,
+        1000
+      )
+    )
+  );
+
+  const matched: any[] = [];
+  for (const s of settled) {
+    if (s.status !== "fulfilled") continue;
+    matched.push(...(s.value.listings ?? []));
   }
 
-  if (!listing) {
-    // Try fallback query by listingId field
-    const listingIdNum = parseInt(listingId);
-    if (!isNaN(listingIdNum)) {
-      try {
-        const listingData = await request<{ listings: any[] }>(
-          endpoint,
-          LISTING_BY_LISTING_ID_QUERY,
-          { listingId: listingIdNum },
-          headers
-        );
-        
-        if (listingData.listings && listingData.listings.length > 0) {
-          listing = listingData.listings[0];
-          console.log(`[fetchAuctionData] Found listing using listingId query fallback: listingId=${listing.listingId}, status=${listing.status}`);
-        }
-      } catch (error) {
-        console.error(`[fetchAuctionData] Fallback query also failed:`, error);
-      }
-    }
-    
-    if (!listing) {
-      return null;
-    }
+  if (matched.length === 0) return null;
+  if (matched.length > 1) {
+    throw new AmbiguousListingError(listingId, chainIdsFromSubgraphRows(matched));
   }
+
+  const listing = matched[0];
 
   const hiddenSellers = await getHiddenUserAddresses();
   if (isListingBlockedFromProduct(listing, hiddenSellers)) {
@@ -291,107 +261,16 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
     ? listing.bids[0] // Already sorted by amount desc
     : undefined;
 
-  // Metadata + optional supply reads in parallel (was sequential and could exceed client timeouts).
-  const metadataPromise =
-    listing.tokenAddress && listing.tokenId
-      ? fetchNFTMetadata(
-          listing.tokenAddress as Address,
-          listing.tokenId,
-          listing.tokenSpec
-        ).catch((error) => {
-          console.error(
-            `Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`,
-            error
-          );
-          return null;
-        })
-      : Promise.resolve(null);
-
-  const erc1155Promise =
-    (listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) &&
-    listing.tokenAddress &&
-    listing.tokenId
-      ? import("~/lib/server/erc1155-supply").then(async ({ getERC1155TotalSupply }) => {
-          try {
-            const totalSupply = await getERC1155TotalSupply(
-              listing.tokenAddress,
-              listing.tokenId
-            );
-            return totalSupply !== null ? totalSupply.toString() : undefined;
-          } catch (error: any) {
-            const errorMsg = error?.message || String(error);
-            console.error(
-              `[fetchAuctionData] Error fetching ERC1155 total supply for ${listing.tokenAddress}:${listing.tokenId}:`,
-              errorMsg
-            );
-            return undefined;
-          }
-        })
-      : Promise.resolve(undefined);
-
-  const erc721Promise =
-    (listing.tokenSpec === "ERC721" || listing.tokenSpec === 1) && listing.tokenAddress
-      ? import("~/lib/erc721-supply").then(async ({ fetchERC721TotalSupply }) => {
-          try {
-            const totalSupply = await fetchERC721TotalSupply(listing.tokenAddress);
-            return totalSupply !== null ? totalSupply : undefined;
-          } catch (error: any) {
-            const errorMsg = error?.message || String(error);
-            console.error(
-              `[fetchAuctionData] Error fetching ERC721 total supply for ${listing.tokenAddress}:`,
-              errorMsg
-            );
-            return undefined;
-          }
-        })
-      : Promise.resolve(undefined);
-
-  const [metadata, erc1155TotalSupply, erc721TotalSupply] = await Promise.all([
-    metadataPromise,
-    erc1155Promise,
-    erc721Promise,
-  ]);
-
-  let thumbnailUrl: string | undefined = undefined;
-  let detailThumbnailUrl: string | undefined = undefined;
-  if (metadata?.image) {
-    try {
-      const { getOrGenerateThumbnail } = await import("~/lib/server/thumbnail-generator");
-      const { getCachedThumbnail } = await import("~/lib/server/thumbnail-cache");
-      const image = metadata.image;
-      // Await small thumb only — detail generation on large images can exceed the route
-      // wall clock and cause 504s; hero falls back to `image` until detail exists in cache.
-      let smallThumb: string | undefined;
-      try {
-        smallThumb = await getOrGenerateThumbnail(image, "small");
-      } catch (e) {
-        console.warn(
-          `[fetchAuctionData] Failed to generate small thumbnail for ${image}:`,
-          e
-        );
-      }
-      thumbnailUrl = smallThumb ?? image;
-      detailThumbnailUrl = (await getCachedThumbnail(image, "detail")) ?? undefined;
-      if (!detailThumbnailUrl) {
-        void (async () => {
-          try {
-            await getOrGenerateThumbnail(image, "detail");
-          } catch (e) {
-            console.warn(
-              `[fetchAuctionData] Background detail thumbnail failed for ${image}:`,
-              e
-            );
-          }
-        })();
-      }
-    } catch (error) {
-      console.warn(
-        `[fetchAuctionData] Failed to generate thumbnails for ${metadata.image}:`,
-        error
-      );
-      thumbnailUrl = metadata.image;
-    }
-  }
+  const {
+    metadata,
+    erc1155TotalSupply,
+    erc721TotalSupply,
+    thumbnailUrl,
+    detailThumbnailUrl,
+  } = await enrichListingMediaAndSupplyCapped(listing, {
+    listingIdForLog: listingId,
+    requestChainId: chainId,
+  });
 
   // Normalize listing type and token spec for consistent handling
   const normalizedListingType = normalizeListingType(listing.listingType, listing);
@@ -433,7 +312,7 @@ async function fetchAuctionData(listingId: string): Promise<EnrichedAuctionData 
 
   if (metadata?.image || enriched.title) {
     void upsertListingPreview({
-      listingId: String(listing.listingId),
+      listingId: makeListingPreviewId(listing.chainId, String(listing.listingId)),
       tokenAddress: String(listing.tokenAddress),
       tokenId: String(listing.tokenId),
       imageUrl: metadata?.image ?? null,
@@ -462,8 +341,8 @@ function auctionFetchCacheIdentity(): string {
  * Second arg is part of the cache key so media env changes invalidate entries.
  */
 const getCachedAuctionData = unstable_cache(
-  async (listingId: string, _mediaEnvKey: string) => {
-    return fetchAuctionData(listingId);
+  async (listingId: string, chainId: number | null, _mediaEnvKey: string) => {
+    return fetchAuctionData(listingId, chainId ?? undefined);
   },
   ['auction-data'],
   {
@@ -489,10 +368,30 @@ export async function GET(
     // `useAuction` passes `?refresh=` on forced refetch — bypass stale `unstable_cache`
     // so metadata/IPFS enrichment can complete (slow gateways may exceed short timeouts).
     const forceRefresh = req.nextUrl.searchParams.has('refresh');
-    const timeoutMs = forceRefresh ? 16000 : 12000;
-    const loadPromise = forceRefresh
-      ? fetchAuctionData(listingId)
-      : getCachedAuctionData(listingId, auctionFetchCacheIdentity());
+    const chainIdParam = req.nextUrl.searchParams.get('chainId');
+    const chainId =
+      chainIdParam != null && chainIdParam.trim() !== ""
+        ? (() => {
+            const v = parseInt(chainIdParam, 10);
+            return Number.isNaN(v) ? null : v;
+          })()
+        : null;
+
+    if (chainIdParam != null && chainId == null) {
+      return NextResponse.json(
+        { error: "Invalid chainId query param" },
+        { status: 400 }
+      );
+    }
+    // Inner enrichment is capped (~14s metadata bundle + ~8s thumbs). Route budget must cover
+    // slow subgraph cold starts plus that cap (subgraph is not individually timed here).
+    const timeoutMs = forceRefresh || chainId != null ? 45_000 : 18_000;
+    // Never cache unscoped lookups: a second chain can later mint the same listingId and
+    // a stale cached single-chain response would be wrong until TTL expires.
+    const loadPromise =
+      forceRefresh || chainId == null
+        ? fetchAuctionData(listingId, chainId ?? undefined)
+        : getCachedAuctionData(listingId, chainId, auctionFetchCacheIdentity());
 
     type RaceOk = { kind: 'ok'; data: EnrichedAuctionData | null };
     type RaceTimeout = { kind: 'timeout' };
@@ -532,7 +431,7 @@ export async function GET(
         `[auctions/${listingId}] Cached auction was null — one uncached retry (stale negative cache / indexer race)`
       );
       const retryOutcome = await Promise.race([
-        fetchAuctionData(listingId)
+        fetchAuctionData(listingId, chainId ?? undefined)
           .then((data): RaceOk => ({ kind: 'ok', data }))
           .catch((err): RaceErr => ({ kind: 'err', err })),
         new Promise<RaceTimeout>((resolve) => setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs)),
@@ -586,6 +485,29 @@ export async function GET(
     );
   } catch (error: any) {
     console.error('Error fetching auction:', error);
+    
+    if (isAmbiguousListingError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          code: error.code,
+          chains: error.chains,
+        },
+        { status: 409 }
+      );
+    }
+    if (error?.status === 409) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error?.message || "Ambiguous listingId",
+          code: error?.code || "AMBIGUOUS_LISTING_ID",
+          chains: Array.isArray(error?.chains) ? error.chains : [],
+        },
+        { status: 409 }
+      );
+    }
     
     // Check if it's a rate limit error
     if (isRateLimitError(error)) {
