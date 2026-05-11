@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { getCachedContracts } from "~/lib/server/contract-cache";
+import { resolveRequestChainIdParam } from "~/lib/server/resolve-request-chain-id";
 
 /**
  * Get cached contracts for an address (fast path)
@@ -29,17 +30,20 @@ export async function GET(
 
     // Normalize address for cache key
     const normalizedAddress = address.toLowerCase();
+    const chainId = resolveRequestChainIdParam(
+      request.nextUrl.searchParams.get("chainId")
+    );
 
     // Use unstable_cache to prevent database pool exhaustion
     // The cache key includes the address so each address has its own cache entry
     const contracts = await unstable_cache(
       async () => {
-        return getCachedContracts(normalizedAddress);
+        return getCachedContracts(normalizedAddress, chainId);
       },
-      ['cached-contracts', normalizedAddress],
+      ["cached-contracts", normalizedAddress, String(chainId)],
       {
         revalidate: 300, // Cache for 5 minutes
-        tags: ['contracts', `contracts-${normalizedAddress}`], // Can be invalidated with revalidateTag
+        tags: ["contracts", `contracts-${normalizedAddress}-${chainId}`], // Can be invalidated with revalidateTag
       }
     )();
 

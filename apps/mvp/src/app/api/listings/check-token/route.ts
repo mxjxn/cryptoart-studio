@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { request, gql } from "graphql-request";
 import { getSubgraphEndpoint } from "~/lib/server/subgraph-endpoints";
+import { resolveRequestChainIdParam } from "~/lib/server/resolve-request-chain-id";
 
 const CHECK_TOKEN_LISTING_QUERY = gql`
   query CheckTokenListing($tokenAddress: String!, $tokenId: String!) {
@@ -33,7 +34,7 @@ const CHECK_TOKEN_LISTING_QUERY = gql`
 /**
  * Check if a token is already listed or sold
  * 
- * GET /api/listings/check-token?tokenAddress=0x...&tokenId=123
+ * GET /api/listings/check-token?tokenAddress=0x...&tokenId=123&chainId=8453|1
  * 
  * Returns: {
  *   isListed: boolean,
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const { searchParams } = new URL(req.url);
     const tokenAddress = searchParams.get("tokenAddress");
     const tokenId = searchParams.get("tokenId");
+    const chainId = resolveRequestChainIdParam(searchParams.get("chainId"));
 
     if (!tokenAddress || !/^0x[a-fA-F0-9]{40}$/i.test(tokenAddress)) {
       return NextResponse.json(
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     try {
-      const endpoint = getSubgraphEndpoint();
+      const endpoint = getSubgraphEndpoint(chainId);
       const data = await request<{
         listings: Array<{
           id: string;

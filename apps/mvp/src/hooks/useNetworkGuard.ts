@@ -5,7 +5,10 @@ import { base } from "wagmi/chains";
 import { useAuthMode } from "./useAuthMode";
 
 export type UseNetworkGuardOptions = {
-  /** Chain the user must be on for listing actions (defaults to Base). */
+  /**
+   * Chain the user must be on for listing actions.
+   * Omit or leave `undefined` to skip wrong-network detection (e.g. before the user picks a target chain).
+   */
   requiredChainId?: number;
 };
 
@@ -25,20 +28,21 @@ interface NetworkGuardState {
  * Only active for web context - miniapp handles chain switching automatically.
  */
 export function useNetworkGuard(opts?: UseNetworkGuardOptions): NetworkGuardState {
-  const requiredChainId = opts?.requiredChainId ?? base.id;
+  const requiredChainId = opts?.requiredChainId;
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending, error } = useSwitchChain();
   const { isMiniApp, isLoading: authModeLoading } = useAuthMode();
 
   const isWrongNetwork =
+    requiredChainId != null &&
     !authModeLoading &&
     !isMiniApp &&
     isConnected &&
     chainId !== requiredChainId;
 
   const switchToRequiredChain = () => {
-    if (switchChain) {
+    if (switchChain && requiredChainId != null) {
       switchChain({ chainId: requiredChainId });
     }
   };

@@ -14,7 +14,8 @@ function isDatabaseAvailable(): boolean {
  * Returns contracts from cache with their tokenType and other metadata
  */
 export async function getCachedContracts(
-  creatorAddress: string
+  creatorAddress: string,
+  chainId: number = BASE_CHAIN_ID
 ): Promise<Array<{ address: string; name: string | null; tokenType: string }>> {
   const normalizedAddress = creatorAddress.toLowerCase();
   
@@ -31,6 +32,7 @@ export async function getCachedContracts(
       .from(contractCache)
       .where(
         and(
+          eq(contractCache.chainId, chainId),
           eq(contractCache.creatorAddress, normalizedAddress),
           gte(contractCache.expiresAt, now), // Only non-expired entries
         )
@@ -66,6 +68,7 @@ export async function getCachedContracts(
           .from(contractCache)
           .where(
             and(
+              eq(contractCache.chainId, chainId),
               eq(contractCache.creatorAddress, normalizedAddress),
               gte(contractCache.expiresAt, now),
             )
@@ -99,7 +102,8 @@ export async function getCachedContracts(
  * Returns the maximum lastCheckedBlock across all contracts for this creator
  */
 export async function getLastCheckedBlock(
-  creatorAddress: string
+  creatorAddress: string,
+  chainId: number = BASE_CHAIN_ID
 ): Promise<number | null> {
   const normalizedAddress = creatorAddress.toLowerCase();
   
@@ -116,7 +120,12 @@ export async function getLastCheckedBlock(
         lastCheckedBlock: contractCache.lastCheckedBlock,
       })
       .from(contractCache)
-      .where(eq(contractCache.creatorAddress, normalizedAddress));
+      .where(
+        and(
+          eq(contractCache.chainId, chainId),
+          eq(contractCache.creatorAddress, normalizedAddress)
+        )
+      );
     
     const blocks = results
       .map((r) => r.lastCheckedBlock)
@@ -207,7 +216,8 @@ export async function cacheDeployedContract(
  */
 export async function updateLastCheckedBlockForCreator(
   creatorAddress: string,
-  blockNumber: number
+  blockNumber: number,
+  chainId: number = BASE_CHAIN_ID
 ): Promise<void> {
   const normalizedAddress = creatorAddress.toLowerCase();
   
@@ -224,7 +234,12 @@ export async function updateLastCheckedBlockForCreator(
         lastCheckedBlock: blockNumber,
         refreshedAt: new Date(),
       })
-      .where(eq(contractCache.creatorAddress, normalizedAddress));
+      .where(
+        and(
+          eq(contractCache.chainId, chainId),
+          eq(contractCache.creatorAddress, normalizedAddress)
+        )
+      );
   } catch (error) {
     console.error(`[updateLastCheckedBlockForCreator] Database error:`, error instanceof Error ? error.message : String(error));
   }
