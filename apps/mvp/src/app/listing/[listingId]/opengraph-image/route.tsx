@@ -6,8 +6,9 @@ import { getContractNameServer } from "~/lib/server/contract-name";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
 import { isDataURI } from "~/lib/media-utils";
 import { processMediaForImage } from "~/lib/server/media-processor";
-import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
-import { base } from "viem/chains";
+import { type Address, isAddress, zeroAddress } from "viem";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
+import { getOgErc20TokenInfo } from "~/lib/server/og-chain-clients";
 import type { EnrichedAuctionData } from "~/lib/types";
 import sharp from 'sharp';
 import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
@@ -16,69 +17,9 @@ import { getListingDisplayStatus } from "~/lib/time-utils";
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
 
-// ERC20 ABI for fetching token info
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "symbol",
-    inputs: [],
-    outputs: [{ name: "", type: "string" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "decimals",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-  },
-] as const;
-
 function isETH(tokenAddress: string | undefined | null): boolean {
   if (!tokenAddress) return true;
   return tokenAddress.toLowerCase() === zeroAddress.toLowerCase();
-}
-
-/**
- * Fetch ERC20 token info server-side
- */
-async function getERC20TokenInfo(tokenAddress: string): Promise<{ symbol: string; decimals: number } | null> {
-  if (isETH(tokenAddress) || !isAddress(tokenAddress)) {
-    return null;
-  }
-
-  try {
-    const publicClient = createPublicClient({
-      chain: base,
-      transport: http(
-        process.env.NEXT_PUBLIC_RPC_URL || 
-        process.env.RPC_URL || 
-        process.env.NEXT_PUBLIC_BASE_RPC_URL || 
-        "https://mainnet.base.org"
-      ),
-    });
-
-    const [symbol, decimals] = await Promise.all([
-      publicClient.readContract({
-        address: tokenAddress as Address,
-        abi: ERC20_ABI,
-        functionName: "symbol",
-      }),
-      publicClient.readContract({
-        address: tokenAddress as Address,
-        abi: ERC20_ABI,
-        functionName: "decimals",
-      }),
-    ]);
-
-    return {
-      symbol: symbol as string,
-      decimals: decimals as number,
-    };
-  } catch (error) {
-    console.error(`[OG Image] Error fetching ERC20 token info:`, error);
-    return null;
-  }
 }
 
 /**
@@ -165,8 +106,16 @@ export async function GET(
     if (!listingId) {
       throw new Error('Missing listingId parameter');
     }
-    
+
     const url = new URL(request.url);
+    const chainIdParam = url.searchParams.get("chainId");
+    const ogChainId =
+      chainIdParam != null && chainIdParam.trim() !== ""
+        ? (() => {
+            const v = parseInt(chainIdParam, 10);
+            return Number.isNaN(v) ? undefined : v;
+          })()
+        : undefined;
     // Match request scheme (https://localhost:3000 breaks font fetch — wrong SSL version on http).
     const baseUrl = `${url.protocol}//${url.host}`;
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
@@ -203,7 +152,7 @@ export async function GET(
     // Wrap in try-catch to handle any errors from getAuctionServer
     try {
       auction = await withTimeout(
-        getAuctionServer(listingId),
+        getAuctionServer(listingId, { chainId: ogChainId }),
         10000, // Increased to 10 seconds
         null
       );
@@ -338,20 +287,31 @@ export async function GET(
     }
 
     if (auction) {
+      const parsedListingChain =
+        typeof auction.chainId === "number"
+          ? auction.chainId
+          : parseInt(String(auction.chainId ?? ""), 10);
+      const listingChainForRpc =
+        ogChainId ?? (Number.isFinite(parsedListingChain) ? parsedListingChain : CHAIN_ID);
+
       // Fetch artist name and contract name in parallel with timeouts
       // Priority: metadata artist > contract creator name
       const [artistResult, contractNameResult] = await Promise.all([
         // Only fetch contract creator if metadata doesn't have artist
         !auction.artist && auction.tokenAddress && auction.tokenId
           ? withTimeout(
-              getArtistNameServer(auction.tokenAddress, auction.tokenId),
+              getArtistNameServer(auction.tokenAddress, auction.tokenId, {
+                chainId: listingChainForRpc,
+              }),
               3000,
               { name: null, source: null }
             )
           : Promise.resolve({ name: null, source: null }),
         auction.tokenAddress
           ? withTimeout(
-              getContractNameServer(auction.tokenAddress),
+              getContractNameServer(auction.tokenAddress, {
+                chainId: listingChainForRpc,
+              }),
               3000,
               null
             )
@@ -365,7 +325,7 @@ export async function GET(
       // Fetch ERC20 token info if applicable (with timeout)
       if (auction.erc20 && !isETH(auction.erc20)) {
         const tokenInfo = await withTimeout(
-          getERC20TokenInfo(auction.erc20),
+          getOgErc20TokenInfo(auction.erc20, listingChainForRpc),
           3000,
           null
         );

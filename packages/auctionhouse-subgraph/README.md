@@ -1,6 +1,10 @@
 # Auctionhouse Subgraph
 
-The Graph subgraph for indexing Creator Core and Auctionhouse events on Base Mainnet.
+The Graph subgraph for indexing Creator Core and Auctionhouse events on Base and Ethereum mainnet (one Studio deployment per chain).
+
+## Further reading
+
+- **[Multi-chain indexing research](docs/RESEARCH_MULTI_CHAIN_INDEXING.md)** — The Graph’s “one deployment = one network” rule, `networks.json`, Substreams vs subgraphs, and how this repo’s library-event pattern maps to Ethereum mainnet.
 
 ## Overview
 
@@ -52,21 +56,31 @@ npm run build
 ### Deploy to The Graph Studio
 
 1. Create a subgraph in [The Graph Studio](https://thegraph.com/studio/)
-2. Get your deployment key
-3. Deploy:
+2. Copy the **deploy key** and **subgraph slug** from that subgraph’s details page (slug must match exactly).
+3. Authenticate and deploy from `packages/auctionhouse-subgraph`:
+
+With **Graph CLI 0.60+**, the first argument to `graph auth` is the **node URL** unless you pass `--studio` (or `--product subgraph-studio`). The old one-liner `graph auth <DEPLOY_KEY>` stores the key under the wrong key in `~/.graph-cli.json`, so deploys to Studio send **no** Bearer token and often fail with **Subgraph not found**.
 
 ```bash
-# Set your deployment key
-export GRAPH_DEPLOY_KEY=your-deployment-key
-
-# Deploy
-npm run deploy
+cd packages/auctionhouse-subgraph
+npx graph auth --studio YOUR_DEPLOY_KEY
+npm run codegen
+npm run build:mainnet   # or build:base
+npx graph deploy --studio --network mainnet --network-file networks.json YOUR_SUBGRAPH_SLUG
 ```
 
-Or use the full command:
+`npm run deploy:base` / `npm run deploy:mainnet` add `--studio` and the correct IPFS host. Scripts use Studio slugs **`cryptoart-auctionhouse`** (Base) and **`cryptoart-auctionhouse-ethereum`** (mainnet); change them in `package.json` if your dashboard slugs differ.
+
+If you pass endpoints explicitly, **do not** use `https://api.studio.thegraph.com/ipfs/` — it returns **404**; use The Graph’s IPFS gateway:
 
 ```bash
-graph deploy --node https://api.studio.thegraph.com/deploy/ --ipfs https://api.studio.thegraph.com/ipfs/ your-subgraph-name
+npx graph deploy \
+  --studio \
+  --node https://api.studio.thegraph.com/deploy/ \
+  --ipfs https://ipfs.network.thegraph.com \
+  --network mainnet \
+  --network-file networks.json \
+  YOUR_SUBGRAPH_SLUG
 ```
 
 ### Local Development
@@ -84,15 +98,28 @@ npm run deploy-local
 
 ## Configuration
 
-### Contract Addresses
+### Network parameterization (Base + Ethereum mainnet)
 
-- **Marketplace**: `0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9` (Base Mainnet)
-- **Start Block**: `30437036` (First block with marketplace activity)
+This subgraph is written once and deployed per network.
 
-### Network
+- The marketplace proxy address and `startBlock` are stored in [`networks.json`](./networks.json).
+- Build/deploy for each network uses `graph build --network <name> --network-file networks.json` (see `package.json` scripts).
 
-- **Network**: Base Mainnet (Chain ID: 8453)
-- **RPC**: Configure in The Graph Studio dashboard
+Expected config keys in `networks.json`:
+
+- `base`: marketplace **proxy** `0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9`, `startBlock` `38886000`
+- `mainnet`: marketplace **proxy** `0x3CEE515879FFe4620a1F8aC9bf09B97e858815Ef`, `startBlock` `25068447` (tighten to the proxy creation block after a new deploy — see [`../auctionhouse-contracts/DEPLOYED_ADDRESSES.md`](../auctionhouse-contracts/DEPLOYED_ADDRESSES.md))
+
+Always index the **ERC1967 / UUPS proxy**, not the implementation. **Never** reuse the Base proxy address as an approval target on mainnet (or the reverse): check **chain ID** in the wallet.
+
+### GraphQL endpoints (used by the MVP)
+
+After you deploy to The Graph Network / Studio, copy the **Query URL** from the Subgraph page:
+
+- Base (8453): set `NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL` to the Base subgraph Query URL
+- Ethereum mainnet (1): set `NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL_MAINNET` to the Ethereum mainnet subgraph Query URL
+
+The app reads these env vars on the server and merges results across chains.
 
 ## Schema
 

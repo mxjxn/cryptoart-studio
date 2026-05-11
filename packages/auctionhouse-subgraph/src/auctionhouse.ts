@@ -20,19 +20,32 @@ import {
   MarketplaceSellerRegistry,
 } from "../generated/MarketplaceCore/MarketplaceCore";
 import { Listing, Purchase, Bid, Offer, Escrow } from "../generated/schema";
-import { BigInt, Bytes, Address } from "@graphprotocol/graph-ts";
+import { BigInt, Bytes, Address, dataSource } from "@graphprotocol/graph-ts";
 
 // Helper function to get or create a listing
 // IMPORTANT: Initialize ALL non-nullable fields with defaults to avoid save errors
-function getOrCreateListing(listingId: BigInt, blockNumber: BigInt, timestamp: BigInt): Listing {
+function getChainIdFromNetwork(): i32 {
+  // dataSource.network() returns the network name from your subgraph deployment (e.g. "base", "mainnet").
+  let network = dataSource.network();
+  if (network == "base") return 8453;
+  if (network == "mainnet" || network == "ethereum") return 1;
+  return 0;
+}
+
+function getOrCreateListing(
+  listingId: BigInt,
+  blockNumber: BigInt,
+  timestamp: BigInt,
+  marketplace: Address,
+): Listing {
   let id = listingId.toString();
   let listing = Listing.load(id);
   
   if (listing == null) {
     listing = new Listing(id);
     listing.listingId = listingId;
-    listing.marketplace = Address.fromString("0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9");
-    
+    listing.marketplace = marketplace;
+
     // Initialize all non-nullable fields with defaults
     // These will be overwritten by the actual event handlers
     listing.seller = Address.zero();
@@ -60,6 +73,10 @@ function getOrCreateListing(listingId: BigInt, blockNumber: BigInt, timestamp: B
     listing.updatedAt = timestamp;
     listing.updatedAtBlock = blockNumber;
   }
+
+  // Always ensure chain identity + marketplace address are set, even if the entity was loaded.
+  listing.chainId = getChainIdFromNetwork();
+  listing.marketplace = marketplace;
   
   return listing;
 }
@@ -69,7 +86,8 @@ export function handleCreateListing(event: CreateListing): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   listing.seller = event.transaction.from;
@@ -96,7 +114,8 @@ export function handleCreateListingTokenDetails(event: CreateListingTokenDetails
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   listing.tokenId = event.params.id;
@@ -114,7 +133,8 @@ export function handleCreateListingFees(event: CreateListingFees): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   listing.deliverBPS = event.params.deliverBPS;
@@ -130,7 +150,8 @@ export function handlePurchaseEvent(event: PurchaseEvent): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   // Update listing total sold
@@ -161,7 +182,8 @@ export function handleBidEvent(event: BidEvent): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   // Update listing hasBid flag
@@ -189,7 +211,8 @@ export function handleOfferEvent(event: OfferEvent): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   // Create Offer entity
@@ -215,7 +238,8 @@ export function handleRescindOfferEvent(event: RescindOfferEvent): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   // In a real implementation, you'd query offers by listingId and offerer
@@ -231,7 +255,8 @@ export function handleAcceptOfferEvent(event: AcceptOfferEvent): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   // Update offer status (simplified - would need to find the specific offer)
@@ -245,7 +270,8 @@ export function handleModifyListing(event: ModifyListing): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   listing.initialAmount = event.params.initialAmount;
@@ -261,7 +287,8 @@ export function handleCancelListing(event: CancelListing): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   listing.status = "CANCELLED";
@@ -275,7 +302,8 @@ export function handleFinalizeListing(event: FinalizeListing): void {
   let listing = getOrCreateListing(
     event.params.listingId,
     event.block.number,
-    event.block.timestamp
+    event.block.timestamp,
+    event.address
   );
   
   listing.status = "FINALIZED";

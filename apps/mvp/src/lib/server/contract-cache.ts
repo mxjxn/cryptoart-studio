@@ -1,5 +1,6 @@
 import { getDatabase, contractCache, eq, and, gte, resetDatabaseConnection } from "@cryptoart/db";
 import type { ContractCacheData } from "@cryptoart/db";
+import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 
 /**
  * Check if database is available
@@ -138,26 +139,32 @@ export async function cacheDeployedContract(
     tokenType: string;
     creatorAddress: string;
     lastCheckedBlock: number;
-  }
+  },
+  chainId: number = BASE_CHAIN_ID
 ): Promise<void> {
   const normalizedAddress = contractAddress.toLowerCase();
   const normalizedCreator = data.creatorAddress.toLowerCase();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-  
+
   if (!isDatabaseAvailable()) {
     return;
   }
 
   try {
     const db = getDatabase();
-    
+
     // Check if record exists
     const [existing] = await db
       .select()
       .from(contractCache)
-      .where(eq(contractCache.contractAddress, normalizedAddress))
+      .where(
+        and(
+          eq(contractCache.chainId, chainId),
+          eq(contractCache.contractAddress, normalizedAddress)
+        )
+      )
       .limit(1);
-    
+
     if (existing) {
       // Update existing record
       await db
@@ -170,10 +177,16 @@ export async function cacheDeployedContract(
           expiresAt,
           refreshedAt: new Date(),
         })
-        .where(eq(contractCache.contractAddress, normalizedAddress));
+        .where(
+          and(
+            eq(contractCache.chainId, chainId),
+            eq(contractCache.contractAddress, normalizedAddress)
+          )
+        );
     } else {
       // Insert new record
       await db.insert(contractCache).values({
+        chainId,
         contractAddress: normalizedAddress,
         name: data.name,
         tokenType: data.tokenType,

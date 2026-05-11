@@ -1,8 +1,16 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { APP_NAME } from "~/lib/constants";
 import { getMiniAppEmbedMetadata, normalizeUrl } from "~/lib/utils";
 import { getRequestSiteUrl } from "~/lib/server/request-site-url";
+import {
+  resolveListingFromSubgraph,
+  getHiddenUserAddresses,
+  isListingBlockedFromProduct,
+} from "~/lib/server/auction";
+import { isAmbiguousListingError } from "~/lib/auction-errors";
+import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
 import AuctionDetailClient from "./AuctionDetailClient";
 
 function AuctionDetailFallback() {
@@ -72,6 +80,36 @@ export async function generateMetadata({ params }: AuctionPageProps): Promise<Me
 
 export default async function AuctionPage({ params }: AuctionPageProps) {
   const { listingId } = await params;
+
+  let canonicalListingPath: string | null = null;
+  try {
+    const listing = await resolveListingFromSubgraph(listingId);
+    if (listing) {
+      const hidden = await getHiddenUserAddresses();
+      if (!isListingBlockedFromProduct(listing, hidden)) {
+        const rawCid = listing.chainId;
+        const cid =
+          typeof rawCid === "number"
+            ? rawCid
+            : parseInt(String(rawCid ?? ""), 10);
+        if (Number.isFinite(cid)) {
+          canonicalListingPath = canonicalListingDetailPath(
+            cid,
+            String(listing.listingId ?? listingId)
+          );
+        }
+      }
+    }
+  } catch (e) {
+    if (!isAmbiguousListingError(e)) {
+      // Transient subgraph errors: fall through to client fetch.
+    }
+  }
+
+  if (canonicalListingPath) {
+    redirect(canonicalListingPath);
+  }
+
   return (
     <Suspense fallback={<AuctionDetailFallback />}>
       <AuctionDetailClient listingId={listingId} />

@@ -6,16 +6,7 @@ import { Address, createPublicClient, http, isAddress, zeroAddress } from 'viem'
 import { base } from 'viem/chains';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 import { formatPriceForShare } from '~/lib/share-moments';
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error(
-    'Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL'
-  );
-};
+import { getSubgraphEndpoint } from '~/lib/server/subgraph-endpoints';
 
 /**
  * Get headers for subgraph requests, including API key if available

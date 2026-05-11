@@ -7,6 +7,7 @@ import {
   resolveEnsName,
 } from "~/lib/artist-name-resolution";
 import { withTimeout } from "~/lib/utils";
+import { resolveRequestChainIdParam } from "~/lib/server/resolve-request-chain-id";
 
 // Set route timeout to 10 seconds
 export const maxDuration = 10;
@@ -23,7 +24,7 @@ export const maxDuration = 10;
  * - contractAddress: If provided, will also try to resolve contract creator
  * - tokenId: Optional token ID for contract creator lookup
  * 
- * GET /api/artist/[address]?contractAddress=0x...&tokenId=123
+ * GET /api/artist/[address]?contractAddress=0x...&tokenId=123&chainId=8453
  * Returns: { name: string | null, source: 'farcaster' | 'ens' | 'override' | 'contract-creator' | null }
  * 
  * Route-level caching: 5 minutes (prevents database pool exhaustion)
@@ -41,7 +42,8 @@ interface ArtistNameResponse {
 async function resolveArtistName(
   address: string,
   contractAddress: string | null,
-  tokenIdParam: string | null
+  tokenIdParam: string | null,
+  chainId: number
 ): Promise<ArtistNameResponse> {
   // If contractAddress is provided, we can skip address validation
   // (address might be a dummy value when only looking up contract creator)
@@ -57,7 +59,7 @@ async function resolveArtistName(
   if (contractAddress && /^0x[a-fA-F0-9]{40}$/i.test(contractAddress)) {
     try {
       const tokenId = tokenIdParam ? BigInt(tokenIdParam) : undefined;
-      const creatorResult = await getContractCreator(contractAddress, tokenId);
+      const creatorResult = await getContractCreator(contractAddress, tokenId, { chainId });
       
       if (creatorResult.creator && creatorResult.creator.toLowerCase() === normalizedAddress) {
         // The address IS the contract creator, but we couldn't resolve a name
@@ -165,17 +167,18 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const contractAddress = searchParams.get("contractAddress");
     const tokenIdParam = searchParams.get("tokenId");
+    const chainId = resolveRequestChainIdParam(searchParams.get("chainId"));
 
     // Normalize address for cache key
     normalizedAddress = address ? address.toLowerCase() : '0x0000000000000000000000000000000000000000';
-    const cacheKey = `artist-${normalizedAddress}-${contractAddress || ''}-${tokenIdParam || ''}`;
+    const cacheKey = `artist-${normalizedAddress}-${contractAddress || ""}-${tokenIdParam || ""}-c${chainId}`;
 
     // Use unstable_cache to prevent database pool exhaustion
     // Wrap in timeout to prevent hanging if database is slow
     const result = await withTimeout(
       unstable_cache(
         async () => {
-          return resolveArtistName(address, contractAddress, tokenIdParam);
+          return resolveArtistName(address, contractAddress, tokenIdParam, chainId);
         },
         ['artist-name', cacheKey],
         {

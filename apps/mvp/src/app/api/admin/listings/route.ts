@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import { request, gql } from 'graphql-request';
 import { normalizeListingType, normalizeTokenSpec } from '~/lib/server/auction';
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error('Auctionhouse subgraph endpoint not configured');
-};
+import { getSubgraphEndpoint } from '~/lib/server/subgraph-endpoints';
 
 const getSubgraphHeaders = (): Record<string, string> => {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY || process.env.NEXT_PUBLIC_GRAPH_STUDIO_API_KEY;

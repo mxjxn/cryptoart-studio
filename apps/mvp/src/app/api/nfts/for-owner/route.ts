@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Alchemy, Network } from "alchemy-sdk";
 import { request, gql } from "graphql-request";
-
-const getSubgraphEndpoint = (): string | null => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  return envEndpoint || null;
-};
+import { getSubgraphEndpointOrNull } from "~/lib/server/subgraph-endpoints";
 
 const CHECK_TOKEN_LISTINGS_QUERY = gql`
   query CheckTokenListings($tokenAddress: String!, $tokenIds: [String!]!) {
@@ -33,7 +29,7 @@ async function getSoldOutTokens(
   contractAddress: string,
   tokenIds: string[]
 ): Promise<Set<string>> {
-  const endpoint = getSubgraphEndpoint();
+  const endpoint = getSubgraphEndpointOrNull();
   if (!endpoint || tokenIds.length === 0) {
     return new Set();
   }

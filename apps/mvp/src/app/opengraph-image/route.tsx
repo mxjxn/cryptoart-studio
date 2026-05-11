@@ -1,8 +1,6 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { request as graphqlRequest, gql } from "graphql-request";
-import { getArtistNameServer } from "~/lib/server/artist-name";
-import { getContractNameServer } from "~/lib/server/contract-name";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
 import { fetchNFTMetadata } from "~/lib/nft-metadata";
 import { processMediaForImage } from "~/lib/server/media-processor";
@@ -15,6 +13,7 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { getSubgraphEndpoint } from "~/lib/server/subgraph-endpoints";
 import {
   normalizeListingType,
   getHiddenUserAddresses,
@@ -112,19 +111,6 @@ function isETH(tokenAddress: string | undefined | null): boolean {
   if (!tokenAddress) return true;
   return tokenAddress.toLowerCase() === zeroAddress.toLowerCase();
 }
-
-/**
- * Get subgraph endpoint
- */
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error(
-    "Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL",
-  );
-};
 
 /**
  * Get headers for subgraph requests

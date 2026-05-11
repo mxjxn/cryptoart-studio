@@ -6,6 +6,7 @@ import type { NFTMetadata } from './nft-metadata';
 export interface AuctionData {
   id: string;
   listingId: string;
+  chainId: number;
   marketplace: string;
   seller: string;
   tokenAddress: string;
@@ -56,6 +57,7 @@ export interface EnrichedAuctionData extends AuctionData {
   // This ensures TypeScript recognizes these properties in all build environments (including Vercel)
   id: string;
   listingId: string;
+  chainId: number;
   marketplace: string;
   seller: string;
   tokenAddress: string;

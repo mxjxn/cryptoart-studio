@@ -25,6 +25,7 @@
  *   0015_add_membership_cache.sql - Membership cache table for caching membership NFT balance checks
  *   0017_listing_media_preview.sql - Listing preview rows for fast market merge
  *   0018_add_listing_theme_tables.sql - Member listing page theme (seller default + per-listing override)
+ *   0019_contract_cache_chain_id.sql - contract_cache composite PK (chain_id, contract_address)
  */
 
 import { config } from 'dotenv';
@@ -70,6 +71,7 @@ const MIGRATIONS = [
   '0015_add_membership_cache.sql',
   '0017_listing_media_preview.sql',
   '0018_add_listing_theme_tables.sql',
+  '0019_contract_cache_chain_id.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

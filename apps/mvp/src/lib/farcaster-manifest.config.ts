@@ -66,7 +66,7 @@ export interface ManifestConfig {
     ogImageUrl?: string; // 1200x630px (1.91:1) PNG
     
     // TECHNICAL CONFIGURATION
-    requiredChains?: string[]; // CAIP-2 IDs (e.g., ["eip155:8453"] for Base)
+    requiredChains?: string[]; // CAIP-2 IDs (e.g., ["eip155:8453", "eip155:1"] for Base + Ethereum)
     requiredCapabilities?: string[]; // SDK method paths (e.g., ["wallet.getEthereumProvider"])
     canonicalDomain?: string; // Domain without protocol/port/path. Max 1024 chars (will be extracted from APP_URL)
     noindex?: boolean; // true = exclude from search, false = include (default)
@@ -125,7 +125,7 @@ export const manifestConfig: ManifestConfig = {
     ogImageUrl: APP_OG_IMAGE_URL,
     
     // TECHNICAL CONFIGURATION
-    requiredChains: ['eip155:8453'], // Base Mainnet
+    requiredChains: ['eip155:8453', 'eip155:1'], // Base + Ethereum mainnet (dual-chain listings)
     requiredCapabilities: [
       'wallet.getEthereumProvider',
       'actions.swapToken',

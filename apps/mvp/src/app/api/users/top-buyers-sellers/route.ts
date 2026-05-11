@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { request, gql } from "graphql-request";
 import { getDatabase, userCache, inArray } from '@cryptoart/db';
 import { discoverAndCacheUsers } from "~/lib/server/user-discovery";
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error('Auctionhouse subgraph endpoint not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
-};
+import { getSubgraphEndpoint } from "~/lib/server/subgraph-endpoints";
 
 const getSubgraphHeaders = (): Record<string, string> => {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY;

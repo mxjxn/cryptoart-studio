@@ -1,5 +1,6 @@
 type Listing @entity(immutable: false) {
   id: ID! # listingId
+  chainId: Int! # EVM chain id (1 Ethereum mainnet, 8453 Base mainnet)
   listingId: BigInt!
   marketplace: Bytes! # marketplace contract address
   seller: Bytes!

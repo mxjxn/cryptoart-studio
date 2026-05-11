@@ -6,7 +6,14 @@ import { useRouter } from "next/navigation";
 import { type Address, parseEther, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
 import { MediaDisplay } from "~/components/media";
-import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID } from "~/lib/contracts/marketplace";
+import {
+  MARKETPLACE_ADDRESS,
+  MARKETPLACE_ABI,
+  CHAIN_ID,
+} from "~/lib/contracts/marketplace";
+
+/** NFT + marketplace chain for this wizard; all `useReadContract` NFT calls use this, not the connected wallet chain. */
+const CREATE_LISTING_NFT_CHAIN_ID = CHAIN_ID;
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { zeroAddress } from "viem";
 import { TransactionStatus } from "~/components/TransactionStatus";
@@ -185,7 +192,7 @@ export default function CreateAuctionClient() {
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro;
   const { isWrongNetwork, switchToBase, isSwitching } = useNetworkGuard();
-  const chainId = useChainId();
+  const connectedChainId = useChainId();
   const [formData, setFormData] = useState({
     listingType: "INDIVIDUAL_AUCTION" as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY",
     nftContract: "",
@@ -265,6 +272,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'supportsInterface',
     args: [ERC721_INTERFACE_ID as `0x${string}`],
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -277,6 +285,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'supportsInterface',
     args: [ERC1155_INTERFACE_ID as `0x${string}`],
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -289,6 +298,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'ownerOf',
     args: hasValidTokenId ? [BigInt(formData.tokenId)] : undefined,
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress && hasValidTokenId && isERC721 === true,
       retry: 1,
@@ -301,6 +311,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'balanceOf',
     args: hasValidTokenId && address ? [address, BigInt(formData.tokenId)] : undefined,
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress && hasValidTokenId && !!address && isERC1155 === true,
       retry: 1,
@@ -313,6 +324,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'getApproved',
     args: hasValidTokenId ? [BigInt(formData.tokenId)] : undefined,
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress && hasValidTokenId && isERC721 === true,
       retry: 1,
@@ -325,6 +337,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'isApprovedForAll',
     args: address ? [address, MARKETPLACE_ADDRESS] : undefined,
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress && !!address && (isERC721 === true || isERC1155 === true),
       retry: 1,
@@ -607,14 +620,14 @@ export default function CreateAuctionClient() {
     }
 
     // Check if we're on the correct chain (web only - miniapp handles this automatically)
-    if (!isMiniApp && chainId !== base.id) {
+    if (!isMiniApp && connectedChainId !== base.id) {
       console.log('[CreateAuction] Wrong network detected, switching to Base');
       try {
         switchToBase();
         // Wait a bit for the switch to initiate
         await new Promise(resolve => setTimeout(resolve, 500));
         // Don't proceed if still on wrong chain - let the auto-switch effect handle it
-        if (chainId !== base.id) {
+        if (connectedChainId !== base.id) {
           return;
         }
       } catch (err) {
@@ -632,7 +645,7 @@ export default function CreateAuctionClient() {
           abi: NFT_ABI,
           functionName: 'approve',
           args: [MARKETPLACE_ADDRESS, BigInt(formData.tokenId)],
-          chainId: CHAIN_ID,
+          chainId: CREATE_LISTING_NFT_CHAIN_ID,
           account: address,
         });
       } else {
@@ -642,7 +655,7 @@ export default function CreateAuctionClient() {
           abi: NFT_ABI,
           functionName: 'setApprovalForAll',
           args: [MARKETPLACE_ADDRESS, true],
-          chainId: CHAIN_ID,
+          chainId: CREATE_LISTING_NFT_CHAIN_ID,
           account: address,
         });
       }
@@ -673,6 +686,7 @@ export default function CreateAuctionClient() {
     address: contractAddress,
     abi: CONTRACT_INFO_ABI,
     functionName: 'name',
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -683,6 +697,7 @@ export default function CreateAuctionClient() {
     address: contractAddress,
     abi: CONTRACT_INFO_ABI,
     functionName: 'owner',
+    chainId: CREATE_LISTING_NFT_CHAIN_ID,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -710,7 +725,10 @@ export default function CreateAuctionClient() {
       setContractPreview((prev) => ({ ...prev, loading: true, error: null }));
 
       // Try Alchemy first
-      const alchemyInfo = await fetchContractInfoFromAlchemy(formData.nftContract);
+      const alchemyInfo = await fetchContractInfoFromAlchemy(
+        formData.nftContract,
+        CREATE_LISTING_NFT_CHAIN_ID
+      );
       
       if (cancelled) {
         console.log('[CreateAuction] Alchemy fetch cancelled');
@@ -1347,14 +1365,14 @@ export default function CreateAuctionClient() {
       }
 
       // Check if we're on the correct chain (web only - miniapp handles this automatically)
-      if (!isMiniApp && chainId !== base.id) {
+      if (!isMiniApp && connectedChainId !== base.id) {
         console.log('[CreateAuction] Wrong network detected, switching to Base');
         try {
           switchToBase();
           // Wait a bit for the switch to initiate
           await new Promise(resolve => setTimeout(resolve, 500));
           // Don't proceed if still on wrong chain - let the auto-switch effect handle it
-          if (chainId !== base.id) {
+          if (connectedChainId !== base.id) {
             setIsSubmitting(false);
             alert('Please switch to Base network to continue');
             return;
@@ -1376,7 +1394,7 @@ export default function CreateAuctionClient() {
           address: MARKETPLACE_ADDRESS,
           abi: MARKETPLACE_ABI,
           functionName: "createListing",
-          chainId: CHAIN_ID,
+          chainId: CREATE_LISTING_NFT_CHAIN_ID,
           account: address,
           args: [
             listingDetails,

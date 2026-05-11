@@ -1,0 +1,23 @@
+{
+  "base": {
+    "MarketplaceCore": {
+      "address": "0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9",
+      "startBlock": 38886000
+    },
+    "SettlementLib": {
+      "address": "0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9",
+      "startBlock": 38886000
+    }
+  },
+  "mainnet": {
+    "MarketplaceCore": {
+      "address": "0x3CEE515879FFe4620a1F8aC9bf09B97e858815Ef",
+      "startBlock": 25068447
+    },
+    "SettlementLib": {
+      "address": "0x3CEE515879FFe4620a1F8aC9bf09B97e858815Ef",
+      "startBlock": 25068447
+    }
+  }
+}
+

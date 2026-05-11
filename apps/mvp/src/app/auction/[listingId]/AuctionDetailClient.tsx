@@ -19,6 +19,7 @@ import { ImageOverlay } from "~/components/ImageOverlay";
 import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
 import { TxStateCard } from "~/components/TxStateCard";
 import { AuctionSkeleton } from "~/components/AuctionSkeleton";
+import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { useOffers } from "~/hooks/useOffers";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
@@ -72,7 +73,7 @@ export default function AuctionDetailClient({
   
   // Check if mini-app is installed using context.client.added from Farcaster SDK
   const isMiniAppInstalled = context?.client?.added ?? false;
-  const { auction, loading, updateAuction } = useAuction(listingId);
+  const { auction, loading, ambiguousChains, updateAuction } = useAuction(listingId);
   const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(listingId);
 
   /** Countdown clock + overlay fallbacks: must run before any early return (Rules of Hooks). */
@@ -194,7 +195,8 @@ export default function AuctionDetailClient({
   } = useArtistName(
     null, // Don't pass seller address - we want the contract creator, not seller
     auction?.tokenAddress || undefined,
-    auction?.tokenId ? BigInt(auction.tokenId) : undefined
+    auction?.tokenId ? BigInt(auction.tokenId) : undefined,
+    typeof auction?.chainId === "number" ? auction.chainId : undefined
   );
 
   // Resolve seller name separately (for display in auction details)
@@ -215,7 +217,8 @@ export default function AuctionDetailClient({
 
   // Fetch contract name
   const { contractName, isLoading: contractNameLoading } = useContractName(
-    auction?.tokenAddress as Address | undefined
+    auction?.tokenAddress as Address | undefined,
+    typeof auction?.chainId === "number" ? auction.chainId : undefined
   );
 
   // Fetch ERC20 token info and user balance (only if not ETH and not own auction)
@@ -1298,6 +1301,16 @@ export default function AuctionDetailClient({
       sdk.back.onback = null;
     };
   }, [isSDKLoaded, router]);
+
+  if (!loading && ambiguousChains?.length) {
+    return (
+      <AmbiguousListingPicker
+        listingId={listingId}
+        chains={ambiguousChains}
+        variant="dark"
+      />
+    );
+  }
 
   if (loading) {
     return (

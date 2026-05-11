@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { request, gql } from "graphql-request";
-import { getDatabase, contractCache } from '@cryptoart/db';
+import { getDatabase, contractCache, eq } from "@cryptoart/db";
 import { getContractCreator } from "~/lib/contract-creator";
 import { cacheContractInfo } from "~/lib/server/user-cache";
-
-const getSubgraphEndpoint = (): string => {
-  const envEndpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-  if (envEndpoint) {
-    return envEndpoint;
-  }
-  throw new Error('Auctionhouse subgraph endpoint not configured');
-};
+import { BASE_CHAIN_ID, getSubgraphEndpoint } from "~/lib/server/subgraph-endpoints";
 
 const getSubgraphHeaders = (): Record<string, string> => {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY;
@@ -95,10 +88,12 @@ export async function POST(req: NextRequest) {
     console.log(`[Backfill] Found ${uniqueContracts.length} unique contracts`);
     
     // Check which contracts are not yet cached
-    const existingContracts = await db.select({ contractAddress: contractCache.contractAddress })
-      .from(contractCache);
-    
-    const existingSet = new Set(existingContracts.map(c => c.contractAddress.toLowerCase()));
+    const existingContracts = await db
+      .select({ contractAddress: contractCache.contractAddress })
+      .from(contractCache)
+      .where(eq(contractCache.chainId, BASE_CHAIN_ID));
+
+    const existingSet = new Set(existingContracts.map((c) => c.contractAddress.toLowerCase()));
     const contractsToBackfill = uniqueContracts.filter(addr => !existingSet.has(addr));
     
     console.log(`[Backfill] ${contractsToBackfill.length} contracts need backfill (${existingSet.size} already cached)`);
@@ -115,12 +110,18 @@ export async function POST(req: NextRequest) {
       await Promise.all(
         batch.map(async (contractAddr) => {
           try {
-            const creatorResult = await getContractCreator(contractAddr);
+            const creatorResult = await getContractCreator(contractAddr, undefined, {
+              chainId: BASE_CHAIN_ID,
+            });
             if (creatorResult.creator) {
-              await cacheContractInfo(contractAddr, {
-                creatorAddress: creatorResult.creator,
-                source: creatorResult.source === 'etherscan' ? 'etherscan' : 'onchain',
-              });
+              await cacheContractInfo(
+                contractAddr,
+                {
+                  creatorAddress: creatorResult.creator,
+                  source: creatorResult.source === "etherscan" ? "etherscan" : "onchain",
+                },
+                BASE_CHAIN_ID
+              );
               cached++;
             }
             processed++;
@@ -197,11 +198,13 @@ export async function GET(req: NextRequest) {
       new Set(result.listings.map(l => l.tokenAddress?.toLowerCase()).filter(Boolean))
     );
     
-    // Get count of cached contracts
-    const cachedContracts = await db.select({ contractAddress: contractCache.contractAddress })
-      .from(contractCache);
-    
-    const cachedSet = new Set(cachedContracts.map(c => c.contractAddress.toLowerCase()));
+    // Get count of cached contracts (Base subgraph backfill only)
+    const cachedContracts = await db
+      .select({ contractAddress: contractCache.contractAddress })
+      .from(contractCache)
+      .where(eq(contractCache.chainId, BASE_CHAIN_ID));
+
+    const cachedSet = new Set(cachedContracts.map((c) => c.contractAddress.toLowerCase()));
     const needsBackfill = uniqueContracts.filter(addr => !cachedSet.has(addr));
     
     return NextResponse.json({

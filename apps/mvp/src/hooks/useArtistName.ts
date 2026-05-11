@@ -31,12 +31,14 @@ const pendingArtistRequests = new Map<string, Promise<{ name: string | null; sou
  * @param address - The Ethereum address to resolve
  * @param contractAddress - Optional contract address to check creator
  * @param tokenId - Optional token ID for contract creator lookup
+ * @param nftChainId - Chain where `contractAddress` is deployed (1 or 8453); omit for Base default
  * @returns Object containing artistName, source, isLoading, and error states
  */
 export function useArtistName(
   address: string | null | undefined,
   contractAddress?: string | null,
-  tokenId?: string | number | bigint | null
+  tokenId?: string | number | bigint | null,
+  nftChainId?: number | null
 ): ArtistNameResult {
   const [artistName, setArtistName] = useState<string | null>(null);
   const [source, setSource] = useState<NameSource>(null);
@@ -70,8 +72,10 @@ export function useArtistName(
     
     // Create a cache key that includes contractAddress when provided
     // This ensures different contracts get different cache entries
-    const cacheKey = contractAddress 
-      ? `${normalizedAddress}:${contractAddress.toLowerCase()}:${tokenId || ''}`
+    const chainPart =
+      nftChainId != null && Number.isFinite(nftChainId) ? String(nftChainId) : "";
+    const cacheKey = contractAddress
+      ? `${normalizedAddress}:${contractAddress.toLowerCase()}:${tokenId ?? ""}:c${chainPart}`
       : normalizedAddress;
 
     // Check cache first
@@ -116,6 +120,9 @@ export function useArtistName(
     if (tokenId !== undefined && tokenId !== null) {
       url.searchParams.set("tokenId", String(tokenId));
     }
+    if (nftChainId != null && Number.isFinite(nftChainId)) {
+      url.searchParams.set("chainId", String(nftChainId));
+    }
 
     // Create and store the pending request
     const request = fetch(url.toString())
@@ -152,7 +159,7 @@ export function useArtistName(
       setSource(null);
       setIsLoading(false);
     });
-  }, [address, contractAddress, tokenId]);
+  }, [address, contractAddress, tokenId, nftChainId]);
 
   return { artistName, source, isLoading, error, creatorAddress };
 }

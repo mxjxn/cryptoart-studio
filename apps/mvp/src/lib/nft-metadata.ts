@@ -1,6 +1,6 @@
-import { Address } from 'viem';
+import { Address, type PublicClient } from 'viem';
 import { createPublicClient, http } from 'viem';
-import { base } from 'viem/chains';
+import { base, mainnet } from 'viem/chains';
 import { CHAIN_ID } from './contracts/marketplace';
 import { getMediaType, isDataURI, isJsonDataURI, parseJsonDataURI } from './media-utils';
 import { pickDisplayTitle } from './metadata-display';
@@ -27,15 +27,44 @@ const ERC1155_ABI = [
   },
 ] as const;
 
-const publicClient = createPublicClient({
-  chain: base,
-  transport: http(
-    process.env.NEXT_PUBLIC_RPC_URL || 
-    process.env.RPC_URL || 
-    process.env.NEXT_PUBLIC_BASE_RPC_URL || 
-    'https://mainnet.base.org'
-  ),
-});
+function baseRpcUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_RPC_URL ||
+    process.env.RPC_URL ||
+    process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+    "https://mainnet.base.org"
+  );
+}
+
+function mainnetRpcUrl(): string {
+  return process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com";
+}
+
+let _baseMetadataClient: PublicClient | undefined;
+let _mainnetMetadataClient: PublicClient | undefined;
+
+/**
+ * RPC client for reading `tokenURI` / `uri` on the chain where the NFT lives.
+ */
+export function getNftMetadataReadClient(chainId?: number): PublicClient {
+  const id = chainId === 1 ? 1 : CHAIN_ID;
+  if (id === 1) {
+    if (!_mainnetMetadataClient) {
+      _mainnetMetadataClient = createPublicClient({
+        chain: mainnet,
+        transport: http(mainnetRpcUrl()),
+      }) as PublicClient;
+    }
+    return _mainnetMetadataClient;
+  }
+  if (!_baseMetadataClient) {
+    _baseMetadataClient = createPublicClient({
+      chain: base,
+      transport: http(baseRpcUrl()),
+    }) as PublicClient;
+  }
+  return _baseMetadataClient;
+}
 
 const METADATA_FETCH_TIMEOUT_MS = 9000;
 const HEAD_VALIDATION_TIMEOUT_MS = 1200;
@@ -518,11 +547,15 @@ function coerceFlexibleNFTMetadata(metadata: NFTMetadata): void {
 export async function fetchNFTMetadata(
   contractAddress: Address,
   tokenId: string | undefined,
-  tokenSpec: 'ERC721' | 'ERC1155' | number
+  tokenSpec: 'ERC721' | 'ERC1155' | number,
+  /** Chain where the NFT contract is deployed (defaults to Base marketplace chain). */
+  nftChainId?: number
 ): Promise<NFTMetadata | null> {
   if (!tokenId) {
     return null;
   }
+
+  const readClient = getNftMetadataReadClient(nftChainId ?? CHAIN_ID);
 
   try {
     const tokenIdBigInt = BigInt(tokenId);
@@ -531,7 +564,7 @@ export async function fetchNFTMetadata(
     // Try to get tokenURI based on token spec
     if (tokenSpec === 'ERC721' || tokenSpec === 1) {
       try {
-        tokenURI = await publicClient.readContract({
+        tokenURI = await readClient.readContract({
           address: contractAddress,
           abi: ERC721_ABI,
           functionName: 'tokenURI',
@@ -542,7 +575,7 @@ export async function fetchNFTMetadata(
       }
     } else if (tokenSpec === 'ERC1155' || tokenSpec === 2) {
       try {
-        tokenURI = await publicClient.readContract({
+        tokenURI = await readClient.readContract({
           address: contractAddress,
           abi: ERC1155_ABI,
           functionName: 'uri',

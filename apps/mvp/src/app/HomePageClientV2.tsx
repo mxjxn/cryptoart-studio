@@ -22,6 +22,8 @@ import {
   useTransform,
 } from "framer-motion";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
+import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { formatPreOpenAuctionTiming } from "~/lib/time-utils";
 import { usePretextMeasure } from "~/hooks/usePretextMeasure";
 
@@ -68,6 +70,7 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
   {
     id: "129",
     listingId: "129",
+    chainId: 8453,
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
     seller: "0x1216083be36842278fb3cf9c3f56b7792ecc359b",
     tokenAddress: "0x2d40ef321f02f0293a82a95b13422224a6934e48",
@@ -96,6 +99,7 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
   {
     id: "127",
     listingId: "127",
+    chainId: 8453,
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
     seller: "0x6da0a1784de1abdde1734ba37eca3d560bf044c0",
     tokenAddress: "0xb6fcc95d41e2d69179123d46016bd9dd3a43b9cf",
@@ -124,6 +128,7 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
   {
     id: "133",
     listingId: "133",
+    chainId: 8453,
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
     seller: "0xa0be5a9b02b7b7290f89e4e2a01faf46ef00baf5",
     tokenAddress: "0x52e696c69938df205d3526be4ee308964a34f3ab",
@@ -152,6 +157,7 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
   {
     id: "130",
     listingId: "130",
+    chainId: 8453,
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
     seller: "0xfb287a6c936e6f5ee0e49700125aa5f8da4c262a",
     tokenAddress: "0x928a1ccf1f7f17904b9ff181d037765f9960fc78",
@@ -180,6 +186,7 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
   {
     id: "131",
     listingId: "131",
+    chainId: 8453,
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
     seller: "0x6c1cbe8cfc32a74188a9d3bf364945ea53b01b04",
     tokenAddress: "0x08ab6b515c1152fbfd6945428d64b81a1519df17",
@@ -208,6 +215,7 @@ const KISMET_STATIC_LOTS: EnrichedAuctionData[] = [
   {
     id: "134",
     listingId: "134",
+    chainId: 8453,
     marketplace: "0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9",
     seller: "0x5576274800a2c36489320b2d6994590dc0cf9d1f",
     tokenAddress: "0xc4847c6f1aca6923d90d97b7099afb80e97e47b2",
@@ -1617,7 +1625,10 @@ export default function HomePageClientV2() {
             bidListings.map((auction, index) => (
               <TransitionLink
                 key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
-                href={`/listing/${auction.listingId}`}
+                href={canonicalListingDetailPath(
+                  auction.chainId ?? BASE_CHAIN_ID,
+                  auction.listingId
+                )}
                 prefetch={false}
                 className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
               >
@@ -1754,7 +1765,10 @@ function StaticArtworkTile({
   return (
     <div className="min-h-[160px] border border-black/15 bg-black p-2 text-white">
       <TransitionLink
-        href={`/listing/${auction.listingId}`}
+        href={canonicalListingDetailPath(
+          auction.chainId ?? BASE_CHAIN_ID,
+          auction.listingId
+        )}
         prefetch={false}
         className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       >
@@ -1952,7 +1966,10 @@ function KismetLotSection({
         }}
       >
         <TransitionLink
-          href={`/listing/${auction.listingId}`}
+          href={canonicalListingDetailPath(
+            auction.chainId ?? BASE_CHAIN_ID,
+            auction.listingId
+          )}
           prefetch={false}
           className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
         >
@@ -2044,7 +2061,10 @@ function KismetLotSection({
 
           <div className="mt-3">
             <TransitionLink
-              href={`/listing/${auction.listingId}`}
+              href={canonicalListingDetailPath(
+                auction.chainId ?? BASE_CHAIN_ID,
+                auction.listingId
+              )}
               prefetch={false}
               className="inline-flex items-center border border-white/25 px-3 py-2 font-space-grotesk text-sm text-white transition-colors hover:bg-white hover:text-black"
             >
