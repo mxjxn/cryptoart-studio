@@ -422,6 +422,8 @@ export default function HomePageClientV2() {
   /** Curated Ethereum mainnet listings for the lime strip (fetched with explicit `chainId=1`). */
   const [mainnetSpotlightAuctions, setMainnetSpotlightAuctions] = useState<EnrichedAuctionData[]>([]);
   const [mainnetSpotlightLoading, setMainnetSpotlightLoading] = useState(true);
+  /** Set when API returns 503 SUBGRAPH_NOT_CONFIGURED_FOR_CHAIN (missing mainnet Studio URL). */
+  const [mainnetSpotlightLoadError, setMainnetSpotlightLoadError] = useState<string | null>(null);
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>(
     FARCON_STATIC_PREVIEW ? KISMET_STATIC_LOTS : [],
@@ -1365,10 +1367,12 @@ export default function HomePageClientV2() {
     if (hideAuctionCards) {
       setMainnetSpotlightAuctions([]);
       setMainnetSpotlightLoading(false);
+      setMainnetSpotlightLoadError(null);
       return;
     }
     let cancelled = false;
     setMainnetSpotlightLoading(true);
+    setMainnetSpotlightLoadError(null);
 
     void (async () => {
       const loaded: EnrichedAuctionData[] = [];
@@ -1382,7 +1386,28 @@ export default function HomePageClientV2() {
             const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`, {
               cache: "no-store",
             });
-            if (!res.ok) continue;
+            if (!res.ok) {
+              if (res.status === 503) {
+                try {
+                  const errBody = (await res.json()) as {
+                    code?: string;
+                    error?: string;
+                  };
+                  if (errBody?.code === "SUBGRAPH_NOT_CONFIGURED_FOR_CHAIN") {
+                    if (!cancelled) {
+                      setMainnetSpotlightLoadError(
+                        errBody.error ??
+                          "Ethereum mainnet subgraph URL is not configured for this deployment."
+                      );
+                    }
+                    break;
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+              continue;
+            }
             const data = (await res.json()) as { success?: boolean; auction?: EnrichedAuctionData };
             if (data?.success && data.auction && !cancelled) {
               loaded.push(data.auction);
@@ -1611,11 +1636,13 @@ export default function HomePageClientV2() {
                       ? "Ethereum + Base"
                       : mainnetSpotlightLoading
                         ? "Loading…"
-                        : mainnetSpotlightAuctions.length > 0
-                          ? mainnetSpotlightAuctions.length === 1
-                            ? "Ethereum mainnet · listing in view"
-                            : `${mainnetSpotlightAuctions.length} Ethereum listings`
-                          : "Listing preview unavailable"}
+                        : mainnetSpotlightLoadError
+                          ? "Ethereum listing unavailable (config)"
+                          : mainnetSpotlightAuctions.length > 0
+                            ? mainnetSpotlightAuctions.length === 1
+                              ? "Ethereum mainnet · listing in view"
+                              : `${mainnetSpotlightAuctions.length} Ethereum listings`
+                            : "Listing preview unavailable"}
                   </span>
                 </div>
               </div>
@@ -1624,6 +1651,10 @@ export default function HomePageClientV2() {
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-2">
               {mainnetSpotlightLoading ? (
                 <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">Loading…</p>
+              ) : mainnetSpotlightLoadError ? (
+                <p className="col-span-2 self-center font-space-grotesk text-sm leading-relaxed text-black/90">
+                  {mainnetSpotlightLoadError}
+                </p>
               ) : mainnetSpotlightAuctions.length === 0 ? (
                 <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">
                   No curated listings loaded. Try opening{" "}
