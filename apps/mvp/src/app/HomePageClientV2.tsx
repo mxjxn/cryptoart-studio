@@ -22,6 +22,7 @@ import {
   useTransform,
 } from "framer-motion";
 import type { EnrichedAuctionData } from "~/lib/types";
+import { pickDisplayTitle } from "~/lib/metadata-display";
 import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
 import { BASE_CHAIN_ID, ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { formatPreOpenAuctionTiming } from "~/lib/time-utils";
@@ -1382,10 +1383,9 @@ export default function HomePageClientV2() {
           try {
             const params = new URLSearchParams();
             params.set("chainId", String(ETHEREUM_MAINNET_CHAIN_ID));
-            params.set("refresh", "1");
-            const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`, {
-              cache: "no-store",
-            });
+            // Do not pass `refresh` — same as listing page: use server `unstable_cache` so metadata
+            // and thumbnails from a prior successful enrichment are reused instead of cold IPFS every visit.
+            const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`);
             if (!res.ok) {
               if (res.status === 503) {
                 try {
@@ -1872,6 +1872,27 @@ function listingArtworkUrl(auction: EnrichedAuctionData): string | undefined {
   return typeof u === "string" && u.trim().length > 0 ? u.trim() : undefined;
 }
 
+/** Match `AuctionDetailClient` fallbacks so tiles are not blank when `auction.title` is unset but metadata exists. */
+function listingTileDisplayTitle(auction: EnrichedAuctionData): string {
+  const fromAuction =
+    (typeof auction.title === "string" && auction.title.trim()) ||
+    pickDisplayTitle(auction.metadata) ||
+    "";
+  if (fromAuction) return fromAuction;
+  const id = auction.listingId != null ? String(auction.listingId).trim() : "";
+  if (id) return `Listing #${id}`;
+  return "Listing";
+}
+
+function listingTileDisplayArtist(auction: EnrichedAuctionData): string {
+  const a =
+    (typeof auction.artist === "string" && auction.artist.trim()) ||
+    (typeof auction.metadata?.artist === "string" && auction.metadata.artist.trim()) ||
+    (typeof auction.metadata?.creator === "string" && auction.metadata.creator.trim()) ||
+    "";
+  return a || "—";
+}
+
 function StaticArtworkTile({
   auction,
   gradient,
@@ -1895,7 +1916,7 @@ function StaticArtworkTile({
             <>
               <Image
                 src={artUrl}
-                alt={auction.title || "Listing"}
+                alt={listingTileDisplayTitle(auction)}
                 fill
                 className="object-cover"
                 sizes="(max-width: 640px) 45vw, 200px"
@@ -1915,7 +1936,8 @@ function StaticArtworkTile({
             <div className="absolute inset-0 z-0" style={{ background: gradient }} aria-hidden />
           )}
           <div className="relative z-10 bg-black/70 p-2 font-space-grotesk text-xs">
-            <p className="truncate">{auction.title}</p>
+            <p className="truncate text-white">{listingTileDisplayTitle(auction)}</p>
+            <p className="truncate text-white/75">{listingTileDisplayArtist(auction)}</p>
             <p className="text-white/70">{formatStaticEth(auction.currentPrice || auction.initialAmount)}</p>
           </div>
         </div>
