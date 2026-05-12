@@ -423,9 +423,6 @@ export default function HomePageClientV2() {
   );
   /** Curated Ethereum mainnet listings for the lime strip (fetched with explicit `chainId=1`). */
   const [mainnetSpotlightAuctions, setMainnetSpotlightAuctions] = useState<EnrichedAuctionData[]>([]);
-  const [mainnetSpotlightLoading, setMainnetSpotlightLoading] = useState(true);
-  /** Set when API returns 503 SUBGRAPH_NOT_CONFIGURED_FOR_CHAIN (missing mainnet Studio URL). */
-  const [mainnetSpotlightLoadError, setMainnetSpotlightLoadError] = useState<string | null>(null);
   // Recent NFTs (ERC721) state
   const [nftListings, setNftListings] = useState<EnrichedAuctionData[]>(
     FARCON_STATIC_PREVIEW ? KISMET_STATIC_LOTS : [],
@@ -1368,13 +1365,9 @@ export default function HomePageClientV2() {
   useEffect(() => {
     if (hideAuctionCards) {
       setMainnetSpotlightAuctions([]);
-      setMainnetSpotlightLoading(false);
-      setMainnetSpotlightLoadError(null);
       return;
     }
     let cancelled = false;
-    setMainnetSpotlightLoading(true);
-    setMainnetSpotlightLoadError(null);
 
     void (async () => {
       const loaded: EnrichedAuctionData[] = [];
@@ -1384,7 +1377,6 @@ export default function HomePageClientV2() {
           try {
             const params = new URLSearchParams();
             params.set("chainId", String(ETHEREUM_MAINNET_CHAIN_ID));
-            // `refresh=1` keeps featured art/metadata reliable after dev restarts or cold cache (uncached enrichment).
             params.set("refresh", "1");
             const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`, {
               cache: "no-store",
@@ -1392,22 +1384,11 @@ export default function HomePageClientV2() {
             if (!res.ok) {
               if (res.status === 503) {
                 try {
-                  const errBody = (await res.json()) as {
-                    code?: string;
-                    error?: string;
-                  };
-                  if (errBody?.code === "SUBGRAPH_NOT_CONFIGURED_FOR_CHAIN") {
-                    if (!cancelled) {
-                      setMainnetSpotlightLoadError(
-                        errBody.error ??
-                          "Ethereum mainnet subgraph URL is not configured for this deployment."
-                      );
-                    }
-                    break;
-                  }
+                  await res.json();
                 } catch {
                   /* ignore */
                 }
+                break;
               }
               continue;
             }
@@ -1422,9 +1403,9 @@ export default function HomePageClientV2() {
         if (!cancelled) {
           setMainnetSpotlightAuctions(loaded);
         }
-      } finally {
+      } catch {
         if (!cancelled) {
-          setMainnetSpotlightLoading(false);
+          setMainnetSpotlightAuctions([]);
         }
       }
     })();
@@ -1463,6 +1444,8 @@ export default function HomePageClientV2() {
     font: "400 14px Space Grotesk",
     lineHeightPx: 21,
   });
+
+  const mainnetFeaturedReady = !hideAuctionCards && mainnetSpotlightAuctions.length > 0;
 
   const heroCtaClassName =
     "inline-flex min-h-[52px] w-full max-w-none items-center justify-center border-2 border-white bg-transparent px-6 py-3.5 !font-space-grotesk text-base font-medium leading-tight tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-black sm:min-h-[60px] sm:min-w-0 sm:flex-1 sm:px-8 sm:py-4 sm:text-lg";
@@ -1592,14 +1575,24 @@ export default function HomePageClientV2() {
           ref={featuredHeaderMeasureRef}
           className={`sticky top-0 z-0 space-y-2 pt-5 font-space-grotesk font-medium leading-[0.9] text-neutral-500 ${gutter}`}
         >
-          <span
-            className="block w-full bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(2.25rem,11vw,4.75rem)] leading-[0.95] text-transparent"
-          >
-            {FEATURED_HEADER_TEXT}
-          </span>
-          <span className="block font-space-grotesk text-base font-medium leading-snug tracking-wide text-neutral-700 md:text-lg">
-            {FEATURED_HEADER_SUBLINE}
-          </span>
+          {hideAuctionCards || mainnetFeaturedReady ? (
+            <>
+              <span
+                className="block w-full bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(2.25rem,11vw,4.75rem)] leading-[0.95] text-transparent"
+              >
+                {FEATURED_HEADER_TEXT}
+              </span>
+              <span className="block font-space-grotesk text-base font-medium leading-snug tracking-wide text-neutral-700 md:text-lg">
+                {FEATURED_HEADER_SUBLINE}
+              </span>
+            </>
+          ) : (
+            <span
+              className="block w-full bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(2.25rem,11vw,4.75rem)] leading-[0.95] text-transparent"
+            >
+              Ethereum
+            </span>
+          )}
         </motion.h2>
         <motion.div
           className={`relative z-10 mt-0 bg-[#dcf54c] pb-6 ${gutter}`}
@@ -1609,7 +1602,9 @@ export default function HomePageClientV2() {
             className={
               hideAuctionCards
                 ? "grid gap-3"
-                : "grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:items-stretch lg:gap-4"
+                : mainnetFeaturedReady
+                  ? "grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:items-stretch lg:gap-4"
+                  : "grid gap-3"
             }
           >
             <div className="relative min-h-[360px] overflow-hidden border border-black/15 bg-[#dcf54c] text-black">
@@ -1636,53 +1631,28 @@ export default function HomePageClientV2() {
                     Create listing
                   </TransitionLink>
                 </div>
+                {(hideAuctionCards || mainnetFeaturedReady) && (
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
                   <span className="border border-black px-2.5 py-1 !text-black">
                     {hideAuctionCards
                       ? "Ethereum + Base"
-                      : mainnetSpotlightLoading
-                        ? "Loading…"
-                        : mainnetSpotlightLoadError
-                          ? "Ethereum listing unavailable (config)"
-                          : mainnetSpotlightAuctions.length > 0
-                            ? mainnetSpotlightAuctions.length === 1
-                              ? "Ethereum mainnet · listing in view"
-                              : `${mainnetSpotlightAuctions.length} Ethereum listings`
-                            : "Listing preview unavailable"}
+                      : mainnetSpotlightAuctions.length === 1
+                        ? "Ethereum mainnet · listing in view"
+                        : `${mainnetSpotlightAuctions.length} Ethereum listings`}
                   </span>
                 </div>
+                )}
               </div>
             </div>
-            {!hideAuctionCards && (
+            {!hideAuctionCards && mainnetFeaturedReady && (
             <div className="flex min-h-0 w-full min-w-0 flex-col lg:h-full lg:min-h-[360px]">
-              {mainnetSpotlightLoading ? (
-                <div className="flex min-h-[33vh] w-full flex-1 items-center justify-center border border-black/20 bg-neutral-950/5 font-mek-mono text-sm text-black/70">
-                  Loading artwork…
-                </div>
-              ) : mainnetSpotlightLoadError ? (
-                <div className="flex min-h-[33vh] w-full flex-1 items-center justify-center border border-black/20 bg-neutral-950/5 p-4 text-center font-space-grotesk text-sm leading-relaxed text-black/90">
-                  {mainnetSpotlightLoadError}
-                </div>
-              ) : mainnetSpotlightAuctions.length === 0 ? (
-                <div className="flex min-h-[33vh] w-full flex-1 flex-col items-center justify-center gap-2 border border-black/20 bg-neutral-950/5 p-4 text-center font-mek-mono text-sm text-black/80">
-                  <p>No listing preview yet.</p>
-                  <TransitionLink
-                    href={canonicalListingDetailPath(ETHEREUM_MAINNET_CHAIN_ID, HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1")}
-                    prefetch={false}
-                    className="font-space-grotesk text-sm underline underline-offset-2"
-                  >
-                    Open /listing/eth/{HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1"}
-                  </TransitionLink>
-                </div>
-              ) : (
-                mainnetSpotlightAuctions.map((auction, index) => (
-                  <MainnetFirstListingArtCard
-                    key={`eth-spotlight-${auction.listingId}-${index}`}
-                    auction={auction}
-                    gradient={KISMET_GRADIENTS[(index + 3) % KISMET_GRADIENTS.length]}
-                  />
-                ))
-              )}
+              {mainnetSpotlightAuctions.map((auction, index) => (
+                <MainnetFirstListingArtCard
+                  key={`eth-spotlight-${auction.listingId}-${index}`}
+                  auction={auction}
+                  gradient={KISMET_GRADIENTS[(index + 3) % KISMET_GRADIENTS.length]}
+                />
+              ))}
             </div>
             )}
           </div>
