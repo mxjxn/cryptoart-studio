@@ -46,7 +46,8 @@ const HOMEPAGE_KISMET_STATIC_ONLY = true;
 const TIER1_TIMEOUT_MS = 60_000;
 /** Per-lot `getAuctionServer` + Neynar; must stay under route `maxDuration` and below client abort. */
 const TIER2_TIMEOUT_MS = 40_000;
-const FEATURED_HEADER_TEXT = "Ethereum";
+const FEATURED_HEADER_TEXT = "First listing";
+const FEATURED_HEADER_SUBLINE = "Physical artwork";
 /** Lime strip — mainnet is live; curated picks load from `/api/auctions` with explicit chainId. */
 const FEATURED_MAINNET_EYEBROW = "Now live";
 const FEATURED_MAINNET_HEADLINE = "Ethereum mainnet";
@@ -57,7 +58,7 @@ const FEATURED_MAINNET_DESCRIPTION =
 const HOMEPAGE_MAINNET_LISTING_IDS: readonly string[] = ["1"];
 
 /** Used until the featured `<h2>` is measured (clamp typography height is roughly 80–140px). */
-const FEATURED_HEADER_HEIGHT_FALLBACK_PX = 120;
+const FEATURED_HEADER_HEIGHT_FALLBACK_PX = 168;
 
 const KISMET_GRADIENTS = [
   "linear-gradient(135deg, #f5acd1 0%, #dcf54c 52%, #ecc100 100%)",
@@ -1587,12 +1588,15 @@ export default function HomePageClientV2() {
       >
         <motion.h2
           ref={featuredHeaderMeasureRef}
-          className={`sticky top-0 z-0 pt-5 font-space-grotesk font-medium leading-[0.9] text-neutral-500 ${gutter}`}
+          className={`sticky top-0 z-0 space-y-2 pt-5 font-space-grotesk font-medium leading-[0.9] text-neutral-500 ${gutter}`}
         >
           <span
-            className="block w-full whitespace-nowrap bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(3.25rem,15vw,5.85rem)] leading-[0.9] text-transparent"
+            className="block w-full bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(2.25rem,11vw,4.75rem)] leading-[0.95] text-transparent"
           >
             {FEATURED_HEADER_TEXT}
+          </span>
+          <span className="block font-space-grotesk text-base font-medium leading-snug tracking-wide text-neutral-700 md:text-lg">
+            {FEATURED_HEADER_SUBLINE}
           </span>
         </motion.h2>
         <motion.div
@@ -1603,7 +1607,7 @@ export default function HomePageClientV2() {
             className={
               hideAuctionCards
                 ? "grid gap-3"
-                : "grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-stretch"
+                : "grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)] lg:items-stretch lg:gap-4"
             }
           >
             <div className="relative min-h-[360px] overflow-hidden border border-black/15 bg-[#dcf54c] text-black">
@@ -1648,28 +1652,29 @@ export default function HomePageClientV2() {
               </div>
             </div>
             {!hideAuctionCards && (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-2">
+            <div className="flex min-h-0 w-full min-w-0 flex-col lg:h-full lg:min-h-[360px]">
               {mainnetSpotlightLoading ? (
-                <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">Loading…</p>
+                <div className="flex min-h-[33vh] w-full flex-1 items-center justify-center border border-black/20 bg-neutral-950/5 font-mek-mono text-sm text-black/70">
+                  Loading artwork…
+                </div>
               ) : mainnetSpotlightLoadError ? (
-                <p className="col-span-2 self-center font-space-grotesk text-sm leading-relaxed text-black/90">
+                <div className="flex min-h-[33vh] w-full flex-1 items-center justify-center border border-black/20 bg-neutral-950/5 p-4 text-center font-space-grotesk text-sm leading-relaxed text-black/90">
                   {mainnetSpotlightLoadError}
-                </p>
+                </div>
               ) : mainnetSpotlightAuctions.length === 0 ? (
-                <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">
-                  No curated listings loaded. Try opening{" "}
+                <div className="flex min-h-[33vh] w-full flex-1 flex-col items-center justify-center gap-2 border border-black/20 bg-neutral-950/5 p-4 text-center font-mek-mono text-sm text-black/80">
+                  <p>No listing preview yet.</p>
                   <TransitionLink
                     href={canonicalListingDetailPath(ETHEREUM_MAINNET_CHAIN_ID, HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1")}
                     prefetch={false}
-                    className="underline underline-offset-2"
+                    className="font-space-grotesk text-sm underline underline-offset-2"
                   >
-                    /listing/eth/{HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1"}
-                  </TransitionLink>{" "}
-                  directly.
-                </p>
+                    Open /listing/eth/{HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1"}
+                  </TransitionLink>
+                </div>
               ) : (
                 mainnetSpotlightAuctions.map((auction, index) => (
-                  <StaticArtworkTile
+                  <MainnetFirstListingArtCard
                     key={`eth-spotlight-${auction.listingId}-${index}`}
                     auction={auction}
                     gradient={KISMET_GRADIENTS[(index + 3) % KISMET_GRADIENTS.length]}
@@ -1692,7 +1697,7 @@ export default function HomePageClientV2() {
               <span className="text-black">
                 {mainnetSpotlightAuctions.length > 0
                   ? mainnetSpotlightAuctions.length === 1
-                    ? "Ethereum · live listing"
+                    ? "First listing · Ethereum"
                     : `${mainnetSpotlightAuctions.length} Ethereum listings`
                   : "Ethereum mainnet"}
               </span>
@@ -1891,6 +1896,59 @@ function listingTileDisplayArtist(auction: EnrichedAuctionData): string {
     (typeof auction.metadata?.creator === "string" && auction.metadata.creator.trim()) ||
     "";
   return a || "—";
+}
+
+/** Featured lime column: full artwork (contain), not cropped; mobile caps ~⅓ viewport height. */
+function MainnetFirstListingArtCard({
+  auction,
+  gradient,
+}: {
+  auction: EnrichedAuctionData;
+  gradient: string;
+}) {
+  const artUrl = listingArtworkUrl(auction);
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border border-black/25 bg-neutral-950 shadow-[0_16px_48px_rgba(0,0,0,0.14)]">
+      <TransitionLink
+        href={canonicalListingDetailPath(
+          auction.chainId ?? BASE_CHAIN_ID,
+          auction.listingId
+        )}
+        prefetch={false}
+        className="flex h-full min-h-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-black/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#dcf54c]"
+      >
+        <div className="relative h-[33vh] w-full shrink-0 bg-[#0a0a0a] sm:h-[min(40vh,640px)] lg:h-auto lg:max-h-none lg:min-h-[280px] lg:flex-1 lg:basis-0">
+          {artUrl ? (
+            <Image
+              src={artUrl}
+              alt={listingTileDisplayTitle(auction)}
+              fill
+              className="object-contain object-center p-4 sm:p-6"
+              sizes="(max-width: 1024px) 100vw, 42vw"
+              unoptimized
+            />
+          ) : (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ background: gradient }}
+              aria-hidden
+            />
+          )}
+        </div>
+        <div className="shrink-0 border-t border-white/10 bg-black px-4 py-3 sm:px-5 sm:py-4">
+          <p className="font-space-grotesk text-sm font-medium leading-snug text-white sm:text-base">
+            {listingTileDisplayTitle(auction)}
+          </p>
+          <p className="mt-1 font-space-grotesk text-xs leading-snug text-white/75 sm:text-sm">
+            {listingTileDisplayArtist(auction)}
+          </p>
+          <p className="mt-2 font-mek-mono text-xs tabular-nums text-white/90 sm:text-sm">
+            {formatStaticEth(auction.currentPrice || auction.initialAmount)}
+          </p>
+        </div>
+      </TransitionLink>
+    </div>
+  );
 }
 
 function StaticArtworkTile({
