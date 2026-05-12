@@ -1384,9 +1384,11 @@ export default function HomePageClientV2() {
           try {
             const params = new URLSearchParams();
             params.set("chainId", String(ETHEREUM_MAINNET_CHAIN_ID));
-            // Do not pass `refresh` — same as listing page: use server `unstable_cache` so metadata
-            // and thumbnails from a prior successful enrichment are reused instead of cold IPFS every visit.
-            const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`);
+            // `refresh=1` keeps featured art/metadata reliable after dev restarts or cold cache (uncached enrichment).
+            params.set("refresh", "1");
+            const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`, {
+              cache: "no-store",
+            });
             if (!res.ok) {
               if (res.status === 503) {
                 try {
@@ -1917,15 +1919,15 @@ function MainnetFirstListingArtCard({
         prefetch={false}
         className="flex h-full min-h-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-black/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#dcf54c]"
       >
-        <div className="relative h-[33vh] w-full shrink-0 bg-[#0a0a0a] sm:h-[min(40vh,640px)] lg:h-auto lg:max-h-none lg:min-h-[280px] lg:flex-1 lg:basis-0">
+        <div className="flex min-h-[33vh] w-full shrink-0 flex-col items-center justify-center bg-[#0a0a0a] px-3 py-4 sm:min-h-[min(40vh,640px)] sm:px-5 sm:py-6 lg:min-h-[320px] lg:flex-1 lg:basis-0">
           {artUrl ? (
-            <Image
+            // eslint-disable-next-line @next/next/no-img-element -- avoid `next/image` fill + contain layout bugs in this flex hero
+            <img
               src={artUrl}
               alt={listingTileDisplayTitle(auction)}
-              fill
-              className="object-contain object-center p-4 sm:p-6"
-              sizes="(max-width: 1024px) 100vw, 42vw"
-              unoptimized
+              className="h-auto max-h-[30vh] w-full max-w-full object-contain object-center sm:max-h-[min(36vh,600px)] lg:max-h-[min(56vh,720px)]"
+              loading="eager"
+              decoding="async"
             />
           ) : (
             <div
