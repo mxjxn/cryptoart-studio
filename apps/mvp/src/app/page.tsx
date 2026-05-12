@@ -22,8 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
   // Match listing-page metadata behavior: derive site URL from incoming request host.
   // This avoids host mismatch issues (`www` vs apex) in embed/action URLs.
   const siteUrl = await getRequestSiteUrl();
-  // Generic 3:2 embed card for homepage shares (not tied to a single past event).
-  const ogImageUrl = `${siteUrl}/api/opengraph-image`;
+  // 3:2 OG at `/opengraph-image` — homepage hero (lime + first Ethereum listing art) when available, else curated grid.
+  const ogImageUrl = `${siteUrl}/opengraph-image`;
   const homepageUrl = siteUrl;
   
   // Create separate metadata objects for fc:miniapp and fc:frame

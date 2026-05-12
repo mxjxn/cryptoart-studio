@@ -13,7 +13,7 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 import type { EnrichedAuctionData } from "~/lib/types";
-import { getSubgraphEndpoint } from "~/lib/server/subgraph-endpoints";
+import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import {
   normalizeListingType,
   getHiddenUserAddresses,
@@ -30,6 +30,12 @@ import { isDataURI } from "~/lib/media-utils";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs"; // Required for processMediaForImage (uses child_process, fs)
 export const maxDuration = 60; // Allow up to 60 seconds for image processing
+
+/** Keep in sync with `HOMEPAGE_MAINNET_LISTING_IDS` in `HomePageClientV2.tsx`. */
+const HOMEPAGE_OG_ETH_LISTING_IDS = ["1"] as const;
+
+const OG_HOMEPAGE_HERO_LEDE =
+  "List and collect on Ethereum from the same app as Base. Create a listing, pick your chain, then approve where your NFT lives.";
 
 /**
  * Convert WebP data URL to PNG data URL
@@ -237,7 +243,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Load all three fonts and logo
-    const [mekMonoFont, medodicaFont, mekSansFont, logoResponse] =
+    const [mekMonoFont, medodicaFont, mekSansFont, logoResponse, heroSpotlightRaw] =
       await Promise.all([
         fetch(`${baseUrl}/MEK-Mono.otf`)
           .then((res) => res.arrayBuffer())
@@ -266,6 +272,24 @@ export async function GET(request: NextRequest) {
             console.error(`[OG Image] Error fetching logo:`, error);
             return null;
           }),
+        (async (): Promise<EnrichedAuctionData | null> => {
+          for (const id of HOMEPAGE_OG_ETH_LISTING_IDS) {
+            try {
+              const row = await getAuctionServer(id, {
+                chainId: ETHEREUM_MAINNET_CHAIN_ID,
+              });
+              if (row) {
+                console.log(
+                  `[OG Image] Homepage hero listing ${id} on chain ${ETHEREUM_MAINNET_CHAIN_ID}`,
+                );
+                return row;
+              }
+            } catch (e) {
+              console.warn(`[OG Image] Homepage hero fetch failed for ${id}:`, e);
+            }
+          }
+          return null;
+        })(),
       ]);
 
     // Convert logo to base64 data URL
@@ -311,9 +335,13 @@ export async function GET(request: NextRequest) {
       console.warn(`[OG Image] Logo data URL is null - will fall back to text`);
     }
 
-    // Fetch featured listings from database (curated, not just recent)
-    let featuredListingsData: EnrichedAuctionData[] =
-      getCachedFeaturedListings() || [];
+    // Prefer live Ethereum mainnet spotlight (homepage lime strip); else curated DB featured rows.
+    const useHomepageHero = heroSpotlightRaw != null;
+    let featuredListingsData: EnrichedAuctionData[] = useHomepageHero
+      ? [heroSpotlightRaw]
+      : getCachedFeaturedListings() || [];
+
+    if (!useHomepageHero) {
     try {
       const db = getDatabase();
 
@@ -394,6 +422,7 @@ export async function GET(request: NextRequest) {
           `[OG Image] Using cached featured listings after fetch error`,
         );
       }
+    }
     }
 
     // Use featured listings (rename for consistency with rest of code)
@@ -794,7 +823,7 @@ export async function GET(request: NextRequest) {
           : "—";
 
       return {
-        title: truncateText(title, 25),
+        title: truncateText(title, useHomepageHero ? 44 : 25),
         artist: artistDisplay,
         listingType,
         isActive,
@@ -802,15 +831,187 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Fill empty slots if we have fewer than 5 listings
-    while (cardData.length < 5) {
-      cardData.push({
-        title: "—",
-        artist: "—",
-        listingType: "INDIVIDUAL_AUCTION",
-        isActive: false,
-        image: null,
-      });
+    // Fill empty slots if we have fewer than 5 listings (classic grid only)
+    if (!useHomepageHero) {
+      while (cardData.length < 5) {
+        cardData.push({
+          title: "—",
+          artist: "—",
+          listingType: "INDIVIDUAL_AUCTION",
+          isActive: false,
+          image: null,
+        });
+      }
+    }
+
+    /** Miniapp / share card matching homepage lime strip + first listing art (3:2). */
+    if (useHomepageHero && cardData[0]) {
+      const card = cardData[0];
+      const leftW = 620;
+      const rightW = 1200 - leftW;
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "row",
+              background: "#dcf54c",
+              color: "#111111",
+              fontFamily: "MEK-Mono",
+            }}
+          >
+            <div
+              style={{
+                width: leftW,
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                padding: "32px 28px 36px 36px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  letterSpacing: "0.28em",
+                  textTransform: "uppercase",
+                  fontFamily: "MEK-Mono",
+                  opacity: 0.85,
+                }}
+              >
+                Now live
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                <div
+                  style={{
+                    fontSize: 52,
+                    fontWeight: 600,
+                    lineHeight: 1.02,
+                    fontFamily: "MedodicaRegular, MEKSans-Regular, sans-serif",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  First listing
+                </div>
+                <div
+                  style={{
+                    fontSize: 22,
+                    marginTop: 8,
+                    fontFamily: "MedodicaRegular, MEKSans-Regular, sans-serif",
+                    opacity: 0.88,
+                  }}
+                >
+                  Physical artwork
+                </div>
+                <div
+                  style={{
+                    fontSize: 38,
+                    fontWeight: 600,
+                    marginTop: 26,
+                    fontFamily: "MedodicaRegular, MEKSans-Regular, sans-serif",
+                  }}
+                >
+                  Ethereum mainnet
+                </div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    marginTop: 14,
+                    lineHeight: 1.45,
+                    maxWidth: 540,
+                    opacity: 0.92,
+                    fontFamily: "MEK-Mono",
+                  }}
+                >
+                  {truncateText(OG_HOMEPAGE_HERO_LEDE, 118)}
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  border: "2px solid #111111",
+                  padding: "10px 16px",
+                  alignSelf: "flex-start",
+                  fontFamily: "MEK-Mono",
+                }}
+              >
+                Create listing
+              </div>
+            </div>
+            <div
+              style={{
+                width: rightW,
+                height: "100%",
+                background: "#0a0a0a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 20,
+                boxSizing: "border-box",
+                position: "relative",
+              }}
+            >
+              {card.image ? (
+                <img
+                  src={card.image}
+                  alt={card.title}
+                  width={rightW - 40}
+                  height={590}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    color: "#666666",
+                    fontSize: 18,
+                    fontFamily: "MEK-Mono",
+                    textAlign: "center",
+                  }}
+                >
+                  cryptoart.social
+                </div>
+              )}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 12,
+                  left: 12,
+                  right: 12,
+                  fontSize: 12,
+                  color: "#e5e5e5",
+                  fontFamily: "MEK-Mono",
+                  textAlign: "center",
+                  opacity: 0.92,
+                }}
+              >
+                {truncateText(card.title, 40)} · {truncateText(card.artist, 32)}
+              </div>
+            </div>
+          </div>
+        ),
+        {
+          width: 1200,
+          height: 630,
+          fonts: fonts.length > 0 ? fonts : undefined,
+          headers: {
+            "Cache-Control": refresh
+              ? "public, no-cache, no-transform, max-age=0, s-maxage=0"
+              : OG_IMAGE_CACHE_CONTROL_HOMEPAGE,
+          },
+        },
+      );
     }
 
     return new ImageResponse(
