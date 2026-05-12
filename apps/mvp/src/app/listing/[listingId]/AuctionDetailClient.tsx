@@ -115,7 +115,7 @@ export default function AuctionDetailClient({
     requiredChainId: marketplaceReadChainId,
   });
   const { hideOverlay } = useLoadingOverlay();
-  const { isPro, loading: membershipLoading } = useMembershipStatus();
+  const { isPro } = useMembershipStatus();
   const { isAdmin } = useIsAdmin();
   const isMember = isPro;
   const canEditListingTheme = isMember || isAdmin;
@@ -2020,29 +2020,6 @@ export default function AuctionDetailClient({
       className="listing-detail-page min-h-screen animate-in fade-in duration-100"
       style={listingShellStyle}
     >
-      {/* Redesign: membership strip (matches HomePageClientV2) */}
-      {!membershipLoading && (
-        <button
-          type="button"
-          onClick={() => {
-            if (isMember) return;
-            router.push("/membership?from=listing");
-          }}
-          className="flex w-full flex-col items-center justify-center gap-1 bg-[#f5b0d3] px-3 py-2.5 text-center font-space-grotesk text-sm font-medium leading-snug text-[#333333] sm:flex-row sm:flex-wrap sm:gap-x-2 sm:text-base"
-        >
-          {isMember ? (
-            <span>Member — thanks for supporting infrastructure & open-source</span>
-          ) : (
-            <>
-              <span className="max-w-[min(100%,42rem)]">
-                Support infrastructure & open-source behind cryptoart.social
-              </span>
-              <span className="tabular-nums">0.0001 ETH / month</span>
-            </>
-          )}
-        </button>
-      )}
-
       {!isMiniApp && (
         <section className="border-b border-neutral-200 bg-white">
           <div className="container mx-auto flex max-w-4xl justify-center px-5 py-3">
