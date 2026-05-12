@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Alchemy, Network } from "alchemy-sdk";
 import { request, gql } from "graphql-request";
-import { getSubgraphEndpointOrNull } from "~/lib/server/subgraph-endpoints";
+import {
+  ETHEREUM_MAINNET_CHAIN_ID,
+  getSubgraphEndpointOrNull,
+} from "~/lib/server/subgraph-endpoints";
+import { resolveRequestChainIdParam } from "~/lib/server/resolve-request-chain-id";
 
 const CHECK_TOKEN_LISTINGS_QUERY = gql`
   query CheckTokenListings($tokenAddress: String!, $tokenIds: [String!]!) {
@@ -27,9 +31,10 @@ const CHECK_TOKEN_LISTINGS_QUERY = gql`
  */
 async function getSoldOutTokens(
   contractAddress: string,
-  tokenIds: string[]
+  tokenIds: string[],
+  chainId: number
 ): Promise<Set<string>> {
-  const endpoint = getSubgraphEndpointOrNull();
+  const endpoint = getSubgraphEndpointOrNull(chainId);
   if (!endpoint || tokenIds.length === 0) {
     return new Set();
   }
@@ -65,7 +70,7 @@ async function getSoldOutTokens(
 /**
  * Get NFTs owned by an address from a specific contract
  * 
- * GET /api/nfts/for-owner?owner=0x...&contractAddress=0x...&page=1&limit=20
+ * GET /api/nfts/for-owner?owner=0x...&contractAddress=0x...&page=1&limit=20&chainId=8453|1
  * 
  * Returns: { 
  *   nfts: Array<{ tokenId: string; name: string | null; image: string | null; balance?: string }>, 
@@ -82,6 +87,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const contractAddress = searchParams.get("contractAddress");
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const chainId = resolveRequestChainIdParam(searchParams.get("chainId"));
 
     if (!owner || !/^0x[a-fA-F0-9]{40}$/i.test(owner)) {
       return NextResponse.json(
@@ -119,10 +125,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const alchemyNetwork =
+      chainId === ETHEREUM_MAINNET_CHAIN_ID
+        ? Network.ETH_MAINNET
+        : Network.BASE_MAINNET;
+
     // Configure Alchemy for server-side use in Next.js
     const alchemy = new Alchemy({
       apiKey,
-      network: Network.BASE_MAINNET,
+      network: alchemyNetwork,
       connectionInfoOverrides: {
         skipFetchSetup: true,
       },
@@ -151,7 +162,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Check which tokens are already sold out in active listings
     const tokenIds = allNfts.map((nft) => nft.tokenId);
-    const soldOutTokens = await getSoldOutTokens(contractAddress, tokenIds);
+    const soldOutTokens = await getSoldOutTokens(contractAddress, tokenIds, chainId);
 
     // Filter out tokens that are sold out
     const availableNfts = allNfts.filter((nft) => !soldOutTokens.has(nft.tokenId));

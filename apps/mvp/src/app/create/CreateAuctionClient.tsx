@@ -8,12 +8,10 @@ import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI }
 import { MediaDisplay } from "~/components/media";
 import {
   MARKETPLACE_ADDRESS,
+  ETHEREUM_MAINNET_MARKETPLACE_ADDRESS,
   MARKETPLACE_ABI,
   CHAIN_ID,
 } from "~/lib/contracts/marketplace";
-
-/** NFT + marketplace chain for this wizard; all `useReadContract` NFT calls use this, not the connected wallet chain. */
-const CREATE_LISTING_NFT_CHAIN_ID = CHAIN_ID;
 import { useERC20Token, isETH } from "~/hooks/useERC20Token";
 import { zeroAddress } from "viem";
 import { TransactionStatus } from "~/components/TransactionStatus";
@@ -25,8 +23,11 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { TransitionLink } from "~/components/TransitionLink";
 import { Logo } from "~/components/Logo";
 import { transitionNavigate } from "~/lib/view-transitions";
-import { base } from "wagmi/chains";
 import { ContractSelector } from "~/components/create-listing/ContractSelector";
+import { ListingTargetChainStep } from "~/components/create-listing/ListingTargetChainStep";
+import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
+import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
+import { getChainNetworkInfo } from "~/lib/chain-display";
 import { TokenSelector } from "~/components/create-listing/TokenSelector";
 import { ERC1155ConfigPage } from "~/components/create-listing/ERC1155ConfigPage";
 import { ERC721ListingTypePage } from "~/components/create-listing/ERC721ListingTypePage";
@@ -191,7 +192,19 @@ export default function CreateAuctionClient() {
   const isMiniApp = isMiniAppContext;
   const { isPro, loading: membershipLoading } = useMembershipStatus();
   const isMember = isPro;
-  const { isWrongNetwork, switchToBase, isSwitching } = useNetworkGuard();
+  /** Set on step 1; all NFT reads and marketplace txs use this chain explicitly. */
+  const [listingTargetChainId, setListingTargetChainId] = useState<number | null>(null);
+
+  const createListingNftChainId = listingTargetChainId ?? CHAIN_ID;
+  const marketplaceAddressForListing = useMemo((): Address => {
+    return createListingNftChainId === ETHEREUM_MAINNET_CHAIN_ID
+      ? ETHEREUM_MAINNET_MARKETPLACE_ADDRESS
+      : MARKETPLACE_ADDRESS;
+  }, [createListingNftChainId]);
+
+  const { isWrongNetwork, switchToRequiredChain, isSwitching } = useNetworkGuard({
+    requiredChainId: listingTargetChainId ?? undefined,
+  });
   const connectedChainId = useChainId();
   const [formData, setFormData] = useState({
     listingType: "INDIVIDUAL_AUCTION" as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY",
@@ -262,7 +275,9 @@ export default function CreateAuctionClient() {
   const hasValidTokenId = formData.tokenId !== "" && !isNaN(Number(formData.tokenId));
 
   // ERC20 token validation
-  const erc20Token = useERC20Token(formData.paymentType === "ERC20" ? formData.erc20Address : undefined);
+  const erc20Token = useERC20Token(formData.paymentType === "ERC20" ? formData.erc20Address : undefined, {
+    chainId: createListingNftChainId,
+  });
   const isValidERC20 = formData.paymentType === "ETH" || (formData.paymentType === "ERC20" && erc20Token.isValid);
   const priceSymbol = formData.paymentType === "ETH" ? "ETH" : (erc20Token.symbol || "TOKEN");
 
@@ -272,7 +287,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'supportsInterface',
     args: [ERC721_INTERFACE_ID as `0x${string}`],
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -285,7 +300,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'supportsInterface',
     args: [ERC1155_INTERFACE_ID as `0x${string}`],
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -298,7 +313,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'ownerOf',
     args: hasValidTokenId ? [BigInt(formData.tokenId)] : undefined,
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress && hasValidTokenId && isERC721 === true,
       retry: 1,
@@ -311,7 +326,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'balanceOf',
     args: hasValidTokenId && address ? [address, BigInt(formData.tokenId)] : undefined,
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress && hasValidTokenId && !!address && isERC1155 === true,
       retry: 1,
@@ -324,7 +339,7 @@ export default function CreateAuctionClient() {
     abi: NFT_ABI,
     functionName: 'getApproved',
     args: hasValidTokenId ? [BigInt(formData.tokenId)] : undefined,
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress && hasValidTokenId && isERC721 === true,
       retry: 1,
@@ -336,8 +351,8 @@ export default function CreateAuctionClient() {
     address: contractAddress,
     abi: NFT_ABI,
     functionName: 'isApprovedForAll',
-    args: address ? [address, MARKETPLACE_ADDRESS] : undefined,
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    args: address ? [address, marketplaceAddressForListing] : undefined,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress && !!address && (isERC721 === true || isERC1155 === true),
       retry: 1,
@@ -419,8 +434,9 @@ export default function CreateAuctionClient() {
     }
   }, [allVerifiedAddresses, deployedContractsLoading, deployedContractsFetched]);
 
-  // Fetch NFTs owned from selected contract when contract address changes
+  // Fetch NFTs owned from selected contract when contract address changes (explicit listing chain)
   useEffect(() => {
+    if (listingTargetChainId == null) return;
     if (isValidContract && contractAddress && address) {
       async function fetchOwnedNFTs() {
         setOwnedNFTsLoading(true);
@@ -428,7 +444,7 @@ export default function CreateAuctionClient() {
         setFormData(prev => ({ ...prev, tokenId: "" })); // Clear token ID when contract changes
         try {
           const response = await fetch(
-            `/api/nfts/for-owner?owner=${address}&contractAddress=${contractAddress}`
+            `/api/nfts/for-owner?owner=${address}&contractAddress=${contractAddress}&chainId=${listingTargetChainId}`
           );
           if (response.ok) {
             const data = await response.json();
@@ -448,52 +464,51 @@ export default function CreateAuctionClient() {
       setOwnedNFTs([]);
       setFormData(prev => ({ ...prev, tokenId: "" })); // Clear token ID
     }
-  }, [contractAddress, address, isValidContract]);
+  }, [contractAddress, address, isValidContract, listingTargetChainId]);
 
-  // Automatically switch to Base network when on wrong network (web only)
+  // Automatically switch wallet to the selected listing chain (web only)
   useEffect(() => {
     if (isWrongNetwork && !isSwitching && isConnected) {
-      // Only auto-switch on web, not in miniapp
       if (!isMiniApp) {
-        console.log('[CreateAuction] Auto-switching to Base network');
-        switchToBase();
+        console.log("[CreateAuction] Auto-switching to listing target chain");
+        switchToRequiredChain();
       }
     }
-  }, [isWrongNetwork, isSwitching, isConnected, isMiniApp, switchToBase]);
+  }, [isWrongNetwork, isSwitching, isConnected, isMiniApp, switchToRequiredChain]);
 
   // Handle getChainId errors from approval transactions
   useEffect(() => {
     if (approvalError) {
       const errorMessage = approvalError.message || String(approvalError);
       if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
-        console.error('[CreateAuction] Chain ID error in approval, attempting to switch to Base:', approvalError);
+        console.error("[CreateAuction] Chain ID error in approval, attempting chain switch:", approvalError);
         if (!isMiniApp) {
           try {
-            switchToBase();
+            switchToRequiredChain();
           } catch (switchErr) {
             console.error('[CreateAuction] Error switching chain:', switchErr);
           }
         }
       }
     }
-  }, [approvalError, isMiniApp, switchToBase]);
+  }, [approvalError, isMiniApp, switchToRequiredChain]);
 
   // Handle getChainId errors from listing transactions
   useEffect(() => {
     if (error) {
       const errorMessage = error.message || String(error);
       if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
-        console.error('[CreateAuction] Chain ID error in listing, attempting to switch to Base:', error);
+        console.error("[CreateAuction] Chain ID error in listing, attempting chain switch:", error);
         if (!isMiniApp) {
           try {
-            switchToBase();
+            switchToRequiredChain();
           } catch (switchErr) {
             console.error('[CreateAuction] Error switching chain:', switchErr);
           }
         }
       }
     }
-  }, [error, isMiniApp, switchToBase]);
+  }, [error, isMiniApp, switchToRequiredChain]);
 
   // Determine token type and ownership
   const tokenType = useMemo(() => {
@@ -579,13 +594,22 @@ export default function CreateAuctionClient() {
     // For ERC721, also check single token approval
     if (tokenType === 'ERC721') {
       const approvedAddress = erc721Approved as Address | undefined;
-      if (approvedAddress?.toLowerCase() === MARKETPLACE_ADDRESS.toLowerCase()) {
+      if (approvedAddress?.toLowerCase() === marketplaceAddressForListing.toLowerCase()) {
         return { loading: false, isApproved: true, needsApproval: false };
       }
     }
 
     return { loading: false, isApproved: false, needsApproval: true };
-  }, [canProceed, loadingERC721Approved, loadingApprovedForAll, isApprovedForAll, tokenType, erc721Approved, isApprovalSuccess]);
+  }, [
+    canProceed,
+    loadingERC721Approved,
+    loadingApprovedForAll,
+    isApprovedForAll,
+    tokenType,
+    erc721Approved,
+    isApprovalSuccess,
+    marketplaceAddressForListing,
+  ]);
 
   // Handle approval
   const handleApprove = async () => {
@@ -600,7 +624,7 @@ export default function CreateAuctionClient() {
     // Check if token is already listed/sold
     try {
       const checkResponse = await fetch(
-        `/api/listings/check-token?tokenAddress=${encodeURIComponent(contractAddress)}&tokenId=${encodeURIComponent(formData.tokenId)}`
+        `/api/listings/check-token?tokenAddress=${encodeURIComponent(contractAddress)}&tokenId=${encodeURIComponent(formData.tokenId)}&chainId=${createListingNftChainId}`
       );
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
@@ -620,19 +644,17 @@ export default function CreateAuctionClient() {
     }
 
     // Check if we're on the correct chain (web only - miniapp handles this automatically)
-    if (!isMiniApp && connectedChainId !== base.id) {
-      console.log('[CreateAuction] Wrong network detected, switching to Base');
+    if (!isMiniApp && connectedChainId !== createListingNftChainId) {
+      console.log("[CreateAuction] Wrong network for listing target chain");
       try {
-        switchToBase();
-        // Wait a bit for the switch to initiate
+        switchToRequiredChain();
         await new Promise(resolve => setTimeout(resolve, 500));
-        // Don't proceed if still on wrong chain - let the auto-switch effect handle it
-        if (connectedChainId !== base.id) {
+        if (connectedChainId !== createListingNftChainId) {
           return;
         }
       } catch (err) {
         console.error('[CreateAuction] Error switching chain:', err);
-        alert('Please switch to Base network to continue');
+        alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} to continue`);
         return;
       }
     }
@@ -644,8 +666,8 @@ export default function CreateAuctionClient() {
           address: contractAddress,
           abi: NFT_ABI,
           functionName: 'approve',
-          args: [MARKETPLACE_ADDRESS, BigInt(formData.tokenId)],
-          chainId: CREATE_LISTING_NFT_CHAIN_ID,
+          args: [marketplaceAddressForListing, BigInt(formData.tokenId)],
+          chainId: createListingNftChainId,
           account: address,
         });
       } else {
@@ -654,8 +676,8 @@ export default function CreateAuctionClient() {
           address: contractAddress,
           abi: NFT_ABI,
           functionName: 'setApprovalForAll',
-          args: [MARKETPLACE_ADDRESS, true],
-          chainId: CREATE_LISTING_NFT_CHAIN_ID,
+          args: [marketplaceAddressForListing, true],
+          chainId: createListingNftChainId,
           account: address,
         });
       }
@@ -663,17 +685,19 @@ export default function CreateAuctionClient() {
       // Handle getChainId errors gracefully
       const errorMessage = err?.message || String(err);
       if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
-        console.error('[CreateAuction] Chain ID error detected, attempting to switch to Base:', err);
+        console.error("[CreateAuction] Chain ID error during approval:", err);
         if (!isMiniApp) {
           try {
-            switchToBase();
-            alert('Please switch to Base network and try again');
+            switchToRequiredChain();
+            alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} and try again`);
           } catch (switchErr) {
             console.error('[CreateAuction] Error switching chain:', switchErr);
-            alert('Please switch to Base network manually and try again');
+            alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} manually and try again`);
           }
         } else {
-          alert('Network error. Please ensure you are on Base network.');
+          alert(
+            `Network error. Please ensure you are on ${getChainNetworkInfo(createListingNftChainId).displayName}.`
+          );
         }
       } else {
         // Re-throw other errors
@@ -686,7 +710,7 @@ export default function CreateAuctionClient() {
     address: contractAddress,
     abi: CONTRACT_INFO_ABI,
     functionName: 'name',
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -697,7 +721,7 @@ export default function CreateAuctionClient() {
     address: contractAddress,
     abi: CONTRACT_INFO_ABI,
     functionName: 'owner',
-    chainId: CREATE_LISTING_NFT_CHAIN_ID,
+    chainId: createListingNftChainId,
     query: {
       enabled: !!contractAddress,
       retry: 1,
@@ -727,7 +751,7 @@ export default function CreateAuctionClient() {
       // Try Alchemy first
       const alchemyInfo = await fetchContractInfoFromAlchemy(
         formData.nftContract,
-        CREATE_LISTING_NFT_CHAIN_ID
+        createListingNftChainId
       );
       
       if (cancelled) {
@@ -843,6 +867,7 @@ export default function CreateAuctionClient() {
     setCreatedListingId(null);
     resetListing();
     // Reset wizard state
+    setListingTargetChainId(null);
     setWizardPage(1);
     setSelectedContract(null);
     setSelectedTokenType(null);
@@ -851,12 +876,28 @@ export default function CreateAuctionClient() {
     setWizardERC1155Balance(0);
   };
 
+  const handleListingChainContinue = (chainId: number) => {
+    setListingTargetChainId(chainId);
+    setWizardPage(2);
+  };
+
+  const handleBackFromContractStep = () => {
+    setWizardPage(1);
+    setListingTargetChainId(null);
+    setSelectedContract(null);
+    setSelectedTokenType(null);
+    setSelectedTokenId(null);
+    setSelectedListingType(null);
+    setFormData((prev) => ({ ...prev, nftContract: "", tokenId: "" }));
+    setWizardERC1155Balance(0);
+  };
+
   // Wizard navigation handlers
   const handleContractSelect = (contractAddress: string, tokenType: "ERC721" | "ERC1155") => {
     setSelectedContract(contractAddress);
     setSelectedTokenType(tokenType);
     setFormData(prev => ({ ...prev, nftContract: contractAddress }));
-    setWizardPage(2);
+    setWizardPage(3);
   };
 
   const handleManualContractInput = (contractAddress: string) => {
@@ -864,7 +905,7 @@ export default function CreateAuctionClient() {
     setSelectedContract(contractAddress);
     setSelectedTokenType("ERC721"); // Will be updated when contract is checked
     setFormData(prev => ({ ...prev, nftContract: contractAddress }));
-    setWizardPage(2);
+    setWizardPage(3);
   };
 
   const handleTokenSelect = (tokenId: string) => {
@@ -873,33 +914,33 @@ export default function CreateAuctionClient() {
     
     // Move to appropriate page based on token type
     if (selectedTokenType === "ERC1155") {
-      setWizardPage(3);
+      setWizardPage(4);
       // Fetch balance for ERC1155
       // This will be handled by the existing balance check
     } else {
-      setWizardPage(3); // ERC721 listing type selection
+      setWizardPage(4); // ERC721 listing type selection
     }
   };
 
   const handleERC721ListingTypeSelect = (type: "AUCTION" | "FIXED_PRICE" | "OFFERS_ONLY") => {
     setSelectedListingType(type);
     setFormData(prev => ({ ...prev, listingType: type === "AUCTION" ? "INDIVIDUAL_AUCTION" : type === "FIXED_PRICE" ? "FIXED_PRICE" : "OFFERS_ONLY" }));
-    setWizardPage(4);
+    setWizardPage(5);
   };
 
   const handleWizardBack = () => {
-    if (wizardPage === 2) {
-      setWizardPage(1);
+    if (wizardPage === 3) {
+      setWizardPage(2);
       setSelectedTokenId(null);
-    } else if (wizardPage === 3) {
-      if (selectedTokenType === "ERC721") {
-        setWizardPage(2);
-      } else {
-        setWizardPage(2);
-      }
+      setFormData((prev) => ({ ...prev, tokenId: "" }));
     } else if (wizardPage === 4) {
+      setWizardPage(3);
       if (selectedTokenType === "ERC721") {
-        setWizardPage(3);
+        setSelectedListingType(null);
+      }
+    } else if (wizardPage === 5) {
+      if (selectedTokenType === "ERC721") {
+        setWizardPage(4);
         setSelectedListingType(null);
       }
     }
@@ -1343,7 +1384,7 @@ export default function CreateAuctionClient() {
       // Check if token is already listed/sold before submitting
       try {
         const checkResponse = await fetch(
-          `/api/listings/check-token?tokenAddress=${encodeURIComponent(formData.nftContract)}&tokenId=${encodeURIComponent(formData.tokenId)}`
+          `/api/listings/check-token?tokenAddress=${encodeURIComponent(formData.nftContract)}&tokenId=${encodeURIComponent(formData.tokenId)}&chainId=${createListingNftChainId}`
         );
         if (checkResponse.ok) {
           const checkData = await checkResponse.json();
@@ -1365,22 +1406,20 @@ export default function CreateAuctionClient() {
       }
 
       // Check if we're on the correct chain (web only - miniapp handles this automatically)
-      if (!isMiniApp && connectedChainId !== base.id) {
-        console.log('[CreateAuction] Wrong network detected, switching to Base');
+      if (!isMiniApp && connectedChainId !== createListingNftChainId) {
+        console.log("[CreateAuction] Wrong network for listing target chain (submit)");
         try {
-          switchToBase();
-          // Wait a bit for the switch to initiate
+          switchToRequiredChain();
           await new Promise(resolve => setTimeout(resolve, 500));
-          // Don't proceed if still on wrong chain - let the auto-switch effect handle it
-          if (connectedChainId !== base.id) {
+          if (connectedChainId !== createListingNftChainId) {
             setIsSubmitting(false);
-            alert('Please switch to Base network to continue');
+            alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} to continue`);
             return;
           }
         } catch (err) {
           console.error('[CreateAuction] Error switching chain:', err);
           setIsSubmitting(false);
-          alert('Please switch to Base network to continue');
+          alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} to continue`);
           return;
         }
       }
@@ -1391,10 +1430,10 @@ export default function CreateAuctionClient() {
 
       try {
         writeContract({
-          address: MARKETPLACE_ADDRESS,
+          address: marketplaceAddressForListing,
           abi: MARKETPLACE_ABI,
           functionName: "createListing",
-          chainId: CREATE_LISTING_NFT_CHAIN_ID,
+          chainId: createListingNftChainId,
           account: address,
           args: [
             listingDetails,
@@ -1410,17 +1449,19 @@ export default function CreateAuctionClient() {
         // Handle getChainId errors gracefully
         const errorMessage = txErr?.message || String(txErr);
         if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
-          console.error('[CreateAuction] Chain ID error detected, attempting to switch to Base:', txErr);
+          console.error("[CreateAuction] Chain ID error during createListing:", txErr);
           if (!isMiniApp) {
             try {
-              switchToBase();
-              alert('Please switch to Base network and try again');
+              switchToRequiredChain();
+              alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} and try again`);
             } catch (switchErr) {
               console.error('[CreateAuction] Error switching chain:', switchErr);
-              alert('Please switch to Base network manually and try again');
+              alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} manually and try again`);
             }
           } else {
-            alert('Network error. Please ensure you are on Base network.');
+            alert(
+              `Network error. Please ensure you are on ${getChainNetworkInfo(createListingNftChainId).displayName}.`
+            );
           }
           setIsSubmitting(false);
           return;
@@ -1492,7 +1533,10 @@ export default function CreateAuctionClient() {
             // Automatically navigate to the listing page
             // The page will show a building state while waiting for subgraph to index
             setTimeout(() => {
-              transitionNavigate(router, `/listing/${listingId}`);
+              transitionNavigate(
+                router,
+                canonicalListingDetailPath(createListingNftChainId, String(listingId))
+              );
             }, 500); // Small delay to ensure state is updated
             
             // Create real-time notification
@@ -1529,7 +1573,17 @@ export default function CreateAuctionClient() {
         console.error('Error extracting listing ID from receipt:', err);
       }
     }
-  }, [receipt, isSuccess, address, formData.listingType, formData.tokenId, formData.nftContract, contractPreview.name, router]);
+  }, [
+    receipt,
+    isSuccess,
+    address,
+    formData.listingType,
+    formData.tokenId,
+    formData.nftContract,
+    contractPreview.name,
+    router,
+    createListingNftChainId,
+  ]);
 
   // Reset submitting state when transaction completes
   useEffect(() => {
@@ -1650,10 +1704,12 @@ export default function CreateAuctionClient() {
         <div className="mb-8 font-space-grotesk">
           <h1 className="text-2xl font-medium tracking-tight text-neutral-900 sm:text-3xl">Create listing</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">
-            List an NFT on Base as an auction, fixed price, or offers-only. You will approve the marketplace contract
-            before submitting.
+            First choose whether your NFT and listing live on Base or Ethereum mainnet, then pick your contract and
+            listing type. You will approve the marketplace on that same network before submitting.
           </p>
-          <p className="mt-2 text-xs text-neutral-500">Only Base is supported.</p>
+          <p className="mt-2 text-xs text-neutral-500">
+            Ethereum listings require your wallet on mainnet and a configured mainnet subgraph in production.
+          </p>
         </div>
 
         {!isConnected && (
@@ -1670,14 +1726,33 @@ export default function CreateAuctionClient() {
         {/* Wizard — light surface aligned with listing detail blocks */}
         <div className="border border-neutral-200 bg-white px-5 py-6 sm:px-6 sm:py-8">
           {wizardPage === 1 && (
-            <ContractSelector
-              selectedContract={selectedContract}
-              onSelectContract={handleContractSelect}
-              onManualInput={handleManualContractInput}
-            />
+            <ListingTargetChainStep onContinue={handleListingChainContinue} />
           )}
 
-          {wizardPage === 2 && selectedContract && (
+          {wizardPage === 2 && listingTargetChainId != null && (
+            <>
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleBackFromContractStep}
+                  className={stepBackClass}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              </div>
+              <ContractSelector
+                listingChainId={listingTargetChainId}
+                selectedContract={selectedContract}
+                onSelectContract={handleContractSelect}
+                onManualInput={handleManualContractInput}
+              />
+            </>
+          )}
+
+          {wizardPage === 3 && selectedContract && (
             <>
               {/* Back Button */}
               <div className="mb-6">
@@ -1702,7 +1777,7 @@ export default function CreateAuctionClient() {
             </>
           )}
 
-          {wizardPage === 3 && selectedContract && selectedTokenId && selectedTokenType === "ERC1155" && (
+          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC1155" && (
             <>
               {/* Back Button */}
               <div className="mb-6">
@@ -1768,7 +1843,7 @@ export default function CreateAuctionClient() {
             </>
           )}
 
-          {wizardPage === 3 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && (
+          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && (
             <>
               {/* Back Button */}
               <div className="mb-6">
@@ -1829,7 +1904,7 @@ export default function CreateAuctionClient() {
             </>
           )}
 
-          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "AUCTION" && (
+          {wizardPage === 5 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "AUCTION" && (
             <>
               {/* Back Button */}
               <div className="mb-6">
@@ -1856,7 +1931,7 @@ export default function CreateAuctionClient() {
             </>
           )}
 
-          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "FIXED_PRICE" && (
+          {wizardPage === 5 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "FIXED_PRICE" && (
             <>
               {/* Back Button */}
               <div className="mb-6">
@@ -1883,7 +1958,7 @@ export default function CreateAuctionClient() {
             </>
           )}
 
-          {wizardPage === 4 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "OFFERS_ONLY" && (
+          {wizardPage === 5 && selectedContract && selectedTokenId && selectedTokenType === "ERC721" && selectedListingType === "OFFERS_ONLY" && (
             <>
               {/* Back Button */}
               <div className="mb-6">
@@ -1930,7 +2005,12 @@ export default function CreateAuctionClient() {
                 {createdListingId !== null ? (
                   <button
                     type="button"
-                    onClick={() => transitionNavigate(router, `/listing/${createdListingId}`)}
+                    onClick={() =>
+                      transitionNavigate(
+                        router,
+                        canonicalListingDetailPath(createListingNftChainId, String(createdListingId))
+                      )
+                    }
                     className="flex-1 bg-neutral-900 px-6 py-3 font-space-grotesk text-sm font-medium text-white transition-colors hover:bg-neutral-800"
                   >
                     View listing

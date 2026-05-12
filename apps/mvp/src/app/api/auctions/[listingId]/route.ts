@@ -5,6 +5,7 @@ import { pickDisplayTitle } from '~/lib/metadata-display';
 import type { EnrichedAuctionData } from '~/lib/types';
 import {
   getConfiguredSubgraphEndpoints,
+  getSubgraphEndpointOrNull,
 } from "~/lib/server/subgraph-endpoints";
 import { enrichListingMediaAndSupplyCapped } from "~/lib/server/listing-enrichment-capped";
 import {
@@ -383,6 +384,24 @@ export async function GET(
         { status: 400 }
       );
     }
+
+    // Scoped chain lookups need that network's Studio URL; otherwise fetchAuctionData returns null
+    // and clients misread it as "listing not found".
+    if (chainId != null && getSubgraphEndpointOrNull(chainId) == null) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "SUBGRAPH_NOT_CONFIGURED_FOR_CHAIN",
+          chainId,
+          error:
+            chainId === 1
+              ? "Ethereum mainnet subgraph URL is not configured. Set NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL_MAINNET (see apps/mvp README)."
+              : `No auctionhouse subgraph URL is configured for chainId=${chainId}.`,
+        },
+        { status: 503 }
+      );
+    }
+
     // Inner enrichment is capped (~14s metadata bundle + ~8s thumbs). Route budget must cover
     // slow subgraph cold starts plus that cap (subgraph is not individually timed here).
     const timeoutMs = forceRefresh || chainId != null ? 45_000 : 18_000;

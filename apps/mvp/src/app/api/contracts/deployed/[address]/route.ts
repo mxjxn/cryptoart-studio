@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { Alchemy, Network, AssetTransfersCategory } from "alchemy-sdk";
-import { 
-  getCachedContracts, 
-  getLastCheckedBlock, 
-  cacheDeployedContract, 
-  updateLastCheckedBlockForCreator 
+import {
+  getCachedContracts,
+  getLastCheckedBlock,
+  cacheDeployedContract,
+  updateLastCheckedBlockForCreator,
 } from "~/lib/server/contract-cache";
+import { resolveRequestChainIdParam } from "~/lib/server/resolve-request-chain-id";
+import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 
 /**
- * Get NFT contracts deployed by an address on Base Mainnet
- * 
- * GET /api/contracts/deployed/[address]?refresh=true
- * 
+ * Get NFT contracts deployed by an address on Base or Ethereum mainnet.
+ *
+ * GET /api/contracts/deployed/[address]?refresh=true&chainId=8453|1
+ *
  * Returns: { contracts: Array<{ address: string; name: string | null; tokenType: string }> }
- * 
- * Note: Only fetches contracts deployed on Base Mainnet (this is a Base-only site)
- * 
+ *
  * Caching behavior:
  * - Returns cached contracts instantly from database
  * - If refresh=true, also checks for new contracts deployed after lastCheckedBlock
@@ -28,32 +28,30 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
 ): Promise<NextResponse> {
+  const { address } = await params;
+  const searchParams = request.nextUrl.searchParams;
+  const refresh = searchParams.get("refresh") === "true";
+  const chainId = resolveRequestChainIdParam(searchParams.get("chainId"));
+
+  if (!address || !/^0x[a-fA-F0-9]{40}$/i.test(address)) {
+    return NextResponse.json({ error: "Invalid address format" }, { status: 400 });
+  }
+
+  const normalizedAddress = address.toLowerCase();
+
   try {
-    const { address } = await params;
-    const { searchParams } = new URL(request.url);
-    const refresh = searchParams.get("refresh") === "true";
-
-    if (!address || !/^0x[a-fA-F0-9]{40}$/i.test(address)) {
-      return NextResponse.json(
-        { error: "Invalid address format" },
-        { status: 400 }
-      );
-    }
-
-    // Normalize address for cache key
-    const normalizedAddress = address.toLowerCase();
 
     // 1. Get cached contracts (instant return, with route-level caching)
     // Use unstable_cache to prevent database pool exhaustion
     // The cache key includes the address so each address has its own cache entry
     const cachedContracts = await unstable_cache(
       async () => {
-        return getCachedContracts(normalizedAddress);
+        return getCachedContracts(normalizedAddress, chainId);
       },
-      ['deployed-contracts', normalizedAddress],
+      ["deployed-contracts", normalizedAddress, String(chainId)],
       {
         revalidate: 60, // Cache for 60 seconds
-        tags: ['contracts', `contracts-${normalizedAddress}`], // Can be invalidated with revalidateTag
+        tags: ["contracts", `contracts-${normalizedAddress}-${chainId}`],
       }
     )();
     
@@ -73,10 +71,15 @@ export async function GET(
       });
     }
 
+    const alchemyNetwork =
+      chainId === ETHEREUM_MAINNET_CHAIN_ID
+        ? Network.ETH_MAINNET
+        : Network.BASE_MAINNET;
+
     // Configure Alchemy for server-side use in Next.js
     const alchemy = new Alchemy({
       apiKey,
-      network: Network.BASE_MAINNET,
+      network: alchemyNetwork,
       connectionInfoOverrides: {
         skipFetchSetup: true,
       },
@@ -85,7 +88,7 @@ export async function GET(
     });
 
     // Get last checked block, default to 0 if not found (full scan)
-    const lastCheckedBlock = await getLastCheckedBlock(address);
+    const lastCheckedBlock = await getLastCheckedBlock(address, chainId);
     const fromBlock = lastCheckedBlock !== null ? `0x${(lastCheckedBlock + 1).toString(16)}` : "0x0";
     
     // Get current block number for tracking
@@ -156,12 +159,16 @@ export async function GET(
                 seenAddresses.add(contractAddress.toLowerCase());
                 
                 // Cache the new contract
-                await cacheDeployedContract(contractAddress, {
-                  name: metadata.name || null,
-                  tokenType: metadata.tokenType,
-                  creatorAddress: address,
-                  lastCheckedBlock: currentBlockNumber,
-                });
+                await cacheDeployedContract(
+                  contractAddress,
+                  {
+                    name: metadata.name || null,
+                    tokenType: metadata.tokenType,
+                    creatorAddress: address,
+                    lastCheckedBlock: currentBlockNumber,
+                  },
+                  chainId
+                );
               }
             } catch {
               // Not an NFT contract - skip silently
@@ -180,7 +187,7 @@ export async function GET(
 
     // Update lastCheckedBlock for all contracts from this creator
     if (newContracts.length > 0 || lastCheckedBlock === null) {
-      await updateLastCheckedBlockForCreator(address, currentBlockNumber);
+      await updateLastCheckedBlockForCreator(address, currentBlockNumber, chainId);
     }
 
     // Combine cached and new contracts, then sort
@@ -210,12 +217,12 @@ export async function GET(
       const normalizedErrorAddress = errorAddress.toLowerCase();
       const cachedContracts = await unstable_cache(
         async () => {
-          return getCachedContracts(normalizedErrorAddress);
+          return getCachedContracts(normalizedErrorAddress, chainId);
         },
-        ['deployed-contracts', normalizedErrorAddress],
+        ["deployed-contracts", normalizedErrorAddress, String(chainId)],
         {
           revalidate: 60,
-          tags: ['contracts', `contracts-${normalizedErrorAddress}`],
+          tags: ["contracts", `contracts-${normalizedErrorAddress}-${chainId}`],
         }
       )().catch(() => []);
       return NextResponse.json({

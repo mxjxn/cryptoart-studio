@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
+import { getChainNetworkInfo } from "~/lib/chain-display";
 
 interface Contract {
   address: string;
@@ -10,17 +11,20 @@ interface Contract {
 }
 
 interface ContractSelectorProps {
+  /** Chain where contracts are resolved (1 = Ethereum, 8453 = Base). */
+  listingChainId: number;
   selectedContract: string | null;
   onSelectContract: (contractAddress: string, tokenType: "ERC721" | "ERC1155") => void;
   onManualInput: (contractAddress: string) => void;
 }
 
 /**
- * ContractSelector component for page 1 of the create listing wizard
+ * ContractSelector — shown after the user picks Base or Ethereum in the create listing wizard.
  * Displays cached contracts with instant loading
  * Manual input is always available
  */
 export function ContractSelector({
+  listingChainId,
   selectedContract,
   onSelectContract,
   onManualInput,
@@ -30,14 +34,18 @@ export function ContractSelector({
   const [loading, setLoading] = useState(false);
   const [manualAddress, setManualAddress] = useState("");
 
-  // Fetch cached contracts on mount
+  const chainQuery = `chainId=${listingChainId}`;
+
+  // Fetch cached contracts on mount (scoped to listing chain)
   useEffect(() => {
     if (!address) return;
 
     async function fetchContracts() {
       setLoading(true);
       try {
-        const cachedResponse = await fetch(`/api/contracts/cached/${encodeURIComponent(address!)}`);
+        const cachedResponse = await fetch(
+          `/api/contracts/cached/${encodeURIComponent(address!)}?${chainQuery}`
+        );
         if (cachedResponse.ok) {
           const cachedData = await cachedResponse.json();
           const cachedContracts = cachedData.contracts || [];
@@ -45,17 +53,21 @@ export function ContractSelector({
 
           if (cachedContracts.length === 0) {
             const deployedResponse = await fetch(
-              `/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`,
+              `/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true&${chainQuery}`,
             );
             if (deployedResponse.ok) {
               const deployedData = await deployedResponse.json();
               setContracts(deployedData.contracts || []);
             }
           } else {
-            fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true`).catch(() => {});
+            fetch(
+              `/api/contracts/deployed/${encodeURIComponent(address!)}?refresh=true&${chainQuery}`,
+            ).catch(() => {});
           }
         } else {
-          const deployedResponse = await fetch(`/api/contracts/deployed/${encodeURIComponent(address!)}`);
+          const deployedResponse = await fetch(
+            `/api/contracts/deployed/${encodeURIComponent(address!)}?${chainQuery}`
+          );
           if (deployedResponse.ok) {
             const deployedData = await deployedResponse.json();
             setContracts(deployedData.contracts || []);
@@ -69,7 +81,7 @@ export function ContractSelector({
     }
 
     fetchContracts();
-  }, [address]);
+  }, [address, listingChainId, chainQuery]);
 
   const handleContractSelect = (contract: Contract) => {
     onSelectContract(contract.address, contract.tokenType as "ERC721" | "ERC1155");
@@ -95,7 +107,8 @@ export function ContractSelector({
       <div>
         <h2 className="mb-2 text-xl font-medium text-neutral-900">Select contract</h2>
         <p className="mb-4 text-sm text-neutral-600">
-          Choose a contract you have deployed, or enter a contract address manually.
+          On <span className="font-medium">{getChainNetworkInfo(listingChainId).displayName}</span>, choose a
+          contract you have deployed, or enter a contract address manually.
         </p>
       </div>
 
