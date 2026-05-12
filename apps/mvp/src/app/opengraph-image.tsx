@@ -1,22 +1,16 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { getAuctionServer } from "~/lib/server/auction";
-import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
-import { pickDisplayTitle } from "~/lib/metadata-display";
-import type { EnrichedAuctionData } from "~/lib/types";
-
-/** Keep in sync with `HOMEPAGE_MAINNET_LISTING_IDS` in `HomePageClientV2.tsx`. */
-const HOMEPAGE_ETH_LISTING_ID = "1";
+import sharp from "sharp";
 
 export const runtime = "nodejs";
 export const alt =
-  "CryptoArt — auction marketplace for digital art on Base and Ethereum";
+  "CryptoArt — auction marketplace for digital art on Ethereum and Base";
 export const size = { width: 1200, height: 800 };
 export const contentType = "image/png";
 
 const HERO_TAGLINE =
-  "CryptoArt is an auction marketplace for digital art, centered on human curation. List on Base or Ethereum mainnet — create galleries to surface what matters.";
+  "CryptoArt is an auction marketplace for digital art, centered on human curation. List on Ethereum or Base mainnet — create galleries to surface what matters.";
 
 const LIME_PANEL_BG =
   "linear-gradient(135deg, #f5acd1 0%, #dcf54c 52%, #ecc100 100%)";
@@ -26,18 +20,14 @@ const LIVE_ON_FONT_PX = 46;
 /** “ETHEREUM” — 50% larger than previous 76px. */
 const ETHEREUM_FONT_PX = 114;
 
+/** Max width for header logo after resize — keeps data URL small enough for Satori. */
+const LOGO_MAX_WIDTH_PX = 220;
+
 function toArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(
     buf.byteOffset,
     buf.byteOffset + buf.byteLength,
   ) as ArrayBuffer;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ]);
 }
 
 async function readPublic(rel: string): Promise<Buffer | null> {
@@ -55,44 +45,60 @@ async function readPublic(rel: string): Promise<Buffer | null> {
   return null;
 }
 
+/**
+ * Satori is picky about <img>: large base64 PNGs and `height: auto` often fail silently.
+ * Resize to a modest pixel size and emit explicit width/height.
+ */
+async function buildLogoFromRel(
+  rel: string,
+): Promise<{ src: string; width: number; height: number } | null> {
+  const buf = await readPublic(rel);
+  if (!buf) return null;
+  try {
+    const { data, info } = await sharp(buf)
+      .rotate()
+      .resize({
+        width: LOGO_MAX_WIDTH_PX,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .png({ compressionLevel: 9 })
+      .toBuffer({ resolveWithObject: true });
+    const w = info.width ?? LOGO_MAX_WIDTH_PX;
+    const h = info.height ?? Math.round((LOGO_MAX_WIDTH_PX * 62) / 200);
+    return {
+      src: `data:image/png;base64,${data.toString("base64")}`,
+      width: w,
+      height: h,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function buildHeaderLogo(): Promise<{
+  src: string;
+  width: number;
+  height: number;
+} | null> {
+  return (
+    (await buildLogoFromRel("cryptoart-logo-wgmeets-og-wide.png")) ??
+    (await buildLogoFromRel("icon.png"))
+  );
+}
+
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 3)}…`;
 }
 
-function listingDisplayTitle(a: EnrichedAuctionData): string {
-  const fromMeta = pickDisplayTitle(a.metadata);
-  const t = (typeof a.title === "string" && a.title.trim()) || fromMeta || "";
-  if (t) return t;
-  return `Listing #${a.listingId}`;
-}
-
-function listingDisplayArtist(a: EnrichedAuctionData): string {
-  const from =
-    (typeof a.artist === "string" && a.artist.trim()) ||
-    (typeof a.metadata?.artist === "string" && a.metadata.artist.trim()) ||
-    "";
-  return from || "—";
-}
-
 export default async function Image() {
-  const [mekMono, mekSans, medodica, logoPng, auction] = await Promise.all([
+  const [mekMono, mekSans, medodica, logo] = await Promise.all([
     readPublic("MEK-Mono.otf"),
     readPublic("MEKSans-Regular.otf"),
     readPublic("MedodicaRegular.otf"),
-    readPublic("cryptoart-logo-wgmeets-og-wide.png"),
-    withTimeout(
-      getAuctionServer(HOMEPAGE_ETH_LISTING_ID, {
-        chainId: ETHEREUM_MAINNET_CHAIN_ID,
-      }),
-      18_000,
-      null,
-    ),
+    buildHeaderLogo(),
   ]);
-
-  const logoDataUrl = logoPng
-    ? `data:image/png;base64,${logoPng.toString("base64")}`
-    : null;
 
   const fonts: { name: string; data: ArrayBuffer; style: "normal" | "italic" }[] =
     [];
@@ -114,9 +120,6 @@ export default async function Image() {
       data: toArrayBuffer(medodica),
       style: "normal",
     });
-
-  const artTitle = auction ? listingDisplayTitle(auction) : "Ethereum listing";
-  const artArtist = auction ? listingDisplayArtist(auction) : "—";
 
   return new ImageResponse(
     (
@@ -144,18 +147,17 @@ export default async function Image() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-            {logoDataUrl ? (
+            {logo ? (
               <img
-                src={logoDataUrl}
+                src={logo.src}
                 alt=""
-                width={200}
-                height={62}
+                width={logo.width}
+                height={logo.height}
                 style={{
-                  width: "200px",
-                  height: "auto",
-                  maxHeight: "72px",
+                  width: `${logo.width}px`,
+                  height: `${logo.height}px`,
                   objectFit: "contain",
-                  display: "block",
+                  display: "flex",
                 }}
               />
             ) : (
@@ -323,7 +325,7 @@ export default async function Image() {
                     fontFamily: "MEKSans-Regular, system-ui, sans-serif",
                   }}
                 >
-                  {truncate(artTitle, 48)}
+                  Live auctions on Ethereum
                 </div>
                 <div
                   style={{
@@ -333,7 +335,7 @@ export default async function Image() {
                     fontFamily: "MEKSans-Regular, system-ui, sans-serif",
                   }}
                 >
-                  {truncate(artArtist, 36)}
+                  List on Ethereum or Base — curated galleries on cryptoart.social
                 </div>
                 <div
                   style={{
@@ -343,7 +345,7 @@ export default async function Image() {
                     marginTop: 4,
                   }}
                 >
-                  {`Ethereum · listing #${HOMEPAGE_ETH_LISTING_ID}`}
+                  cryptoart.social
                 </div>
               </div>
             </div>
