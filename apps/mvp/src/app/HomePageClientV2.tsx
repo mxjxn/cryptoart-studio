@@ -1665,52 +1665,73 @@ export default function HomePageClientV2() {
         </div>
       </motion.section>
 
-      {/* Figma: Bids (white) — after featured, before per-lot sections */}
+      {/* Bids strip only when at least one live listing shows bid activity; otherwise a create teaser. */}
       {!hideAuctionCards && (
       <section className={`${sectionFullBleed} bg-white text-black`}>
-        <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-black ${gutter}`}>
-          Bids
-        </h2>
-        <div className={`flex flex-col divide-y divide-neutral-200 pb-6 md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 xl:grid-cols-4 ${gutter}`}>
-          {nftLoading || editionLoading ? (
-            <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">Loading…</p>
-          ) : bidListings.length === 0 ? (
-            <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">No bids yet.</p>
-          ) : (
-            bidListings.map((auction, index) => (
+        {nftLoading || editionLoading ? (
+          <>
+            <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-black ${gutter}`}>
+              Bids
+            </h2>
+            <div className={`flex flex-col divide-y divide-neutral-200 pb-6 md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 xl:grid-cols-4 ${gutter}`}>
+              <p className="p-2.5 font-mek-mono text-sm text-neutral-600 md:col-span-2 xl:col-span-4">Loading…</p>
+            </div>
+          </>
+        ) : bidListings.length > 0 ? (
+          <>
+            <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-black ${gutter}`}>
+              Bids
+            </h2>
+            <div className={`flex flex-col divide-y divide-neutral-200 pb-6 md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 xl:grid-cols-4 ${gutter}`}>
+              {bidListings.map((auction, index) => (
+                <TransitionLink
+                  key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
+                  href={canonicalListingDetailPath(
+                    auction.chainId ?? BASE_CHAIN_ID,
+                    auction.listingId
+                  )}
+                  prefetch={false}
+                  className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+                >
+                  <div className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200">
+                    <div
+                      className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
+                      style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1 font-space-grotesk text-sm">
+                      <p className="truncate text-black">{auction.title || "Listing"}</p>
+                      <p className="truncate text-black">by {auction.artist || "—"}</p>
+                    </div>
+                    <div className="shrink-0 text-right font-mek-mono text-sm text-black">
+                      <p className="text-black">
+                        {formatListingEth({
+                          ...auction,
+                          currentPrice: auction.highestBid?.amount || auction.currentPrice,
+                        })}
+                      </p>
+                      <p className="text-black">{formatBidder(auction.highestBid?.bidder, auction.bidCount)}</p>
+                    </div>
+                  </div>
+                </TransitionLink>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className={`border-t border-neutral-200 py-8 md:py-10 ${gutter}`}>
+            <p className="max-w-2xl font-mek-mono text-sm leading-relaxed text-neutral-700 md:text-base">
+              No live auctions with bids to show yet.{" "}
               <TransitionLink
-                key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
-                href={canonicalListingDetailPath(
-                  auction.chainId ?? BASE_CHAIN_ID,
-                  auction.listingId
-                )}
+                href="/create"
                 prefetch={false}
-                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+                className="text-black underline decoration-black/30 underline-offset-4 transition-colors hover:decoration-black"
               >
-                <div className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200">
-                  <div
-                    className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
-                    style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
-                    aria-hidden
-                  />
-                  <div className="min-w-0 flex-1 font-space-grotesk text-sm">
-                    <p className="truncate text-black">{auction.title || "Listing"}</p>
-                    <p className="truncate text-black">by {auction.artist || "—"}</p>
-                  </div>
-                  <div className="shrink-0 text-right font-mek-mono text-sm text-black">
-                    <p className="text-black">
-                      {formatListingEth({
-                        ...auction,
-                        currentPrice: auction.highestBid?.amount || auction.currentPrice,
-                      })}
-                    </p>
-                    <p className="text-black">{formatBidder(auction.highestBid?.bidder, auction.bidCount)}</p>
-                  </div>
-                </div>
-              </TransitionLink>
-            ))
-          )}
-        </div>
+                Start one
+              </TransitionLink>{" "}
+              to see your name here.
+            </p>
+          </div>
+        )}
       </section>
       )}
 
