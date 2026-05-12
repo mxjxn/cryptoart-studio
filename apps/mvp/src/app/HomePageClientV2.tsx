@@ -1372,23 +1372,32 @@ export default function HomePageClientV2() {
 
     void (async () => {
       const loaded: EnrichedAuctionData[] = [];
-      for (const id of HOMEPAGE_MAINNET_LISTING_IDS) {
-        try {
-          const res = await fetch(
-            `/api/auctions/${encodeURIComponent(id)}?chainId=${ETHEREUM_MAINNET_CHAIN_ID}`
-          );
-          if (!res.ok) continue;
-          const data = (await res.json()) as { success?: boolean; auction?: EnrichedAuctionData };
-          if (data?.success && data.auction && !cancelled) {
-            loaded.push(data.auction);
+      try {
+        for (const id of HOMEPAGE_MAINNET_LISTING_IDS) {
+          if (cancelled) break;
+          try {
+            const params = new URLSearchParams();
+            params.set("chainId", String(ETHEREUM_MAINNET_CHAIN_ID));
+            params.set("refresh", "1");
+            const res = await fetch(`/api/auctions/${encodeURIComponent(id)}?${params.toString()}`, {
+              cache: "no-store",
+            });
+            if (!res.ok) continue;
+            const data = (await res.json()) as { success?: boolean; auction?: EnrichedAuctionData };
+            if (data?.success && data.auction && !cancelled) {
+              loaded.push(data.auction);
+            }
+          } catch {
+            // ignore per-listing failures
           }
-        } catch {
-          // ignore per-listing failures
         }
-      }
-      if (!cancelled) {
-        setMainnetSpotlightAuctions(loaded);
-        setMainnetSpotlightLoading(false);
+        if (!cancelled) {
+          setMainnetSpotlightAuctions(loaded);
+        }
+      } finally {
+        if (!cancelled) {
+          setMainnetSpotlightLoading(false);
+        }
       }
     })();
 
@@ -1430,8 +1439,9 @@ export default function HomePageClientV2() {
   const heroCtaClassName =
     "inline-flex min-h-[52px] w-full max-w-none items-center justify-center border-2 border-white bg-transparent px-6 py-3.5 !font-space-grotesk text-base font-medium leading-tight tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-black sm:min-h-[60px] sm:min-w-0 sm:flex-1 sm:px-8 sm:py-4 sm:text-lg";
 
+  /** Avoid `text-[#…]` / `hover:text-[#…]` here — globals.css forces those to `var(--color-text)` (unreadable on lime). */
   const limeCtaClassName =
-    "inline-flex min-h-[48px] w-full max-w-none items-center justify-center border-2 border-black bg-transparent px-5 py-3 !font-space-grotesk text-sm font-medium leading-tight tracking-[0.06em] text-black transition-colors hover:bg-black hover:text-[#dcf54c] sm:min-h-[52px] sm:text-base";
+    "inline-flex min-h-[48px] w-full max-w-none items-center justify-center border-2 border-black bg-transparent px-5 py-3 !font-space-grotesk text-sm font-medium leading-tight tracking-[0.06em] !text-black transition-colors hover:bg-black hover:!text-[rgb(220,245,76)] sm:min-h-[52px] sm:text-base";
 
   return (
     <div ref={pageRef} className="flex min-h-screen justify-center overflow-x-clip bg-black">
@@ -1544,7 +1554,7 @@ export default function HomePageClientV2() {
       {/* Figma: Galleries (lime) */}
       <motion.section
         ref={featuredSectionRef}
-        className={`${sectionFullBleed} overflow-x-clip bg-[#dcf54c] text-[#272727]`}
+        className={`${sectionFullBleed} overflow-x-clip bg-[#dcf54c] text-neutral-900`}
         initial={shouldAnimate ? { opacity: 0, y: 24 } : false}
         whileInView={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
         viewport={{ once: true, amount: 0.15 }}
@@ -1552,7 +1562,7 @@ export default function HomePageClientV2() {
       >
         <motion.h2
           ref={featuredHeaderMeasureRef}
-          className={`sticky top-0 z-0 pt-5 font-space-grotesk font-medium leading-[0.9] text-[#999] ${gutter}`}
+          className={`sticky top-0 z-0 pt-5 font-space-grotesk font-medium leading-[0.9] text-neutral-500 ${gutter}`}
         >
           <span
             className="block w-full whitespace-nowrap bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(3.25rem,15vw,5.85rem)] leading-[0.9] text-transparent"
@@ -1594,23 +1604,18 @@ export default function HomePageClientV2() {
                   <TransitionLink href="/create" prefetch={false} className={limeCtaClassName}>
                     Create listing
                   </TransitionLink>
-                  <TransitionLink
-                    href={canonicalListingDetailPath(ETHEREUM_MAINNET_CHAIN_ID, HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1")}
-                    prefetch={false}
-                    className={limeCtaClassName}
-                  >
-                    First mainnet pick · #{HOMEPAGE_MAINNET_LISTING_IDS[0] ?? "1"}
-                  </TransitionLink>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 font-space-grotesk text-sm">
-                  <span className="border border-black px-2.5 py-1 text-black">
+                  <span className="border border-black px-2.5 py-1 !text-black">
                     {hideAuctionCards
                       ? "Ethereum + Base"
                       : mainnetSpotlightLoading
-                        ? "Loading curated Ethereum listings…"
+                        ? "Loading…"
                         : mainnetSpotlightAuctions.length > 0
-                          ? `${mainnetSpotlightAuctions.length} curated mainnet ${mainnetSpotlightAuctions.length === 1 ? "listing" : "listings"}`
-                          : "Curated picks unavailable — check subgraph / listing id"}
+                          ? mainnetSpotlightAuctions.length === 1
+                            ? "Ethereum mainnet · listing in view"
+                            : `${mainnetSpotlightAuctions.length} Ethereum listings`
+                          : "Listing preview unavailable"}
                   </span>
                 </div>
               </div>
@@ -1618,9 +1623,7 @@ export default function HomePageClientV2() {
             {!hideAuctionCards && (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-2">
               {mainnetSpotlightLoading ? (
-                <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">
-                  Loading Ethereum listings…
-                </p>
+                <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">Loading…</p>
               ) : mainnetSpotlightAuctions.length === 0 ? (
                 <p className="col-span-2 self-center font-mek-mono text-sm text-black/80">
                   No curated listings loaded. Try opening{" "}
@@ -1657,8 +1660,10 @@ export default function HomePageClientV2() {
               <span className="text-black">Ethereum mainnet</span>
               <span className="text-black">
                 {mainnetSpotlightAuctions.length > 0
-                  ? `Curated · ${mainnetSpotlightAuctions.length} live ${mainnetSpotlightAuctions.length === 1 ? "pick" : "picks"}`
-                  : "Curated strip"}
+                  ? mainnetSpotlightAuctions.length === 1
+                    ? "Ethereum · live listing"
+                    : `${mainnetSpotlightAuctions.length} Ethereum listings`
+                  : "Ethereum mainnet"}
               </span>
             </>
           )}
@@ -1719,12 +1724,12 @@ export default function HomePageClientV2() {
           </>
         ) : (
           <div className={`border-t border-neutral-200 py-8 md:py-10 ${gutter}`}>
-            <p className="max-w-2xl font-mek-mono text-sm leading-relaxed text-neutral-700 md:text-base">
-              No live auctions with bids to show yet.{" "}
+            <p className="max-w-2xl font-space-grotesk text-sm leading-relaxed text-neutral-700 md:text-base">
+              <span className="font-bold text-neutral-900">No live auctions</span> with bids to show yet.{" "}
               <TransitionLink
                 href="/create"
                 prefetch={false}
-                className="text-black underline decoration-black/30 underline-offset-4 transition-colors hover:decoration-black"
+                className="font-medium text-neutral-900 underline decoration-neutral-400 underline-offset-4 transition-colors hover:decoration-neutral-900"
               >
                 Start one
               </TransitionLink>{" "}
@@ -1828,7 +1833,11 @@ function formatStaticEth(amount: string | undefined) {
 }
 
 function listingArtworkUrl(auction: EnrichedAuctionData): string | undefined {
-  const u = auction.thumbnailUrl || auction.image || auction.metadata?.image;
+  const u =
+    auction.detailThumbnailUrl ||
+    auction.thumbnailUrl ||
+    auction.image ||
+    auction.metadata?.image;
   return typeof u === "string" && u.trim().length > 0 ? u.trim() : undefined;
 }
 
