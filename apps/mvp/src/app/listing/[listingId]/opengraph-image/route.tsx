@@ -8,6 +8,7 @@ import { isDataURI } from "~/lib/media-utils";
 import { processMediaForImage } from "~/lib/server/media-processor";
 import { type Address, isAddress, zeroAddress } from "viem";
 import { CHAIN_ID } from "~/lib/contracts/marketplace";
+import { isAmbiguousListingError } from "~/lib/auction-errors";
 import { getOgErc20TokenInfo } from "~/lib/server/og-chain-clients";
 import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
 import { getConfiguredSubgraphEndpoints } from "~/lib/server/subgraph-endpoints";
@@ -168,10 +169,33 @@ export async function GET(
         null
       );
     } catch (error) {
-      // If getAuctionServer throws an error, log it and store the error
-      auctionFetchError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[OG Image] Error fetching auction ${listingId}:`, auctionFetchError.message);
-      auction = null;
+      // Same numeric listingId can exist on Base and Ethereum — without chainId the subgraph
+      // resolver throws AmbiguousListingError. Default `/listing/:id` is Base-first; retry Base.
+      if (isAmbiguousListingError(error) && ogChainId === undefined) {
+        try {
+          auction = await withTimeout(
+            getAuctionServer(listingId, { chainId: CHAIN_ID }),
+            30_000,
+            null
+          );
+        } catch (retryErr) {
+          auctionFetchError =
+            retryErr instanceof Error ? retryErr : new Error(String(retryErr));
+          console.error(
+            `[OG Image] Error fetching auction ${listingId} after ambiguous → Base (${CHAIN_ID}):`,
+            auctionFetchError.message,
+          );
+          auction = null;
+        }
+      } else {
+        auctionFetchError =
+          error instanceof Error ? error : new Error(String(error));
+        console.error(
+          `[OG Image] Error fetching auction ${listingId}:`,
+          auctionFetchError.message,
+        );
+        auction = null;
+      }
     }
 
     // If there was an error fetching (not just not found), show error image instead of "not found"
@@ -971,8 +995,8 @@ export async function GET(
                       letterSpacing: '1px',
                     }}
                   >
-                    <span style={{ display: 'flex', opacity: 0.7 }}>{String(detail.label)}:</span>
-                    <span style={{ display: 'flex', fontWeight: 'bold', opacity: 1 }}>{String(detail.value)}</span>
+                    <div style={{ display: 'flex', opacity: 0.7 }}>{String(detail.label)}:</div>
+                    <div style={{ display: 'flex', fontWeight: 'bold', opacity: 1 }}>{String(detail.value)}</div>
                   </div>
                 );
               })}
@@ -1005,8 +1029,8 @@ export async function GET(
                         letterSpacing: '1px',
                       }}
                     >
-                      <span style={{ display: 'flex', opacity: 0.7 }}>{String(detail.label)}:</span>
-                      <span style={{ display: 'flex', fontWeight: 'bold', opacity: 1 }}>{String(detail.value)}</span>
+                      <div style={{ display: 'flex', opacity: 0.7 }}>{String(detail.label)}:</div>
+                      <div style={{ display: 'flex', fontWeight: 'bold', opacity: 1 }}>{String(detail.value)}</div>
                     </div>
                   );
                 })}
