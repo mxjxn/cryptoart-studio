@@ -6,6 +6,7 @@ import { getContractNameServer } from "~/lib/server/contract-name";
 import { isAmbiguousListingError } from "~/lib/auction-errors";
 import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { getOgErc20TokenInfo } from "~/lib/server/og-chain-clients";
+import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
 import { zeroAddress } from "viem";
 import type { EnrichedAuctionData } from "~/lib/types";
 
@@ -69,7 +70,7 @@ export async function GET(
             return Number.isNaN(v) ? undefined : v;
           })()
         : undefined;
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getOgSelfOrigin(request);
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font from URL (edge runtime compatible)

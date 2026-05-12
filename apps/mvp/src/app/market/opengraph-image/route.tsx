@@ -8,6 +8,7 @@ import { browseListings } from "~/lib/server/browse-listings";
 import sharp from 'sharp';
 import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
 import { isDataURI } from "~/lib/media-utils";
+import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
@@ -55,7 +56,7 @@ function truncateAddress(address: string): string {
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getOgSelfOrigin(request);
     const refresh = url.searchParams.get('refresh') === 'true';
     
     // Load logo
@@ -458,7 +459,7 @@ export async function GET(request: NextRequest) {
     // Return fallback image
     try {
       const url = new URL(request.url);
-      const baseUrl = `${url.protocol}//${url.host}`;
+      const baseUrl = getOgSelfOrigin(request);
       const logoResponse = await fetch(`${baseUrl}/cryptoart-logo-wgmeets-og-wide.png`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
       
       let fallbackLogoDataUrl: string | null = null;

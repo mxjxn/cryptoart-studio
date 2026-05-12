@@ -4,6 +4,7 @@ import { formatEther } from "viem";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
 import { isDataURI } from "~/lib/media-utils";
 import { processMediaForImage } from "~/lib/server/media-processor";
+import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // Required for processMediaForImage (uses child_process, fs)
@@ -69,7 +70,7 @@ export async function GET(
   try {
     const { identifier } = await params;
     const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getOgSelfOrigin(request);
     
     // Fetch user data
     const userResponse = await fetch(`${baseUrl}/api/user/${encodeURIComponent(identifier)}`, {

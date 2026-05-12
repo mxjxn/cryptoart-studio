@@ -1,11 +1,11 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
+import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
 
 export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
+  const baseUrl = getOgSelfOrigin(request);
   const mekMonoUrl = `${baseUrl}/MEK-Mono.otf`;
   const mekSansUrl = `${baseUrl}/MEKSans-Regular.otf`;
   const logoUrl = `${baseUrl}/cryptoart-logo-wgmeets.png`;

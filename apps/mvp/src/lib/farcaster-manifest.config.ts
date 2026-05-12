@@ -63,7 +63,7 @@ export interface ManifestConfig {
     // OPEN GRAPH METADATA
     ogTitle?: string; // Max 30 characters
     ogDescription?: string; // Max 100 characters (will be truncated)
-    ogImageUrl?: string; // 1200x630px (1.91:1) PNG
+    ogImageUrl?: string; // 1200x800px (3:2) PNG — matches homepage `/opengraph-image` for fc:miniapp
     
     // TECHNICAL CONFIGURATION
     requiredChains?: string[]; // CAIP-2 IDs (e.g., ["eip155:8453", "eip155:1"] for Base + Ethereum)

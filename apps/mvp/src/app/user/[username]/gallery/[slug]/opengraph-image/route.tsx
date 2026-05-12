@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
-import { APP_URL, OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
+import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
 import { getCachedImage, cacheImage } from "~/lib/server/image-cache";
+import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
 import { isDataURI } from "~/lib/media-utils";
 import { processMediaForImage } from "~/lib/server/media-processor";
 import sharp from 'sharp';
@@ -20,10 +21,10 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Pr
 /**
  * Fetch gallery data with listings
  */
-async function getGalleryData(username: string, slug: string) {
+async function getGalleryData(username: string, slug: string, apiOrigin: string) {
   try {
     const response = await fetch(
-      `${APP_URL}/api/curation/user/${encodeURIComponent(username)}/gallery/${encodeURIComponent(slug)}`,
+      `${apiOrigin}/api/curation/user/${encodeURIComponent(username)}/gallery/${encodeURIComponent(slug)}`,
       {
         next: { revalidate: 60 },
         signal: AbortSignal.timeout(5000),
@@ -215,8 +216,7 @@ export async function GET(
 ) {
   try {
     const { username, slug } = await params;
-    const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getOgSelfOrigin(request);
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font
@@ -266,7 +266,7 @@ export async function GET(
     
     // Fetch gallery data
     const galleryData = await withTimeout(
-      getGalleryData(username, slug),
+      getGalleryData(username, slug, baseUrl),
       5000,
       null
     );

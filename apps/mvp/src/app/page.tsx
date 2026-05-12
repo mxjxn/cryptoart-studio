@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Match listing-page metadata behavior: derive site URL from incoming request host.
   // This avoids host mismatch issues (`www` vs apex) in embed/action URLs.
   const siteUrl = await getRequestSiteUrl();
-  // 3:2 OG at `/opengraph-image` — homepage hero (lime + first Ethereum listing art) when available, else curated grid.
+  // Static 3:2 OG at `/opengraph-image` (Satori, local fonts + logo — no subgraph / remote art).
   const ogImageUrl = `${siteUrl}/opengraph-image`;
   const homepageUrl = siteUrl;
   

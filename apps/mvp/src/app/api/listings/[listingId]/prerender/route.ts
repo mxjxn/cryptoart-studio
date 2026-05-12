@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getOgSelfOrigin } from '~/lib/server/og-self-origin';
 import { prerenderListingOGImage } from '~/lib/server/og-image-prerender';
 import { prerenderListingCardData } from '~/lib/server/listing-card-prerender';
 
@@ -30,8 +31,7 @@ export async function POST(
     console.log(`[Prerender API] Starting pre-render for listing ${listingId}...`);
     
     // Get base URL for OG image pre-rendering
-    const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getOgSelfOrigin(request);
     
     // Pre-render both OG image and listing card data in parallel
     const [ogResult, cardResult] = await Promise.allSettled([

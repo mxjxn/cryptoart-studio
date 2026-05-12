@@ -9,6 +9,8 @@ import { processMediaForImage } from "~/lib/server/media-processor";
 import { type Address, isAddress, zeroAddress } from "viem";
 import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { getOgErc20TokenInfo } from "~/lib/server/og-chain-clients";
+import { getOgSelfOrigin } from "~/lib/server/og-self-origin";
+import { getConfiguredSubgraphEndpoints } from "~/lib/server/subgraph-endpoints";
 import type { EnrichedAuctionData } from "~/lib/types";
 import sharp from 'sharp';
 import { OG_IMAGE_CACHE_CONTROL_SUCCESS, OG_IMAGE_CACHE_CONTROL_ERROR } from "~/lib/constants";
@@ -116,8 +118,17 @@ export async function GET(
             return Number.isNaN(v) ? undefined : v;
           })()
         : undefined;
-    // Match request scheme (https://localhost:3000 breaks font fetch — wrong SSL version on http).
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getOgSelfOrigin(request);
+    if (ogChainId === 1) {
+      const hasMainnet = getConfiguredSubgraphEndpoints().some(
+        (e) => e.chainId === 1,
+      );
+      if (!hasMainnet) {
+        console.warn(
+          "[OG Image] Ethereum mainnet subgraph URL is not configured (NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL_MAINNET). Listing OG cannot resolve chainId=1 auctions.",
+        );
+      }
+    }
     const fontUrl = `${baseUrl}/MEK-Mono.otf`;
     
     // Load font from URL (edge runtime compatible)
@@ -153,7 +164,7 @@ export async function GET(
     try {
       auction = await withTimeout(
         getAuctionServer(listingId, { chainId: ogChainId }),
-        10000, // Increased to 10 seconds
+        30_000,
         null
       );
     } catch (error) {
@@ -383,7 +394,11 @@ export async function GET(
         // Not in cache, fetch and cache it
         let imageUrl = imageUrlToUse;
         const isOptimizedThumbnail = isVercelBlobThumbnail(imageUrlToUse);
-        
+
+        if (imageUrl.startsWith("/")) {
+          imageUrl = `${baseUrl}${imageUrl}`;
+        }
+
         // Convert IPFS URLs to HTTP gateway URLs
         // Note: If the URL is already a gateway URL (from fetchNFTMetadata), use it as-is
         if (imageUrl.startsWith('ipfs://')) {
