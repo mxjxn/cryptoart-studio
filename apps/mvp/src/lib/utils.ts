@@ -166,18 +166,29 @@ export function getMiniAppEmbedMetadata(
  * Get Farcaster domain manifest for /.well-known/farcaster.json
  * This manifest is used by Farcaster clients to identify and configure the Mini App
  * See: https://miniapps.farcaster.xyz/docs/guides/publishing
- * 
- * The manifest is built from farcaster-manifest.config.ts. Edit that file to modify the manifest.
+ *
+ * @param options.siteUrl - Public origin for this request (from `getRequestSiteUrl()`).
+ *   Rewrites `homeUrl`, icons, and OG URLs so ngrok matches the page clients load.
+ *   Omits `accountAssociation` when the host is not the production domain the association
+ *   was issued for (otherwise embed tools report an invalid manifest).
  */
-export async function getFarcasterDomainManifest(): Promise<Manifest> {
+export async function getFarcasterDomainManifest(options?: {
+  siteUrl?: string;
+}): Promise<Manifest> {
   // Format tags: lowercase, no spaces, max 20 chars each, max 5 tags
   const formattedTags = APP_TAGS
     .map(tag => tag.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 20))
     .filter(tag => tag.length > 0)
     .slice(0, 5);
 
-  // Extract domain from APP_URL (remove protocol and path)
-  const canonicalDomain = APP_URL.replace(/^https?:\/\//, '').split('/')[0];
+  const origin = (options?.siteUrl ?? APP_URL).replace(/\/+$/, "");
+  const canonicalHostFull = origin.replace(/^https?:\/\//i, "").split("/")[0] ?? "";
+  const canonicalDomain = canonicalHostFull.split(":")[0].toLowerCase();
+
+  /** Must match signed payload in `APP_ACCOUNT_ASSOCIATION` (cryptoart.social). */
+  const associationHostMatches =
+    canonicalDomain === "cryptoart.social" ||
+    canonicalDomain === "www.cryptoart.social";
 
   // Truncate description to max 170 chars (for description field)
   const truncatedDescription = APP_DESCRIPTION.length > 170
@@ -192,15 +203,19 @@ export async function getFarcasterDomainManifest(): Promise<Manifest> {
   // Build miniapp config from manifest config
   const miniappConfig: Manifest['miniapp'] = {
     ...manifestConfig.miniapp,
-    // Ensure required fields are present (Manifest type requires these)
-    splashImageUrl: manifestConfig.miniapp.splashImageUrl ?? APP_SPLASH_URL,
+    homeUrl: origin,
+    iconUrl: `${origin}/icon.png`,
+    imageUrl: `${origin}/opengraph-image`,
+    splashImageUrl: `${origin}/splash.png`,
     splashBackgroundColor: manifestConfig.miniapp.splashBackgroundColor ?? APP_SPLASH_BACKGROUND_COLOR,
-    webhookUrl: manifestConfig.miniapp.webhookUrl ?? `${APP_URL}/api/webhook`,
+    webhookUrl: manifestConfig.miniapp.webhookUrl ?? `${origin}/api/webhook`,
     // Override with formatted/truncated values
     description: truncatedDescription,
     ogDescription: ogDescription,
     tags: formattedTags.length > 0 ? formattedTags : undefined,
-    canonicalDomain: canonicalDomain,
+    heroImageUrl: `${origin}/opengraph-image`,
+    ogImageUrl: `${origin}/opengraph-image`,
+    canonicalDomain,
   };
   
   // Remove empty screenshotUrls array (should be omitted if empty)
@@ -216,7 +231,10 @@ export async function getFarcasterDomainManifest(): Promise<Manifest> {
   });
 
   return {
-    accountAssociation: manifestConfig.accountAssociation ?? null,
+    accountAssociation:
+      associationHostMatches && manifestConfig.accountAssociation
+        ? manifestConfig.accountAssociation
+        : null,
     miniapp: miniappConfig,
   };
 }

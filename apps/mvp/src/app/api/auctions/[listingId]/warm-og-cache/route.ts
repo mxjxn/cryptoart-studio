@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuctionServer } from "~/lib/server/auction";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { prepareAuctionOGImageData } from "~/lib/og-image-generator";
 
 /**
@@ -28,8 +29,8 @@ export async function POST(
       );
     }
 
-    // Fetch auction data
-    const auction = await getAuctionServer(listingId);
+    // Fetch auction data (Base default — matches OG URL below; avoids AmbiguousListingError)
+    const auction = await getAuctionServer(listingId, { chainId: CHAIN_ID });
 
     if (!auction) {
       return NextResponse.json(
@@ -52,7 +53,7 @@ export async function POST(
           ? `https://${process.env.VERCEL_URL}`
           : "http://localhost:3000";
 
-      const ogImageUrl = `${baseUrl}/listing/${listingId}/opengraph-image`;
+      const ogImageUrl = `${baseUrl}/listing/${listingId}/opengraph-image?chainId=${CHAIN_ID}`;
 
       try {
         // Fetch the OG image to trigger generation and cache it

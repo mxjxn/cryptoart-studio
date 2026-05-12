@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
 import { APP_NAME } from "~/lib/constants";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { getMiniAppEmbedMetadata, normalizeUrl } from "~/lib/utils";
 import { getRequestSiteUrl } from "~/lib/server/request-site-url";
 import AuctionDetailClient from "./AuctionDetailClient";
@@ -29,7 +30,8 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
     const siteUrl = await getRequestSiteUrl();
     // Same host as the browser request — avoids NEXT_PUBLIC_URL=ngrok while testing on localhost,
     // which pointed og:image at ngrok and blocked or stalled the document.
-    const listingImageUrl = normalizeUrl(siteUrl, `/listing/${listingId}/opengraph-image`);
+    const ogPath = `/listing/${listingId}/opengraph-image?chainId=${CHAIN_ID}`;
+    const listingImageUrl = normalizeUrl(siteUrl, ogPath);
     const listingPageUrl = normalizeUrl(siteUrl, `/listing/${listingId}`);
 
     const title = `Listing #${listingId} | ${APP_NAME}`;
@@ -61,7 +63,7 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
         description,
         images: [
           {
-            url: `/listing/${listingId}/opengraph-image`,
+            url: ogPath,
             width: 1200,
             height: 800, // 3:2 aspect ratio required by Farcaster
           },

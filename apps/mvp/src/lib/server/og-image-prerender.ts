@@ -5,6 +5,7 @@
  */
 
 import { getAuctionServer } from './auction';
+import { CHAIN_ID } from '~/lib/contracts/marketplace';
 
 /**
  * Pre-render OG image for a listing
@@ -23,7 +24,7 @@ export async function prerenderListingOGImage(
     const url = baseUrl || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
     
     // Construct the OG image URL
-    const ogImageUrl = `${url}/listing/${listingId}/opengraph-image`;
+    const ogImageUrl = `${url}/listing/${listingId}/opengraph-image?chainId=${CHAIN_ID}`;
     
     console.log(`[OG Image Prerender] Pre-rendering OG image for listing ${listingId}...`);
     
@@ -100,7 +101,7 @@ export async function prerenderListingOGImageIfNeeded(
 ): Promise<void> {
   try {
     // Check if listing exists and has an image
-    const listing = await getAuctionServer(listingId);
+    const listing = await getAuctionServer(listingId, { chainId: CHAIN_ID });
     if (!listing) {
       console.log(`[OG Image Prerender] Listing ${listingId} not found, skipping pre-render`);
       return;
