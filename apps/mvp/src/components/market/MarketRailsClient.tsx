@@ -17,13 +17,15 @@ async function fetchMarketLayout() {
   const res = await fetch('/api/market-layout');
   if (!res.ok) throw new Error('Failed to load market layout');
   const data = await res.json();
-  return data.sections ?? [];
+  return (data.sections ?? []) as any[];
 }
 
 export default function MarketRailsClient() {
-  const { data: sections = [], isLoading, isError } = useQuery(['market-layout'], fetchMarketLayout, {
-    staleTime: 60_000, // 1 minute
-    cacheTime: 5 * 60_000, // 5 minutes
+  const { data: sections = [], isLoading, isError } = useQuery({
+    queryKey: ['market-layout'],
+    queryFn: fetchMarketLayout,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
 

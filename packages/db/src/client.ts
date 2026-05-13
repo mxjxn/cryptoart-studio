@@ -189,6 +189,7 @@ export {
   listingMediaPreview,
   listingSellerTheme,
   listingThemeOverride,
+  marketLayoutSnapshots,
 } from './schema';
 export type { 
   UserCacheData, 
@@ -225,4 +226,5 @@ export type {
   // IPFS image cache types
   IPFSImageCacheData,
   ListingMediaPreviewData,
+  MarketLayoutSnapshotData,
 } from './schema';
