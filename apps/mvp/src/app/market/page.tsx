@@ -1,7 +1,9 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import { APP_NAME } from "~/lib/constants";
 import { browseListings } from "~/lib/server/browse-listings";
 import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
+import MarketRails from "~/components/market/MarketRails";
 import MarketClient, { type MarketInitialPayload } from "./MarketClient";
 
 export const metadata: Metadata = {
@@ -14,7 +16,7 @@ export const metadata: Metadata = {
  * **Artwork** (title, image, artist) is cached per token for 7d via `fetchNFTMetadataCached`
  * in browse — cold IPFS once, then cheap on each regen.
  */
-export const revalidate = 300;
+export const revalidate = 120;
 
 function parseMarketTab(raw: string | undefined): MarketLifecycleTab {
   if (raw === "upcoming" || raw === "finished") return raw;
@@ -50,5 +52,15 @@ export default async function MarketPage({
   const tab = parseMarketTab(sp.tab);
   const initial = await getInitialPayload(tab);
 
-  return <MarketClient key={tab} initial={initial} />;
+  return (
+    <MarketClient key={tab} initial={initial}>
+      <Suspense
+        fallback={
+          <div className="mb-10 h-32 animate-pulse rounded border border-[#333333] bg-[#111111]" />
+        }
+      >
+        <MarketRails />
+      </Suspense>
+    </MarketClient>
+  );
 }

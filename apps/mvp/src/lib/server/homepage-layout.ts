@@ -1,10 +1,12 @@
-import { gql, request } from 'graphql-request';
+import { gql } from 'graphql-request';
 import {
   and,
   asc,
+  desc,
   eq,
   curation,
   curationItems,
+  featuredListings,
   featuredSectionItems,
   featuredSections,
   getDatabase,
@@ -12,10 +14,21 @@ import {
   sql,
 } from '@cryptoart/db';
 import type { EnrichedAuctionData } from '~/lib/types';
-import { getAuctionServer, fetchActiveAuctionsUncached, normalizeListingType, normalizeTokenSpec, getHiddenUserAddresses } from '~/lib/server/auction';
+import {
+  getAuctionServer,
+  fetchActiveAuctionsUncached,
+  normalizeListingType,
+  normalizeTokenSpec,
+  getHiddenUserAddresses,
+  isListingBlockedFromProduct,
+} from '~/lib/server/auction';
 import { browseListings } from '~/lib/server/browse-listings';
-import { fetchNFTMetadata } from '~/lib/nft-metadata';
-import { type Address } from 'viem';
+import { enrichListingRowsForCardsLight } from '~/lib/server/listing-card-enrichment';
+import {
+  queryListingsAcrossChains,
+  sortMergedListingsByField,
+} from '~/lib/server/subgraph-multi-query';
+import { BASE_CHAIN_ID } from '~/lib/server/subgraph-endpoints';
 import { unstable_cache } from "next/cache";
 import { lookupNeynarByAddress, lookupNeynarByUsername } from "~/lib/artist-name-resolution";
 import { getListingMediaSnapshot, primeListingMediaSnapshot } from "~/lib/server/listing-metadata-refresh";
@@ -32,7 +45,10 @@ type SectionType =
   | 'listing'
   | 'featured_carousel'
   | 'custom_section'
-  | 'recent_listings';
+  | 'recent_listings'
+  | 'ending_soon'
+  | 'awaiting_bids'
+  | 'recent_galleries';
 
 export interface HomepageSection {
   id: string;
@@ -42,28 +58,58 @@ export interface HomepageSection {
   config?: Record<string, any> | null;
   displayOrder: number;
   isActive: boolean;
+  surface?: string;
   listings: EnrichedAuctionData[];
 }
 
 const DEFAULT_LIMIT = 12;
 
+export type LayoutSurface = 'home' | 'market';
+
 /**
- * Get all homepage layout sections (optionally including inactive)
+ * Layout rows for a surface (`home` = homepage, `market` = /market rails).
  */
-export async function getHomepageLayoutSections(includeInactive = false) {
+export async function getLayoutSections(
+  surface: LayoutSurface,
+  includeInactive = false
+) {
   const db = getDatabase();
-  const query = db.select().from(homepageLayoutSections).orderBy(asc(homepageLayoutSections.displayOrder));
   if (includeInactive) {
-    return query;
+    return db
+      .select()
+      .from(homepageLayoutSections)
+      .where(eq(homepageLayoutSections.surface, surface))
+      .orderBy(asc(homepageLayoutSections.displayOrder));
   }
-  return query.where(eq(homepageLayoutSections.isActive, true));
+  return db
+    .select()
+    .from(homepageLayoutSections)
+    .where(
+      and(eq(homepageLayoutSections.surface, surface), eq(homepageLayoutSections.isActive, true))
+    )
+    .orderBy(asc(homepageLayoutSections.displayOrder));
 }
 
 /**
- * Resolve homepage sections with listings
+ * @deprecated Use {@link getLayoutSections} with surface `'home'`.
+ */
+export async function getHomepageLayoutSections(includeInactive = false) {
+  return getLayoutSections('home', includeInactive);
+}
+
+/**
+ * Resolve homepage (surface `home`) sections with listings.
  */
 export async function resolveHomepageSections(includeInactive = false): Promise<HomepageSection[]> {
-  const sections = await getHomepageLayoutSections(includeInactive);
+  return resolveLayoutSections('home', includeInactive);
+}
+
+/** Resolve layout sections for homepage or market surface. */
+export async function resolveLayoutSections(
+  surface: LayoutSurface,
+  includeInactive = false
+): Promise<HomepageSection[]> {
+  const sections = await getLayoutSections(surface, includeInactive);
   const resolved = await Promise.all(
     sections.map(async (section) => {
       const config = (section as any)?.config as Record<string, any> | null | undefined;
@@ -81,6 +127,12 @@ export async function resolveHomepageSections(includeInactive = false): Promise<
   return resolved;
 }
 
+export async function resolveMarketSections(
+  includeInactive = false
+): Promise<HomepageSection[]> {
+  return resolveLayoutSections("market", includeInactive);
+}
+
 async function resolveSectionListings(sectionType: SectionType, config?: Record<string, any> | null) {
   switch (sectionType) {
     case 'upcoming_auctions':
@@ -96,13 +148,19 @@ async function resolveSectionListings(sectionType: SectionType, config?: Record<
     case 'collector':
       return getCollectorListings(config?.name, config?.limit ?? DEFAULT_LIMIT);
     case 'listing':
-      return getSingleListing(config?.listingId);
+      return getSingleListing(config?.listingId, config?.chainId);
     case 'featured_carousel':
       return getFeaturedCarouselListings();
     case 'custom_section':
       return getCustomSectionListings(config?.sectionId, config?.limit);
     case 'recent_listings':
       return getRecentListings(config?.limit ?? 6);
+    case 'ending_soon':
+      return getEndingSoon(config?.limit ?? DEFAULT_LIMIT, config?.windowSec);
+    case 'awaiting_bids':
+      return getAwaitingBids(config?.limit ?? DEFAULT_LIMIT);
+    case 'recent_galleries':
+      return getRecentGalleriesListings(config?.limit ?? DEFAULT_LIMIT);
     default:
       return [];
   }
@@ -234,252 +292,281 @@ const LISTINGS_WITH_BIDS_QUERY = gql`
   }
 `;
 
+const LISTINGS_AWAITING_BIDS_QUERY = gql`
+  query ListingsAwaitingBids($first: Int!, $skip: Int!) {
+    listings(
+      where: { status: "ACTIVE", finalized: false, hasBid: false }
+      first: $first
+      skip: $skip
+      orderBy: createdAt
+      orderDirection: desc
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      erc20
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
+const ENDING_SOON_QUERY = gql`
+  query EndingSoon($now: BigInt!, $until: BigInt!, $first: Int!) {
+    listings(
+      where: {
+        status: "ACTIVE"
+        finalized: false
+        startTime_gt: "0"
+        endTime_gt: $now
+        endTime_lt: $until
+      }
+      first: $first
+      skip: 0
+      orderBy: endTime
+      orderDirection: asc
+    ) {
+      id
+      listingId
+      marketplace
+      seller
+      tokenAddress
+      tokenId
+      tokenSpec
+      listingType
+      initialAmount
+      totalAvailable
+      totalPerSale
+      startTime
+      endTime
+      lazy
+      status
+      totalSold
+      hasBid
+      finalized
+      createdAt
+      createdAtBlock
+      updatedAt
+      erc20
+      bids(orderBy: amount, orderDirection: desc, first: 1000) {
+        id
+        bidder
+        amount
+        timestamp
+      }
+    }
+  }
+`;
+
 async function getRecentlyConcluded(limit: number): Promise<EnrichedAuctionData[]> {
   try {
-    const endpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-    if (!endpoint) {
-      throw new Error('Missing NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
-    }
-
     const now = Math.floor(Date.now() / 1000);
-    const since = now - 60 * 60 * 24 * 30; // last 30 days
+    const since = now - 60 * 60 * 24 * 30;
+    const fetchN = Math.min(Math.max(limit * 4, 40), 200);
+    const multi = await queryListingsAcrossChains(RECENTLY_CONCLUDED_QUERY, {
+      since: String(since),
+      first: fetchN,
+      skip: 0,
+    });
+    if (!multi.anyEndpointSucceeded || multi.listings.length === 0) return [];
 
-    const data = await request<{ listings: any[] }>(
-      endpoint,
-      RECENTLY_CONCLUDED_QUERY,
-      { since, first: limit, skip: 0 },
-      getSubgraphHeaders()
-    );
+    sortMergedListingsByField(multi.listings, "updatedAt", "desc");
+    const hiddenAddresses = await getHiddenUserAddresses();
+    const filtered = multi.listings
+      .filter((listing) => !isListingBlockedFromProduct(listing, hiddenAddresses))
+      .slice(0, limit);
 
-    return data.listings?.map((listing) => ({
-      ...listing,
-      listingType: listing.listingType,
-      bidCount: listing.bids?.length || 0,
-      highestBid: listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined,
-    })) as EnrichedAuctionData[];
+    return enrichListingRowsForCardsLight(filtered);
   } catch (error) {
-    console.error('[Homepage] Failed to get recently concluded auctions', error);
+    console.error("[Homepage] Failed to get recently concluded auctions", error);
     return [];
   }
 }
 
 async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
   try {
-    // Query subgraph directly for listings with bids - this ensures we get ALL listings with bids
-    // regardless of creation date, and scales to any number of listings
-    // Ordered by updatedAt desc so recently bid-on listings appear first
-    const endpoint = process.env.NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL;
-    if (!endpoint) {
-      throw new Error('Missing NEXT_PUBLIC_AUCTIONHOUSE_SUBGRAPH_URL');
-    }
+    const fetchN = Math.min(Math.max(limit * 4, 40), 200);
+    const multi = await queryListingsAcrossChains(LISTINGS_WITH_BIDS_QUERY, {
+      first: fetchN,
+      skip: 0,
+    });
 
-    console.log(`[getLiveBids] Querying subgraph for listings with bids (limit: ${limit})`);
-    
-    const data = await request<{ listings: any[] }>(
-      endpoint,
-      LISTINGS_WITH_BIDS_QUERY,
-      {
-        first: limit,
-        skip: 0,
-      },
-      getSubgraphHeaders()
-    );
-
-    console.log(`[getLiveBids] Subgraph returned ${data.listings?.length || 0} listings with bids`);
-
-    if (!data.listings || data.listings.length === 0) {
-      console.log(`[getLiveBids] No listings returned from subgraph query with hasBid: true`);
+    if (multi.listings.length === 0) {
       return [];
     }
 
-    // Log listing IDs for debugging
-    const listingIds = data.listings.map(l => l.listingId);
-    console.log(`[getLiveBids] Listing IDs from subgraph: ${listingIds.join(', ')}`);
+    sortMergedListingsByField(multi.listings, "updatedAt", "desc");
 
-    // Get hidden user addresses to filter out
     const hiddenAddresses = await getHiddenUserAddresses();
-
-    // Filter out hidden users and fully sold listings
-    // Also verify that bids actually exist (defensive check in case hasBid field is wrong)
     const now = Math.floor(Date.now() / 1000);
     const MAX_UINT48 = 281474976710655;
-    
-    const filteredListings = data.listings.filter((listing) => {
-      // Filter out cancelled listings
-      if (listing.status === 'CANCELLED') {
-        console.log(`[getLiveBids] Listing ${listing.listingId} filtered: cancelled`);
+
+    const filteredListings = multi.listings.filter((listing) => {
+      if (isListingBlockedFromProduct(listing, hiddenAddresses)) return false;
+      if (listing.status === "CANCELLED") {
         return false;
       }
-      
-      // Verify bids actually exist (defensive check)
+
       const bidCount = listing.bids?.length || 0;
       const hasBidField = listing.hasBid === true;
       if (!hasBidField && bidCount === 0) {
-        console.log(`[getLiveBids] Listing ${listing.listingId} has hasBid=false and no bids, skipping`);
         return false;
       }
 
       const totalAvailable = parseInt(listing.totalAvailable || "0");
       const totalSold = parseInt(listing.totalSold || "0");
       const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
-      
+
       if (listing.finalized || isFullySold) {
-        console.log(`[getLiveBids] Listing ${listing.listingId} filtered: finalized=${listing.finalized}, isFullySold=${isFullySold}`);
         return false;
       }
-      
-      // Check if auction has ended - for ERC721 (1/1), if it ended with a bid, it's likely finalized
-      // even if subgraph hasn't synced yet. This prevents showing finalized auctions that subgraph
-      // hasn't updated yet.
+
       const startTime = parseInt(listing.startTime || "0");
       const endTime = parseInt(listing.endTime || "0");
       const isERC721 = listing.tokenSpec === "ERC721" || String(listing.tokenSpec) === "1";
-      
-      // For start-on-first-bid auctions (startTime = 0), endTime is a duration, not a timestamp
-      // We need to calculate the actual end timestamp from when the auction started (first bid)
+
       let actualEndTime: number;
       if (startTime === 0 && bidCount > 0) {
-        // Auction has started (has bids), so we need to calculate actual end time
-        // The contract converts endTime to timestamp: endTime = duration + block.timestamp
-        // If endTime > now, it's already converted to a timestamp (use it directly)
-        // If endTime <= now or is a small number, it's still a duration (calculate it)
         const ONE_YEAR_IN_SECONDS = 31536000;
         if (endTime > now) {
-          // Already converted to timestamp by contract
           actualEndTime = endTime;
         } else if (endTime <= ONE_YEAR_IN_SECONDS) {
-          // Still a duration - calculate from first bid timestamp
-          // Use the timestamp of the first bid (oldest bid) as auction start
-          const firstBidTimestamp = listing.bids && listing.bids.length > 0
-            ? parseInt(listing.bids[listing.bids.length - 1]?.timestamp || "0")
-            : now;
+          const firstBidTimestamp =
+            listing.bids && listing.bids.length > 0
+              ? parseInt(listing.bids[listing.bids.length - 1]?.timestamp || "0")
+              : now;
           actualEndTime = firstBidTimestamp + endTime;
         } else {
-          // Large number that's <= now, treat as timestamp
           actualEndTime = endTime;
         }
       } else if (startTime === 0 && bidCount === 0) {
-        // Auction hasn't started yet, can't determine end time
         actualEndTime = 0;
       } else {
-        // For auctions with startTime > 0, endTime is already a timestamp
         actualEndTime = endTime;
       }
-      
+
       const hasEnded = actualEndTime > 0 && actualEndTime < now && actualEndTime < MAX_UINT48;
-      
+
       if (hasEnded && isERC721 && bidCount > 0) {
-        // For 1/1 auctions that ended with bids, they're likely finalized even if subgraph hasn't synced
-        // Only filter if it ended more than 1 hour ago to allow for finalization grace period
         const endedAgo = now - actualEndTime;
         const oneHour = 60 * 60;
         if (endedAgo > oneHour) {
-          console.log(`[getLiveBids] Listing ${listing.listingId} filtered: ERC721 auction ended ${Math.floor(endedAgo / 3600)} hours ago with bid, likely finalized`);
           return false;
         }
       }
-      
-      if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
-        console.log(`[getLiveBids] Listing ${listing.listingId} filtered: seller is hidden`);
-        return false;
-      }
-      
+
       return true;
     });
 
-    // Enrich listings with metadata and bid information (same as fetchActiveAuctions)
-    const enrichedListings = await Promise.all(
-      filteredListings.map(async (listing) => {
-        const bidCount = listing.bids?.length || 0;
-        const highestBid = listing.bids && listing.bids.length > 0 
-          ? listing.bids[0] // Already sorted by amount desc
-          : undefined;
-
-        // Fetch NFT metadata
-        let metadata = null;
-        if (listing.tokenAddress && listing.tokenId) {
-          try {
-            metadata = await fetchNFTMetadata(
-              listing.tokenAddress as Address,
-              listing.tokenId,
-              listing.tokenSpec
-            );
-          } catch (error) {
-            console.error(`[getLiveBids] Error fetching metadata for ${listing.tokenAddress}:${listing.tokenId}:`, error);
-          }
-        }
-
-        // Fetch ERC1155 total supply if applicable
-        let erc1155TotalSupply: string | undefined = undefined;
-        if ((listing.tokenSpec === "ERC1155" || listing.tokenSpec === 2) && listing.tokenAddress && listing.tokenId) {
-          try {
-            const { getERC1155TotalSupply } = await import('~/lib/server/erc1155-supply');
-            const totalSupply = await getERC1155TotalSupply(
-              listing.tokenAddress,
-              listing.tokenId
-            );
-            if (totalSupply !== null) {
-              erc1155TotalSupply = totalSupply.toString();
-            }
-          } catch (error: any) {
-            // Optional enrichment - continue without it
-          }
-        }
-
-        // Fetch ERC721 collection total supply if applicable
-        let erc721TotalSupply: number | undefined = undefined;
-        if ((listing.tokenSpec === "ERC721" || listing.tokenSpec === 1) && listing.tokenAddress) {
-          try {
-            const { fetchERC721TotalSupply } = await import('~/lib/erc721-supply');
-            const totalSupply = await fetchERC721TotalSupply(listing.tokenAddress);
-            if (totalSupply !== null) {
-              erc721TotalSupply = totalSupply;
-            }
-          } catch (error: any) {
-            // Optional enrichment - continue without it
-          }
-        }
-
-        // Generate thumbnail
-        let thumbnailUrl: string | undefined = undefined;
-        const imageUrl = metadata?.image;
-        if (imageUrl && listing.status !== "CANCELLED") {
-          try {
-            const { getOrGenerateThumbnail } = await import('./thumbnail-generator');
-            thumbnailUrl = await getOrGenerateThumbnail(imageUrl, 'homepage');
-          } catch (error) {
-            thumbnailUrl = imageUrl; // Fall back to original image
-          }
-        }
-
-        const enriched: EnrichedAuctionData = {
-          ...listing,
-          listingType: normalizeListingType(listing.listingType, listing),
-          tokenSpec: normalizeTokenSpec(listing.tokenSpec),
-          bidCount,
-          highestBid: highestBid ? {
-            amount: highestBid.amount,
-            bidder: highestBid.bidder,
-            timestamp: highestBid.timestamp,
-          } : undefined,
-          title: metadata?.title || metadata?.name,
-          artist: metadata?.artist || metadata?.creator,
-          image: metadata?.image,
-          description: metadata?.description,
-          thumbnailUrl,
-          metadata,
-          erc1155TotalSupply,
-          erc721TotalSupply,
-        };
-
-        return enriched;
-      })
-    );
-
-    console.log(`[getLiveBids] Returning ${enrichedListings.length} enriched listings with bids`);
-    return enrichedListings;
+    return enrichListingRowsForCardsLight(filteredListings.slice(0, limit));
   } catch (error) {
-    console.error('[Homepage] Failed to get live bids', error);
+    console.error("[Homepage] Failed to get live bids", error);
+    return [];
+  }
+}
+
+async function getAwaitingBids(limit: number): Promise<EnrichedAuctionData[]> {
+  try {
+    const fetchN = Math.min(Math.max(limit * 4, 40), 200);
+    const multi = await queryListingsAcrossChains(LISTINGS_AWAITING_BIDS_QUERY, {
+      first: fetchN,
+      skip: 0,
+    });
+    if (multi.listings.length === 0) return [];
+
+    sortMergedListingsByField(multi.listings, "createdAt", "desc");
+    const hiddenAddresses = await getHiddenUserAddresses();
+    const filtered = multi.listings
+      .filter((listing) => {
+        if (isListingBlockedFromProduct(listing, hiddenAddresses)) return false;
+        if (listing.status === "CANCELLED") return false;
+        const bidCount = listing.bids?.length || 0;
+        if (listing.hasBid === true || bidCount > 0) return false;
+        return true;
+      })
+      .slice(0, limit);
+
+    return enrichListingRowsForCardsLight(filtered);
+  } catch (e) {
+    console.error("[Homepage] Failed to get awaiting bids", e);
+    return [];
+  }
+}
+
+async function getEndingSoon(limit: number, windowSec: number = 7 * 24 * 60 * 60): Promise<EnrichedAuctionData[]> {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const until = now + windowSec;
+    const fetchN = Math.min(Math.max(limit * 6, 60), 200);
+    const multi = await queryListingsAcrossChains(ENDING_SOON_QUERY, {
+      now: String(now),
+      until: String(until),
+      first: fetchN,
+    });
+    if (multi.listings.length === 0) return [];
+
+    sortMergedListingsByField(multi.listings, "endTime", "asc");
+    const hiddenAddresses = await getHiddenUserAddresses();
+    const filtered = multi.listings
+      .filter((listing) => {
+        if (isListingBlockedFromProduct(listing, hiddenAddresses)) return false;
+        if (listing.status !== "ACTIVE" || listing.finalized) return false;
+        const endTime = parseInt(listing.endTime || "0", 10);
+        const startTime = parseInt(listing.startTime || "0", 10);
+        if (startTime === 0) return false;
+        return endTime > now && endTime <= until;
+      })
+      .slice(0, limit);
+
+    return enrichListingRowsForCardsLight(filtered);
+  } catch (e) {
+    console.error("[Homepage] Failed to get ending soon", e);
+    return [];
+  }
+}
+
+async function getRecentGalleriesListings(limit: number): Promise<EnrichedAuctionData[]> {
+  try {
+    const db = getDatabase();
+    const galleries = await db
+      .select()
+      .from(curation)
+      .where(eq(curation.isPublished, true))
+      .orderBy(desc(curation.updatedAt))
+      .limit(Math.max(limit * 3, 12));
+
+    const cards: EnrichedAuctionData[] = [];
+    for (const g of galleries) {
+      if (!g.slug) continue;
+      const one = await getGalleryListings(g.curatorAddress, g.slug, 1);
+      if (one[0]) cards.push(one[0]);
+      if (cards.length >= limit) break;
+    }
+    return cards.slice(0, limit);
+  } catch (e) {
+    console.error("[Homepage] Failed to get recent galleries", e);
     return [];
   }
 }
@@ -550,10 +637,12 @@ async function getCollectorListings(collector?: string, limit: number = DEFAULT_
   }
 }
 
-async function getSingleListing(listingId?: string) {
+async function getSingleListing(listingId?: string, chainId?: number) {
   if (!listingId) return [];
   try {
-    const listing = await getAuctionServer(listingId);
+    const cid =
+      typeof chainId === "number" && Number.isFinite(chainId) ? chainId : undefined;
+    const listing = await getAuctionServer(listingId, cid != null ? { chainId: cid } : undefined);
     return listing ? [listing] : [];
   } catch (error) {
     console.error('[Homepage] Failed to get listing by id', error);
@@ -561,10 +650,49 @@ async function getSingleListing(listingId?: string) {
   }
 }
 
-async function getFeaturedCarouselListings() {
-  // Featured carousel is deprecated - use galleries via homepage arranger instead
-  // Return empty array for graceful degradation
-  return [];
+async function getFeaturedCarouselListings(): Promise<EnrichedAuctionData[]> {
+  try {
+    const db = getDatabase();
+    const hiddenAddresses = await getHiddenUserAddresses();
+    const rows = await db.select().from(featuredListings).orderBy(asc(featuredListings.displayOrder));
+    if (rows.length === 0) return [];
+
+    const resolved = await Promise.all(
+      rows.map(async (f) => {
+        const cid =
+          typeof f.chainId === "number" && Number.isFinite(f.chainId) ? f.chainId : BASE_CHAIN_ID;
+        try {
+          const listing = await getAuctionServer(f.listingId, { chainId: cid });
+          if (!listing) return null;
+          if (isListingBlockedFromProduct(listing, hiddenAddresses)) return null;
+          if (listing.status === "CANCELLED" || listing.status === "FINALIZED") return null;
+          const totalAvailable = parseInt(String(listing.totalAvailable || "0"), 10);
+          const totalSold = parseInt(String(listing.totalSold || "0"), 10);
+          if (totalAvailable > 0 && totalSold >= totalAvailable) return null;
+          return listing;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    return resolved.filter(Boolean) as EnrichedAuctionData[];
+  } catch (e) {
+    console.error("[Homepage] Failed to load featured carousel", e);
+    return [];
+  }
+}
+
+/** Optional `chainId` on featured section item metadata (listing rows) to disambiguate L1 vs Base. */
+function chainIdFromFeaturedItemMetadata(metadata: unknown): number | undefined {
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const raw = (metadata as Record<string, unknown>).chainId;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
 }
 
 async function getCustomSectionListings(sectionId?: string, limit?: number) {
@@ -587,7 +715,12 @@ async function getCustomSectionListings(sectionId?: string, limit?: number) {
 
     const listings = await Promise.all(
       items.map(async (item) => {
-        const listing = await getAuctionServer(item.itemId);
+        const metaChain =
+          item.itemType === "listing" ? chainIdFromFeaturedItemMetadata(item.metadata) : undefined;
+        const listing = await getAuctionServer(
+          item.itemId,
+          metaChain != null ? { chainId: metaChain } : undefined
+        );
         return listing ? { ...listing, displayOrder: item.displayOrder } : null;
       })
     );
@@ -611,20 +744,14 @@ async function getRecentListings(limit: number): Promise<EnrichedAuctionData[]> 
       enrich: true,
     });
     
-    // Filter to only active, non-finalized listings
-    const now = Math.floor(Date.now() / 1000);
-    const MAX_UINT48 = 281474976710655;
     const hiddenAddresses = await getHiddenUserAddresses();
     
     return listings
       .filter((listing) => {
-        // Filter out cancelled listings only
-        if (listing.status === 'CANCELLED') {
+        if (isListingBlockedFromProduct(listing, hiddenAddresses)) {
           return false;
         }
-        
-        // Filter out hidden users
-        if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
+        if (listing.status === 'CANCELLED') {
           return false;
         }
         
@@ -635,16 +762,6 @@ async function getRecentListings(limit: number): Promise<EnrichedAuctionData[]> 
     console.error('[Homepage] Failed to get recent listings', error);
     return [];
   }
-}
-
-function getSubgraphHeaders(): Record<string, string> {
-  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
-  if (apiKey) {
-    return {
-      Authorization: `Bearer ${apiKey}`,
-    };
-  }
-  return {};
 }
 
 export interface Tier1ListingCard {

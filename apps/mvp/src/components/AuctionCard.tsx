@@ -95,7 +95,10 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
     priceLabel = auction.highestBid ? "High" : "Reserve";
   }
 
-  const title = auction.title || `Listing #${auction.listingId}`;
+  const title =
+    typeof auction.title === "string" && auction.title.trim() !== ""
+      ? auction.title
+      : `Listing #${auction.listingId}`;
   const bidCount = auction.bidCount || 0;
   
   // Resolve artist name (moved up to be available for hooks)
@@ -391,9 +394,15 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
     setIsExpanded(false);
   }, [auction.listingId]);
 
-  const listingUrl = referralAddress 
-    ? `/listing/${auction.listingId}?referralAddress=${referralAddress}`
-    : `/listing/${auction.listingId}`;
+  const listingUrl = (() => {
+    const qs = new URLSearchParams();
+    if (referralAddress) qs.set("referralAddress", referralAddress);
+    if (typeof auction.chainId === "number" && Number.isFinite(auction.chainId)) {
+      qs.set("chainId", String(auction.chainId));
+    }
+    const q = qs.toString();
+    return q ? `/listing/${auction.listingId}?${q}` : `/listing/${auction.listingId}`;
+  })();
 
   const goToListing = useCallback(() => {
     if (typeof document !== "undefined" && "startViewTransition" in document) {
@@ -634,6 +643,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
         <ListingCardMenu 
           listingId={auction.listingId}
           sellerAddress={auction.seller}
+          chainId={typeof auction.chainId === "number" ? auction.chainId : undefined}
         />
       </div>
     </div>

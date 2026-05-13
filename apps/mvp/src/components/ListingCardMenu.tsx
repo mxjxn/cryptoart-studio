@@ -13,6 +13,7 @@ import { AdminContextMenu } from "./AdminContextMenu";
 interface ListingCardMenuProps {
   listingId: string;
   sellerAddress?: string;
+  chainId?: number;
 }
 
 interface GalleryWithCount extends CurationData {
@@ -24,7 +25,7 @@ const DROPDOWN_WIDTH = 200;
 const DROPDOWN_PADDING = 8;
 const DROPDOWN_MAX_HEIGHT = 192; // max-h-48 (48 * 4px = 192px)
 
-export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuProps) {
+export function ListingCardMenu({ listingId, sellerAddress, chainId }: ListingCardMenuProps) {
   const { address, isConnected } = useAccount();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { hasAccess: hasNFTAccess, loading: isNFTLoading, addressesWithNFT } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
@@ -217,7 +218,7 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
 
   // If only admin, show just the admin menu
   if (isAdmin && !hasGalleryAccess) {
-    return <AdminContextMenu listingId={listingId} sellerAddress={sellerAddress} />;
+    return <AdminContextMenu listingId={listingId} sellerAddress={sellerAddress} chainId={chainId} />;
   }
 
   const dropdownContent = isOpen ? (
@@ -356,7 +357,7 @@ export function ListingCardMenu({ listingId, sellerAddress }: ListingCardMenuPro
         
         {/* Admin Menu - only if user is also admin */}
         {isAdmin && (
-          <AdminContextMenu listingId={listingId} sellerAddress={sellerAddress} />
+          <AdminContextMenu listingId={listingId} sellerAddress={sellerAddress} chainId={chainId} />
         )}
       </div>
       {typeof document !== "undefined" && createPortal(dropdownContent, document.body)}

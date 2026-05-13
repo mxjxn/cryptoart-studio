@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, featuredListings, asc } from '@cryptoart/db';
 import { verifyAdmin } from '~/lib/server/admin';
 import { getAuctionServer } from '~/lib/server/auction';
+import { BASE_CHAIN_ID } from '~/lib/server/subgraph-endpoints';
 
 /**
  * GET /api/admin/featured
@@ -41,7 +42,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { listingId, adminAddress } = body;
+    const { listingId, adminAddress, chainId: chainIdBody } = body;
+    
+    const chainId =
+      typeof chainIdBody === "number" && Number.isFinite(chainIdBody)
+        ? chainIdBody
+        : typeof chainIdBody === "string" && chainIdBody.trim() !== ""
+          ? parseInt(chainIdBody, 10)
+          : BASE_CHAIN_ID;
+    if (!Number.isFinite(chainId)) {
+      return NextResponse.json({ error: 'Invalid chainId' }, { status: 400 });
+    }
     
     // Validate input
     if (!listingId) {
@@ -58,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Validate listing exists in subgraph
-    const listing = await getAuctionServer(listingId);
+    const listing = await getAuctionServer(listingId, { chainId });
     if (!listing) {
       return NextResponse.json(
         { error: `Listing ${listingId} not found` },
@@ -81,8 +92,9 @@ export async function POST(req: NextRequest) {
     // Insert featured listing (ignore if already exists)
     await db.insert(featuredListings).values({
       listingId,
+      chainId,
       displayOrder: maxOrder,
-    }).onConflictDoNothing();
+    }).onConflictDoNothing({ target: [featuredListings.listingId, featuredListings.chainId] });
     
     console.log(`[Admin] Featured listing added: ${listingId} by ${adminAddress}`);
     

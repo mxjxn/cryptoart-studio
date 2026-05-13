@@ -26,6 +26,8 @@
  *   0017_listing_media_preview.sql - Listing preview rows for fast market merge
  *   0018_add_listing_theme_tables.sql - Member listing page theme (seller default + per-listing override)
  *   0019_contract_cache_chain_id.sql - contract_cache composite PK (chain_id, contract_address)
+ *   0020_market_surface_featured_chain.sql - homepage_layout_sections.surface; featured_listings.chain_id + composite unique
+ *   0021_seed_market_layout.sql - default /market layout rows when none exist
  */
 
 import { config } from 'dotenv';
@@ -72,6 +74,8 @@ const MIGRATIONS = [
   '0017_listing_media_preview.sql',
   '0018_add_listing_theme_tables.sql',
   '0019_contract_cache_chain_id.sql',
+  '0020_market_surface_featured_chain.sql',
+  '0021_seed_market_layout.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

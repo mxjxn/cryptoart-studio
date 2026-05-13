@@ -72,9 +72,9 @@ export default function FeaturedListingsPage() {
 
   // Fetch current homepage layout sections
   const { data: layoutData } = useQuery({
-    queryKey: ['admin', 'homepage-layout'],
+    queryKey: ['admin', 'homepage-layout', 'home'],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/homepage-layout?adminAddress=${address}`);
+      const res = await fetch(`/api/admin/homepage-layout?adminAddress=${address}&surface=home`);
       if (!res.ok) return { sections: [] };
       return res.json() as Promise<{ sections: any[] }>;
     },
@@ -107,6 +107,7 @@ export default function FeaturedListingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           adminAddress: address,
+          surface: 'home',
           sections: items.map((s, index) => ({ id: s.id, displayOrder: index })),
         }),
       });
@@ -114,7 +115,7 @@ export default function FeaturedListingsPage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout', 'home'] });
       setHasUnsavedChanges(false);
       setSuccessMessage('Homepage layout saved successfully!');
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -201,6 +202,7 @@ export default function FeaturedListingsPage() {
           config: { sectionId: section.id },
           isActive: true,
           adminAddress: address,
+          surface: 'home',
         }),
       });
       if (!layoutResponse.ok) throw new Error('Failed to create homepage layout section');
@@ -210,7 +212,7 @@ export default function FeaturedListingsPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'featured-sections'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'curation', 'all'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout', 'home'] });
       setSuccessMessage(`"${data.title}" has been added to the homepage!`);
       setTimeout(() => setSuccessMessage(null), 5000);
     },

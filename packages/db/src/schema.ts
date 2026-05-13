@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, integer, text, timestamp, jsonb, index, boolean, serial, bigint, uuid, pgEnum, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /**
  * User cache table - Cache user information from Neynar, ENS, etc.
@@ -306,17 +306,20 @@ export interface FavoriteData {
  */
 export const featuredListings = pgTable('featured_listings', {
   id: uuid('id').defaultRandom().primaryKey(),
-  listingId: text('listing_id').notNull().unique(), // On-chain listing ID
+  listingId: text('listing_id').notNull(),
+  chainId: integer('chain_id').notNull().default(8453),
   displayOrder: integer('display_order').notNull().default(0), // For manual ordering
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   displayOrderIdx: index('featured_listings_display_order_idx').on(table.displayOrder),
+  listingChainUnique: uniqueIndex('featured_listings_listing_id_chain_id_unique').on(table.listingId, table.chainId),
 }));
 
 export interface FeaturedListingData {
   id: string;
   listingId: string;
+  chainId: number;
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -419,12 +422,15 @@ export const homepageLayoutSections = pgTable('homepage_layout_sections', {
   config: jsonb('config'), // Section-specific configuration
   displayOrder: integer('display_order').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
+  /** 'home' | 'market' — which surface consumes this layout row */
+  surface: text('surface').notNull().default('home'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   displayOrderIdx: index('homepage_layout_sections_display_order_idx').on(table.displayOrder),
   isActiveIdx: index('homepage_layout_sections_is_active_idx').on(table.isActive),
   sectionTypeIdx: index('homepage_layout_sections_type_idx').on(table.sectionType),
+  surfaceDisplayOrderIdx: index('homepage_layout_sections_surface_display_order_idx').on(table.surface, table.displayOrder),
 }));
 
 export interface HomepageLayoutSectionData {
@@ -438,12 +444,17 @@ export interface HomepageLayoutSectionData {
     | 'collector'
     | 'listing'
     | 'featured_carousel'
-    | 'custom_section';
+    | 'custom_section'
+    | 'recent_listings'
+    | 'ending_soon'
+    | 'awaiting_bids'
+    | 'recent_galleries';
   title?: string | null;
   description?: string | null;
   config?: Record<string, any> | null;
   displayOrder: number;
   isActive: boolean;
+  surface: string;
   createdAt: Date;
   updatedAt: Date;
 }

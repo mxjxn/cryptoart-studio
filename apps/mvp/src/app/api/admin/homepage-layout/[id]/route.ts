@@ -11,7 +11,11 @@ type SectionType =
   | 'collector'
   | 'listing'
   | 'featured_carousel'
-  | 'custom_section';
+  | 'custom_section'
+  | 'recent_listings'
+  | 'ending_soon'
+  | 'awaiting_bids'
+  | 'recent_galleries';
 
 function validateConfig(sectionType: SectionType, config: any): { valid: boolean; error?: string } {
   if (!config) return { valid: true };
@@ -114,6 +118,10 @@ function validateType(value: string): value is SectionType {
     'listing',
     'featured_carousel',
     'custom_section',
+    'recent_listings',
+    'ending_soon',
+    'awaiting_bids',
+    'recent_galleries',
   ].includes(value as SectionType);
 }
 
