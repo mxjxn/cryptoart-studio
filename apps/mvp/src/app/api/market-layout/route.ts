@@ -3,7 +3,7 @@ import { resolveMarketSections } from "~/lib/server/homepage-layout";
 import { withTimeout } from "~/lib/utils";
 import { getDatabase, marketLayoutSnapshots } from '@cryptoart/db';
 
-const SNAPSHOT_TTL_MS = 2 * 60_000; // 2 minutes
+const SNAPSHOT_TTL_MS = 20 * 60_000; // 20 minutes
 
 export const maxDuration = 30;
 
