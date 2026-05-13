@@ -1,3 +1,5 @@
+'use client';
+
 import dynamic from 'next/dynamic';
 
 // Client-side wrapper to avoid server-side blocking on subgraph or enrichment
