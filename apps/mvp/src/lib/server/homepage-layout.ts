@@ -110,16 +110,31 @@ export async function resolveLayoutSections(
   includeInactive = false
 ): Promise<HomepageSection[]> {
   const sections = await getLayoutSections(surface, includeInactive);
+  const started = Date.now();
   const resolved = await Promise.all(
     sections.map(async (section) => {
       const config = (section as any)?.config as Record<string, any> | null | undefined;
-      const listings = await resolveSectionListings(section.sectionType as SectionType, config);
-      return {
-        ...section,
-        listings,
-      } as HomepageSection;
+      const secStart = Date.now();
+      try {
+        const listings = await resolveSectionListings(section.sectionType as SectionType, config);
+        const secElapsed = Date.now() - secStart;
+        console.log(`[Homepage] Resolved section id=${section.id} type=${section.sectionType} surface=${section.surface} count=${(listings || []).length} in ${secElapsed}ms`);
+        return {
+          ...section,
+          listings,
+        } as HomepageSection;
+      } catch (e) {
+        const secElapsed = Date.now() - secStart;
+        console.error(`[Homepage] Error resolving section id=${section.id} type=${section.sectionType} surface=${section.surface} after ${secElapsed}ms`, e);
+        return {
+          ...section,
+          listings: [],
+        } as HomepageSection;
+      }
     })
   );
+  const elapsed = Date.now() - started;
+  console.log(`[Homepage] Resolved ${resolved.length} layout sections for surface=${surface} in ${elapsed}ms`);
 
   // Return all sections, even if they have no listings
   // This allows admins to see their configured sections on the homepage
@@ -1141,4 +1156,3 @@ export const getRedesignTieredSections = unstable_cache(
     tags: ["redesign-tiered-sections"],
   }
 );
-
