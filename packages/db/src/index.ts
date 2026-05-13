@@ -38,6 +38,7 @@ export {
   listingMediaPreview,
   listingSellerTheme,
   listingThemeOverride,
+  marketLayoutSnapshots,
 } from './client';
 export type { 
   UserCacheData, 
@@ -76,6 +77,7 @@ export type {
   ListingMediaPreviewData,
   ListingSellerThemeRow,
   ListingThemeOverrideRow,
+  MarketLayoutSnapshotData,
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

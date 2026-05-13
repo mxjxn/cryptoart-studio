@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, marketLayoutSnapshots } from '@cryptoart/db';
+import { getDatabase, marketLayoutSnapshots, eq } from '@cryptoart/db';
 import { resolveMarketSections } from '~/lib/server/homepage-layout';
 
-/**
- * GET /api/cron/refresh-market-layout
- * Triggered by Vercel cron to refresh the cached market layout snapshot.
- * Protected by CRON_SECRET header (Bearer token) or environment CRON_SECRET.
- */
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -17,18 +12,17 @@ export async function GET(req: NextRequest) {
     const db = getDatabase();
     const sections = await resolveMarketSections(false);
 
-    // Upsert snapshot for 'market'
     const [existing] = await db
       .select()
       .from(marketLayoutSnapshots)
-      .where(marketLayoutSnapshots.surface.equals('market'))
+      .where(eq(marketLayoutSnapshots.surface, 'market'))
       .limit(1);
 
     if (existing) {
       await db
         .update(marketLayoutSnapshots)
         .set({ payload: { sections }, updatedAt: new Date() })
-        .where(marketLayoutSnapshots.id.equals(existing.id));
+        .where(eq(marketLayoutSnapshots.id, existing.id));
     } else {
       await db.insert(marketLayoutSnapshots).values({ surface: 'market', payload: { sections } });
     }
