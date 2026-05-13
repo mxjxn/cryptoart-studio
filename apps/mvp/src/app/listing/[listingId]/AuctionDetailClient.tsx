@@ -1,13 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
-import { mainnet } from "wagmi/chains";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useAuction, AUCTION_FETCH_TIMEOUT } from "~/hooks/useAuction";
-import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
+import { type Address } from "viem";
+import { useAuctionDetail } from "~/hooks/useAuctionDetail";
 import { useArtistName } from "~/hooks/useArtistName";
-import { useContractName } from "~/hooks/useContractName";
 import { useUsername } from "~/hooks/useUsername";
 import { ShareButton } from "~/components/ShareButton";
 import { LinkShareButton } from "~/components/LinkShareButton";
@@ -20,27 +15,6 @@ import { ImageOverlay } from "~/components/ImageOverlay";
 import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
 import { MediaDisplay } from "~/components/media";
 import { getMediaType, getMediaTypeFromFormat } from "~/lib/media-utils";
-import { useAuthMode } from "~/hooks/useAuthMode";
-import { useMembershipStatus } from "~/hooks/useMembershipStatus";
-import { useIsAdmin } from "~/hooks/useIsAdmin";
-import { useOffers } from "~/hooks/useOffers";
-import { useNetworkGuard } from "~/hooks/useNetworkGuard";
-import { useMiniApp } from "@neynar/react";
-import { sdk } from "@farcaster/miniapp-sdk";
-import { type Address, isAddress } from "viem";
-import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
-import {
-  MARKETPLACE_ADDRESS,
-  MARKETPLACE_ABI,
-  CHAIN_ID,
-  PURCHASE_ABI_NO_REFERRER,
-  PURCHASE_ABI_WITH_REFERRER,
-  ETHEREUM_MAINNET_MARKETPLACE_ADDRESS,
-} from "~/lib/contracts/marketplace";
-import { BASE_CHAIN_ID, ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
-import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
-import { generateListingShareText } from "~/lib/share-text";
-import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
 import { UpdateListingForm } from "~/components/UpdateListingForm";
 import { Fix180DayDurationForm } from "~/components/Fix180DayDurationForm";
 import { TokenImage } from "~/components/TokenImage";
@@ -48,50 +22,13 @@ import { AdminContextMenu } from "~/components/AdminContextMenu";
 import { MetadataViewer } from "~/components/MetadataViewer";
 import { ContractDetails } from "~/components/ContractDetails";
 import { BuyersList } from "~/components/BuyersList";
-import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
-import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { ListingThemeEditor } from "~/components/ListingThemeEditor";
-import {
-  DEFAULT_LISTING_THEME,
-  composeLinearGradientCss,
-  composeListingThemeCursorCss,
-  listingThemeTypographyClasses,
-  type ListingThemeData,
-} from "~/lib/listing-theme";
-import { pickDisplayTitle } from "~/lib/metadata-display";
-import { getChainNetworkInfo } from "~/lib/chain-display";
 import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
-
-// ERC20 ABI for approval functions
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "approve",
-    inputs: [
-      { name: "spender", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "allowance",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "spender", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-] as const;
+import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
+import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
 
 interface AuctionDetailClientProps {
   listingId: string;
-  /**
-   * When set (e.g. `1` for `/listing/eth/…`), auction API, marketplace reads/writes,
-   * ERC20 hooks, and chain switch prompts use this chain.
-   */
   listingApiChainId?: number;
 }
 
@@ -99,1649 +36,141 @@ export default function AuctionDetailClient({
   listingId,
   listingApiChainId,
 }: AuctionDetailClientProps) {
-  const isExplicitEthereumListing = listingApiChainId === ETHEREUM_MAINNET_CHAIN_ID;
-  const marketplaceReadAddress = isExplicitEthereumListing
-    ? ETHEREUM_MAINNET_MARKETPLACE_ADDRESS
-    : MARKETPLACE_ADDRESS;
-  const marketplaceReadChainId = isExplicitEthereumListing ? mainnet.id : CHAIN_ID;
-  // Use effective address: in miniapp uses Farcaster primary wallet, on web uses wagmi connector
-  const { address, isConnected } = useEffectiveAddress();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { isSDKLoaded, actions, context } = useMiniApp();
-  const { isMiniApp } = useAuthMode();
-  const chainId = useChainId();
-  const { switchToRequiredChain } = useNetworkGuard({
-    requiredChainId: marketplaceReadChainId,
-  });
-  const { hideOverlay } = useLoadingOverlay();
-  const { isPro } = useMembershipStatus();
-  const { isAdmin } = useIsAdmin();
-  const isMember = isPro;
-  const canEditListingTheme = isMember || isAdmin;
-  const { verifiedWalletAddresses } = useHasNFTAccess(STP_V2_CONTRACT_ADDRESS);
-
-  const [listingPageTheme, setListingPageTheme] =
-    useState<ListingThemeData>(DEFAULT_LISTING_THEME);
-
-  // Check if mini-app is installed using context.client.added from Farcaster SDK
-  const isMiniAppInstalled = context?.client?.added ?? false;
-  // Use cached auction API by default; `?refresh=1` on first load was bypassing unstable_cache
-  // and stacking with page-status + metadata work, which made listing pages very slow.
   const {
+    pageState,
     auction,
-    loading,
-    error: auctionFetchError,
-    ambiguousChains,
-    refetch: refetchAuction,
-    updateAuction,
-  } = useAuction(listingId, { chainId: listingApiChainId });
-
-  /** Must run before any early return (Rules of Hooks). */
-  const listingImageOverlayFallbackSrcs = useMemo(() => {
-    if (!auction) return [];
-    const fullscreen =
-      auction.detailThumbnailUrl ?? auction.image ?? auction.thumbnailUrl;
-    return [auction.thumbnailUrl, auction.detailThumbnailUrl].filter(
-      (u): u is string =>
-        typeof u === "string" &&
-        u.length > 0 &&
-        !!fullscreen &&
-        u !== fullscreen
-    );
-  }, [
-    auction?.listingId,
-    auction?.thumbnailUrl,
-    auction?.detailThumbnailUrl,
-    auction?.image,
-  ]);
-
-  useEffect(() => {
-    if (!auction?.listingId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/listing-theme?listingId=${encodeURIComponent(String(auction.listingId))}`,
-          { cache: "no-store", headers: { "Cache-Control": "no-cache" } }
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as { theme?: ListingThemeData };
-        if (cancelled || !data?.theme) return;
-        setListingPageTheme(data.theme);
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [auction?.listingId]);
-  
-  // Track page building status
-  const [pageStatus, setPageStatus] = useState<
-    "building" | "ready" | "not_found" | "error" | "ambiguous" | null
-  >(null);
-  const [pageStatusAmbiguousChains, setPageStatusAmbiguousChains] = useState<
-    number[] | null
-  >(null);
-  const pageStatusCheckInFlight = useRef(false);
-  const [buildingTimedOut, setBuildingTimedOut] = useState(false);
-  const BUILDING_TIMEOUT_MS = 12000;
-  /** One-shot: when page-status says ready but auction API still had a stale null, force refresh. */
-  const bustStaleReadyAuctionRef = useRef(false);
-  /** One-shot: cached payload missing title/media — bust with refresh=1 (indexer/metadata race). */
-  const incompleteEnrichmentRefetchDone = useRef(false);
-
-  useEffect(() => {
-    bustStaleReadyAuctionRef.current = false;
-    incompleteEnrichmentRefetchDone.current = false;
-  }, [listingId]);
-
-  useEffect(() => {
-    setPageStatusAmbiguousChains(null);
-  }, [listingId, listingApiChainId]);
-
-  // Poll for page status when listing is not found or page is building
-  useEffect(() => {
-    if (!listingId) return;
-    
-    let pollInterval: NodeJS.Timeout | null = null;
-    let isMounted = true;
-    
-    const checkPageStatus = async () => {
-      if (pageStatusCheckInFlight.current) return;
-      pageStatusCheckInFlight.current = true;
-
-      try {
-        const ps =
-          listingApiChainId != null
-            ? `?chainId=${encodeURIComponent(String(listingApiChainId))}`
-            : "";
-        const response = await fetch(`/api/listings/${listingId}/page-status${ps}`, {
-          signal: AbortSignal.timeout(5000), // 5 second timeout
-        });
-        if (!response.ok) {
-          // Don't throw error - just log it and continue
-          console.warn('Page status check failed:', response.status, response.statusText);
-          if (isMounted) {
-            // If we don't have a status yet, assume building
-            if (pageStatus === null) {
-              setPageStatus('building');
-            }
-          }
-          return;
-        }
-        const data = await response.json();
-
-        if (isMounted) {
-          if (data.status === "ambiguous") {
-            const raw = Array.isArray(data.chains)
-              ? data.chains
-                  .map((x: unknown) =>
-                    typeof x === "number" ? x : parseInt(String(x), 10)
-                  )
-                  .filter((n: number) => Number.isFinite(n))
-              : [];
-            setPageStatusAmbiguousChains(
-              raw.length >= 2
-                ? raw
-                : [ETHEREUM_MAINNET_CHAIN_ID, BASE_CHAIN_ID]
-            );
-            setPageStatus("ambiguous");
-            if (pollInterval) {
-              clearInterval(pollInterval);
-              pollInterval = null;
-            }
-            return;
-          }
-
-          setPageStatusAmbiguousChains(null);
-          setPageStatus(data.status);
-
-          // If page is ready, stop polling
-          if (data.status === 'ready') {
-            if (pollInterval) {
-              clearInterval(pollInterval);
-              pollInterval = null;
-            }
-
-            // Refetch auction data now that page is ready
-            refetchAuction();
-            
-            // Send notification that page is ready (only if we're the seller and page just became ready)
-            // Check if readyAt was just set (within last 5 seconds) to avoid duplicate notifications
-            if (data.readyAt) {
-              const readyAt = new Date(data.readyAt);
-              const now = new Date();
-              const timeSinceReady = now.getTime() - readyAt.getTime();
-              
-              // Only send notification if page became ready in the last 5 seconds
-              if (timeSinceReady < 5000 && timeSinceReady >= 0) {
-                const sellerAddr = data.sellerAddress || auction?.seller;
-                if (sellerAddr && address && sellerAddr.toLowerCase() === address.toLowerCase()) {
-                  fetch('/api/notifications', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      userAddress: address,
-                      type: 'LISTING_CREATED',
-                      title: 'Listing Page Ready',
-                      message: `Your listing page is now ready to view!`,
-                      listingId: listingId,
-                      metadata: {
-                        pageReady: true,
-                      },
-                    }),
-                  }).catch(err => {
-                    console.error('Error creating page ready notification:', err);
-                  });
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        // Don't let page status errors cause redirects - just log and continue
-        console.error('Error checking page status:', error);
-        if (isMounted) {
-          // If we don't have a status yet, assume building
-          if (pageStatus === null) {
-            setPageStatus('building');
-          }
-        }
-      } finally {
-        if (isMounted) {
-          pageStatusCheckInFlight.current = false;
-        }
-      }
-    };
-    
-    // Initial check
-    checkPageStatus();
-    
-    // Poll every 3 seconds if status is building or if auction is not found
-    if (
-      pageStatus !== "not_found" &&
-      pageStatus !== "ambiguous" &&
-      (pageStatus === "building" || (!auction && !loading))
-    ) {
-      pollInterval = setInterval(checkPageStatus, 3000);
-    }
-    
-    return () => {
-      isMounted = false;
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-    };
-  }, [listingId, listingApiChainId, pageStatus, auction, loading, address]);
-
-  // Page-status can flip to `ready` (subgraph-only) before `/api/auctions` clears a cached
-  // negative entry. One forced refetch avoids flashing "indexed but details could not be loaded".
-  useEffect(() => {
-    if (pageStatus === "ambiguous") return;
-    if (pageStatus !== "ready" && pageStatus !== "error") return;
-    if (loading || auction || auctionFetchError) return;
-    if (bustStaleReadyAuctionRef.current) return;
-    bustStaleReadyAuctionRef.current = true;
-    void refetchAuction(true);
-  }, [pageStatus, auction, loading, auctionFetchError, refetchAuction]);
-
-  useEffect(() => {
-    if (!auction || auction.status !== "ACTIVE") return;
-    const anim =
-      auction.metadata?.animation_url ||
-      (auction.metadata as { animationUrl?: string } | undefined)?.animationUrl;
-    const hasDisplayMedia = !!(
-      auction.detailThumbnailUrl ||
-      auction.thumbnailUrl ||
-      auction.image ||
-      anim
-    );
-    const hasTitle = !!(
-      (typeof auction.title === "string" && auction.title.trim()) ||
-      pickDisplayTitle(auction.metadata)
-    );
-    if (hasDisplayMedia && hasTitle) return;
-    if (incompleteEnrichmentRefetchDone.current) return;
-    incompleteEnrichmentRefetchDone.current = true;
-    void refetchAuction(true);
-  }, [auction, refetchAuction]);
-
-  // If build status stays unresolved for too long, stop blocking the page forever.
-  useEffect(() => {
-    if ((pageStatus === 'building' || pageStatus === null) && !auction) {
-      setBuildingTimedOut(false);
-      const timeout = setTimeout(() => {
-        setBuildingTimedOut(true);
-      }, BUILDING_TIMEOUT_MS);
-      return () => clearTimeout(timeout);
-    }
-    setBuildingTimedOut(false);
-  }, [pageStatus, auction, listingId]);
-
-  // Clear transition overlay once auction payload is ready (page-status can lag or disagree with API).
-  useEffect(() => {
-    if (!loading && auction) {
-      const timer = setTimeout(() => {
-        hideOverlay();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, auction, hideOverlay]);
-  const { offers, activeOffers, isLoading: offersLoading, refetch: refetchOffers } = useOffers(
-    listingId,
-    { chainId: listingApiChainId }
-  );
-  const [bidAmount, setBidAmount] = useState("");
-  const [offerAmount, setOfferAmount] = useState("");
-  const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
-  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
-  const [showUpdateForm, setShowUpdateForm] = useState(false);
-  const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
-  
-  // Track last processed bid hash to prevent duplicate processing
-  const lastProcessedBidHash = useRef<string | null>(null);
-  
-  // Cancel listing transaction
-  const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
-  const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
-    hash: cancelHash,
-    chainId: marketplaceReadChainId,
-  });
-  
-  // Finalize auction transaction
-  const { writeContract: finalizeAuction, data: finalizeHash, isPending: isFinalizing, error: finalizeError } = useWriteContract();
-  const { isLoading: isConfirmingFinalize, isSuccess: isFinalizeConfirmed } = useWaitForTransactionReceipt({
-    hash: finalizeHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // Modify listing transaction
-  const { writeContract: modifyListing, data: modifyHash, isPending: isModifying, error: modifyError } = useWriteContract();
-  const { isLoading: isConfirmingModify, isSuccess: isModifyConfirmed } = useWaitForTransactionReceipt({
-    hash: modifyHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // Purchase transaction (for FIXED_PRICE)
-  const { writeContract: purchaseListing, data: purchaseHash, isPending: isPurchasing, error: purchaseError } = useWriteContract();
-  const { isLoading: isConfirmingPurchase, isSuccess: isPurchaseConfirmed } = useWaitForTransactionReceipt({
-    hash: purchaseHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // Offer transaction (for OFFERS_ONLY)
-  const { writeContract: makeOffer, data: offerHash, isPending: isOffering, error: offerError } = useWriteContract();
-  const { isLoading: isConfirmingOffer, isSuccess: isOfferConfirmed } = useWaitForTransactionReceipt({
-    hash: offerHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // Accept offer transaction (for sellers)
-  const { writeContract: acceptOffer, data: acceptHash, isPending: isAccepting, error: acceptError } = useWriteContract();
-  const { isLoading: isConfirmingAccept, isSuccess: isAcceptConfirmed } = useWaitForTransactionReceipt({
-    hash: acceptHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // Bid transaction (for INDIVIDUAL_AUCTION)
-  const { writeContract: placeBid, data: bidHash, isPending: isBidding, error: bidError } = useWriteContract();
-  const { isLoading: isConfirmingBid, isSuccess: isBidConfirmed } = useWaitForTransactionReceipt({
-    hash: bidHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // ERC20 approval transaction
-  const { writeContract: approveERC20, data: approveHash, isPending: isApproving, error: approveError } = useWriteContract();
-  const { isLoading: isConfirmingApprove, isSuccess: isApproveConfirmed } = useWaitForTransactionReceipt({
-    hash: approveHash,
-    chainId: marketplaceReadChainId,
-  });
-
-  // Resolve creator name from contract address (NFT creator, not auction seller)
-  // Pass null for address so it only looks up contract creator, not seller
-  const {
-    artistName: creatorName,
-    isLoading: creatorNameLoading,
-    creatorAddress,
-  } = useArtistName(
-    null, // Don't pass seller address - we want the contract creator, not seller
-    auction?.tokenAddress || undefined,
-    auction?.tokenId ? BigInt(auction.tokenId) : undefined,
-    typeof auction?.chainId === "number" ? auction.chainId : undefined
-  );
-
-  // Resolve seller name separately (for display in auction details)
-  const { artistName: sellerName, isLoading: sellerNameLoading } =
-    useArtistName(
-      auction?.seller || null,
-      undefined, // No contract address for seller lookup
-      undefined
-    );
-
-  // Resolve bidder name if there's a highest bid
-  const { artistName: bidderName, isLoading: bidderNameLoading } =
-    useArtistName(
-      auction?.highestBid?.bidder || null,
-      undefined, // No contract address for bidder lookup
-      undefined
-    );
-
-  // Fetch contract name
-  const { contractName, isLoading: contractNameLoading } = useContractName(
-    auction?.tokenAddress as Address | undefined,
-    typeof auction?.chainId === "number" ? auction.chainId : undefined
-  );
-
-  // Fetch ERC20 token info and user balance (only if not ETH and not own auction)
-  const isPaymentETH = isETH(auction?.erc20);
-  const erc20Token = useERC20Token(!isPaymentETH ? auction?.erc20 : undefined, {
-    chainId: marketplaceReadChainId,
-  });
-  const userBalance = useERC20Balance(auction?.erc20, address, {
-    chainId: marketplaceReadChainId,
-  });
-  
-  // Check ERC20 allowance (only for ERC20 payments)
-  const { data: erc20Allowance, refetch: refetchAllowance } = useReadContract({
-    address: !isPaymentETH && auction?.erc20 ? (auction.erc20 as Address) : undefined,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args:
-      address && !isPaymentETH && auction?.erc20
-        ? [address, marketplaceReadAddress]
-        : undefined,
-    chainId: marketplaceReadChainId,
-    query: {
-      enabled: !isPaymentETH && !!auction?.erc20 && !!address,
-    },
-  });
-  
-  // Determine token symbol and decimals for display
-  const paymentSymbol = isPaymentETH ? "ETH" : (erc20Token.symbol || "$TOKEN");
-  const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
-
-  // Get referrerBPS from contract to check if listing supports referrers
-  const { data: listingData } = useReadContract({
-    address: marketplaceReadAddress,
-    abi: MARKETPLACE_ABI,
-    chainId: marketplaceReadChainId,
-    functionName: "getListing",
-    args: [Number(listingId)],
-    query: {
-      enabled: !!listingId,
-    },
-  });
-  
-  // Extract referrerBPS from listing data
-  const referrerBPS = listingData ? (listingData as any).referrerBPS : undefined;
-
-  // Extract and validate referrer from URL
-  // Support both 'referralAddress' (new) and 'ref' (legacy) for backwards compatibility
-  const referrer = useMemo(() => {
-    const referralAddressParam = searchParams.get('referralAddress') || searchParams.get('ref');
-    if (!referralAddressParam) {
-      return null;
-    }
-    
-    // Validate that it's a valid Ethereum address
-    if (!isAddress(referralAddressParam)) {
-      console.warn('Invalid referrer address in URL:', referralAddressParam);
-      return null;
-    }
-    
-    // Only use referrer if listing supports referrers (referrerBPS > 0)
-    if (referrerBPS && referrerBPS > 0) {
-      return referralAddressParam.toLowerCase() as Address;
-    }
-    
-    return null;
-  }, [searchParams, referrerBPS]);
-
-  // Helper function to convert token address to CAIP-19 format
-  const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
-    if (!tokenAddress || isETH(tokenAddress)) return undefined;
-    return `eip155:${listingApiChainId ?? CHAIN_ID}/erc20:${tokenAddress}`;
-  };
-
-  // Prefill amount for swap (only for fixed-price listings)
-  const getSwapPrefillAmount = () => {
-    if (!auction) return undefined;
-    if (auction.listingType !== "FIXED_PRICE") return undefined;
-    try {
-      const price = auction.currentPrice || auction.initialAmount || "0";
-      return (BigInt(price) * BigInt(purchaseQuantity)).toString();
-    } catch {
-      return undefined;
-    }
-  };
-
-  // Swap button handler for miniapp context
-  const handleSwapBuyToken = async () => {
-    if (!isMiniApp || !isSDKLoaded || !auction?.erc20 || isPaymentETH) return;
-    try {
-      const buyToken = getCAIP19TokenId(auction.erc20);
-      if (!buyToken) return;
-
-      const sellAmount = getSwapPrefillAmount();
-      await sdk.actions.swapToken({
-        buyToken,
-        sellAmount,
-      });
-    } catch (error) {
-      console.error("Error opening swap:", error);
-    }
-  };
-  
-  // Format price for display with commas
-  const formatPrice = (amount: string): string => {
-    const value = BigInt(amount || "0");
-    const divisor = BigInt(10 ** paymentDecimals);
-    const wholePart = value / divisor;
-    const fractionalPart = value % divisor;
-    
-    // Format whole part with commas
-    const wholePartFormatted = wholePart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    
-    if (fractionalPart === BigInt(0)) {
-      return wholePartFormatted;
-    }
-    
-    let fractionalStr = fractionalPart.toString().padStart(paymentDecimals, "0");
-    fractionalStr = fractionalStr.replace(/0+$/, "");
-    if (fractionalStr.length > 6) {
-      fractionalStr = fractionalStr.slice(0, 6);
-    }
-    
-    return `${wholePartFormatted}.${fractionalStr}`;
-  };
-
-  // Calculate minimum bid amount
-  const calculateMinBid = useMemo(() => {
-    if (!auction) return BigInt(0);
-    
-    if (!auction.highestBid) {
-      // No existing bid - minimum is the initial amount
-      return BigInt(auction.initialAmount);
-    } else {
-      // There's an existing bid - need to add increment
-      const currentPrice = BigInt(auction.highestBid.amount);
-      const minIncrementBPS = 500; // Default 5% increment
-      return currentPrice + (currentPrice * BigInt(minIncrementBPS)) / BigInt(10000);
-    }
-  }, [auction]);
-
-  // Pre-fill bid amount with minimum bid when auction data is available
-  useEffect(() => {
-    if (auction && calculateMinBid > BigInt(0) && !bidAmount) {
-      // Format the minimum bid inline to avoid dependency issues
-      const value = calculateMinBid;
-      const divisor = BigInt(10 ** paymentDecimals);
-      const wholePart = value / divisor;
-      const fractionalPart = value % divisor;
-      
-      let minBidFormatted: string;
-      if (fractionalPart === BigInt(0)) {
-        minBidFormatted = wholePart.toString();
-      } else {
-        let fractionalStr = fractionalPart.toString().padStart(paymentDecimals, "0");
-        fractionalStr = fractionalStr.replace(/0+$/, "");
-        if (fractionalStr.length > 6) {
-          fractionalStr = fractionalStr.slice(0, 6);
-        }
-        minBidFormatted = `${wholePart}.${fractionalStr}`;
-      }
-      setBidAmount(minBidFormatted);
-    }
-  }, [auction, calculateMinBid, bidAmount, paymentDecimals]);
-
-  const handleBid = async () => {
-    if (!isConnected || !bidAmount || !auction || !address) {
-      return;
-    }
-
-    try {
-      // Parse bid amount using the correct decimals for the payment token
-      // Use a more precise parsing method to avoid floating point issues
-      const bidAmountBigInt = (() => {
-        const parts = bidAmount.split('.');
-        const wholePart = BigInt(parts[0] || '0');
-        const fractionalPart = parts[1] ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals)) : BigInt(0);
-        return wholePart * BigInt(10 ** paymentDecimals) + fractionalPart;
-      })();
-      
-      // Use the calculated minimum bid
-      const minBid = calculateMinBid;
-      
-      // Allow bids that are exactly equal to or greater than the minimum
-      if (bidAmountBigInt < minBid) {
-        alert(`Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`);
-        return;
-      }
-      
-      // For ERC20 payments, check and handle approval
-      if (!isPaymentETH && auction.erc20) {
-        const tokenAddress = auction.erc20 as Address;
-        const currentAllowance = erc20Allowance as bigint | undefined;
-        
-        // Check if approval is needed
-        if (!currentAllowance || currentAllowance < bidAmountBigInt) {
-          // Approve the marketplace to spend the tokens
-          await approveERC20({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, bidAmountBigInt],
-          });
-          // Wait for approval to be confirmed before proceeding
-          return;
-        }
-      }
-      
-      // Use increase=false to bid the exact amount sent
-      // Pass referrer if available and listing supports referrers
-      if (referrer) {
-        await placeBid({
-          address: marketplaceReadAddress,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: marketplaceReadChainId,
-          args: [referrer, Number(listingId), false] as const,
-          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-        });
-      } else {
-        await placeBid({
-          address: marketplaceReadAddress,
-          abi: MARKETPLACE_ABI,
-          functionName: 'bid',
-          chainId: marketplaceReadChainId,
-          args: [Number(listingId), false] as const,
-          value: isPaymentETH ? bidAmountBigInt : BigInt(0),
-        });
-      }
-    } catch (err) {
-      console.error("Error placing bid:", err);
-      alert("Failed to place bid. Please try again.");
-    }
-  };
-
-  const handlePurchase = async () => {
-    if (!isConnected || !auction || !address) {
-      return;
-    }
-
-    try {
-      const price = auction.currentPrice || auction.initialAmount;
-      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-      
-      // For ERC20 payments, check and handle approval
-      if (!isPaymentETH && auction.erc20) {
-        const tokenAddress = auction.erc20 as Address;
-        const currentAllowance = erc20Allowance as bigint | undefined;
-        
-        // Check if approval is needed
-        if (!currentAllowance || currentAllowance < totalPrice) {
-          // Set flag to auto-purchase after approval
-          setPendingPurchaseAfterApproval(true);
-          // Approve the marketplace to spend the tokens
-          await approveERC20({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, totalPrice],
-          });
-          // Wait for approval to be confirmed before proceeding
-          return;
-        }
-      }
-
-      const purchaseValue = isPaymentETH ? totalPrice : BigInt(0);
-
-      // Log purchase attempt for debugging
-      console.log('[Purchase] Executing purchase:', {
-        listingId: Number(listingId),
-        purchaseQuantity,
-        purchaseValue: purchaseValue.toString(),
-        totalPrice: totalPrice.toString(),
-        isPaymentETH,
-        auctionData: {
-          listingType: auction.listingType,
-          tokenSpec: auction.tokenSpec,
-          totalAvailable: auction.totalAvailable,
-          totalSold: auction.totalSold,
-          totalPerSale: auction.totalPerSale,
-        },
-      });
-
-      // Purchase with correct value (0 for ERC20, totalPrice for ETH)
-      // Use referrer if available and listing supports referrers
-      if (referrer) {
-        await purchaseListing({
-          address: marketplaceReadAddress,
-          abi: PURCHASE_ABI_WITH_REFERRER,
-          functionName: 'purchase',
-          chainId: marketplaceReadChainId,
-          args: [referrer, Number(listingId), purchaseQuantity],
-          value: purchaseValue,
-        });
-      } else {
-        await purchaseListing({
-          address: marketplaceReadAddress,
-          abi: PURCHASE_ABI_NO_REFERRER,
-          functionName: 'purchase',
-          chainId: marketplaceReadChainId,
-          args: [Number(listingId), purchaseQuantity],
-          value: purchaseValue,
-        });
-      }
-    } catch (err) {
-      console.error("Error purchasing:", err);
-    }
-  };
-
-  // After approval is confirmed, refetch allowance and proceed with pending purchase if needed
-  useEffect(() => {
-    if (isApproveConfirmed && pendingPurchaseAfterApproval && !isPaymentETH && auction && address) {
-      let timer: NodeJS.Timeout | null = null;
-      
-      // Refetch allowance to ensure it's updated
-      refetchAllowance().then(() => {
-        // Small delay to ensure allowance is updated
-        timer = setTimeout(() => {
-          try {
-            const price = auction.currentPrice || auction.initialAmount;
-            const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-            
-            console.log('[Purchase] Executing post-approval purchase:', {
-              listingId: Number(listingId),
-              purchaseQuantity,
-              totalPrice: totalPrice.toString(),
-            });
-            
-            // Use referrer if available and listing supports referrers
-            if (referrer) {
-              purchaseListing({
-                address: marketplaceReadAddress,
-                abi: PURCHASE_ABI_WITH_REFERRER,
-                functionName: 'purchase',
-                chainId: marketplaceReadChainId,
-                args: [referrer, Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            } else {
-              purchaseListing({
-                address: marketplaceReadAddress,
-                abi: PURCHASE_ABI_NO_REFERRER,
-                functionName: 'purchase',
-                chainId: marketplaceReadChainId,
-                args: [Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            }
-            
-            setPendingPurchaseAfterApproval(false);
-          } catch (err) {
-            console.error("Error purchasing after approval:", err);
-            setPendingPurchaseAfterApproval(false);
-          }
-        }, 1000);
-      });
-      
-      return () => {
-        if (timer) clearTimeout(timer);
-      };
-    }
-  }, [
-    isApproveConfirmed,
-    pendingPurchaseAfterApproval,
-    isPaymentETH,
-    auction,
+    mergedAmbiguousChains,
+    listingBgGradient,
+    listingPageTheme,
+    listingTypo,
+    listingShellStyle,
     address,
-    purchaseQuantity,
-    listingId,
-    refetchAllowance,
-    purchaseListing,
-    referrer,
+    isConnected,
+    isMiniApp,
+    isMiniAppInstalled,
+    isSDKLoaded,
+    canEditListingTheme,
+    verifiedWalletAddresses,
+    isListingSeller,
     marketplaceReadChainId,
-    marketplaceReadAddress,
-  ]);
-
-  const handleMakeOffer = async () => {
-    if (!isConnected || !offerAmount || !auction || !address) {
-      return;
-    }
-
-    try {
-      // Parse offer amount using the correct decimals for the payment token
-      const offerAmountBigInt = BigInt(Math.floor(parseFloat(offerAmount) * 10 ** paymentDecimals));
-      
-      // For ERC20 payments, check and handle approval
-      if (!isPaymentETH && auction.erc20) {
-        const tokenAddress = auction.erc20 as Address;
-        const currentAllowance = erc20Allowance as bigint | undefined;
-        
-        // Check if approval is needed
-        if (!currentAllowance || currentAllowance < offerAmountBigInt) {
-          // Approve the marketplace to spend the tokens
-          await approveERC20({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, offerAmountBigInt],
-          });
-          // Wait for approval to be confirmed before proceeding
-          return;
-        }
-      }
-
-      // Make offer with correct value (0 for ERC20, offerAmountBigInt for ETH)
-      await makeOffer({
-        address: marketplaceReadAddress,
-        abi: MARKETPLACE_ABI,
-        functionName: 'offer',
-        chainId: marketplaceReadChainId,
-        args: [Number(listingId), false],
-        value: isPaymentETH ? offerAmountBigInt : BigInt(0),
-      });
-    } catch (err) {
-      console.error("Error making offer:", err);
-    }
-  };
-
-  const handleAcceptOffer = async (offererAddress: string, offerAmount: string) => {
-    if (!isConnected || !auction) {
-      return;
-    }
-
-    try {
-      const offerAmountBigInt = BigInt(offerAmount);
-      
-      await acceptOffer({
-        address: marketplaceReadAddress,
-        abi: MARKETPLACE_ABI,
-        functionName: 'accept',
-        chainId: marketplaceReadChainId,
-        args: [
-          Number(listingId),
-          [offererAddress as Address],
-          [offerAmountBigInt],
-          offerAmountBigInt, // maxAmount
-        ],
-      });
-    } catch (err) {
-      console.error("Error accepting offer:", err);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!isConnected || !auction) {
-      return;
-    }
-    
-    // Ensure chainId is available before making the call
-    if (!chainId) {
-      console.error("Chain ID not available");
-      setShowChainSwitchPrompt(true);
-      return;
-    }
-    
-    try {
-      await cancelListing({
-        address: marketplaceReadAddress,
-        abi: MARKETPLACE_ABI,
-        functionName: 'cancel',
-        chainId: marketplaceReadChainId, // Explicitly pass chainId to avoid getChainId errors
-        args: [Number(listingId), 0], // holdbackBPS = 0 as per requirements
-      });
-    } catch (err: any) {
-      console.error("Error cancelling listing:", err);
-      const errorMessage = err?.message || String(err);
-      // Handle getChainId errors
-      if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
-        console.error('[AuctionDetail] Chain ID error in cancel, showing switch prompt:', err);
-        setShowChainSwitchPrompt(true);
-        if (!isMiniApp) {
-          try {
-            switchToRequiredChain();
-          } catch (switchErr) {
-            console.error('[AuctionDetail] Error switching chain:', switchErr);
-          }
-        }
-      }
-    }
-  };
-
-  const handleFinalize = async () => {
-    if (!isConnected || !auction) {
-      return;
-    }
-    
-    try {
-      await finalizeAuction({
-        address: marketplaceReadAddress,
-        abi: MARKETPLACE_ABI,
-        functionName: 'finalize',
-        chainId: marketplaceReadChainId,
-        args: [Number(listingId)],
-      });
-    } catch (err: any) {
-      console.error("Error finalizing auction:", err);
-    }
-  };
-
-  const handleFix180DayDuration = async (durationSeconds: number) => {
-    if (!isConnected || !auction) {
-      return;
-    }
-
-    try {
-      // Use current initialAmount (don't change it)
-      const initialAmount = BigInt(auction.initialAmount || "0");
-      
-      // For startTime=0 auctions, endTime must be a duration in seconds
-      const startTime48 = 0; // Keep startTime as 0 (start on first bid)
-      const endTime48 = durationSeconds; // Duration in seconds
-
-      await modifyListing({
-        address: marketplaceReadAddress,
-        abi: MARKETPLACE_ABI,
-        functionName: 'modifyListing',
-        chainId: marketplaceReadChainId,
-        args: [
-          Number(listingId),
-          initialAmount,
-          startTime48,
-          endTime48,
-        ],
-      });
-    } catch (error: any) {
-      console.error('[Fix180DayDuration] Error updating listing:', error);
-      alert(`Failed to fix duration: ${error.message || 'Unknown error'}`);
-    }
-  };
-
-  const handleUpdateListing = async (startTime: number | null, endTime: number | null) => {
-    if (!isConnected || !auction) {
-      return;
-    }
-
-    try {
-      // Use current initialAmount (don't change it)
-      const initialAmount = BigInt(auction.initialAmount || "0");
-      
-      // Convert to number for timestamps (null becomes 0)
-      // uint48 can be represented as a number (safe up to 2^53-1, but uint48 max is 2^48-1)
-      const startTime48 = startTime || 0;
-      let endTime48 = endTime || 0;
-      
-      // CRITICAL FIX: When startTime=0, endTime must be a DURATION, not an absolute timestamp!
-      // If endTime is provided as an absolute timestamp when startTime=0, convert it to duration
-      const now = Math.floor(Date.now() / 1000);
-      const SAFE_DURATION_6_MONTHS = 15552000; // 6 months in seconds (180 days)
-      
-      if (startTime48 === 0 && endTime48 > 0) {
-        // Check if endTime looks like an absolute timestamp (> year 2000)
-        // If it's > now but < now + 6 months, it's likely an absolute timestamp
-        if (endTime48 > 946684800 && endTime48 > now && endTime48 < now + SAFE_DURATION_6_MONTHS) {
-          // This is an absolute timestamp, convert to duration
-          endTime48 = Math.max(0, endTime48 - now);
-          
-          // Safety check: cap at 6 months
-          if (endTime48 > SAFE_DURATION_6_MONTHS) {
-            console.warn(`[UpdateListing] Duration calculated (${endTime48}s) exceeds safe limit. Capping to ${SAFE_DURATION_6_MONTHS}s (6 months)`);
-            endTime48 = SAFE_DURATION_6_MONTHS;
-          }
-          
-          console.log(`[UpdateListing] startTime=0: Converting absolute timestamp to duration ${endTime48}s (${Math.floor(endTime48 / 86400)} days)`);
-        }
-      }
-
-      await modifyListing({
-        address: marketplaceReadAddress,
-        abi: MARKETPLACE_ABI,
-        functionName: 'modifyListing',
-        chainId: marketplaceReadChainId,
-        args: [
-          Number(listingId),
-          initialAmount,
-          startTime48,
-          endTime48,
-        ],
-      });
-    } catch (err) {
-      console.error("Error updating listing:", err);
-      alert("Failed to update listing. Please try again.");
-    }
-  };
-
-  // Handle getChainId errors from all transactions
-  useEffect(() => {
-    const errors = [cancelError, finalizeError, modifyError, purchaseError, offerError, acceptError, bidError, approveError];
-    for (const error of errors) {
-      if (error) {
-        const errorMessage = error.message || String(error);
-        if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
-          console.error('[AuctionDetail] Chain ID error detected, showing switch prompt:', error);
-          setShowChainSwitchPrompt(true);
-          if (!isMiniApp) {
-            try {
-              switchToRequiredChain();
-            } catch (switchErr) {
-              console.error('[AuctionDetail] Error switching chain:', switchErr);
-            }
-          }
-          break;
-        }
-      }
-    }
-  }, [
+    title,
+    currentPrice,
+    listingHeroImageUrl,
+    listingFullscreenImageUrl,
+    listingImageOverlayFallbackSrcs,
+    listingChainInfo,
+    chainScopeMismatch,
+    shareText,
+    displayCreatorName,
+    displayCreatorAddress,
+    creatorUsername,
+    sellerUsername,
+    bidderUsername,
+    sellerName,
+    bidderName,
+    contractName,
+    now,
+    startTime,
+    endTime,
+    actualEndTime,
+    effectiveEndTime,
+    hasBid,
+    hasStarted,
+    auctionHasStarted,
+    isEnded,
+    isActive,
+    effectiveEnded,
+    isCancelled,
+    showControls,
+    isOwnAuction,
+    isWinner,
+    canCancel,
+    canFinalize,
+    canUpdate,
+    canUpdateAtRisk,
+    canFix180DayIssue,
+    isAtRiskListing,
+    has180DayIssue,
+    isCancelling,
+    isConfirmingCancel,
+    isCancelLoading,
+    isFinalizing,
+    isConfirmingFinalize,
+    isFinalizeLoading,
+    isModifying,
+    isConfirmingModify,
+    isModifyLoading,
+    isPurchasing,
+    isConfirmingPurchase,
+    isBidding,
+    isConfirmingBid,
+    isOffering,
+    isConfirmingOffer,
+    isAccepting,
+    isConfirmingAccept,
+    isApproving,
+    isConfirmingApprove,
+    bidAmount,
+    setBidAmount,
+    offerAmount,
+    setOfferAmount,
+    purchaseQuantity,
+    setPurchaseQuantity,
+    isImageOverlayOpen,
+    setIsImageOverlayOpen,
+    showUpdateForm,
+    setShowUpdateForm,
+    showChainSwitchPrompt,
+    setShowChainSwitchPrompt,
+    isPaymentETH,
+    paymentSymbol,
+    paymentDecimals,
+    userBalance,
+    activeOffers,
+    handleBid,
+    handlePurchase,
+    handleMakeOffer,
+    handleAcceptOffer,
+    handleCancel,
+    handleFinalize,
+    handleFix180DayDuration,
+    handleUpdateListing,
+    handleSwapBuyToken,
+    formatPrice,
+    calculateMinBid,
+    refetchAuction,
+    actions,
+    modifyError,
+    isExplicitEthereumListing,
+    pendingPurchaseAfterApproval,
+    bidCount,
+    nowTimestamp,
+    listingData,
+    erc20Allowance,
     cancelError,
     finalizeError,
-    modifyError,
     purchaseError,
     offerError,
     acceptError,
     bidError,
     approveError,
-    isMiniApp,
-    switchToRequiredChain,
-  ]);
+    setBuildingTimedOut,
+    setPageStatus,
+    loading,
+  } = useAuctionDetail({ listingId, listingApiChainId });
 
-  // Redirect after successful cancellation
-  useEffect(() => {
-    if (isCancelConfirmed) {
-      // Invalidate cache to ensure cancelled listings are removed from feeds
-      const invalidateCache = async () => {
-        try {
-          await fetch('/api/auctions/invalidate-cache', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listingId }),
-          });
-        } catch (error) {
-          console.error('Failed to invalidate cache:', error);
-          // Continue even if cache invalidation fails
-        }
-      };
-      
-      let timer1: NodeJS.Timeout | null = null;
-      let timer2: NodeJS.Timeout | null = null;
-      
-      invalidateCache().then(() => {
-        // Refetch auction data to get updated status before navigating
-        refetchAuction();
-        // Small delay to let refetch complete, then navigate
-        timer1 = setTimeout(() => {
-          router.refresh();
-          timer2 = setTimeout(() => {
-            router.push("/");
-          }, 100);
-        }, 200);
-      });
-      
-      return () => {
-        if (timer1) clearTimeout(timer1);
-        if (timer2) clearTimeout(timer2);
-      };
-    }
-  }, [isCancelConfirmed, router, listingId, refetchAuction]);
-
-  // Track if we've already handled the finalization confirmation to prevent infinite loops
-  const hasHandledFinalizeRef = useRef(false);
-  
-  // Handle successful finalization - optimistically update status and poll for subgraph update
-  useEffect(() => {
-    if (isFinalizeConfirmed && auction && !hasHandledFinalizeRef.current) {
-      // Mark as handled immediately to prevent re-running
-      hasHandledFinalizeRef.current = true;
-      
-      // Optimistically update the auction status to FINALIZED immediately
-      // This ensures the UI updates right away even before subgraph indexes
-      updateAuction((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          status: 'FINALIZED' as const,
-        };
-      });
-
-      // Invalidate cache to ensure sold-out listings are removed from feeds
-      const invalidateCache = async () => {
-        try {
-          await fetch('/api/auctions/invalidate-cache', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listingId }),
-          });
-        } catch (error) {
-          console.error('Failed to invalidate cache:', error);
-          // Continue even if cache invalidation fails
-        }
-      };
-      
-      // Poll for subgraph update with retries (subgraph indexing can take a few seconds)
-      // Stop polling once we confirm the status is FINALIZED from subgraph
-      const pollForFinalizedStatus = async (maxRetries = 10, delayMs = 2000) => {
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-          try {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-            await refetchAuction(true);
-            // refetchAuction updates the auction state, which will cause a re-render
-            // The button will hide automatically when auction.status === 'FINALIZED'
-            // We don't need to check the return value - just poll until max retries
-          } catch (error) {
-            console.error(`[Finalize] Polling attempt ${attempt + 1} failed:`, error);
-          }
-        }
-      };
-      
-      invalidateCache().then(() => {
-        // Start polling for subgraph update in background
-        pollForFinalizedStatus().catch(err => {
-          console.error('[Finalize] Polling failed:', err);
-        });
-      });
-      
-      // Determine if user is buyer (winner) vs seller
-      const isOwnAuction = isConnected && address && auction.seller &&
-        address.toLowerCase() === auction.seller.toLowerCase();
-      const isWinner = isConnected && address && auction.highestBid?.bidder &&
-        address.toLowerCase() === auction.highestBid.bidder.toLowerCase();
-      
-      // Only redirect buyer (winner) - seller should stay on page to see finalized state
-      // Don't redirect immediately - give user time to see the finalized state
-      if (isWinner && !isOwnAuction) {
-        const redirectTimer = setTimeout(() => {
-          router.refresh();
-          setTimeout(() => {
-            router.push("/");
-          }, 100);
-        }, 3000); // 3 second delay so user can see the finalized state
-        
-        return () => {
-          clearTimeout(redirectTimer);
-        };
-      }
-    }
-    
-    // Reset the ref when isFinalizeConfirmed becomes false (new transaction started)
-    if (!isFinalizeConfirmed) {
-      hasHandledFinalizeRef.current = false;
-    }
-  }, [isFinalizeConfirmed, listingId, refetchAuction, updateAuction, router, isConnected, address]);
-
-  // Track if we've already handled the modification confirmation to prevent infinite loops
-  const hasHandledModifyRef = useRef(false);
-  
-  // Refresh after successful modification and close form
-  // Refetch auction data after successful modification
-  useEffect(() => {
-    if (isModifyConfirmed && !hasHandledModifyRef.current) {
-      // Mark as handled immediately to prevent re-running
-      hasHandledModifyRef.current = true;
-      
-      // Refetch to get updated listing data (especially endTime for 180-day fix)
-      refetchAuction();
-      router.refresh();
-      setShowUpdateForm(false);
-    }
-    
-    // Reset the ref when isModifyConfirmed becomes false (new transaction started)
-    if (!isModifyConfirmed) {
-      hasHandledModifyRef.current = false;
-    }
-  }, [isModifyConfirmed, router, refetchAuction]);
-
-  // Create notifications after successful bid and update UI immediately
-  useEffect(() => {
-    // Prevent duplicate processing of the same bid
-    if (isBidConfirmed && bidHash && bidHash === lastProcessedBidHash.current) {
-      return;
-    }
-    
-    if (isBidConfirmed && address && auction && bidAmount && bidHash) {
-      // Mark this bid hash as processed
-      lastProcessedBidHash.current = bidHash;
-      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
-      // Format bid amount using the correct token decimals and symbol
-      const bidAmountFormatted = bidAmount || '0';
-      const previousBidder = auction.highestBid?.bidder;
-      
-      // Get the bid amount in BigInt format for optimistic update
-      const parts = bidAmount.split('.');
-      const wholePart = BigInt(parts[0] || '0');
-      const fractionalPart = parts[1]
-        ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals))
-        : BigInt(0);
-      const bidAmountBigInt = wholePart * (BigInt(10) ** BigInt(paymentDecimals)) + fractionalPart;
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-      
-      // Check if this bid is already reflected in the auction data (to prevent duplicate updates)
-      const isAlreadyReflected = auction.highestBid?.bidder?.toLowerCase() === address.toLowerCase() &&
-        auction.highestBid?.amount === bidAmountBigInt.toString();
-      
-      // Optimistically update the auction state immediately (only if not already reflected)
-      if (!isAlreadyReflected) {
-        updateAuction((prev) => {
-          if (!prev) return prev;
-          
-          // Create new bid entry
-          const newBid = {
-            id: `temp-${Date.now()}`,
-            bidder: address.toLowerCase(),
-            amount: bidAmountBigInt.toString(),
-            timestamp: currentTimestamp,
-          };
-          
-          // Update bids array - add new bid and sort by amount descending
-          const updatedBids = prev.bids ? [...prev.bids, newBid] : [newBid];
-          updatedBids.sort((a, b) => {
-            const amountA = BigInt(a.amount);
-            const amountB = BigInt(b.amount);
-            return amountA > amountB ? -1 : amountA < amountB ? 1 : 0;
-          });
-          
-          return {
-            ...prev,
-            bidCount: updatedBids.length,
-            highestBid: {
-              amount: bidAmountBigInt.toString(),
-              bidder: address.toLowerCase(),
-              timestamp: currentTimestamp,
-            },
-            bids: updatedBids,
-          };
-        });
-      }
-      
-      // Notify bidder
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: address,
-          type: 'BID_PLACED',
-          title: 'Bid Placed',
-          message: `You've placed a bid on ${artworkName}`,
-          listingId: listingId,
-          metadata: {
-            amount: bidAmount,
-            artworkName,
-          },
-        }),
-      }).catch(err => console.error('Error creating bidder notification:', err));
-      
-      // Notify seller
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: auction.seller,
-          type: 'NEW_BID',
-          title: 'New Bid',
-          message: `New bid on ${artworkName} from ${address.slice(0, 6)}...${address.slice(-4)} for ${bidAmountFormatted} ${paymentSymbol}`,
-          listingId: listingId,
-          metadata: {
-            bidder: address,
-            amount: bidAmount,
-            artworkName,
-          },
-        }),
-      }).catch(err => console.error('Error creating seller notification:', err));
-      
-      // Notify previous bidder if they were outbid
-      if (previousBidder && previousBidder.toLowerCase() !== address.toLowerCase()) {
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: previousBidder,
-            type: 'OUTBID',
-            title: 'You\'ve Been Outbid',
-            message: `You've been outbid on ${artworkName}`,
-            listingId: listingId,
-            metadata: {
-              newBidAmount: bidAmount,
-              artworkName,
-            },
-          }),
-        }).catch(err => console.error('Error creating outbid notification:', err));
-      }
-      
-      // Refetch auction data from subgraph to get the latest state
-      // Use a small delay to allow subgraph to index the new bid
-      const timer = setTimeout(() => {
-        refetchAuction();
-      }, 2000);
-      
-      // Clear bid input - it will be repopulated with next minimum bid after refetch
-      setBidAmount('');
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isBidConfirmed, address, auction, listingId, bidAmount, bidHash, router, paymentSymbol, updateAuction, refetchAuction, paymentDecimals]);
-
-  // Refetch offers after successful offer or accept and create notifications
-  useEffect(() => {
-    if (isOfferConfirmed && address && auction) {
-      // Create notification for seller about new offer
-      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
-      
-      // Format offer amount using the correct token decimals and symbol
-      const offerAmountFormatted = offerAmount || '0';
-      
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: auction.seller,
-          type: 'NEW_OFFER',
-          title: 'New Offer',
-          message: `New offer on ${artworkName} for ${offerAmountFormatted} ${paymentSymbol} from ${address.slice(0, 6)}...${address.slice(-4)}`,
-          listingId: listingId,
-          metadata: {
-            offerer: address,
-            amount: offerAmount,
-            artworkName,
-          },
-        }),
-      }).catch(err => console.error('Error creating offer notification:', err));
-      
-      refetchOffers();
-      router.refresh();
-    }
-  }, [isOfferConfirmed, refetchOffers, router, address, auction, listingId, offerAmount, paymentSymbol]);
-  
-  useEffect(() => {
-    if (isAcceptConfirmed && address && auction && offers) {
-      // Create notifications for accepted offer
-      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
-      
-      // Find the accepted offer to get offerer address
-      const acceptedOffer = offers.find((o: any) => o.offerer && o.offerer.toLowerCase() !== address.toLowerCase());
-      if (acceptedOffer) {
-        // Notify offerer
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: acceptedOffer.offerer,
-            type: 'OFFER_ACCEPTED',
-            title: 'Offer Accepted',
-            message: `Your offer on ${artworkName} was accepted`,
-            listingId: listingId,
-            metadata: {
-              artworkName,
-              amount: acceptedOffer.amount,
-            },
-          }),
-        }).catch(err => console.error('Error creating offer accepted notification:', err));
-        
-        // Notify seller
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAddress: address,
-            type: 'BUY_NOW_SALE',
-            title: 'Sale Completed',
-            message: `New sale on ${artworkName} to ${acceptedOffer.offerer.slice(0, 6)}...${acceptedOffer.offerer.slice(-4)}`,
-            listingId: listingId,
-            metadata: {
-              buyer: acceptedOffer.offerer,
-              artworkName,
-              amount: acceptedOffer.amount,
-            },
-          }),
-        }).catch(err => console.error('Error creating seller notification:', err));
-      }
-      
-      refetchOffers();
-      router.refresh();
-    }
-  }, [isAcceptConfirmed, refetchOffers, router, address, auction, listingId, offers]);
-
-  // Redirect after successful purchase and create notifications
-  useEffect(() => {
-    if (isPurchaseConfirmed && address && auction) {
-      // Optimistically update the auction state immediately for instant UI feedback
-      updateAuction((prev) => {
-        if (!prev) return prev;
-        
-        const currentTotalSold = parseInt(prev.totalSold || "0");
-        const newTotalSold = currentTotalSold + purchaseQuantity;
-        const totalAvailable = parseInt(prev.totalAvailable || "0");
-        const remaining = totalAvailable - newTotalSold;
-        
-        // Update totalSold and status if sold out
-        return {
-          ...prev,
-          totalSold: newTotalSold.toString(),
-          // Mark as finalized if fully sold
-          status: remaining <= 0 ? "FINALIZED" : prev.status,
-        };
-      });
-      
-      // Create real-time notifications for buyer and seller
-      const artworkName = auction.title || auction.metadata?.title || `Token #${auction.tokenId}` || 'artwork';
-      const isERC1155 = auction.tokenSpec === 'ERC1155' || String(auction.tokenSpec) === '2';
-      const notificationType = isERC1155 ? 'ERC1155_PURCHASE' : 'ERC721_PURCHASE';
-      
-      // Notify buyer
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: address,
-          type: notificationType,
-          title: 'Purchase Completed',
-          message: isERC1155 
-            ? `You bought ${purchaseQuantity} ${artworkName}`
-            : `You purchased ${artworkName}`,
-          listingId: listingId,
-          metadata: {
-            artworkName,
-            quantity: purchaseQuantity,
-            price: auction.currentPrice || auction.initialAmount,
-          },
-        }),
-      }).catch(err => console.error('Error creating buyer notification:', err));
-      
-      // Notify seller
-      fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: auction.seller,
-          type: 'BUY_NOW_SALE',
-          title: 'Sale Completed',
-          message: `New sale on ${artworkName} to ${address.slice(0, 6)}...${address.slice(-4)}`,
-          listingId: listingId,
-          metadata: {
-            buyer: address,
-            artworkName,
-            quantity: purchaseQuantity,
-            price: auction.currentPrice || auction.initialAmount,
-          },
-        }),
-      }).catch(err => console.error('Error creating seller notification:', err));
-      
-      // Optimistically add buyer to buyers list
-      const currentTimestamp = Math.floor(Date.now() / 1000).toString();
-      const buyerData = {
-        address: address.toLowerCase(),
-        totalCount: purchaseQuantity,
-        firstPurchase: currentTimestamp,
-        lastPurchase: currentTimestamp,
-        username: null,
-        displayName: null,
-        pfpUrl: null,
-        fid: null,
-      };
-      
-      // Trigger optimistic update in BuyersList component
-      const handler = (window as any)[`buyerAdded_${listingId}`];
-      if (handler) {
-        handler(buyerData);
-      }
-      
-      router.refresh();
-      const timer = setTimeout(() => {
-        router.push("/");
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isPurchaseConfirmed, router, address, auction, listingId, purchaseQuantity, updateAuction]);
-
-  // Set up back navigation for Farcaster mini-app
-  useEffect(() => {
-    if (!isSDKLoaded) return;
-
-    const setupBackNavigation = async () => {
-      try {
-        // Check if back navigation is supported
-        const capabilities = await sdk.getCapabilities();
-        if (Array.isArray(capabilities) && capabilities.includes("back")) {
-          // Enable web navigation integration (automatically handles browser history)
-          await sdk.back.enableWebNavigation();
-
-          // Also set up a custom handler for back navigation
-          sdk.back.onback = () => {
-            // Navigate back to home page
-            router.push("/");
-          };
-
-          // Show the back button
-          await sdk.back.show();
-        }
-      } catch (error) {
-        console.error("Failed to set up back navigation:", error);
-      }
-    };
-
-    setupBackNavigation();
-
-    // Listen for back navigation events
-    const handleBackNavigation = () => {
-      router.push("/");
-    };
-
-    sdk.on("backNavigationTriggered", handleBackNavigation);
-
-    return () => {
-      sdk.off("backNavigationTriggered", handleBackNavigation);
-      // Clear the back handler
-      sdk.back.onback = null;
-    };
-  }, [isSDKLoaded, router]);
-
-  // Calculate derived values for username lookups (before conditional returns)
-  // Use creator address if found, otherwise fall back to seller (shouldn't happen if contract exists)
-  const displayCreatorAddress = creatorAddress || auction?.seller || null;
-  
-  // Get usernames for linking to profiles (must be called before conditional returns)
-  const { username: creatorUsername } = useUsername(displayCreatorAddress);
-  const { username: sellerUsername } = useUsername(auction?.seller || null);
-  const { username: bidderUsername } = useUsername(auction?.highestBid?.bidder || null);
-
-  // State for current time (must be called before conditional returns)
-  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
-  
-  // Update countdown every second (must be called before conditional returns)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Math.floor(Date.now() / 1000));
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Calculate derived values for share text (must be called before conditional returns)
-  const isCancelled = auction?.status === "CANCELLED";
-  const displayCreatorName = auction?.artist || creatorName;
-
-  // Generate share text (must be called before conditional returns)
-  const shareText = useMemo(() => {
-    if (!auction || isCancelled) return "";
-    return generateListingShareText(
-      auction,
-      contractName || undefined,
-      displayCreatorName || undefined,
-      displayCreatorAddress || undefined,
-      creatorUsername || undefined,
-      paymentSymbol,
-      paymentDecimals
-    );
-  }, [auction, contractName, displayCreatorName, displayCreatorAddress, creatorUsername, paymentSymbol, paymentDecimals, isCancelled]);
-
-  // Calculate at-risk listing status (must be called before conditional returns)
-  // This is needed for the useEffect hook below
-  const endTime = auction?.endTime ? parseInt(auction.endTime) : 0;
-  const startTime = auction?.startTime ? parseInt(auction.startTime) : 0;
-  const bidCount = auction?.bidCount || 0;
-  const nowTimestamp = Math.floor(Date.now() / 1000);
-  const oneYearInSeconds = 365 * 24 * 60 * 60;
-  const SAFE_DURATION_6_MONTHS = 15552000; // 180 days in seconds
-  const hasStarted = auction?.listingType === "INDIVIDUAL_AUCTION" 
-    ? bidCount > 0 || !!auction?.highestBid
-    : parseInt(auction?.totalSold || "0") > 0;
-  const isAtRiskListing = auction?.listingType === "INDIVIDUAL_AUCTION" &&
-    startTime === 0 &&
-    endTime > 0 &&
-    endTime > nowTimestamp + oneYearInSeconds &&
-    !hasStarted;
-  const isOwnAuctionForRisk = isConnected && address && auction?.seller && 
-    address.toLowerCase() === auction.seller.toLowerCase();
-  const canUpdateAtRisk = isOwnAuctionForRisk && isAtRiskListing && auction?.status !== "CANCELLED";
-  
-  // Detect 180-day duration issue: startTime=0 and endTime=180 days (15552000 seconds)
-  // This happens when auctions were created with the bug before the fix
-  const has180DayIssue = auction?.listingType === "INDIVIDUAL_AUCTION" &&
-    startTime === 0 &&
-    endTime === SAFE_DURATION_6_MONTHS &&
-    !hasStarted; // Only show fix if auction hasn't started yet
-  const isOwnAuction = isConnected && address && auction?.seller && 
-    address.toLowerCase() === auction.seller.toLowerCase();
-  const canFix180DayIssue = isOwnAuction && has180DayIssue && auction?.status !== "CANCELLED";
-
-  const isListingSeller = useMemo(() => {
-    if (!auction?.seller) return false;
-    const s = auction.seller.toLowerCase();
-    return verifiedWalletAddresses.some((a) => a === s);
-  }, [auction?.seller, verifiedWalletAddresses]);
-
-  const listingTypo = useMemo(
-    () => listingThemeTypographyClasses(listingPageTheme),
-    [listingPageTheme]
-  );
-
-  const listingPageCursorCss = useMemo(
-    () => composeListingThemeCursorCss(listingPageTheme),
-    [listingPageTheme]
-  );
-
-  const listingBgGradient = useMemo(
-    () => composeLinearGradientCss(listingPageTheme),
-    [listingPageTheme]
-  );
-
-  const listingShellStyle = useMemo((): CSSProperties => {
-    return {
-      background: listingBgGradient,
-      ...(listingPageCursorCss ? { cursor: listingPageCursorCss } : {}),
-    };
-  }, [listingBgGradient, listingPageCursorCss]);
-
-  // Auto-show update form for at-risk listings (seller needs to fix it)
-  // MUST be called before any conditional returns to avoid hook order violations
-  useEffect(() => {
-    if (canUpdateAtRisk) {
-      setShowUpdateForm(true);
-    }
-  }, [canUpdateAtRisk]);
-
-  // Show interim state while page-status is unknown (null), explicitly building, or auction
-  // 404s before the subgraph has indexed — avoids flashing "Auction not found" on new listings.
-  const isBuilding =
-    !buildingTimedOut &&
-    !auction &&
-    (pageStatus === 'building' || pageStatus === null);
-
-  const mergedAmbiguousChains = useMemo(() => {
-    if (listingApiChainId != null) return null;
-    if (ambiguousChains?.length) return ambiguousChains;
-    if (pageStatus === "ambiguous" && pageStatusAmbiguousChains?.length) {
-      return pageStatusAmbiguousChains;
-    }
-    return null;
-  }, [
-    listingApiChainId,
-    ambiguousChains,
-    pageStatus,
-    pageStatusAmbiguousChains,
-  ]);
-
-  if (
-    mergedAmbiguousChains &&
-    (!loading || pageStatus === "ambiguous")
-  ) {
+  if (pageState === "ambiguous") {
     return (
       <AmbiguousListingPicker
         listingId={listingId}
-        chains={mergedAmbiguousChains}
+        chains={mergedAmbiguousChains!}
         variant="light"
       />
     );
   }
 
-  if (loading || isBuilding) {
+  if (pageState === "loading") {
+    const isBuilding = !loading && !auction;
     return (
       <div
         className="listing-detail-page min-h-screen flex flex-col items-center justify-center animate-in fade-in duration-100 gap-4"
@@ -1755,16 +184,14 @@ export default function AuctionDetailClient({
         </div>
         {isBuilding && (
           <p className="text-sm text-neutral-500 max-w-md text-center px-4">
-            {pageStatus === 'building'
-              ? 'Your listing is being processed. This usually takes a few seconds. We will notify you when it is ready!'
-              : 'Checking the indexer. If this listing was just created, it can take a few seconds to appear.'}
+            Loading listing data. If this listing was just created, it can take a few seconds to appear.
           </p>
         )}
       </div>
     );
   }
 
-  if (!loading && !auction && auctionFetchError?.message === AUCTION_FETCH_TIMEOUT) {
+  if (pageState === "fetchTimeout") {
     return (
       <div
         className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4 px-4"
@@ -1792,7 +219,7 @@ export default function AuctionDetailClient({
     );
   }
 
-  if (!loading && !auction && buildingTimedOut) {
+  if (pageState === "timeout") {
     return (
       <div
         className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4 px-4"
@@ -1827,7 +254,7 @@ export default function AuctionDetailClient({
     );
   }
 
-  if (!auction && !loading && pageStatus === 'not_found') {
+  if (pageState === "notFound") {
     return (
       <div
         className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4"
@@ -1844,7 +271,7 @@ export default function AuctionDetailClient({
     );
   }
 
-  if (!auction && !loading && (pageStatus === 'ready' || pageStatus === 'error')) {
+  if (pageState === "indexedButMissing") {
     return (
       <div
         className="listing-detail-page min-h-screen flex flex-col items-center justify-center gap-4 px-4"
@@ -1872,148 +299,9 @@ export default function AuctionDetailClient({
     );
   }
 
-  // At this point, auction must exist (we've checked above and returned early if not)
   if (!auction) {
-    return null; // TypeScript guard
+    return null;
   }
-
-  const currentPrice = auction.highestBid?.amount || auction.initialAmount || "0";
-  // endTime, startTime already calculated above for at-risk detection
-  // Use `now` state variable for isActive/isEnded to ensure countdown updates properly
-  const title =
-    (typeof auction.title === "string" && auction.title.trim()) ||
-    pickDisplayTitle(auction.metadata) ||
-    `Auction #${listingId}`;
-  const resolvedListingChainId =
-    typeof auction.chainId === "number" && Number.isFinite(auction.chainId)
-      ? auction.chainId
-      : listingApiChainId ?? CHAIN_ID;
-  const listingChainInfo = getChainNetworkInfo(resolvedListingChainId);
-  const chainScopeMismatch =
-    listingApiChainId != null &&
-    typeof auction.chainId === "number" &&
-    Number.isFinite(auction.chainId) &&
-    auction.chainId !== listingApiChainId;
-  /** Inline hero: prefer detail cache, then small thumb, then raw metadata image. Raw IPFS/gateway URLs can be very large and never finish loading in the browser. */
-  const listingHeroImageUrl =
-    auction.detailThumbnailUrl ?? auction.thumbnailUrl ?? auction.image;
-  /** Fullscreen zoom: prefer detail, then full source, then small thumb. */
-  const listingFullscreenImageUrl =
-    auction.detailThumbnailUrl ?? auction.image ?? auction.thumbnailUrl;
-  // bidCount already calculated above
-  const hasBid = bidCount > 0 || !!auction.highestBid;
-  
-  // Determine if auction has started (recalculate with current `now` state for accuracy)
-  // For auctions with startTime = 0, they start on first bid
-  // For auctions with startTime > 0, they start when startTime is reached
-  const auctionHasStarted = startTime === 0 
-    ? hasBid // startTime=0 auctions start on first bid
-    : now >= startTime; // startTime>0 auctions start when time is reached
-  
-  // Calculate actual end timestamp
-  // When startTime = 0, endTime is a DURATION (in seconds), not a timestamp
-  // When the auction starts (first bid), the contract converts it: endTime += block.timestamp
-  // So we need to detect if endTime is already converted (timestamp) or still a duration
-  let actualEndTime: number;
-  if (startTime === 0 && auctionHasStarted) {
-    // For start-on-first-bid auctions that have started:
-    // The contract converts endTime to timestamp: endTime = duration + block.timestamp
-    // We need to distinguish between:
-    // 1. A timestamp (large number, typically > year 2000 = 946684800)
-    // 2. A duration (small number, typically < 1 year = 31536000)
-    const ONE_YEAR_IN_SECONDS = 31536000;
-    const YEAR_2000_TIMESTAMP = 946684800;
-    
-    // If endTime looks like a timestamp (large number > year 2000), use it directly
-    // This works even if the auction has ended (endTime <= now)
-    if (endTime > YEAR_2000_TIMESTAMP) {
-      // Already converted to timestamp by contract (could be past or future)
-      actualEndTime = endTime;
-    } else {
-      // Still a duration - contract hasn't converted it yet (subgraph not updated)
-      // Calculate end time from when auction started
-      const auctionStartTimestamp = auction.highestBid?.timestamp 
-        ? parseInt(auction.highestBid.timestamp) 
-        : now;
-      actualEndTime = auctionStartTimestamp + endTime;
-    }
-  } else if (startTime === 0 && !auctionHasStarted) {
-    // Auction hasn't started yet, endTime is still a duration
-    // We can't calculate actual end time until auction starts
-    actualEndTime = 0;
-  } else {
-    // For auctions with startTime > 0, endTime is already a timestamp
-    actualEndTime = endTime;
-  }
-  
-  // Only consider ended if auction has started AND endTime has passed
-  const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && auction.status === "ACTIVE" && !isCancelled;
-  const isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now) && auction.status === "ACTIVE";
-  
-  // For finalization, trust contract state as source of truth
-  // But for start-on-first-bid auctions, use our calculated actualEndTime
-  let effectiveEndTime: number | null;
-  if (startTime === 0 && auctionHasStarted && actualEndTime > 0) {
-    // For start-on-first-bid auctions that have started, use calculated end time
-    effectiveEndTime = actualEndTime;
-  } else if (startTime === 0 && !auctionHasStarted) {
-    // For start-on-first-bid auctions that haven't started yet, endTime is a duration, not a timestamp
-    // We can't determine if it's ended until the auction starts (first bid)
-    effectiveEndTime = null;
-  } else {
-    // Otherwise use contract or subgraph end time
-    const contractEndTime = listingData?.details?.endTime 
-      ? Number(listingData.details.endTime) 
-      : null;
-    const subgraphEndTime = endTime; // From subgraph (original endTime, not updated by contract changes)
-    effectiveEndTime = contractEndTime || subgraphEndTime;
-  }
-  // Only consider ended if we have an effective end time AND auction has started
-  const effectiveEnded = effectiveEndTime && effectiveEndTime > 0 && auctionHasStarted 
-    ? effectiveEndTime <= nowTimestamp 
-    : isEnded;
-  
-  // Show controls if auction is active OR if it hasn't started yet (so users can see what they'll be able to do)
-  // BUT disable if there's a 180-day issue (bidding should be disabled until fixed)
-  // Use effectiveEnded to ensure we hide controls when auction has effectively ended
-  const showControls = (isActive || !auctionHasStarted) && !effectiveEnded && auction.status === "ACTIVE" && !isCancelled && !has180DayIssue;
-  
-  // Check if current user is the winner (highest bidder)
-  const isWinner = isConnected && address && auction.highestBid?.bidder &&
-    address.toLowerCase() === auction.highestBid.bidder.toLowerCase();
-  
-  // Seller cancel matches contract: no bids, listing still active — not tied to `isActive`
-  // (scheduled / start-on-first-bid before first bid had `isActive` false and hid this control).
-  const canCancel =
-    isOwnAuction && !hasBid && !isCancelled && auction.status === "ACTIVE";
-  const isCancelLoading = isCancelling || isConfirmingCancel;
-  
-  // Check contract state for potential issues
-  const contractStartTime = listingData?.details?.startTime 
-    ? Number(listingData.details.startTime) 
-    : null;
-  // nowTimestamp already calculated above
-  // contractEndTime already used in effectiveEndTime calculation above
-  
-  // hasStarted already calculated above for at-risk detection
-  // isAtRiskListing already calculated above
-  // effectiveEndTime and effectiveEnded already calculated above (moved up for use in showControls)
-  
-  // Check if finalization is allowed (auction has ended and not finalized or cancelled)
-  // For INDIVIDUAL_AUCTION: Both seller and winner can finalize when auction has ended
-  // For FIXED_PRICE: Seller can finalize when listing has ended to reclaim unsold items
-  const canFinalize = isConnected && effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (
-    auction.listingType === "INDIVIDUAL_AUCTION" 
-      ? (isOwnAuction || isWinner)  // Auctions: seller or winner
-      : isOwnAuction  // Fixed price: only seller
-  );
-  const isFinalizeLoading = isFinalizing || isConfirmingFinalize;
-
-  // Check if update is allowed (seller can update if listing hasn't started - no bids for auctions, no sales for fixed price)
-  // OR if listing is at-risk (special case to fix the bug)
-  const canUpdate = isOwnAuction && !hasStarted && isActive && !isCancelled;
-  // canUpdateAtRisk already calculated above (before conditional returns)
-  const isModifyLoading = isModifying || isConfirmingModify;
 
   return (
     <div
@@ -2034,7 +322,6 @@ export default function AuctionDetailClient({
         </section>
       )}
 
-      {/* Web: logo row + back row in one forced-white shell (avoids dark header from theme/inheritance). */}
       <div
         className="listing-light-surface listing-page-chrome border-b border-neutral-200 bg-white text-neutral-900"
         style={{ backgroundColor: "#ffffff" }}
@@ -2078,7 +365,6 @@ export default function AuctionDetailClient({
         </div>
       </div>
       <div className="mx-auto max-w-4xl px-5 py-4">
-        {/* Add Mini App Banner - Only show in miniapp context if not already added */}
         {isMiniApp && !isMiniAppInstalled && actions && (
           <div className="mb-4 flex justify-end">
             <button
@@ -2097,28 +383,23 @@ export default function AuctionDetailClient({
               userAddress={address}
               verifiedAddresses={verifiedWalletAddresses}
               surface="light"
-              onThemeResolved={(t) => {
-                setListingPageTheme(t);
-              }}
+              onThemeResolved={() => {}}
             />
           </div>
         )}
-        {/* Full width artwork - supports images, audio, video, 3D models, and HTML */}
         <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
           <MediaDisplay
             imageUrl={listingHeroImageUrl}
             animationUrl={auction.metadata?.animation_url}
             animationFormat={auction.metadata?.animation_details?.format}
             alt={title}
-            placeholderGradientCss={composeLinearGradientCss(listingPageTheme)}
+            placeholderGradientCss={listingBgGradient}
             onImageClick={
-              // Only enable fullscreen overlay for images (not audio/video/3D/HTML - they have their own controls)
               (() => {
                 const animUrl = auction.metadata?.animation_url;
                 const animFormat = auction.metadata?.animation_details?.format;
                 if (!animUrl)
                   return listingHeroImageUrl ? () => setIsImageOverlayOpen(true) : undefined;
-                // Check both URL extension and format hint to determine if it's non-image media
                 let mediaType = getMediaType(animUrl);
                 if (mediaType === 'image' && animFormat) {
                   mediaType = getMediaTypeFromFormat(animFormat);
@@ -2130,7 +411,6 @@ export default function AuctionDetailClient({
           />
         </div>
 
-        {/* Fullscreen image overlay - only for images */}
         {(() => {
           const animUrl = auction.metadata?.animation_url;
           const animFormat = auction.metadata?.animation_details?.format;
@@ -2151,7 +431,6 @@ export default function AuctionDetailClient({
           />
         )}
 
-        {/* Title + description (directly under title) + metadata — one light full-width block */}
         <div
           className={`listing-light-surface mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white px-5 py-5 text-neutral-900 shadow-sm ${listingTypo.sectionFontClass}`}
         >
@@ -2199,7 +478,6 @@ export default function AuctionDetailClient({
             </p>
           ) : null}
 
-          {/* Collection name with metadata viewer */}
           {auction.tokenAddress && auction.tokenId && (
             <div className={auction.description ? "mt-4" : "mt-3"}>
               <MetadataViewer
@@ -2249,7 +527,7 @@ export default function AuctionDetailClient({
                 </div>
               )}
             </div>
-          ) : displayCreatorAddress && !creatorNameLoading ? (
+          ) : displayCreatorAddress ? (
             <div className="mt-3 text-sm text-neutral-600">
               <div className="mb-2 flex items-center gap-2">
                 <TransitionLink
@@ -2299,7 +577,6 @@ export default function AuctionDetailClient({
             />
           )}
 
-          {/* External Links & Token Info */}
           {(auction.tokenAddress || auction.tokenId) && (
             <div className="mt-4 flex items-center gap-3 text-xs">
               {auction.tokenSpec && (
@@ -2324,14 +601,12 @@ export default function AuctionDetailClient({
           )}
         </div>
 
-        {/* Cancelled Auction Message */}
         {isCancelled && (
           <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-900 font-medium">Auction has been cancelled</p>
           </div>
         )}
 
-        {/* Warning for at-risk listings */}
         {isAtRiskListing && !isCancelled && (
           <div className="mx-5 mb-4 w-full rounded-2xl border border-yellow-600/30 bg-yellow-900/20 p-4">
             <p className="text-yellow-400 font-medium mb-2">⚠️ Auction Configuration Issue</p>
@@ -2343,7 +618,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Update Listing Form - Show when update button is clicked OR for at-risk listings */}
         {showUpdateForm && (canUpdate || canUpdateAtRisk) && !isCancelled && (
           <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             {isAtRiskListing && (
@@ -2359,7 +633,7 @@ export default function AuctionDetailClient({
               onCancel={() => setShowUpdateForm(false)}
               isLoading={isModifyLoading}
               listingType={auction.listingType}
-              hideCancel={isAtRiskListing} // Don't allow cancel for at-risk listings (must fix)
+              hideCancel={isAtRiskListing}
             />
             {modifyError && (
               <p className="text-xs text-red-400 mt-2">
@@ -2369,7 +643,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Update Listing Button (for seller before auction has started) - Hidden if cancelled or update form is shown */}
         {canUpdate && !isCancelled && !showUpdateForm && (
           <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
             <button
@@ -2383,7 +656,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Cancel Listing Button (for seller with no bids) - Hidden if cancelled */}
         {canCancel && !isCancelled && (
           <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
             <button
@@ -2407,7 +679,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Auction Ended Message - Only for INDIVIDUAL_AUCTION */}
         {isEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && (
           <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-900 font-medium mb-2">Auction Ended</p>
@@ -2446,7 +717,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Finalize Button (for ended listings) - For INDIVIDUAL_AUCTION (seller or winner) and FIXED_PRICE (seller only), Hidden if cancelled */}
         {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && (
           (auction.listingType === "INDIVIDUAL_AUCTION" && (isOwnAuction || isWinner)) ||
           (auction.listingType === "FIXED_PRICE" && isOwnAuction)
@@ -2474,7 +744,6 @@ export default function AuctionDetailClient({
               
               let displayMessage = errorMessage;
               
-              // Provide specific error messages for known issues
               if (errorMessage.includes('already finalized') || errorMessage.includes('finalized')) {
                 displayMessage = "This auction has already been finalized.";
               }
@@ -2488,7 +757,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Ended listing info when finalize action is restricted to another wallet */}
         {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && !canFinalize && (
           <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm font-medium text-neutral-900">
@@ -2511,7 +779,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* 180-Day Duration Fix Form (for sellers) */}
         {!isCancelled && canFix180DayIssue && (
           <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <Fix180DayDurationForm
@@ -2527,7 +794,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Warning message for non-sellers when 180-day issue exists */}
         {!isCancelled && has180DayIssue && !isOwnAuction && (
           <div className="mx-5 mb-4 w-full rounded-2xl border border-red-700/50 bg-red-900/20 p-4">
             <p className="text-sm text-red-400 font-medium mb-1">
@@ -2539,10 +805,8 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Action Buttons - Conditional based on listing type */}
         {!isCancelled && (
           <>
-            {/* INDIVIDUAL_AUCTION - Place Bid (show if active or not started yet, and not at-risk, and not 180-day issue) */}
             {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && !has180DayIssue && (
               <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {!isConnected ? (
@@ -2576,8 +840,6 @@ export default function AuctionDetailClient({
                     </p>
                   </div>
                 ) : (() => {
-                  // Check if auction has a future startTime (not start-on-first-bid)
-                  // For start-on-first-bid (startTime = 0), allow bidding immediately
                   const hasFutureStartTime = startTime > 0 && now < startTime;
                   
                   if (hasFutureStartTime) {
@@ -2610,7 +872,6 @@ export default function AuctionDetailClient({
                     );
                   }
                   
-                  // Auction has started or is start-on-first-bid - show active bid button
                   return (
                     <div className="space-y-3">
                       <div>
@@ -2629,7 +890,6 @@ export default function AuctionDetailClient({
                           aria-label={`Bid amount in ${paymentSymbol}. Minimum: ${formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                           aria-describedby="bid-balance-info"
                         />
-                        {/* Show user balance */}
                         {!userBalance.isLoading && (
                           <p id="bid-balance-info" className="text-xs text-neutral-500 mt-1" aria-live="polite">
                             Your balance: {userBalance.formatted} {paymentSymbol}
@@ -2650,9 +910,7 @@ export default function AuctionDetailClient({
               </div>
             )}
 
-            {/* FIXED_PRICE - Purchase */}
             {auction.listingType === "FIXED_PRICE" && showControls && (() => {
-              // Check if ERC721 is sold out
               const isERC721SoldOut = auction.tokenSpec === "ERC721" && 
                 parseInt(auction.totalSold || "0") >= parseInt(auction.totalAvailable || "1");
               
@@ -2708,9 +966,6 @@ export default function AuctionDetailClient({
                     You cannot purchase your own listing.
                   </p>
                 ) : (() => {
-                  // For FIXED_PRICE listings, check if listing hasn't started yet
-                  // Fixed price listings with startTime > 0 need to wait until startTime
-                  // Fixed price listings with startTime = 0 are immediately purchasable
                   const hasNotStartedForFixedPrice = startTime > 0 && now < startTime;
                   
                   if (hasNotStartedForFixedPrice) {
@@ -2741,7 +996,6 @@ export default function AuctionDetailClient({
                     );
                   }
                   
-                  // Listing has started or has no startTime - show active buy button
                   return (
                   <>
                     <div className="p-3 bg-white border border-neutral-200 shadow-sm rounded-lg">
@@ -2775,7 +1029,6 @@ export default function AuctionDetailClient({
                           </div>
                         </>
                       )}
-                      {/* Show user balance */}
                       {!userBalance.isLoading && (
                         <div className="flex justify-between items-center mt-2 pt-2 border-t border-neutral-200">
                           <span className="text-xs text-neutral-500">Your balance</span>
@@ -2785,11 +1038,8 @@ export default function AuctionDetailClient({
                         </div>
                       )}
                     </div>
-                    {/* Check if ERC20 approval is needed */}
                     {!isPaymentETH && auction.erc20 && address && (() => {
                       const price = auction.currentPrice || auction.initialAmount;
-                      // Price is per copy, multiplied by purchase quantity (not by copies)
-                      // The contract sells purchaseQuantity * totalPerSale copies for price * purchaseQuantity
                       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
                       const currentAllowance = erc20Allowance as bigint | undefined;
                       const needsApproval = !currentAllowance || currentAllowance < totalPrice;
@@ -2843,7 +1093,6 @@ export default function AuctionDetailClient({
               );
             })()}
 
-            {/* OFFERS_ONLY - Make Offer */}
             {auction.listingType === "OFFERS_ONLY" && showControls && (
               <div className="mx-5 mb-4 w-full space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {!isConnected ? (
@@ -2895,7 +1144,6 @@ export default function AuctionDetailClient({
                         aria-label={`Offer amount in ${paymentSymbol}`}
                         aria-describedby="offer-balance-info"
                       />
-                      {/* Show user balance */}
                       {!userBalance.isLoading && (
                         <p id="offer-balance-info" className="text-xs text-neutral-500 mt-1" aria-live="polite">
                           Your balance: {userBalance.formatted} {paymentSymbol}
@@ -2921,7 +1169,6 @@ export default function AuctionDetailClient({
                   </div>
                 )}
 
-                {/* Offers List - Show for seller and buyers */}
                 {activeOffers.length > 0 && (
                   <div className="mt-4 p-4 bg-white border border-neutral-200 shadow-sm rounded-lg" role="region" aria-label="Active offers">
                     <h3 className="text-sm font-medium text-neutral-900 mb-3">Active Offers</h3>
@@ -2972,20 +1219,15 @@ export default function AuctionDetailClient({
           </>
         )}
 
-        {/* Listing details - Different display based on listing type - Hidden if cancelled */}
         {!isCancelled && (
           <div className="listing-light-surface mx-5 mb-4 w-full space-y-4 rounded-2xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
             {auction.listingType === "INDIVIDUAL_AUCTION" && (() => {
-              // Use actualEndTime for time status calculation
-              // When startTime=0 and auction has started, actualEndTime is the calculated end timestamp
-              // Otherwise, use endTime (which is already a timestamp for startTime>0, or duration for startTime=0 not started)
               const timeStatusEndTime = (startTime === 0 && auctionHasStarted && actualEndTime > 0) 
                 ? actualEndTime 
                 : endTime;
               const timeStatus = getAuctionTimeStatus(startTime, timeStatusEndTime, hasBid, now);
               return (
                 <>
-                  {/* Compact auction info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span className="flex items-center gap-1.5">
                       {formatPrice(auction.initialAmount)} 
@@ -3016,7 +1258,6 @@ export default function AuctionDetailClient({
                     )}
                   </div>
                   
-                  {/* Seller row */}
                   <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
@@ -3038,7 +1279,6 @@ export default function AuctionDetailClient({
                     ) : null}
                   </div>
 
-                  {/* Bid History */}
                   {auction.bids && auction.bids.length > 0 && (
                     <div className="mt-4">
                       <h3 className="text-xs font-medium text-neutral-500 mb-2 uppercase tracking-wider">Bid History</h3>
@@ -3061,25 +1301,16 @@ export default function AuctionDetailClient({
             })()}
 
             {auction.listingType === "FIXED_PRICE" && (() => {
-              // Calculate actual end time for FIXED_PRICE (same logic as auctions)
-              // For startTime=0, endTime is a duration; for startTime>0, endTime is a timestamp
               let actualEndTimeForFixed: number;
               const YEAR_2000_TIMESTAMP = 946684800;
               
               if (startTime === 0) {
-                // For startTime=0, endTime is a duration
-                // Use heuristic: if endTime > YEAR_2000_TIMESTAMP, it's likely a timestamp (contract converted it)
-                // Otherwise, it's a duration and we can't determine if ended without creation timestamp
                 if (endTime > YEAR_2000_TIMESTAMP) {
-                  // Looks like a timestamp, use it directly
                   actualEndTimeForFixed = endTime;
                 } else {
-                  // It's a duration, can't determine if ended without creation timestamp
-                  // Treat as active if status is ACTIVE
                   actualEndTimeForFixed = 0;
                 }
               } else {
-                // For startTime > 0, endTime is already a timestamp
                 actualEndTimeForFixed = endTime;
               }
               
@@ -3092,7 +1323,6 @@ export default function AuctionDetailClient({
               const isFinalized = auction.status === "FINALIZED";
               const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
               
-              // Determine status: Sold Out takes precedence, then Finalized, then Sale Ended
               let statusText = "Active";
               if (isSoldOut) {
                 statusText = "Sold Out";
@@ -3104,7 +1334,6 @@ export default function AuctionDetailClient({
               
               return (
                 <>
-                  {/* Compact fixed price info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span className="flex items-center gap-1.5">
                       {formatPrice(auction.initialAmount)} 
@@ -3132,7 +1361,6 @@ export default function AuctionDetailClient({
                     )}
                   </div>
                   
-                  {/* Seller row */}
                   <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
@@ -3154,39 +1382,28 @@ export default function AuctionDetailClient({
                     ) : null}
                   </div>
 
-                  {/* Buyers List */}
                   <BuyersList listingId={listingId} />
                 </>
               );
             })()}
 
             {auction.listingType === "OFFERS_ONLY" && (() => {
-              // Calculate actual end time for OFFERS_ONLY (same logic as auctions)
-              // For startTime=0, endTime is a duration; for startTime>0, endTime is a timestamp
               let actualEndTimeForOffers: number;
               const YEAR_2000_TIMESTAMP = 946684800;
               
               if (startTime === 0) {
-                // For startTime=0, endTime is a duration
-                // Use heuristic: if endTime > YEAR_2000_TIMESTAMP, it's likely a timestamp
-                // Otherwise, it's a duration and we can't determine if ended without creation timestamp
                 if (endTime > YEAR_2000_TIMESTAMP) {
-                  // Looks like a timestamp, use it directly
                   actualEndTimeForOffers = endTime;
                 } else {
-                  // It's a duration, can't determine if ended without creation timestamp
                   actualEndTimeForOffers = 0;
                 }
               } else {
-                // For startTime > 0, endTime is already a timestamp
                 actualEndTimeForOffers = endTime;
               }
               
               const timeStatus = getFixedPriceTimeStatus(actualEndTimeForOffers, now);
               const isEndedForOffers = actualEndTimeForOffers > 0 && actualEndTimeForOffers <= now && !isNeverExpiring(actualEndTimeForOffers);
-              const isActiveForOffers = !isEndedForOffers && auction.status === "ACTIVE";
               
-              // ERC1155 supply display
               const totalAvailable = parseInt(auction.totalAvailable || "0");
               const totalSold = parseInt(auction.totalSold || "0");
               const remaining = Math.max(0, totalAvailable - totalSold);
@@ -3205,7 +1422,6 @@ export default function AuctionDetailClient({
               
               return (
                 <>
-                  {/* Compact offers info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span>Offers Only</span>
                     {auction.tokenSpec === "ERC1155" && (
@@ -3229,7 +1445,6 @@ export default function AuctionDetailClient({
                     )}
                   </div>
                   
-                  {/* Seller row */}
                   <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
@@ -3255,32 +1470,22 @@ export default function AuctionDetailClient({
             })()}
 
             {auction.listingType === "DYNAMIC_PRICE" && (() => {
-              // Calculate actual end time for DYNAMIC_PRICE (same logic as auctions)
-              // For startTime=0, endTime is a duration; for startTime>0, endTime is a timestamp
               let actualEndTimeForDynamic: number;
               const YEAR_2000_TIMESTAMP = 946684800;
               
               if (startTime === 0) {
-                // For startTime=0, endTime is a duration
-                // Use heuristic: if endTime > YEAR_2000_TIMESTAMP, it's likely a timestamp
-                // Otherwise, it's a duration and we can't determine if ended without creation timestamp
                 if (endTime > YEAR_2000_TIMESTAMP) {
-                  // Looks like a timestamp, use it directly
                   actualEndTimeForDynamic = endTime;
                 } else {
-                  // It's a duration, can't determine if ended without creation timestamp
                   actualEndTimeForDynamic = 0;
                 }
               } else {
-                // For startTime > 0, endTime is already a timestamp
                 actualEndTimeForDynamic = endTime;
               }
               
               const timeStatus = getFixedPriceTimeStatus(actualEndTimeForDynamic, now);
               const isEndedForDynamic = actualEndTimeForDynamic > 0 && actualEndTimeForDynamic <= now && !isNeverExpiring(actualEndTimeForDynamic);
-              const isActiveForDynamic = !isEndedForDynamic && auction.status === "ACTIVE";
               
-              // ERC1155 supply display
               const totalAvailable = parseInt(auction.totalAvailable || "0");
               const totalSold = parseInt(auction.totalSold || "0");
               const remaining = Math.max(0, totalAvailable - totalSold);
@@ -3299,7 +1504,6 @@ export default function AuctionDetailClient({
               
               return (
                 <>
-                  {/* Compact dynamic price info row */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
                     <span>Dynamic Price</span>
                     {auction.tokenSpec === "ERC1155" && (
@@ -3323,7 +1527,6 @@ export default function AuctionDetailClient({
                     )}
                   </div>
                   
-                  {/* Seller row */}
                   <div className="text-xs text-neutral-500">
                     Listed by{" "}
                     {sellerName ? (
@@ -3350,7 +1553,6 @@ export default function AuctionDetailClient({
           </div>
         )}
 
-        {/* Buy Token Button - Always show for ERC-20 paired listings when not own auction */}
         {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
           <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
             {isMiniApp ? (
@@ -3378,7 +1580,6 @@ export default function AuctionDetailClient({
         )}
       </div>
       
-      {/* Chain Switch Prompt */}
       <ChainSwitchPrompt
         show={showChainSwitchPrompt}
         onDismiss={() => setShowChainSwitchPrompt(false)}
@@ -3389,9 +1590,6 @@ export default function AuctionDetailClient({
   );
 }
 
-/**
- * Bid History Row Component
- */
 function BidHistoryRow({
   bid,
   isHighest,
@@ -3441,9 +1639,6 @@ function BidHistoryRow({
   );
 }
 
-/**
- * Helper to format time ago
- */
 function getTimeAgo(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
