@@ -12,7 +12,14 @@ type SectionType =
   | 'gallery'
   | 'collector'
   | 'listing'
-  | 'custom_section';
+  | 'featured_carousel'
+  | 'custom_section'
+  | 'recent_listings'
+  | 'ending_soon'
+  | 'awaiting_bids'
+  | 'recent_galleries';
+
+type LayoutSurface = 'home' | 'market';
 
 type SectionConfig = Record<string, any> | null;
 
@@ -34,13 +41,19 @@ const SECTION_LABELS: Record<SectionType, string> = {
   gallery: 'Gallery',
   collector: 'Collector',
   listing: 'Single Listing',
+  featured_carousel: 'Featured carousel',
   custom_section: 'Custom Section',
+  recent_listings: 'Recent listings',
+  ending_soon: 'Ending soon',
+  awaiting_bids: 'Awaiting bids',
+  recent_galleries: 'Recent galleries',
 };
 
 
 export function HomepageLayoutManager() {
   const queryClient = useQueryClient();
   const { address } = useAccount();
+  const [layoutSurface, setLayoutSurface] = useState<LayoutSurface>('home');
 
   const [form, setForm] = useState<{
     id?: string;
@@ -58,9 +71,11 @@ export function HomepageLayoutManager() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'homepage-layout'],
+    queryKey: ['admin', 'homepage-layout', layoutSurface],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/homepage-layout?adminAddress=${address}`);
+      const res = await fetch(
+        `/api/admin/homepage-layout?adminAddress=${address}&surface=${layoutSurface}`
+      );
       if (!res.ok) throw new Error('Failed to load homepage layout');
       return res.json() as Promise<{ sections: LayoutSection[] }>;
     },
@@ -74,12 +89,13 @@ export function HomepageLayoutManager() {
       const res = await fetch('/api/admin/homepage-layout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, adminAddress: address }),
+        body: JSON.stringify({ ...payload, adminAddress: address, surface: layoutSurface }),
       });
       if (!res.ok) throw new Error('Failed to create section');
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout', layoutSurface] }),
   });
 
   const updateSection = useMutation({
@@ -92,7 +108,8 @@ export function HomepageLayoutManager() {
       if (!res.ok) throw new Error('Failed to update section');
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout', layoutSurface] }),
   });
 
   const deleteSection = useMutation({
@@ -103,7 +120,8 @@ export function HomepageLayoutManager() {
       if (!res.ok) throw new Error('Failed to delete section');
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['admin', 'homepage-layout', layoutSurface] }),
   });
 
   // Reordering is now handled in the "Current Homepage Sections" section
@@ -215,8 +233,36 @@ export function HomepageLayoutManager() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-[var(--color-text)]">Homepage Layout</h2>
-          <p className="text-sm text-[var(--color-secondary)]">Drag and drop to arrange homepage sections.</p>
+          <h2 className="text-xl font-semibold text-[var(--color-text)]">
+            {layoutSurface === 'market' ? 'Market layout' : 'Homepage layout'}
+          </h2>
+          <p className="text-sm text-[var(--color-secondary)]">
+            Curated rails for {layoutSurface === 'market' ? '/market' : 'the homepage'}.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`px-3 py-1 text-sm rounded border ${
+              layoutSurface === 'home'
+                ? 'border-[var(--color-primary)] text-[var(--color-text)]'
+                : 'border-[var(--color-border)] text-[var(--color-secondary)]'
+            }`}
+            onClick={() => setLayoutSurface('home')}
+          >
+            Home
+          </button>
+          <button
+            type="button"
+            className={`px-3 py-1 text-sm rounded border ${
+              layoutSurface === 'market'
+                ? 'border-[var(--color-primary)] text-[var(--color-text)]'
+                : 'border-[var(--color-border)] text-[var(--color-secondary)]'
+            }`}
+            onClick={() => setLayoutSurface('market')}
+          >
+            Market
+          </button>
         </div>
       </div>
 

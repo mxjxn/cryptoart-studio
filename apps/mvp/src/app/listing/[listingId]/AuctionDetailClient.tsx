@@ -2180,7 +2180,15 @@ export default function AuctionDetailClient({
                 <p className="mt-2 text-sm text-neutral-600">edition of {auction.erc1155TotalSupply}</p>
               )}
             </div>
-            <AdminContextMenu listingId={listingId} sellerAddress={auction.seller} />
+            <AdminContextMenu
+              listingId={listingId}
+              sellerAddress={auction.seller}
+              chainId={
+                typeof auction.chainId === "number" && Number.isFinite(auction.chainId)
+                  ? auction.chainId
+                  : undefined
+              }
+            />
           </div>
 
           {auction.description ? (

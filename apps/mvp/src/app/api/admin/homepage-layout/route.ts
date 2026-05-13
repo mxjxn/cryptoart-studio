@@ -1,52 +1,66 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { asc, getDatabase, homepageLayoutSections } from '@cryptoart/db';
-import { verifyAdmin } from '~/lib/server/admin';
+import { NextRequest, NextResponse } from "next/server";
+import { and, asc, eq, getDatabase, homepageLayoutSections } from "@cryptoart/db";
+import { verifyAdmin } from "~/lib/server/admin";
+
+export type LayoutSurface = "home" | "market";
 
 type SectionType =
-  | 'upcoming_auctions'
-  | 'recently_concluded'
-  | 'live_bids'
-  | 'artist'
-  | 'gallery'
-  | 'collector'
-  | 'listing'
-  | 'featured_carousel'
-  | 'custom_section';
+  | "upcoming_auctions"
+  | "recently_concluded"
+  | "live_bids"
+  | "artist"
+  | "gallery"
+  | "collector"
+  | "listing"
+  | "featured_carousel"
+  | "custom_section"
+  | "recent_listings"
+  | "ending_soon"
+  | "awaiting_bids"
+  | "recent_galleries";
 
 const VALID_SECTION_TYPES: SectionType[] = [
-  'upcoming_auctions',
-  'recently_concluded',
-  'live_bids',
-  'artist',
-  'gallery',
-  'collector',
-  'listing',
-  'featured_carousel',
-  'custom_section',
+  "upcoming_auctions",
+  "recently_concluded",
+  "live_bids",
+  "artist",
+  "gallery",
+  "collector",
+  "listing",
+  "featured_carousel",
+  "custom_section",
+  "recent_listings",
+  "ending_soon",
+  "awaiting_bids",
+  "recent_galleries",
 ];
 
 function isValidSectionType(value: string): value is SectionType {
   return VALID_SECTION_TYPES.includes(value as SectionType);
 }
 
+function parseSurface(raw: string | null): LayoutSurface {
+  return raw === "market" ? "market" : "home";
+}
+
 function validateConfig(sectionType: SectionType, config: any): { valid: boolean; error?: string } {
   if (!config) return { valid: true };
 
   switch (sectionType) {
-    case 'artist':
-    case 'collector':
-      if (!config.name) return { valid: false, error: 'name is required' };
+    case "artist":
+    case "collector":
+      if (!config.name) return { valid: false, error: "name is required" };
       break;
-    case 'gallery':
+    case "gallery":
       if (!config.stubname || !config.curatorAddress) {
-        return { valid: false, error: 'curatorAddress and stubname are required' };
+        return { valid: false, error: "curatorAddress and stubname are required" };
       }
       break;
-    case 'listing':
-      if (!config.listingId) return { valid: false, error: 'listingId is required' };
+    case "listing":
+      if (!config.listingId) return { valid: false, error: "listingId is required" };
       break;
-    case 'custom_section':
-      if (!config.sectionId) return { valid: false, error: 'sectionId is required' };
+    case "custom_section":
+      if (!config.sectionId) return { valid: false, error: "sectionId is required" };
       break;
     default:
       break;
@@ -58,7 +72,8 @@ function validateConfig(sectionType: SectionType, config: any): { valid: boolean
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const adminAddress = searchParams.get('adminAddress');
+    const adminAddress = searchParams.get("adminAddress");
+    const surface = parseSurface(searchParams.get("surface"));
     const { isAdmin, error } = verifyAdmin(adminAddress);
     if (!isAdmin) {
       return NextResponse.json({ error }, { status: 403 });
@@ -68,19 +83,30 @@ export async function GET(req: NextRequest) {
     const sections = await db
       .select()
       .from(homepageLayoutSections)
+      .where(eq(homepageLayoutSections.surface, surface))
       .orderBy(asc(homepageLayoutSections.displayOrder));
 
-    return NextResponse.json({ sections });
+    return NextResponse.json({ sections, surface });
   } catch (error) {
-    console.error('[Admin Homepage Layout] GET error', error);
-    return NextResponse.json({ error: 'Failed to fetch homepage layout' }, { status: 500 });
+    console.error("[Admin Homepage Layout] GET error", error);
+    return NextResponse.json({ error: "Failed to fetch homepage layout" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { adminAddress, sectionType, title, description, config, isActive = true } = body;
+    const {
+      adminAddress,
+      sectionType,
+      title,
+      description,
+      config,
+      isActive = true,
+      surface: surfaceBody,
+    } = body;
+
+    const surface = surfaceBody === "market" ? "market" : "home";
 
     const { isAdmin, error } = verifyAdmin(adminAddress);
     if (!isAdmin) {
@@ -88,7 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isValidSectionType(sectionType)) {
-      return NextResponse.json({ error: 'Invalid sectionType' }, { status: 400 });
+      return NextResponse.json({ error: "Invalid sectionType" }, { status: 400 });
     }
 
     const configValidation = validateConfig(sectionType, config);
@@ -97,7 +123,11 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDatabase();
-    const existing = await db.select().from(homepageLayoutSections).orderBy(asc(homepageLayoutSections.displayOrder));
+    const existing = await db
+      .select()
+      .from(homepageLayoutSections)
+      .where(eq(homepageLayoutSections.surface, surface))
+      .orderBy(asc(homepageLayoutSections.displayOrder));
     const maxOrder = existing.length > 0 ? Math.max(...existing.map((s) => s.displayOrder)) + 1 : 0;
 
     const [section] = await db
@@ -109,17 +139,13 @@ export async function POST(req: NextRequest) {
         config,
         displayOrder: maxOrder,
         isActive,
+        surface,
       })
       .returning();
 
     return NextResponse.json({ section });
   } catch (error) {
-    console.error('[Admin Homepage Layout] POST error', error);
-    return NextResponse.json({ error: 'Failed to create homepage section' }, { status: 500 });
+    console.error("[Admin Homepage Layout] POST error", error);
+    return NextResponse.json({ error: "Failed to create homepage section" }, { status: 500 });
   }
 }
-
-
-
-
-

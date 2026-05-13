@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useTransition } from "react";
+import { useState, useEffect, useRef, useMemo, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
@@ -35,13 +35,15 @@ export type MarketInitialPayload = {
 
 type MarketClientProps = {
   initial: MarketInitialPayload;
+  /** Server-rendered market rails (must be `children`, not a named RSC prop — see Next composition docs). */
+  children?: ReactNode;
 };
 
 const PAGE_SIZE = 20;
 /** Lifecycle + load-more can exceed 60s of enrichment; stay above browse stream wall + network */
 const BROWSE_FETCH_MAX_MS = 150_000;
 
-export default function MarketClient({ initial }: MarketClientProps) {
+export default function MarketClient({ initial, children }: MarketClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = marketTabFromSearch(searchParams.get("tab"));
@@ -250,6 +252,8 @@ export default function MarketClient({ initial }: MarketClientProps) {
       <div className="px-5 py-8">
         <h1 className="text-2xl font-light mb-6">Market</h1>
 
+        {children}
+
         <div
           className="flex flex-wrap gap-x-6 gap-y-2 mb-2 border-b border-[#333333]"
           role="tablist"
@@ -371,7 +375,7 @@ export default function MarketClient({ initial }: MarketClientProps) {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               {listings.map((listing, index) => (
                 <AuctionCard
-                  key={listing.listingId}
+                  key={`${String(listing.listingId)}-${String(listing.chainId ?? "")}`}
                   auction={listing}
                   gradient={gradients[index % gradients.length]}
                   index={index}

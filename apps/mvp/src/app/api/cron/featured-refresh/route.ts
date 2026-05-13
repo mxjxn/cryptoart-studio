@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, featuredListings, featuredSettings, eq } from '@cryptoart/db';
 import { getCachedActiveAuctions } from '~/lib/server/auction';
+import { BASE_CHAIN_ID } from '~/lib/server/subgraph-endpoints';
 
 /**
  * GET /api/cron/featured-refresh
@@ -61,7 +62,11 @@ export async function GET(req: NextRequest) {
       // Insert new featured listings
       for (let i = 0; i < randomListings.length; i++) {
         await tx.insert(featuredListings).values({
-          listingId: randomListings[i].listingId,
+          listingId: String(randomListings[i].listingId),
+          chainId:
+            typeof randomListings[i].chainId === "number" && Number.isFinite(randomListings[i].chainId)
+              ? randomListings[i].chainId
+              : BASE_CHAIN_ID,
           displayOrder: i,
         });
       }

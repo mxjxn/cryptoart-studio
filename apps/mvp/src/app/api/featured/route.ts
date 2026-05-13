@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDatabase, featuredListings, featuredSettings, asc } from '@cryptoart/db';
-import { getAuctionServer, getHiddenUserAddresses } from '~/lib/server/auction';
+import { getAuctionServer, getHiddenUserAddresses, isListingBlockedFromProduct } from '~/lib/server/auction';
+import { BASE_CHAIN_ID } from '~/lib/server/subgraph-endpoints';
 
 /**
  * GET /api/featured
@@ -32,14 +33,15 @@ export async function GET() {
     // Fetch full listing data for each featured listing
     const listings = await Promise.all(
       featured.map(async (f) => {
-        const listing = await getAuctionServer(f.listingId);
+        const chainId =
+          typeof f.chainId === "number" && Number.isFinite(f.chainId) ? f.chainId : BASE_CHAIN_ID;
+        const listing = await getAuctionServer(f.listingId, { chainId });
         if (!listing) {
           return null;
         }
         
-        // Filter out banned/hidden users
-        if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
-          console.log(`[Featured] Filtering out featured listing ${f.listingId}: seller ${listing.seller} is hidden`);
+        if (isListingBlockedFromProduct(listing, hiddenAddresses)) {
+          console.log(`[Featured] Filtering out featured listing ${f.listingId} chain ${chainId}`);
           return null;
         }
         

@@ -1,8 +1,12 @@
-import { request, gql } from "graphql-request";
+import { gql } from "graphql-request";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { fetchNFTMetadataCached } from "~/lib/server/nft-metadata-cache";
 import { type Address } from "viem";
-import { normalizeListingType, getHiddenUserAddresses } from "~/lib/server/auction";
+import {
+  normalizeListingType,
+  getHiddenUserAddresses,
+  isListingBlockedFromProduct,
+} from "~/lib/server/auction";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { getContractCreator } from "~/lib/contract-creator";
 import {
@@ -18,24 +22,11 @@ import {
   classifyMarketLifecycle,
   type MarketLifecycleTab,
 } from "~/lib/market-lifecycle";
+import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import {
-  BASE_CHAIN_ID,
-  getConfiguredSubgraphEndpoints,
-  getSubgraphEndpoint,
-} from "~/lib/server/subgraph-endpoints";
-
-/**
- * Get headers for subgraph requests, including API key if available
- */
-const getSubgraphHeaders = (): Record<string, string> => {
-  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
-  if (apiKey) {
-    return {
-      Authorization: `Bearer ${apiKey}`,
-    };
-  }
-  return {};
-};
+  queryListingsAcrossChains,
+  sortMergedListingsForBrowse,
+} from "~/lib/server/subgraph-multi-query";
 
 /** Thumbnail cache reads hit Postgres; without a ceiling a stuck query blocks the whole browse batch */
 const THUMBNAIL_LOOKUP_TIMEOUT_MS = 2500;
@@ -109,7 +100,6 @@ const BROWSE_LISTINGS_QUERY = gql`
     ) {
       id
       listingId
-      chainId
       marketplace
       seller
       tokenAddress
@@ -207,13 +197,10 @@ function filterBrowseCandidateListings(
 ): any[] {
   const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60;
   return listings.filter((listing) => {
-    if (!marketLifecycle && listing.status === "CANCELLED") return false;
-    if (listing.seller && hiddenAddresses.has(listing.seller.toLowerCase())) {
-      console.log(
-        `[Browse Listings] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`
-      );
+    if (isListingBlockedFromProduct(listing, hiddenAddresses)) {
       return false;
     }
+    if (!marketLifecycle && listing.status === "CANCELLED") return false;
     const startTime = parseInt(listing.startTime || "0", 10);
     const endTime = parseInt(listing.endTime || "0", 10);
     if (
@@ -259,8 +246,6 @@ export async function browseListings(
     marketLifecycle,
   } = options;
 
-  const endpoints = getConfiguredSubgraphEndpoints();
-
   const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
   const fetchCount = Math.min(
     marketLifecycle
@@ -269,52 +254,41 @@ export async function browseListings(
     marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
   );
   
-  const headers = getSubgraphHeaders();
   let mergedListings: any[] = [];
+  let maxEndpointListingCount = 0;
+  let anyEndpointSucceeded = false;
   try {
     console.log('[Browse Listings] Fetching from subgraphs:', {
-      endpoints: endpoints.map((e) => ({ chainId: e.chainId, hasUrl: !!e.url })),
       fetchCount,
       skip,
       orderBy,
       orderDirection,
     });
 
-    const settled = await Promise.allSettled(
-      endpoints.map((ep) =>
-        retrySubgraphRequest(async () => {
-          return await request<{ listings: any[] }>(
-            ep.url,
-            BROWSE_LISTINGS_QUERY,
-            {
-              first: fetchCount,
-              skip,
-              orderBy: subgraphOrderByField(orderBy),
-              orderDirection: orderDirection === "asc" ? "asc" : "desc",
-            },
-            headers
-          );
-        })
-      )
-    );
+    const multi = await queryListingsAcrossChains(BROWSE_LISTINGS_QUERY, {
+      first: fetchCount,
+      skip,
+      orderBy: subgraphOrderByField(orderBy),
+      orderDirection: orderDirection === "asc" ? "asc" : "desc",
+    });
+    mergedListings = multi.listings;
+    maxEndpointListingCount = multi.maxEndpointListingCount;
+    anyEndpointSucceeded = multi.anyEndpointSucceeded;
 
-    for (const s of settled) {
-      if (s.status === "fulfilled") {
-        mergedListings.push(...(s.value.listings ?? []));
-      } else {
-        console.warn('[Browse Listings] Subgraph endpoint failed:', s.reason);
-      }
-    }
+    sortMergedListingsForBrowse(mergedListings, orderBy, orderDirection);
 
     console.log('[Browse Listings] Merged listings:', mergedListings.length);
   } catch (error: any) {
-    // This catch is mainly for unexpected exceptions outside retrySubgraphRequest.
-    // If all endpoints fail, the Promise.allSettled loop above leaves mergedListings empty.
+    // If all endpoints fail, mergedListings stays empty.
     console.error('[Browse Listings] Unexpected error while querying subgraphs:', error);
   }
 
   if (mergedListings.length === 0) {
-    return { listings: [], subgraphReturnedFullCount: false, subgraphDown: true };
+    return {
+      listings: [],
+      subgraphReturnedFullCount: false,
+      subgraphDown: !anyEndpointSucceeded,
+    };
   }
   
   // Get hidden user addresses for filtering
@@ -540,7 +514,7 @@ export async function browseListings(
 
   // Check if subgraph returned the full amount we requested
   // This helps determine if there might be more listings available
-  const subgraphReturnedFullCount = mergedListings.length >= fetchCount;
+  const subgraphReturnedFullCount = maxEndpointListingCount >= fetchCount;
   
   const finalListings = enrichedListings.slice(0, first);
   console.log('[Browse Listings] Returning', finalListings.length, 'listings (requested', first, ', filtered from', activeListings.length, 'active)');
@@ -570,7 +544,6 @@ export async function* browseListingsStreaming(
     marketLifecycle,
   } = options;
 
-  const endpoint = getSubgraphEndpoint();
   const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
   const fetchCount = Math.min(
     marketLifecycle
@@ -579,55 +552,61 @@ export async function* browseListingsStreaming(
     marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
   );
 
-  let data: { listings: any[] };
+  let mergedListings: any[] = [];
+  let maxEndpointListingCount = 0;
+  let anyEndpointSucceeded = false;
   try {
-    console.log('[Browse Listings Streaming] Fetching from subgraph:', { endpoint, fetchCount, skip, orderBy, orderDirection });
-    
-    data = await retrySubgraphRequest(async () => {
-      return await request<{ listings: any[] }>(
-        endpoint,
-        BROWSE_LISTINGS_QUERY,
-        {
-          first: fetchCount,
-          skip,
-          orderBy: subgraphOrderByField(orderBy),
-          orderDirection: orderDirection === "asc" ? "asc" : "desc",
-        },
-        getSubgraphHeaders()
-      );
+    const multi = await queryListingsAcrossChains(BROWSE_LISTINGS_QUERY, {
+      first: fetchCount,
+      skip,
+      orderBy: subgraphOrderByField(orderBy),
+      orderDirection: orderDirection === "asc" ? "asc" : "desc",
     });
-    
-    console.log('[Browse Listings Streaming] Subgraph returned', data.listings?.length || 0, 'listings');
+    mergedListings = multi.listings;
+    maxEndpointListingCount = multi.maxEndpointListingCount;
+    anyEndpointSucceeded = multi.anyEndpointSucceeded;
+    sortMergedListingsForBrowse(mergedListings, orderBy, orderDirection);
+
+    console.log(
+      "[Browse Listings Streaming] Merged listings:",
+      mergedListings.length,
+      "maxEndpointCount",
+      maxEndpointListingCount
+    );
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
-    const isSubgraphDown = 
-      errorMessage.includes('bad indexers') ||
-      errorMessage.includes('BadResponse') ||
-      errorMessage.includes('ENOTFOUND') ||
-      errorMessage.includes('ECONNREFUSED') ||
-      errorMessage.includes('ETIMEDOUT') ||
-      errorMessage.includes('network');
-    
-    yield { type: 'metadata', subgraphDown: isSubgraphDown };
+    const isSubgraphDown =
+      errorMessage.includes("bad indexers") ||
+      errorMessage.includes("BadResponse") ||
+      errorMessage.includes("ENOTFOUND") ||
+      errorMessage.includes("ECONNREFUSED") ||
+      errorMessage.includes("ETIMEDOUT") ||
+      errorMessage.includes("network");
+
+    yield { type: "metadata", subgraphDown: isSubgraphDown };
     return;
   }
-  
+
+  if (mergedListings.length === 0) {
+    yield { type: "metadata", subgraphDown: !anyEndpointSucceeded };
+    return;
+  }
+
   const hiddenAddresses = await getHiddenUserAddressesBounded("Browse Listings Streaming");
 
   const activeListings = filterBrowseCandidateListings(
-    data.listings,
+    mergedListings,
     hiddenAddresses,
     marketLifecycle
   );
 
   console.log("[Browse Listings Streaming] phase=filtered", {
     activeCount: activeListings.length,
-    subgraphRawCount: data.listings.length,
+    subgraphRawCount: mergedListings.length,
   });
 
-  // Yield metadata first
-  const subgraphReturnedFullCount = data.listings.length === fetchCount;
-  yield { type: 'metadata', subgraphReturnedFullCount, subgraphDown: false };
+  const subgraphReturnedFullCount = maxEndpointListingCount >= fetchCount;
+  yield { type: "metadata", subgraphReturnedFullCount, subgraphDown: false };
 
   if (!enrich) {
     // If not enriching, yield all listings immediately

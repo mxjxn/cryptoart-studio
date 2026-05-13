@@ -21,6 +21,7 @@ import {
   chainIdsFromSubgraphRows,
   isAmbiguousListingError,
 } from '~/lib/auction-errors';
+import { ensureListingChainId } from '~/lib/server/subgraph-multi-query';
 
 // Mainnet metadata + IPFS + cold thumbnail work often exceeds 12–15s; keep headroom below typical platform caps.
 export const maxDuration = 60;
@@ -43,7 +44,6 @@ const LISTING_BY_ID_QUERY = gql`
     listing(id: $id) {
       id
       listingId
-      chainId
       marketplace
       seller
       tokenAddress
@@ -82,7 +82,6 @@ const LISTING_BY_LISTING_ID_QUERY = gql`
     ) {
       id
       listingId
-      chainId
       marketplace
       seller
       tokenAddress
@@ -237,9 +236,13 @@ async function fetchAuctionData(
   );
 
   const matched: any[] = [];
-  for (const s of settled) {
+  for (let i = 0; i < settled.length; i++) {
+    const s = settled[i];
     if (s.status !== "fulfilled") continue;
-    matched.push(...(s.value.listings ?? []));
+    const ep = endpoints[i];
+    for (const row of s.value.listings ?? []) {
+      matched.push(ensureListingChainId(row, ep.chainId));
+    }
   }
 
   if (matched.length === 0) return null;

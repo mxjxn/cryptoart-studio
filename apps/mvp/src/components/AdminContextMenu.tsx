@@ -14,12 +14,15 @@ interface AdminContextMenuProps {
   listingId?: string;
   sellerAddress?: string;
   isFeatured?: boolean;
+  /** Listing's chain (for cross-chain featured rows). Defaults to app marketplace chain. */
+  chainId?: number;
 }
 
 export function AdminContextMenu({ 
   listingId, 
   sellerAddress,
-  isFeatured: propIsFeatured
+  isFeatured: propIsFeatured,
+  chainId,
 }: AdminContextMenuProps) {
   const { isAdmin } = useAdminMode();
   const { isAdminOnChain, isLoading: isAdminOnChainLoading } = useIsAdminOnChain();
@@ -63,7 +66,16 @@ export function AdminContextMenu({
     enabled: !!listingId && isAdmin,
   });
 
-  const isFeatured = propIsFeatured ?? (featuredData?.listings?.some((l: any) => l.listingId === listingId) ?? false);
+  const effectiveChain =
+    typeof chainId === "number" && Number.isFinite(chainId) ? chainId : CHAIN_ID;
+
+  const isFeatured =
+    propIsFeatured ??
+    (featuredData?.listings?.some(
+      (l: { listingId?: string; chainId?: number }) =>
+        l.listingId === listingId && Number(l.chainId ?? CHAIN_ID) === effectiveChain
+    ) ??
+      false);
 
   // Calculate dropdown position when opened
   useEffect(() => {
@@ -123,7 +135,7 @@ export function AdminContextMenu({
       const response = await fetch("/api/admin/featured", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listingId, adminAddress: address }),
+        body: JSON.stringify({ listingId, adminAddress: address, chainId: effectiveChain }),
       });
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ["admin", "featured"] });
@@ -140,9 +152,12 @@ export function AdminContextMenu({
     if (!listingId || !address) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/admin/featured/${listingId}?adminAddress=${address}`, {
+      const response = await fetch(
+        `/api/admin/featured/${listingId}?adminAddress=${address}&chainId=${effectiveChain}`,
+        {
         method: "DELETE",
-      });
+      }
+      );
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ["admin", "featured"] });
         setIsOpen(false);

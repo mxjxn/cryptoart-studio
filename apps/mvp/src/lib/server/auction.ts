@@ -8,6 +8,7 @@ import { getDatabase, hiddenUsers } from '@cryptoart/db';
 import {
   getConfiguredSubgraphEndpoints,
 } from "~/lib/server/subgraph-endpoints";
+import { ensureListingChainId } from "~/lib/server/subgraph-multi-query";
 import {
   getListingMediaSnapshot,
   primeListingMediaSnapshot,
@@ -47,7 +48,6 @@ const LISTING_BY_ID_QUERY = gql`
     listing(id: $id) {
       id
       listingId
-      chainId
       marketplace
       seller
       tokenAddress
@@ -86,7 +86,6 @@ const LISTING_BY_LISTING_ID_QUERY = gql`
     ) {
       id
       listingId
-      chainId
       marketplace
       seller
       tokenAddress
@@ -128,7 +127,6 @@ const ACTIVE_LISTINGS_QUERY = gql`
     ) {
       id
       listingId
-      chainId
       marketplace
       seller
       tokenAddress
@@ -341,9 +339,13 @@ export async function resolveListingFromSubgraph(
   );
 
   const matched: any[] = [];
-  for (const s of settled) {
+  for (let i = 0; i < settled.length; i++) {
+    const s = settled[i];
     if (s.status !== "fulfilled") continue;
-    matched.push(...(s.value.listings ?? []));
+    const ep = endpoints[i];
+    for (const row of s.value.listings ?? []) {
+      matched.push(ensureListingChainId(row, ep.chainId));
+    }
   }
 
   if (matched.length === 0) return null;
@@ -367,7 +369,14 @@ export async function getAuctionServer(
   try {
     const listing = await resolveListingFromSubgraph(listingId, opts?.chainId);
     if (!listing) {
-      console.warn(`[OG Image] [getAuctionServer] No listing found for ID: ${listingId}`);
+      const scope =
+        opts?.chainId != null
+          ? `scoped to chainId=${opts.chainId}`
+          : "searched all configured subgraph endpoints";
+      console.warn(
+        `[OG Image] [getAuctionServer] No listing found for ID: ${listingId} (${scope}). ` +
+          "Common causes: stale `featured_listings` / homepage pins, wrong `chain_id` for that row, subgraph URL or schema mismatch, or the auction id never existed on the networks you query."
+      );
       return null;
     }
 
@@ -569,9 +578,13 @@ async function fetchActiveAuctions(
   );
 
   const mergedListings: any[] = [];
-  const fulfilled = settled.filter((s): s is PromiseFulfilledResult<{ listings: any[] }> => s.status === "fulfilled");
-  for (const s of fulfilled) {
-    mergedListings.push(...(s.value.listings ?? []));
+  for (let i = 0; i < settled.length; i++) {
+    const s = settled[i];
+    if (s.status !== "fulfilled") continue;
+    const ep = endpoints[i];
+    for (const row of s.value.listings ?? []) {
+      mergedListings.push(ensureListingChainId(row, ep.chainId));
+    }
   }
 
   if (mergedListings.length === 0) {
@@ -597,15 +610,13 @@ async function fetchActiveAuctions(
     const totalSold = parseInt(listing.totalSold || "0");
     const isFullySold = totalAvailable > 0 && totalSold >= totalAvailable;
     
-    // Exclude if finalized or fully sold
     if (listing.finalized || isFullySold) {
       console.log(`[Active Listings] Filtering out listing ${listing.listingId}: finalized=${listing.finalized}, totalSold=${totalSold}, totalAvailable=${totalAvailable}, isFullySold=${isFullySold}`);
       return false;
     }
     
-    // Exclude if seller is hidden
-    if (hiddenAddresses.has(listing.seller?.toLowerCase())) {
-      console.log(`[Active Listings] Filtering out listing ${listing.listingId}: seller ${listing.seller} is hidden`);
+    if (isListingBlockedFromProduct(listing, hiddenAddresses)) {
+      console.log(`[Active Listings] Filtering out listing ${listing.listingId}: blocked or hidden seller`);
       return false;
     }
     
