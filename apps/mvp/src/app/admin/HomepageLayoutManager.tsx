@@ -50,10 +50,10 @@ const SECTION_LABELS: Record<SectionType, string> = {
 };
 
 
-export function HomepageLayoutManager() {
+export function HomepageLayoutManager({ initialSurface }: { initialSurface?: LayoutSurface } = {}) {
   const queryClient = useQueryClient();
   const { address } = useAccount();
-  const [layoutSurface, setLayoutSurface] = useState<LayoutSurface>('home');
+  const [layoutSurface, setLayoutSurface] = useState<LayoutSurface>(initialSurface || 'home');
 
   const [form, setForm] = useState<{
     id?: string;
@@ -422,4 +422,3 @@ export function HomepageLayoutManager() {
     </div>
   );
 }
-

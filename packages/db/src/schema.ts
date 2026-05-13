@@ -459,6 +459,28 @@ export interface HomepageLayoutSectionData {
   updatedAt: Date;
 }
 
+/**
+ * Market layout snapshots - Cached JSON snapshot of resolved market layout sections
+ * This allows fast server responses without needing to re-run subgraph/enrichment on every request.
+ */
+export const marketLayoutSnapshots = pgTable('market_layout_snapshots', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  surface: text('surface').notNull(), // 'market' | 'home' (we use 'market')
+  payload: jsonb('payload').notNull(), // Full serialized sections JSON
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  surfaceCreatedIdx: index('market_layout_snapshots_surface_created_idx').on(table.surface, table.createdAt),
+}));
+
+export interface MarketLayoutSnapshotData {
+  id: string;
+  surface: string;
+  payload: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ============================================
 // CURATION (Future)
 // ============================================

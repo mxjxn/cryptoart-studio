@@ -5,9 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { TransitionLink } from '~/components/TransitionLink';
 
-const ADMIN_TABS = [
-  { name: 'Featured', href: '/admin/featured' },
-  { name: 'Listings', href: '/admin/listings' },
+  const ADMIN_TABS = [
+    { name: 'Featured', href: '/admin/featured' },
+    { name: 'Marketplace', href: '/admin/marketplace' },
+    { name: 'Listings', href: '/admin/listings' },
   { name: 'Users', href: '/admin/users' },
   { name: 'Membership', href: '/admin/membership' },
   { name: 'Stats', href: '/admin/stats' },
@@ -86,4 +87,3 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
