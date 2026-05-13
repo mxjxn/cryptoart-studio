@@ -17,6 +17,7 @@ import {
   featuredSections,
   featuredSectionItems,
   homepageLayoutSections,
+  marketLayoutSnapshots,
   curation,
   curationItems,
   hiddenUsers,
