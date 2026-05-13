@@ -21,10 +21,12 @@ export default async function MarketRails() {
     [] as HomepageSection[]
   );
   if (sections.length === 0) {
+    // Minimal, compact fallback to avoid taking too much vertical space when market sections fail to load
     return (
-      <div className="mb-10 rounded border border-[#333333] bg-[#111111] px-4 py-6 text-center font-mek-mono text-xs tracking-[0.5px] text-[#888888]">
-        Market highlights did not load (timeout or empty layout). Refresh the page, or check
-        homepage layout for the &quot;market&quot; surface in admin.
+      <div className="mb-6 flex items-center gap-3">
+        <div className="w-28 h-16 rounded bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.03)] animate-pulse" />
+        <div className="w-28 h-16 rounded bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.03)] animate-pulse" />
+        <div className="text-xs text-[var(--color-tertiary)]">Market highlights unavailable — refresh or check admin.</div>
       </div>
     );
   }
