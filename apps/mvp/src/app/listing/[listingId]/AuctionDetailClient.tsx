@@ -364,9 +364,9 @@ export default function AuctionDetailClient({
           )}
         </div>
       </div>
-      <div className="mx-auto max-w-4xl px-5 py-4">
+      <div className="mx-auto max-w-4xl py-4">
         {isMiniApp && !isMiniAppInstalled && actions && (
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex justify-end px-5">
             <button
               onClick={actions.addMiniApp}
               className="text-xs text-neutral-500 hover:text-neutral-600 transition-colors underline"
@@ -376,7 +376,7 @@ export default function AuctionDetailClient({
           </div>
         )}
         {canEditListingTheme && isListingSeller && address && (
-          <div className="mx-5 mb-4 w-full">
+          <div className="mb-4">
             <ListingThemeEditor
               mode="listing"
               listingId={listingId}
@@ -387,7 +387,7 @@ export default function AuctionDetailClient({
             />
           </div>
         )}
-        <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
           <MediaDisplay
             imageUrl={listingHeroImageUrl}
             animationUrl={auction.metadata?.animation_url}
@@ -432,7 +432,7 @@ export default function AuctionDetailClient({
         )}
 
         <div
-          className={`listing-light-surface mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white px-5 py-5 text-neutral-900 shadow-sm ${listingTypo.sectionFontClass}`}
+          className={`listing-light-surface mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white px-5 py-5 text-neutral-900 shadow-sm ${listingTypo.sectionFontClass}`}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
@@ -602,13 +602,13 @@ export default function AuctionDetailClient({
         </div>
 
         {isCancelled && (
-          <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-900 font-medium">Auction has been cancelled</p>
           </div>
         )}
 
         {isAtRiskListing && !isCancelled && (
-          <div className="mx-5 mb-4 w-full rounded-2xl border border-yellow-600/30 bg-yellow-900/20 p-4">
+          <div className="mb-4 rounded-2xl border border-yellow-600/30 bg-yellow-900/20 p-4">
             <p className="text-yellow-400 font-medium mb-2">⚠️ Auction Configuration Issue</p>
             <p className="text-yellow-300 text-sm mb-3">
               This auction has a configuration issue that would prevent proper finalization. 
@@ -619,7 +619,7 @@ export default function AuctionDetailClient({
         )}
 
         {showUpdateForm && (canUpdate || canUpdateAtRisk) && !isCancelled && (
-          <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             {isAtRiskListing && (
               <p className="text-sm text-neutral-600 mb-3">
                 Update your auction configuration. Set a start time and end time, or use duration mode.
@@ -644,7 +644,7 @@ export default function AuctionDetailClient({
         )}
 
         {canUpdate && !isCancelled && !showUpdateForm && (
-          <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
+          <div className="mb-4 overflow-hidden rounded-2xl shadow-sm">
             <button
               onClick={() => setShowUpdateForm(true)}
               disabled={isModifyLoading}
@@ -657,7 +657,7 @@ export default function AuctionDetailClient({
         )}
 
         {canCancel && !isCancelled && (
-          <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
+          <div className="mb-4 overflow-hidden rounded-2xl shadow-sm">
             <button
               onClick={handleCancel}
               disabled={isCancelLoading}
@@ -680,7 +680,7 @@ export default function AuctionDetailClient({
         )}
 
         {isEnded && !isCancelled && auction.listingType === "INDIVIDUAL_AUCTION" && (
-          <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-neutral-900 font-medium mb-2">Auction Ended</p>
             {auction.highestBid && hasBid ? (
               <div className="space-y-2">
@@ -721,7 +721,7 @@ export default function AuctionDetailClient({
           (auction.listingType === "INDIVIDUAL_AUCTION" && (isOwnAuction || isWinner)) ||
           (auction.listingType === "FIXED_PRICE" && isOwnAuction)
         ) && (
-          <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl shadow-sm">
+          <div className="mb-4 overflow-hidden rounded-2xl shadow-sm">
             <button
               onClick={handleFinalize}
               disabled={isFinalizeLoading || !canFinalize}
@@ -758,7 +758,7 @@ export default function AuctionDetailClient({
         )}
 
         {effectiveEnded && !isCancelled && auction.status !== "FINALIZED" && !canFinalize && (
-          <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <p className="text-sm font-medium text-neutral-900">
               Finalization is available to the authorized wallet.
             </p>
@@ -780,7 +780,7 @@ export default function AuctionDetailClient({
         )}
 
         {!isCancelled && canFix180DayIssue && (
-          <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <Fix180DayDurationForm
               listingId={listingId}
               onSubmit={handleFix180DayDuration}
@@ -795,7 +795,7 @@ export default function AuctionDetailClient({
         )}
 
         {!isCancelled && has180DayIssue && !isOwnAuction && (
-          <div className="mx-5 mb-4 w-full rounded-2xl border border-red-700/50 bg-red-900/20 p-4">
+          <div className="mb-4 rounded-2xl border border-red-700/50 bg-red-900/20 p-4">
             <p className="text-sm text-red-400 font-medium mb-1">
               Bidding Temporarily Disabled
             </p>
@@ -808,7 +808,7 @@ export default function AuctionDetailClient({
         {!isCancelled && (
           <>
             {auction.listingType === "INDIVIDUAL_AUCTION" && showControls && !isAtRiskListing && !has180DayIssue && (
-              <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {!isConnected ? (
                   <p className="text-xs text-neutral-600">
                     Please connect your wallet to place a bid.
@@ -916,7 +916,7 @@ export default function AuctionDetailClient({
               
               if (isERC721SoldOut) {
                 return (
-                  <div className="mx-5 mb-4 w-full rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+                  <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <p className="text-center text-lg font-medium text-neutral-500 py-4">
                       Sold Out
                     </p>
@@ -925,7 +925,7 @@ export default function AuctionDetailClient({
               }
               
               return (
-                <div className="mx-5 mb-4 w-full space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   {auction.tokenSpec === "ERC1155" && (
                   <div>
                     <label className="block text-sm font-medium text-neutral-600 mb-2">
@@ -1094,7 +1094,7 @@ export default function AuctionDetailClient({
             })()}
 
             {auction.listingType === "OFFERS_ONLY" && showControls && (
-              <div className="mx-5 mb-4 w-full space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 {!isConnected ? (
                   <p className="text-xs text-neutral-600">
                     Please connect your wallet to make an offer.
@@ -1220,7 +1220,7 @@ export default function AuctionDetailClient({
         )}
 
         {!isCancelled && (
-          <div className="listing-light-surface mx-5 mb-4 w-full space-y-4 rounded-2xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
+          <div className="listing-light-surface mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
             {auction.listingType === "INDIVIDUAL_AUCTION" && (() => {
               const timeStatusEndTime = (startTime === 0 && auctionHasStarted && actualEndTime > 0) 
                 ? actualEndTime 
@@ -1554,7 +1554,7 @@ export default function AuctionDetailClient({
         )}
 
         {!isCancelled && !isPaymentETH && !isOwnAuction && isConnected && (
-          <div className="mx-5 mb-4 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+          <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
             {isMiniApp ? (
               <button
                 type="button"
