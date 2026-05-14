@@ -39,7 +39,7 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 ## Milestone Plan
 
-## Milestone 1 — Core Platform Foundation (Now)
+### Milestone 1 — Core Platform Foundation (Now)
 
 **Goal:** Hardening base capabilities in `apps/mvp` before feed expansion.
 
@@ -50,7 +50,7 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 **Exit criteria:** Core mint/collection/metadata/multi-chain paths are stable enough to support broader feed and social features.
 
-## Milestone 2 — Minting + Tag Infrastructure Expansion
+### Milestone 2 — Minting + Tag Infrastructure Expansion
 
 **Goal:** Expand catalog quality and minting flexibility.
 
@@ -61,7 +61,7 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 **Exit criteria:** Minting/tag infrastructure can support richer feed relevance and future marketplace overlays.
 
-## Milestone 3 — Channel-First Feed and Marketplace Context
+### Milestone 3 — Channel-First Feed and Marketplace Context
 
 **Goal:** Establish Farcaster-lite feed behavior with channel as the primary organizing unit.
 
@@ -72,7 +72,7 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 **Exit criteria:** Users can follow channel-native conversation while seeing marketplace-aware context and relevant chain activity.
 
-## Milestone 4 — Trust, Curation, and Launch-Readiness Signals
+### Milestone 4 — Trust, Curation, and Launch-Readiness Signals
 
 **Goal:** Improve feed quality and safety before broad distribution.
 
@@ -83,7 +83,7 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 **Exit criteria:** Feed quality and moderation controls are strong enough for wider rollout.
 
-## Milestone 5 — Engagement Loops + PWA Introduction (Middle-Late)
+### Milestone 5 — Engagement Loops + PWA Introduction (Middle-Late)
 
 **Goal:** Add durable user loops and then package the experience for installability.
 
@@ -94,7 +94,7 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 **Exit criteria:** Product loops are established and PWA layer supports them without rework-heavy assumptions.
 
-## Milestone 6 — Personalization and Advanced Ranking (Later)
+### Milestone 6 — Personalization and Advanced Ranking (Later)
 
 **Goal:** Layer in advanced relevance only after trust and engagement primitives are working.
 
