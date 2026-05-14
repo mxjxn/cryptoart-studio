@@ -71,6 +71,10 @@ async function tryGenerateSmallThumbnailBounded(imageUrl: string): Promise<strin
   }
 }
 
+function generateThumbnailBackground(imageUrl: string): void {
+  tryGenerateSmallThumbnailBounded(imageUrl).catch(() => {});
+}
+
 async function getHiddenUserAddressesBounded(logLabel: string): Promise<Set<string>> {
   const t0 = Date.now();
   const raced = await Promise.race([
@@ -220,21 +224,164 @@ function filterBrowseCandidateListings(
   });
 }
 
+function makeBasicListing(listing: any): EnrichedAuctionData {
+  return {
+    ...listing,
+    listingType: normalizeListingType(listing.listingType, listing),
+    bidCount: listing.bids?.length || 0,
+    highestBid: listing.bids && listing.bids.length > 0
+      ? {
+          amount: listing.bids[0].amount,
+          bidder: listing.bids[0].bidder,
+          timestamp: listing.bids[0].timestamp,
+        }
+      : undefined,
+  };
+}
+
+async function enrichSingleListing(listing: any): Promise<EnrichedAuctionData> {
+  const bidCount = listing.bids?.length || 0;
+  const highestBid =
+    listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
+
+  if (listing.tokenAddress && listing.tokenId) {
+    try {
+      const listingChain =
+        typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
+          ? listing.chainId
+          : BASE_CHAIN_ID;
+      const creatorPromise = getContractCreator(
+        listing.tokenAddress,
+        listing.tokenId,
+        { chainId: listingChain }
+      );
+      const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) =>
+        setTimeout(() => resolve({ creator: null, source: null }), 3000)
+      );
+      const creatorResult = await Promise.race([creatorPromise, timeoutPromise]);
+      if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
+        discoverAndCacheUserBackground(creatorResult.creator);
+      }
+    } catch {
+      // Ignore creator discovery errors
+    }
+  }
+
+  let metadata = null;
+  if (listing.tokenAddress && listing.tokenId) {
+    try {
+      const metadataPromise = fetchNFTMetadataCached(
+        listing.tokenAddress as Address,
+        listing.tokenId,
+        listing.tokenSpec
+      );
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Metadata fetch timeout after 5s')), 5000)
+      );
+      metadata = await Promise.race([metadataPromise, timeoutPromise]);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (!errorMsg.includes('timeout')) {
+        console.warn(`[Browse Listings] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}):`, errorMsg);
+      }
+    }
+  }
+
+  let thumbnailUrl: string | undefined = undefined;
+  const imageUrl = metadata?.image;
+  const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
+
+  if (imageUrl && listing.status !== "CANCELLED") {
+    try {
+      const cached = await lookupCachedThumbnailBounded(imageUrl);
+      if (cached) {
+        thumbnailUrl = cached;
+      } else {
+        thumbnailUrl = imageUrl;
+        generateThumbnailBackground(imageUrl);
+      }
+    } catch {
+      thumbnailUrl = imageUrl;
+    }
+  }
+
+  const resolvedMedia = resolveMediaWithFallback({
+    freshImage: metadata?.image,
+    cachedThumbnail: thumbnailUrl,
+    lastKnownImage: mediaSnapshot?.image,
+    lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
+    originalImage: metadata?.image,
+  });
+
+  const enriched: EnrichedAuctionData = {
+    ...listing,
+    listingType: normalizeListingType(listing.listingType, listing),
+    bidCount,
+    highestBid: highestBid
+      ? {
+          amount: highestBid.amount,
+          bidder: highestBid.bidder,
+          timestamp: highestBid.timestamp,
+        }
+      : undefined,
+    title: metadata?.title || metadata?.name || mediaSnapshot?.title,
+    artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
+    image: resolvedMedia.image,
+    description: metadata?.description || mediaSnapshot?.description,
+    thumbnailUrl: resolvedMedia.thumbnailUrl,
+    metadata,
+  };
+
+  primeListingMediaSnapshot({
+    ...enriched,
+    listingId: String(listing.listingId),
+  });
+
+  return enriched;
+}
+
 export interface BrowseListingsResult {
   listings: EnrichedAuctionData[];
-  subgraphReturnedFullCount: boolean; // Whether the subgraph returned the full amount we requested
-  subgraphDown?: boolean; // Whether the subgraph is down/unavailable
+  subgraphReturnedFullCount: boolean;
+  subgraphDown?: boolean;
 }
 
 export type StreamingListingEvent = 
   | { type: 'listing'; data: EnrichedAuctionData }
   | { type: 'metadata'; subgraphReturnedFullCount?: boolean; subgraphDown?: boolean };
 
+const inFlightBrowse = new Map<string, Promise<BrowseListingsResult>>();
+
+function browseOptionsKey(options: BrowseListingsOptions): string {
+  return JSON.stringify({
+    first: options.first ?? 20,
+    skip: options.skip ?? 0,
+    orderBy: options.orderBy ?? "listingId",
+    orderDirection: options.orderDirection ?? "desc",
+    enrich: options.enrich ?? true,
+    marketLifecycle: options.marketLifecycle ?? null,
+  });
+}
+
 /**
  * Fetch and enrich listings from the subgraph
  * This is the core logic used by both the API route and server components
  */
 export async function browseListings(
+  options: BrowseListingsOptions = {}
+): Promise<BrowseListingsResult> {
+  const key = browseOptionsKey(options);
+  const existing = inFlightBrowse.get(key);
+  if (existing) return existing;
+
+  const promise = browseListingsInner(options).finally(() => {
+    inFlightBrowse.delete(key);
+  });
+  inFlightBrowse.set(key, promise);
+  return promise;
+}
+
+async function browseListingsInner(
   options: BrowseListingsOptions = {}
 ): Promise<BrowseListingsResult> {
   const {
@@ -341,175 +488,28 @@ export async function browseListings(
   } else {
     console.log('[Browse Listings] Enriching', activeListings.length, 'listings');
     
-    // Collect all addresses that need user discovery
     const addressesToDiscover = new Set<string>();
-    
-    // Add seller addresses
     activeListings.forEach(listing => {
       if (listing.seller) {
         addressesToDiscover.add(listing.seller.toLowerCase());
       }
     });
-
-    // Discover users for sellers (non-blocking background)
     addressesToDiscover.forEach(address => {
       discoverAndCacheUserBackground(address);
     });
 
-    // Process listings in smaller batches to allow incremental progress
-    // This prevents one slow listing from blocking all others
-    // Reduced batch size for faster initial results
-    const BATCH_SIZE = 3; // Process 3 listings at a time for faster streaming
-    const batches: EnrichedAuctionData[] = [];
-    
-    for (let i = 0; i < activeListings.length; i += BATCH_SIZE) {
-      const batch = activeListings.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.allSettled(
-        batch.map(async (listing) => {
-        const bidCount = listing.bids?.length || 0;
-        const highestBid =
-          listing.bids && listing.bids.length > 0
-            ? listing.bids[0]
-            : undefined;
+    const allResults = await Promise.allSettled(
+      activeListings.map((listing) => enrichSingleListing(listing))
+    );
 
-        // Discover contract creator if we have token info
-        // OPTIMIZED: Run with timeout to avoid blocking on slow onchain calls
-        // getContractCreator already checks cache first, so this should be fast
-        if (listing.tokenAddress && listing.tokenId) {
-          try {
-            const listingChain =
-              typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
-                ? listing.chainId
-                : BASE_CHAIN_ID;
-            // Add timeout to avoid blocking on slow onchain calls
-            const creatorPromise = getContractCreator(
-              listing.tokenAddress,
-              listing.tokenId,
-              { chainId: listingChain }
-            );
-            const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) => 
-              setTimeout(() => resolve({ creator: null, source: null }), 3000) // 3 second timeout
-            );
-            const creatorResult = await Promise.race([creatorPromise, timeoutPromise]);
-            if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
-              // Discover creator in background (non-blocking)
-              discoverAndCacheUserBackground(creatorResult.creator);
-            }
-          } catch {
-            // Ignore creator discovery errors
-          }
-        }
-
-        let metadata = null;
-        if (listing.tokenAddress && listing.tokenId) {
-          try {
-            // Add timeout to metadata fetching to prevent hanging
-            // Reduced timeout to 5 seconds for faster page loads
-            // Use Promise.race to timeout after 5 seconds
-            const metadataPromise = fetchNFTMetadataCached(
-              listing.tokenAddress as Address,
-              listing.tokenId,
-              listing.tokenSpec
-            );
-            const timeoutPromise = new Promise<never>((_, reject) => 
-              setTimeout(() => reject(new Error('Metadata fetch timeout after 5s')), 5000)
-            );
-            metadata = await Promise.race([metadataPromise, timeoutPromise]);
-          } catch (error) {
-            // Log but don't throw - metadata is optional
-            // Include listing ID and status in error log for debugging
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            // Only log timeout errors at debug level to reduce noise
-            if (!errorMsg.includes('timeout')) {
-              console.warn(`[Browse Listings] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}):`, errorMsg);
-            }
-          }
-        }
-
-        // Check for thumbnail - use cached if available, otherwise use original image
-        // OPTIMIZATION: Skip on-demand generation to avoid blocking page load
-        // Background generation should have created thumbnails by the time users view listings
-        // If not ready yet, we use the original image to avoid blocking page load
-        // Skip thumbnail generation for cancelled listings
-        let thumbnailUrl: string | undefined = undefined;
-        const imageUrl = metadata?.image;
-        const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
-        
-        if (imageUrl && listing.status !== "CANCELLED") {
-          try {
-            let small = await lookupCachedThumbnailBounded(imageUrl);
-            if (!small) {
-              small = await tryGenerateSmallThumbnailBounded(imageUrl);
-            }
-            thumbnailUrl = small ?? imageUrl;
-          } catch {
-            thumbnailUrl = imageUrl;
-          }
-        }
-
-        const resolvedMedia = resolveMediaWithFallback({
-          freshImage: metadata?.image,
-          cachedThumbnail: thumbnailUrl,
-          lastKnownImage: mediaSnapshot?.image,
-          lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
-          originalImage: metadata?.image,
-        });
-
-          return {
-            ...listing,
-            listingType: normalizeListingType(listing.listingType, listing),
-            bidCount,
-            highestBid: highestBid
-              ? {
-                  amount: highestBid.amount,
-                  bidder: highestBid.bidder,
-                  timestamp: highestBid.timestamp,
-                }
-              : undefined,
-            title: metadata?.title || metadata?.name || mediaSnapshot?.title,
-            artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
-            image: resolvedMedia.image,
-            description: metadata?.description || mediaSnapshot?.description,
-            thumbnailUrl: resolvedMedia.thumbnailUrl,
-            metadata,
-          };
-          primeListingMediaSnapshot({
-            ...listing,
-            listingId: String(listing.listingId),
-            title: metadata?.title || metadata?.name || mediaSnapshot?.title,
-            artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
-            description: metadata?.description || mediaSnapshot?.description,
-            image: resolvedMedia.image,
-            thumbnailUrl: resolvedMedia.thumbnailUrl,
-          } as EnrichedAuctionData);
-        })
-      );
-      
-      // Process batch results - include successful enrichments, fallback to basic data for failures
-      batchResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          batches.push(result.value);
-        } else {
-          // If enrichment failed, return basic listing data
-          const listing = batch[index];
-          console.warn(`[Browse Listings] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
-          batches.push({
-            ...listing,
-            listingType: normalizeListingType(listing.listingType, listing),
-            bidCount: listing.bids?.length || 0,
-            highestBid: listing.bids && listing.bids.length > 0
-              ? {
-                  amount: listing.bids[0].amount,
-                  bidder: listing.bids[0].bidder,
-                  timestamp: listing.bids[0].timestamp,
-                }
-              : undefined,
-          });
-        }
-      });
-    }
-    
-    enrichedListings = batches;
+    enrichedListings = allResults.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      }
+      const listing = activeListings[index];
+      console.warn(`[Browse Listings] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
+      return makeBasicListing(listing);
+    });
   }
 
   // Check if subgraph returned the full amount we requested
@@ -630,7 +630,6 @@ export async function* browseListingsStreaming(
     return;
   }
 
-  // Collect addresses for user discovery (non-blocking)
   const addressesToDiscover = new Set<string>();
   activeListings.forEach(listing => {
     if (listing.seller) {
@@ -641,159 +640,26 @@ export async function* browseListingsStreaming(
     discoverAndCacheUserBackground(address);
   });
 
-  // Process and yield listings in batches as they're enriched
-  const BATCH_SIZE = 5;
+  const enrichStarted = Date.now();
+  const allResults = await Promise.allSettled(
+    activeListings.map((listing) => enrichSingleListing(listing))
+  );
+  console.log("[Browse Listings Streaming] phase=enrich_done", {
+    ms: Date.now() - enrichStarted,
+    total: activeListings.length,
+  });
+
   let yieldedCount = 0;
-  
-  for (let i = 0; i < activeListings.length && yieldedCount < first; i += BATCH_SIZE) {
-    const batch = activeListings.slice(i, i + BATCH_SIZE);
-    const batchStarted = Date.now();
-    console.log("[Browse Listings Streaming] phase=batch_start", {
-      batchOffset: i,
-      batchSize: batch.length,
-      listingIds: batch.map((l) => l.listingId),
-    });
-
-    // Process batch in parallel
-    const batchPromises = batch.map(async (listing) => {
-      const bidCount = listing.bids?.length || 0;
-      const highestBid = listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
-
-      // Discover contract creator (non-blocking with timeout)
-      // OPTIMIZED: Add timeout to avoid blocking on slow onchain calls
-      // getContractCreator already checks cache first, so this should be fast
-      if (listing.tokenAddress && listing.tokenId) {
-        try {
-          const listingChain =
-            typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
-              ? listing.chainId
-              : BASE_CHAIN_ID;
-          const creatorPromise = getContractCreator(listing.tokenAddress, listing.tokenId, {
-            chainId: listingChain,
-          });
-          const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) => 
-            setTimeout(() => resolve({ creator: null, source: null }), 3000) // 3 second timeout
-          );
-          const creatorResult = await Promise.race([creatorPromise, timeoutPromise]);
-          if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
-            discoverAndCacheUserBackground(creatorResult.creator);
-          }
-        } catch {
-          // Ignore creator discovery errors
-        }
-      }
-
-      let metadata = null;
-      if (listing.tokenAddress && listing.tokenId) {
-        try {
-          // Add timeout to metadata fetching to prevent hanging
-          // Reduced timeout to 5 seconds for faster page loads
-          // Use Promise.race to timeout after 5 seconds
-          const metadataPromise = fetchNFTMetadataCached(
-            listing.tokenAddress as Address,
-            listing.tokenId,
-            listing.tokenSpec
-          );
-          const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Metadata fetch timeout after 5s')), 5000)
-          );
-          metadata = await Promise.race([metadataPromise, timeoutPromise]);
-        } catch (error) {
-          // Log but don't throw - metadata is optional
-          // Only log non-timeout errors to reduce noise
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          if (!errorMsg.includes('timeout')) {
-            console.warn(`[Browse Listings Streaming] Error fetching metadata for listing ${listing.listingId} (${listing.tokenAddress}:${listing.tokenId}):`, errorMsg);
-          }
-        }
-      }
-
-      // OPTIMIZED: Only check cache - skip on-demand generation to avoid blocking
-      // This ensures fast streaming even if thumbnails aren't ready yet
-      let thumbnailUrl: string | undefined = undefined;
-      const imageUrl = metadata?.image;
-      const mediaSnapshot = getListingMediaSnapshot(String(listing.listingId));
-      
-      if (imageUrl && listing.status !== "CANCELLED") {
-        try {
-          let small = await lookupCachedThumbnailBounded(imageUrl);
-          if (!small) {
-            small = await tryGenerateSmallThumbnailBounded(imageUrl);
-          }
-          thumbnailUrl = small ?? imageUrl;
-        } catch {
-          thumbnailUrl = imageUrl;
-        }
-      }
-
-      const resolvedMedia = resolveMediaWithFallback({
-        freshImage: metadata?.image,
-        cachedThumbnail: thumbnailUrl,
-        lastKnownImage: mediaSnapshot?.image,
-        lastKnownThumbnail: mediaSnapshot?.thumbnailUrl,
-        originalImage: metadata?.image,
-      });
-
-      const enriched = {
-        ...listing,
-        listingType: normalizeListingType(listing.listingType, listing),
-        bidCount,
-        highestBid: highestBid
-          ? {
-              amount: highestBid.amount,
-              bidder: highestBid.bidder,
-              timestamp: highestBid.timestamp,
-            }
-          : undefined,
-        title: metadata?.title || metadata?.name || mediaSnapshot?.title,
-        artist: metadata?.artist || metadata?.creator || mediaSnapshot?.artist,
-        image: resolvedMedia.image,
-        description: metadata?.description || mediaSnapshot?.description,
-        thumbnailUrl: resolvedMedia.thumbnailUrl,
-        metadata,
-      };
-      primeListingMediaSnapshot(enriched as EnrichedAuctionData);
-      return enriched;
-    });
-
-    // Wait for batch to complete and yield each listing as it's ready
-    const batchResults = await Promise.allSettled(batchPromises);
-
-    for (const result of batchResults) {
-      if (yieldedCount >= first) break;
-      
-      if (result.status === 'fulfilled') {
-        yield { type: 'listing', data: result.value };
-        yieldedCount++;
-      } else {
-        // If enrichment failed, yield basic listing data
-        const listing = batch[batchResults.indexOf(result)];
-        console.warn(`[Browse Listings Streaming] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
-        yield {
-          type: 'listing',
-          data: {
-            ...listing,
-            listingType: normalizeListingType(listing.listingType, listing),
-            bidCount: listing.bids?.length || 0,
-            highestBid: listing.bids && listing.bids.length > 0
-              ? {
-                  amount: listing.bids[0].amount,
-                  bidder: listing.bids[0].bidder,
-                  timestamp: listing.bids[0].timestamp,
-                }
-              : undefined,
-          },
-        };
-        yieldedCount++;
-      }
+  for (let i = 0; i < allResults.length && yieldedCount < first; i++) {
+    const result = allResults[i];
+    if (result.status === 'fulfilled') {
+      yield { type: 'listing', data: result.value };
+    } else {
+      const listing = activeListings[i];
+      console.warn(`[Browse Listings Streaming] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
+      yield { type: 'listing', data: makeBasicListing(listing) };
     }
-
-    console.log("[Browse Listings Streaming] phase=batch_done", {
-      batchOffset: i,
-      ms: Date.now() - batchStarted,
-      settled: batchResults.length,
-      yieldedTotal: yieldedCount,
-    });
+    yieldedCount++;
   }
 }
 

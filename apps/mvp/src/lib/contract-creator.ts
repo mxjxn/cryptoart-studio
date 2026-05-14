@@ -142,18 +142,22 @@ export async function getContractCreator(
   // 0. Cache-first: check memory+DB before hitting external APIs
   try {
     const cached = await getContractFromCache(address, chainId);
-    if (cached?.creatorAddress) {
-      const cachedCreator = cached.creatorAddress as Address;
-      type CachedSource = (typeof cached)["source"] | "etherscan";
-      const cachedSource = cached.source as CachedSource;
-      // Map cache source to return type; default onchain-ish sources to 'owner'
-      const source: ContractCreatorResult["source"] =
-        cachedSource === "etherscan"
-          ? "etherscan"
-          : cachedSource === "onchain" || cachedSource === "alchemy" || cachedSource === "manual"
-            ? "owner"
-            : null;
-      return { creator: cachedCreator, source };
+    if (cached) {
+      if (cached.creatorAddress) {
+        const cachedCreator = cached.creatorAddress as Address;
+        type CachedSource = (typeof cached)["source"] | "etherscan";
+        const cachedSource = cached.source as CachedSource;
+        const source: ContractCreatorResult["source"] =
+          cachedSource === "etherscan"
+            ? "etherscan"
+            : cachedSource === "onchain" || cachedSource === "alchemy" || cachedSource === "manual"
+              ? "owner"
+              : null;
+        return { creator: cachedCreator, source };
+      }
+      if (cached.source === "not_found") {
+        return { creator: null, source: null };
+      }
     }
   } catch {
     // Cache lookup failed, continue to fallbacks
@@ -272,7 +276,17 @@ export async function getContractCreator(
       console.debug(`[ContractCreator] royaltyInfo() failed for ${contractAddress}:`, error);
     }
 
-    // No creator found via any method
+    // No creator found via any method - cache the negative result
+    cacheContractInfo(
+      contractAddress,
+      {
+        creatorAddress: null,
+        source: "not_found",
+      },
+      chainId
+    ).catch(() => {
+      /* ignore cache errors */
+    });
     return { creator: null, source: null };
   } catch {
     // Errors during contract reads are expected for non-standard contracts

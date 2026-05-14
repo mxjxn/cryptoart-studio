@@ -449,15 +449,15 @@ export async function cacheContractInfo(
     name?: string | null;
     symbol?: string | null;
     creatorAddress?: string | null;
-    source: "onchain" | "alchemy" | "manual" | "etherscan";
+    source: "onchain" | "alchemy" | "manual" | "etherscan" | "not_found";
   },
   chainId: number = DEFAULT_CONTRACT_CACHE_CHAIN_ID
 ): Promise<ContractCacheData | null> {
   const normalizedAddress = contractAddress.toLowerCase();
   const normalizedCreator = data.creatorAddress?.toLowerCase() || null;
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-  // Map 'etherscan' to 'onchain' for storage (both are external data sources)
-  const normalizedSource: "onchain" | "alchemy" | "manual" =
+  const expiresAt = new Date(Date.now() + (data.source === "not_found" ? 24 : 30) * 24 * 60 * 60 * 1000);
+  // Map 'etherscan'/'not_found' for storage
+  const normalizedSource: "onchain" | "alchemy" | "manual" | "not_found" =
     data.source === "etherscan" ? "onchain" : data.source;
 
   // Check if database is configured
