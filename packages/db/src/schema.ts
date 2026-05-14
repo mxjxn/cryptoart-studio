@@ -74,7 +74,7 @@ export interface ContractCacheData {
   creatorAddress?: string | null;
   tokenType?: string | null;
   lastCheckedBlock?: number | null;
-  source: 'onchain' | 'alchemy' | 'manual';
+  source: 'onchain' | 'alchemy' | 'manual' | 'not_found';
   cachedAt: Date;
   expiresAt: Date;
   refreshedAt?: Date | null;
