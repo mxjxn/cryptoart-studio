@@ -30,9 +30,22 @@ import { useBrowseListings } from "~/hooks/useBrowseListings";
 import { useKismetAuctions } from "~/hooks/useKismetAuctions";
 import { useMainnetSpotlight } from "~/hooks/useMainnetSpotlight";
 import { useHomePageMotion } from "~/hooks/useHomePageMotion";
+import { useArtistName } from "~/hooks/useArtistName";
 import { MainnetFirstListingArtCard } from "~/components/home/MainnetFirstListingArtCard";
 import { StaticArtworkTile } from "~/components/home/StaticArtworkTile";
 import { LoadingModal } from "~/components/home/LoadingModal";
+
+const truncateAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
+
+function BidderIdentity({ bidder, bidCount }: { bidder?: string; bidCount?: number }) {
+  if (!bidder) {
+    const count = bidCount || 0;
+    return <>{count > 0 ? `${count} bid${count === 1 ? "" : "s"}` : "Unknown bidder"}</>;
+  }
+
+  const { artistName } = useArtistName(bidder);
+  return <>{artistName || truncateAddress(bidder)}</>;
+}
 
 export default function HomePageClientV2() {
   const hideAuctionCards = process.env.NEXT_PUBLIC_HOME_TEASER === "true";
@@ -92,14 +105,6 @@ export default function HomePageClientV2() {
     } catch {
       return "— ETH";
     }
-  };
-
-  const formatBidder = (bidder: string | undefined, bidCount?: number) => {
-    if (!bidder) {
-      const count = bidCount || 0;
-      return count > 0 ? `${count} bid${count === 1 ? "" : "s"}` : "Unknown bidder";
-    }
-    return `${bidder.slice(0, 6)}…${bidder.slice(-4)}`;
   };
 
   const bidTimestamp = (a: EnrichedAuctionData) => {
@@ -436,7 +441,9 @@ export default function HomePageClientV2() {
                               currentPrice: auction.highestBid?.amount || auction.currentPrice,
                             })}
                           </p>
-                          <p className="text-black">{formatBidder(auction.highestBid?.bidder, auction.bidCount)}</p>
+                          <p className="text-black">
+                            <BidderIdentity bidder={auction.highestBid?.bidder} bidCount={auction.bidCount} />
+                          </p>
                         </div>
                       </div>
                     </TransitionLink>
