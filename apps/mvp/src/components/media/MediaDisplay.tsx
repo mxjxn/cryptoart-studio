@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import { getMediaType, getMediaTypeFromFormat, type MediaType } from "~/lib/media-utils";
 import { rewritePublicIpfsUrlForClient } from "~/lib/ipfs-gateway-public-url";
 import { AudioPlayer } from "./AudioPlayer";
@@ -8,9 +8,14 @@ import { VideoPlayer } from "./VideoPlayer";
 import { ModelViewer } from "./ModelViewer";
 import { HTMLViewer } from "./HTMLViewer";
 
+/** Milliseconds to wait for an image to load before trying the next fallback URL. */
+const IMAGE_LOAD_TIMEOUT_MS = 8000;
+
 interface MediaDisplayProps {
   /** The image URL (thumbnail/cover) */
   imageUrl?: string;
+  /** Fallback image URLs tried in order if the primary imageUrl fails or times out */
+  fallbackSrcs?: string[];
   /** The animation URL (audio, video, 3D, HTML) */
   animationUrl?: string;
   /** Optional format hint from metadata (e.g., "MP4", "mp3", "glb") for URLs without extensions */
@@ -34,11 +39,12 @@ interface MediaDisplayProps {
  * 
  * Priority:
  * 1. If animationUrl exists and is non-image media → use appropriate player
- * 2. Otherwise → display image
+ * 2. Otherwise → display image (with fallback URL chain + load timeout)
  * 3. Fallback → gradient placeholder
  */
 export function MediaDisplay({
   imageUrl,
+  fallbackSrcs,
   animationUrl,
   animationFormat,
   alt = "NFT Artwork",
@@ -51,11 +57,59 @@ export function MediaDisplay({
   const [imageError, setImageError] = useState(false);
   const [animationError, setAnimationError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [attemptIndex, setAttemptIndex] = useState(0);
+  // Ref to track successful image load — avoids stale-closure issues in the timeout callback
+  const imageLoadedRef = useRef(false);
 
+  // Deduplicated list of image candidate URLs: primary + fallbacks
+  const imageCandidates = useMemo(() => {
+    const srcs = [imageUrl, ...(fallbackSrcs ?? [])].filter(
+      (u): u is string => typeof u === "string" && u.length > 0
+    );
+    const seen = new Set<string>();
+    return srcs.filter(u => {
+      if (seen.has(u)) return false;
+      seen.add(u);
+      return true;
+    });
+  }, [imageUrl, fallbackSrcs]);
+
+  // Reset all state when the source URLs change
   useEffect(() => {
+    imageLoadedRef.current = false;
     setImageLoaded(false);
     setImageError(false);
-  }, [imageUrl, animationUrl]);
+    setAttemptIndex(0);
+  }, [imageUrl, animationUrl, fallbackSrcs]);
+
+  // Advance to the next fallback URL if the current one times out
+  useEffect(() => {
+    if (imageLoaded || imageError) return;
+    // Only apply timeout when we're in the imageCandidates range
+    if (attemptIndex >= imageCandidates.length) return;
+
+    const timer = setTimeout(() => {
+      // Guard: if the image already loaded successfully, do nothing
+      if (imageLoadedRef.current) return;
+      if (attemptIndex < imageCandidates.length - 1) {
+        setAttemptIndex(i => i + 1);
+      } else {
+        // All candidates timed out; show the error/placeholder state
+        setImageError(true);
+      }
+    }, IMAGE_LOAD_TIMEOUT_MS);
+
+    return () => clearTimeout(timer);
+  }, [attemptIndex, imageLoaded, imageError, imageCandidates.length]);
+
+  // Advance to the next fallback URL on load error, or mark as failed if exhausted
+  const handleImageError = useCallback(() => {
+    if (attemptIndex < imageCandidates.length - 1) {
+      setAttemptIndex(i => i + 1);
+    } else {
+      setImageError(true);
+    }
+  }, [attemptIndex, imageCandidates.length]);
 
   // Determine media type from animation URL, falling back to format hint if URL detection fails
   let animationMediaType: MediaType | null = null;
@@ -124,7 +178,8 @@ export function MediaDisplay({
   }
 
   // Default: Display image
-  const displayUrl = imageUrl || animationUrl;
+  // Use the current candidate from the fallback chain, then animationUrl as a last resort
+  const displayUrl = imageCandidates[attemptIndex] ?? animationUrl;
 
   const imgSrc = displayUrl ? rewritePublicIpfsUrlForClient(displayUrl) : "";
 
@@ -162,25 +217,27 @@ export function MediaDisplay({
           aria-label="View artwork fullscreen"
         >
           <img
+            key={imgSrc}
             src={imgSrc}
             alt={alt}
             className={`${maxHeightClass} w-full object-contain transition-opacity duration-200 ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
+            onLoad={() => { imageLoadedRef.current = true; setImageLoaded(true); }}
+            onError={handleImageError}
           />
         </button>
       ) : (
         <div className="relative z-10 block w-full">
           <img
+            key={imgSrc}
             src={imgSrc}
             alt={alt}
             className={`${maxHeightClass} w-full object-contain transition-opacity duration-200 ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
+            onLoad={() => { imageLoadedRef.current = true; setImageLoaded(true); }}
+            onError={handleImageError}
           />
         </div>
       )}

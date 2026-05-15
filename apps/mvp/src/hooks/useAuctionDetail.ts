@@ -103,6 +103,7 @@ export interface UseAuctionDetailReturn {
   currentPrice: string;
   listingHeroImageUrl: string | undefined;
   listingFullscreenImageUrl: string | undefined;
+  listingHeroImageFallbackSrcs: string[];
   listingImageOverlayFallbackSrcs: string[];
   listingChainInfo: { displayName: string; chainId: number };
   resolvedListingChainId: number;
@@ -289,6 +290,27 @@ export function useAuctionDetail({
     auction?.listingId,
     auction?.thumbnailUrl,
     auction?.detailThumbnailUrl,
+    auction?.image,
+  ]);
+
+  const listingHeroImageFallbackSrcs = useMemo(() => {
+    if (!auction) return [];
+    const hero =
+      auction.detailThumbnailUrl ?? auction.thumbnailUrl ?? auction.image;
+    // Build ordered fallback candidates after the primary hero URL
+    const candidates = [auction.thumbnailUrl, auction.image];
+    const seen = new Set<string>(hero ? [hero] : []);
+    const result: string[] = [];
+    for (const u of candidates) {
+      if (typeof u === "string" && u.length > 0 && !seen.has(u)) {
+        seen.add(u);
+        result.push(u);
+      }
+    }
+    return result;
+  }, [
+    auction?.detailThumbnailUrl,
+    auction?.thumbnailUrl,
     auction?.image,
   ]);
 
@@ -1808,6 +1830,7 @@ export function useAuctionDetail({
     currentPrice,
     listingHeroImageUrl,
     listingFullscreenImageUrl,
+    listingHeroImageFallbackSrcs,
     listingImageOverlayFallbackSrcs,
     listingChainInfo,
     resolvedListingChainId,
