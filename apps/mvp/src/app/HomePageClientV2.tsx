@@ -38,12 +38,13 @@ import { LoadingModal } from "~/components/home/LoadingModal";
 const truncateAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
 function BidderIdentity({ bidder, bidCount }: { bidder?: string; bidCount?: number }) {
+  const { artistName } = useArtistName(bidder || null);
+
   if (!bidder) {
     const count = bidCount || 0;
     return <>{count > 0 ? `${count} bid${count === 1 ? "" : "s"}` : "Unknown bidder"}</>;
   }
 
-  const { artistName } = useArtistName(bidder);
   return <>{artistName || truncateAddress(bidder)}</>;
 }
 
