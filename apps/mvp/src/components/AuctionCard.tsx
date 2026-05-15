@@ -128,11 +128,16 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
   const buyerAddress = auction.highestBid?.bidder;
   const { username: buyerUsername } = useUsername(buyerAddress || null);
   const buyerEnsName = useEnsNameForAddress(buyerAddress || null);
+  const showHighestBidder = auction.listingType === "INDIVIDUAL_AUCTION" && !!auction.highestBid && !!buyerAddress;
   
   // Get time status for display
   const startTime = parseInt(auction.startTime || "0");
   const endTime = parseInt(auction.endTime || "0");
   const hasBid = bidCount > 0 || !!auction.highestBid;
+  const showAlwaysVisibleBidMeta =
+    auction.listingType === "INDIVIDUAL_AUCTION" &&
+    auction.status === "ACTIVE" &&
+    hasBid;
   const now = Math.floor(Date.now() / 1000);
   const isFinalized = auction.status === "FINALIZED";
   const isCancelled = auction.status === "CANCELLED";
@@ -416,6 +421,62 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
     }
   }, [listingUrl, router]);
 
+  const renderHighestBidder = useCallback(
+    (linkClassName: string, truncatedAddressClassName: string = linkClassName) => {
+      if (!buyerAddress) return null;
+
+      if (buyerEnsName) {
+        return (
+          <TransitionLink
+            href={`/user/${buyerAddress}`}
+            onClick={(e) => e.stopPropagation()}
+            className={linkClassName}
+          >
+            {buyerEnsName}
+          </TransitionLink>
+        );
+      }
+
+      if (buyerUsername) {
+        return (
+          <TransitionLink
+            href={`/user/${buyerUsername}`}
+            onClick={(e) => e.stopPropagation()}
+            className={linkClassName}
+          >
+            @{buyerUsername}
+          </TransitionLink>
+        );
+      }
+
+      return (
+        <TransitionLink
+          href={`/user/${buyerAddress}`}
+          onClick={(e) => e.stopPropagation()}
+          className={truncatedAddressClassName}
+        >
+          {`${buyerAddress.slice(0, 6)}...${buyerAddress.slice(-4)}`}
+        </TransitionLink>
+      );
+    },
+    [buyerAddress, buyerEnsName, buyerUsername]
+  );
+
+  const handleImageSurfaceClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement;
+    if (t.closest("a") || t.closest("button")) return;
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: none), (pointer: coarse)").matches;
+
+    if (!isTouchDevice) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    setIsExpanded((prev) => !prev);
+  };
+
   /** Card surface is not an <a> so profile TransitionLinks stay valid (no nested anchors). */
   const handleCardSurfaceClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
@@ -449,6 +510,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
               ? undefined
               : gradient,
           }}
+          onClick={handleImageSurfaceClick}
         >
           {/* 25% opaque black overlay on hover */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none z-[5]"></div>
@@ -491,7 +553,7 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
           {/* Overlay with gradient and data - visible on hover (desktop) or when expanded (mobile) */}
           <div 
             className={`absolute bottom-0 left-0 right-0 h-[33.33%] transition-opacity duration-300 pointer-events-none ${
-              isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
             }`}
           >
             {/* Gradient background - semi-translucent to less-translucent */}
@@ -559,33 +621,12 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
                   {currentPrice} {currentPrice !== "—" && tokenSymbol}
                 </div>
                 {/* Show bidder info for high bids - Only for INDIVIDUAL_AUCTION */}
-                {auction.listingType === "INDIVIDUAL_AUCTION" && auction.highestBid && buyerAddress && (
+                {showHighestBidder && (
                   <div className="text-xs text-[#999999] mt-0.5 leading-tight pointer-events-auto">
                     by{" "}
-                    {buyerUsername ? (
-                      <TransitionLink
-                        href={`/user/${buyerUsername}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-white transition-colors"
-                      >
-                        @{buyerUsername}
-                      </TransitionLink>
-                    ) : buyerEnsName ? (
-                      <TransitionLink
-                        href={`/user/${buyerAddress}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-white transition-colors"
-                      >
-                        {buyerEnsName}
-                      </TransitionLink>
-                    ) : (
-                      <TransitionLink
-                        href={`/user/${buyerAddress}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="font-mono text-[10px] hover:text-white transition-colors"
-                      >
-                        {`${buyerAddress.slice(0, 6)}...${buyerAddress.slice(-4)}`}
-                      </TransitionLink>
+                    {renderHighestBidder(
+                      "hover:text-white transition-colors",
+                      "font-mono text-[10px] hover:text-white transition-colors"
                     )}
                   </div>
                 )}
@@ -636,6 +677,28 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
               <CopyButton text={addressToShow} size="sm" />
             </div>
           ) : null}
+          {showAlwaysVisibleBidMeta && (
+            <div className="mt-1 text-[10px] text-[#999999] leading-tight space-y-0.5">
+              <div className="line-clamp-1">
+                Highest: {currentPrice} {currentPrice !== "—" && tokenSymbol}
+                {showHighestBidder && (
+                  <>
+                    {" "}by{" "}
+                    {renderHighestBidder(
+                      "hover:text-white transition-colors",
+                      "font-mono hover:text-white transition-colors"
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="line-clamp-1">
+                {bidCount} {bidCount === 1 ? "bid" : "bids"}
+                {!isNeverExpiring(endTime) && !isLongTermSale(endTime) && countdown !== "Ended" && (
+                  <> • {countdown}</>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       {/* Listing Card Menu - Below the card (NOT part of the clickable link) */}
@@ -649,4 +712,3 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
     </div>
   );
 }
-
