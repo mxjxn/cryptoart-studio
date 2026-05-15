@@ -48,6 +48,18 @@ function BidderIdentity({ bidder, bidCount }: { bidder?: string; bidCount?: numb
   return <>{artistName || truncateAddress(bidder)}</>;
 }
 
+function ArtistName({ auction }: { auction: EnrichedAuctionData }) {
+  const { artistName, isLoading } = useArtistName(
+    auction.seller && !auction.artist ? auction.seller : null,
+    auction.tokenAddress || undefined,
+    auction.tokenId ? BigInt(auction.tokenId) : undefined,
+    typeof auction.chainId === "number" ? auction.chainId : undefined
+  );
+  const display = auction.artist || artistName;
+
+  return <>{display || (isLoading ? "…" : "—")}</>;
+}
+
 export default function HomePageClientV2() {
   const hideAuctionCards = process.env.NEXT_PUBLIC_HOME_TEASER === "true";
 
@@ -448,7 +460,7 @@ export default function HomePageClientV2() {
                         </div>
                         <div className="min-w-0 flex-1 font-space-grotesk text-sm">
                           <p className="truncate text-black">{auction.title || "Listing"}</p>
-                          <p className="truncate text-black">by {auction.artist || "—"}</p>
+                          <p className="truncate text-black">by <ArtistName auction={auction} /></p>
                         </div>
                         <div className="shrink-0 text-right font-mek-mono text-sm text-black">
                           <p className="text-black">
