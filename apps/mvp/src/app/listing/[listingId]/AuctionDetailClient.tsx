@@ -57,6 +57,7 @@ export default function AuctionDetailClient({
     currentPrice,
     listingHeroImageUrl,
     listingFullscreenImageUrl,
+    listingHeroImageFallbackSrcs,
     listingImageOverlayFallbackSrcs,
     listingChainInfo,
     chainScopeMismatch,
@@ -390,6 +391,7 @@ export default function AuctionDetailClient({
         <div className="mb-4 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
           <MediaDisplay
             imageUrl={listingHeroImageUrl}
+            fallbackSrcs={listingHeroImageFallbackSrcs}
             animationUrl={auction.metadata?.animation_url}
             animationFormat={auction.metadata?.animation_details?.format}
             alt={title}
