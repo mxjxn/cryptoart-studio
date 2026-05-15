@@ -29,7 +29,12 @@ import {
 import { BASE_CHAIN_ID, ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { useERC20Token, useERC20Balance, isETH, type ERC20TokenData, type ERC20BalanceData } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
-import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
+import {
+  getAuctionTimeStatus,
+  getFixedPriceTimeStatus,
+  isNeverExpiring,
+  resolveStartedAuctionEndTime,
+} from "~/lib/time-utils";
 import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import {
@@ -1749,19 +1754,20 @@ export function useAuctionDetail({
     ? hasBid
     : now >= startTime;
 
+  const toNumberOrNull = (value: bigint | number | null | undefined) =>
+    value ? Number(value) : null;
+  const contractStartTime = toNumberOrNull(listingData?.details?.startTime);
+  const contractEndTime = toNumberOrNull(listingData?.details?.endTime);
+
   let actualEndTime: number;
   if (startTime === 0 && auctionHasStarted) {
-    const ONE_YEAR_IN_SECONDS = 31536000;
-    const YEAR_2000_TIMESTAMP = 946684800;
-
-    if (endTime > YEAR_2000_TIMESTAMP) {
-      actualEndTime = endTime;
-    } else {
-      const auctionStartTimestamp = auction?.highestBid?.timestamp
-        ? parseInt(auction.highestBid.timestamp)
-        : now;
-      actualEndTime = auctionStartTimestamp + endTime;
-    }
+    actualEndTime = resolveStartedAuctionEndTime({
+      subgraphEndTime: endTime,
+      contractEndTime,
+      contractStartTime,
+      highestBidTimestamp: auction?.highestBid?.timestamp,
+      now,
+    });
   } else if (startTime === 0 && !auctionHasStarted) {
     actualEndTime = 0;
   } else {
@@ -1777,9 +1783,6 @@ export function useAuctionDetail({
   } else if (startTime === 0 && !auctionHasStarted) {
     effectiveEndTime = null;
   } else {
-    const contractEndTime = listingData?.details?.endTime
-      ? Number(listingData.details.endTime)
-      : null;
     const subgraphEndTime = endTime;
     effectiveEndTime = contractEndTime || subgraphEndTime;
   }

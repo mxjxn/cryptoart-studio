@@ -3,6 +3,7 @@
  */
 
 const MAX_UINT48 = 281474976710655; // type(uint48).max
+const YEAR_2000_TIMESTAMP = 946684800;
 
 /**
  * Check if endTime represents a never-expiring listing
@@ -99,6 +100,42 @@ export function formatPreOpenAuctionTiming(startTime: number, endTime: number, n
  */
 export function formatTimeRemaining(endTime: number, now?: number): string {
   return formatCountdownTo(endTime, now, "ends");
+}
+
+interface ResolveStartedAuctionEndTimeInput {
+  subgraphEndTime: number;
+  contractEndTime?: number | null;
+  contractStartTime?: number | null;
+  highestBidTimestamp?: string | null;
+  now: number;
+}
+
+/**
+ * Resolve end time for start-on-first-bid auctions after they've started.
+ * Prefer contract values when available because subgraph values can remain as raw duration.
+ */
+export function resolveStartedAuctionEndTime({
+  subgraphEndTime,
+  contractEndTime,
+  contractStartTime,
+  highestBidTimestamp,
+  now,
+}: ResolveStartedAuctionEndTimeInput): number {
+  if (contractEndTime && contractEndTime > YEAR_2000_TIMESTAMP) {
+    return contractEndTime;
+  }
+
+  if (subgraphEndTime > YEAR_2000_TIMESTAMP) {
+    return subgraphEndTime;
+  }
+
+  const auctionStartTimestamp = contractStartTime && contractStartTime > 0
+    ? contractStartTime
+    : highestBidTimestamp
+      ? parseInt(highestBidTimestamp, 10)
+      : now;
+
+  return auctionStartTimestamp + subgraphEndTime;
 }
 
 /**
@@ -325,5 +362,3 @@ export function getListingDisplayStatus(
   // Default fallback
   return "active";
 }
-
-
