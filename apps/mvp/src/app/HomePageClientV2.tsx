@@ -415,22 +415,37 @@ export default function HomePageClientV2() {
                   Bids
                 </h2>
                 <div className={`flex flex-col divide-y divide-neutral-200 pb-6 md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 xl:grid-cols-4 ${gutter}`}>
-                  {bidListings.map((auction, index) => (
-                    <TransitionLink
-                      key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
-                      href={canonicalListingDetailPath(
-                        auction.chainId ?? BASE_CHAIN_ID,
-                        auction.listingId,
-                      )}
-                      prefetch={false}
-                      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
-                    >
-                      <div className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200">
+                  {bidListings.map((auction, index) => {
+                    const bidThumbnail = auction.thumbnailUrl || auction.image;
+                    return (
+                      <TransitionLink
+                        key={`${auction.listingId}-${auction.tokenSpec}-${index}`}
+                        href={canonicalListingDetailPath(
+                          auction.chainId ?? BASE_CHAIN_ID,
+                          auction.listingId,
+                        )}
+                        prefetch={false}
+                        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+                      >
+                        <div className="flex items-center gap-2.5 p-2.5 md:border md:border-neutral-200">
                         <div
                           className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
                           style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
-                          aria-hidden
-                        />
+                        >
+                          {bidThumbnail ? (
+                            <Image
+                              src={bidThumbnail}
+                              alt={auction.title || "Listing"}
+                              fill
+                              sizes="48px"
+                              className="object-cover"
+                              unoptimized
+                              onError={(e) => {
+                                e.currentTarget.style.opacity = "0";
+                              }}
+                            />
+                          ) : null}
+                        </div>
                         <div className="min-w-0 flex-1 font-space-grotesk text-sm">
                           <p className="truncate text-black">{auction.title || "Listing"}</p>
                           <p className="truncate text-black">by {auction.artist || "—"}</p>
@@ -447,8 +462,9 @@ export default function HomePageClientV2() {
                           </p>
                         </div>
                       </div>
-                    </TransitionLink>
-                  ))}
+                      </TransitionLink>
+                    );
+                  })}
                 </div>
               </>
             ) : (
