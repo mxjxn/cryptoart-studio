@@ -1754,12 +1754,10 @@ export function useAuctionDetail({
     ? hasBid
     : now >= startTime;
 
-  const contractStartTime = listingData?.details?.startTime
-    ? Number(listingData.details.startTime)
-    : null;
-  const contractEndTime = listingData?.details?.endTime
-    ? Number(listingData.details.endTime)
-    : null;
+  const toNumberOrNull = (value: bigint | number | null | undefined) =>
+    value ? Number(value) : null;
+  const contractStartTime = toNumberOrNull(listingData?.details?.startTime);
+  const contractEndTime = toNumberOrNull(listingData?.details?.endTime);
 
   let actualEndTime: number;
   if (startTime === 0 && auctionHasStarted) {

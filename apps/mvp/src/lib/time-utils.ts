@@ -3,6 +3,7 @@
  */
 
 const MAX_UINT48 = 281474976710655; // type(uint48).max
+const YEAR_2000_TIMESTAMP = 946684800;
 
 /**
  * Check if endTime represents a never-expiring listing
@@ -120,8 +121,6 @@ export function resolveStartedAuctionEndTime({
   highestBidTimestamp,
   now,
 }: ResolveStartedAuctionEndTimeInput): number {
-  const YEAR_2000_TIMESTAMP = 946684800;
-
   if (contractEndTime && contractEndTime > YEAR_2000_TIMESTAMP) {
     return contractEndTime;
   }
@@ -363,4 +362,3 @@ export function getListingDisplayStatus(
   // Default fallback
   return "active";
 }
-
