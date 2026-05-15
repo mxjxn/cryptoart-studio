@@ -465,7 +465,11 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
   const handleImageSurfaceClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
     if (t.closest("a") || t.closest("button")) return;
-    if (typeof window === "undefined" || !window.matchMedia("(hover: none), (pointer: coarse)").matches) {
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: none), (pointer: coarse)").matches;
+
+    if (!isTouchDevice) {
       return;
     }
     e.preventDefault();
