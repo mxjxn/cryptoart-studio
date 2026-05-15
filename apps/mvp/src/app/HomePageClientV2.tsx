@@ -429,8 +429,21 @@ export default function HomePageClientV2() {
                         <div
                           className="relative h-14 w-12 shrink-0 overflow-hidden bg-neutral-200"
                           style={{ background: KISMET_GRADIENTS[Number(auction.tokenId ?? 1) % KISMET_GRADIENTS.length] }}
-                          aria-hidden
-                        />
+                        >
+                          {auction.thumbnailUrl || auction.image ? (
+                            <Image
+                              src={(auction.thumbnailUrl || auction.image) ?? ""}
+                              alt={auction.title || "Listing"}
+                              fill
+                              sizes="48px"
+                              className="object-cover"
+                              unoptimized
+                              onError={(e) => {
+                                e.currentTarget.style.opacity = "0";
+                              }}
+                            />
+                          ) : null}
+                        </div>
                         <div className="min-w-0 flex-1 font-space-grotesk text-sm">
                           <p className="truncate text-black">{auction.title || "Listing"}</p>
                           <p className="truncate text-black">by {auction.artist || "—"}</p>
