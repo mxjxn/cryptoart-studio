@@ -294,6 +294,9 @@ export function useAuctionDetail({
   ]);
 
   const listingHeroImageFallbackSrcs = useMemo(() => {
+    // `auction` here is EnrichedAuctionData which covers all listing types
+    // (INDIVIDUAL_AUCTION, FIXED_PRICE, DYNAMIC_PRICE, OFFERS_ONLY).
+    // The null check is only a loading guard — not a listing-type filter.
     if (!auction) return [];
     const hero =
       auction.detailThumbnailUrl ?? auction.thumbnailUrl ?? auction.image;
