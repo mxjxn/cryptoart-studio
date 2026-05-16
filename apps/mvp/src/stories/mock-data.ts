@@ -1,0 +1,173 @@
+import type { EnrichedAuctionData } from "~/lib/types";
+
+/**
+ * Mock auction data matching the shape returned by the API.
+ * These are used in Storybook stories to develop UI without a live backend.
+ */
+export const mockAuctions: EnrichedAuctionData[] = [
+  {
+    id: "1-137",
+    listingId: "137",
+    chainId: 8453,
+    marketplace: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    seller: "0x10fc964ef70c8467cd8c53e9ed9347422adf96a8",
+    tokenAddress: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    tokenId: "1",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "100000000000000000", // 0.1 ETH
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1747000000",
+    endTime: "1747500000",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "500000000000000000", // 0.5 ETH
+    createdAt: "1747000000",
+    createdAtBlock: "25000000",
+    title: "Ethereal Convergence #1",
+    artist: null,
+    image: "https://img.mxjxn.com/test-artwork-1.png",
+    thumbnailUrl: "https://img.mxjxn.com/test-artwork-1-thumb.png",
+    bidCount: 4,
+    highestBid: {
+      amount: "500000000000000000",
+      bidder: "0xfa7f04469f2b1bfd97d0443fb98b3ad98522489c",
+      timestamp: "1747300000",
+    },
+    bids: [
+      {
+        id: "bid-4",
+        bidder: "0xfa7f04469f2b1bfd97d0443fb98b3ad98522489c",
+        amount: "500000000000000000",
+        timestamp: "1747300000",
+      },
+      {
+        id: "bid-3",
+        bidder: "0x2222222222222222222222222222222222222222",
+        amount: "400000000000000000",
+        timestamp: "1747200000",
+      },
+      {
+        id: "bid-2",
+        bidder: "0x3333333333333333333333333333333333333333",
+        amount: "300000000000000000",
+        timestamp: "1747100000",
+      },
+      {
+        id: "bid-1",
+        bidder: "0x10fc964ef70c8467cd8c53e9ed9347422adf96a8",
+        amount: "100000000000000000",
+        timestamp: "1747000000",
+      },
+    ],
+  },
+  {
+    id: "1-136",
+    listingId: "136",
+    chainId: 8453,
+    marketplace: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    seller: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    tokenAddress: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    tokenId: "2",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "200000000000000000", // 0.2 ETH
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1746900000",
+    endTime: "1747400000",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "1200000000000000000", // 1.2 ETH
+    createdAt: "1746900000",
+    createdAtBlock: "24950000",
+    title: "Prismatic Void",
+    artist: null,
+    image: "https://img.mxjxn.com/test-artwork-2.png",
+    thumbnailUrl: "https://img.mxjxn.com/test-artwork-2-thumb.png",
+    bidCount: 7,
+    highestBid: {
+      amount: "1200000000000000000",
+      bidder: "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      timestamp: "1747250000",
+    },
+  },
+  {
+    id: "1-135",
+    listingId: "135",
+    chainId: 8453,
+    marketplace: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    seller: "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+    tokenAddress: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    tokenId: "3",
+    tokenSpec: "ERC1155",
+    listingType: "FIXED_PRICE",
+    initialAmount: "50000000000000000", // 0.05 ETH
+    totalAvailable: "10",
+    totalPerSale: "1",
+    startTime: "1746800000",
+    endTime: "1750000000",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "3",
+    currentPrice: "50000000000000000",
+    createdAt: "1746800000",
+    createdAtBlock: "24800000",
+    title: "Genesis Fragment",
+    artist: null,
+    image: "https://img.mxjxn.com/test-artwork-3.png",
+    thumbnailUrl: "https://img.mxjxn.com/test-artwork-3-thumb.png",
+    bidCount: 0,
+  },
+  {
+    id: "1-134",
+    listingId: "134",
+    chainId: 8453,
+    marketplace: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    seller: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    tokenAddress: "0x1Cb0A3a26D322a17e7c1eC9873C6ddE2f1E24D19",
+    tokenId: "4",
+    tokenSpec: "ERC721",
+    listingType: "INDIVIDUAL_AUCTION",
+    initialAmount: "50000000000000000", // 0.05 ETH
+    totalAvailable: "1",
+    totalPerSale: "1",
+    startTime: "1746700000",
+    endTime: "1747300000",
+    lazy: false,
+    status: "ACTIVE",
+    finalized: false,
+    totalSold: "0",
+    currentPrice: "250000000000000000", // 0.25 ETH
+    createdAt: "1746700000",
+    createdAtBlock: "24700000",
+    title: "Digital Reverie",
+    artist: null,
+    image: "https://img.mxjxn.com/test-artwork-4.png",
+    thumbnailUrl: "https://img.mxjxn.com/test-artwork-4-thumb.png",
+    bidCount: 2,
+    highestBid: {
+      amount: "250000000000000000",
+      bidder: "0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+      timestamp: "1747200000",
+    },
+  },
+];
+
+/**
+ * Kismet gradients from homepage-static-data for the Bids strip thumbnails
+ */
+export const KISMET_GRADIENTS = [
+  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+  "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+  "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+  "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+];
