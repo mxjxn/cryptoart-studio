@@ -9,16 +9,13 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/interfaces/IERC165.sol";
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
-import "@openzeppelin/contracts/interfaces/IERC1155.sol";
-
 /**
  * @title SuchGallery
  * @notice ERC-721 collection where each NFT is a gallery (ERC-6551 token bound account).
- *         Owners deposit NFTs into their gallery, place them in 3D space, and can transfer
- *         the entire gallery as a single asset. Season 1: 30 galleries, one per day via Dutch auction.
+ *         Owners deposit NFTs into their gallery and can transfer the entire gallery
+ *         as a single asset. Season 1: 30 galleries, one per day via Dutch auction.
  *
  * Gallery NFTs get a 6551 token bound account automatically via the ERC6551Registry.
- * Art placement is stored on-chain: token → {position, rotation, scale}.
  */
 contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, ReentrancyGuard {
     using Strings for uint256;
@@ -38,16 +35,7 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
     address public immutable tokenBoundRegistry;
     address public immutable tokenBoundImpl;
 
-    // ─── Art Placement ──────────────────────────────────────────
-    struct Placement {
-        int128 x; int128 y; int128 z;
-        int128 rx; int128 ry; int128 rz;
-        uint128 scale;
-        bool placed;
-    }
-
-    // galleryTokenId => (collection => tokenId => Placement)
-    mapping(uint256 => mapping(address => mapping(uint256 => Placement))) public placements;
+    // ─── Deposited Art ─────────────────────────────────────────
 
     // galleryTokenId => deposited collections (for enumeration)
     mapping(uint256 => address[]) public depositedCollections;
@@ -65,8 +53,6 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
 
     // ─── Events ──────────────────────────────────────────────────
     event GalleryMinted(uint256 indexed tokenId, address indexed owner, uint256 price);
-    event ArtPlaced(uint256 indexed galleryTokenId, address indexed collection, uint256 indexed tokenId);
-    event ArtRemoved(uint256 indexed galleryTokenId, address indexed collection, uint256 indexed tokenId);
     event ArtDeposited(uint256 indexed galleryTokenId, address indexed collection, uint256 indexed tokenId);
     event ArtWithdrawn(uint256 indexed galleryTokenId, address indexed collection, uint256 indexed tokenId);
     event AuctionConfigured(uint256 startPrice, uint256 reservePrice, uint256 decayRate);
@@ -155,49 +141,7 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
         });
     }
 
-    // ─── Art Placement ───────────────────────────────────────────
-
-    /**
-     * @notice Place a deposited NFT in 3D space within your gallery.
-     *         NFT must already be deposited in the gallery's 6551 account.
-     */
-    function placeArt(
-        uint256 galleryTokenId,
-        address collection,
-        uint256 artTokenId,
-        int128 x, int128 y, int128 z,
-        int128 rx, int128 ry, int128 rz,
-        uint128 scale
-    ) external {
-        require(ownerOf(galleryTokenId) == msg.sender, "Not gallery owner");
-        require(isDepositedCollection[galleryTokenId][collection], "Not deposited");
-
-        placements[galleryTokenId][collection][artTokenId] = Placement({
-            x: x, y: y, z: z,
-            rx: rx, ry: ry, rz: rz,
-            scale: scale,
-            placed: true
-        });
-
-        emit ArtPlaced(galleryTokenId, collection, artTokenId);
-    }
-
-    /**
-     * @notice Remove placement for a deposited NFT (keeps it deposited, just unplaced).
-     */
-    function unplaceArt(
-        uint256 galleryTokenId,
-        address collection,
-        uint256 artTokenId
-    ) external {
-        require(ownerOf(galleryTokenId) == msg.sender, "Not gallery owner");
-
-        Placement storage p = placements[galleryTokenId][collection][artTokenId];
-        require(p.placed, "Not placed");
-        p.placed = false;
-
-        emit ArtRemoved(galleryTokenId, collection, artTokenId);
-    }
+    // ─── Art Deposit & Withdrawal ───────────────────────────────
 
     /**
      * @notice Record that an NFT was deposited into the gallery's 6551 account.
@@ -216,6 +160,25 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
         }
 
         emit ArtDeposited(galleryTokenId, collection, artTokenId);
+    }
+
+    /**
+     * @notice Record that an NFT was withdrawn from the gallery's 6551 account.
+     *         Called after transferring the NFT out of the token bound account.
+     *         Note: does not remove from depositedCollections array (gas inefficient),
+     *         but clears the isDepositedCollection flag.
+     */
+    function registerWithdrawal(
+        uint256 galleryTokenId,
+        address collection,
+        uint256 artTokenId
+    ) external {
+        require(ownerOf(galleryTokenId) == msg.sender, "Not gallery owner");
+        require(isDepositedCollection[galleryTokenId][collection], "Not deposited");
+
+        isDepositedCollection[galleryTokenId][collection] = false;
+
+        emit ArtWithdrawn(galleryTokenId, collection, artTokenId);
     }
 
     /**

@@ -153,7 +153,7 @@ describe("SuchGallery", function () {
     });
   });
 
-  describe("Art Placement", function () {
+  describe("Deposits", function () {
     beforeEach(async function () {
       await gallery.startAuction();
       await gallery.connect(buyer).mint({ value: START_PRICE });
@@ -164,42 +164,6 @@ describe("SuchGallery", function () {
       await expect(gallery.connect(buyer).registerDeposit(1, mockCollection, 42))
         .to.emit(gallery, "ArtDeposited")
         .withArgs(1, mockCollection, 42);
-    });
-
-    it("should allow owner to place art", async function () {
-      const mockCollection = other.address;
-      await gallery.connect(buyer).registerDeposit(1, mockCollection, 42);
-      await expect(
-        gallery.connect(buyer).placeArt(1, mockCollection, 42, 100, 0, -50, 0, 45, 0, 100)
-      ).to.emit(gallery, "ArtPlaced").withArgs(1, mockCollection, 42);
-
-      const p = await gallery.placements(1, mockCollection, 42);
-      expect(p.x).to.equal(100n);
-      expect(p.y).to.equal(0n);
-      expect(p.z).to.equal(-50n);
-      expect(p.rx).to.equal(0n);
-      expect(p.ry).to.equal(45n);
-      expect(p.rz).to.equal(0n);
-      expect(p.scale).to.equal(100n);
-      expect(p.placed).to.equal(true);
-    });
-
-    it("should revert placement from non-owner", async function () {
-      await expect(
-        gallery.connect(other).placeArt(1, other.address, 1, 0, 0, 0, 0, 0, 0, 100)
-      ).to.be.revertedWith("Not gallery owner");
-    });
-
-    it("should allow owner to unplace art", async function () {
-      const mockCollection = other.address;
-      await gallery.connect(buyer).registerDeposit(1, mockCollection, 42);
-      await gallery.connect(buyer).placeArt(1, mockCollection, 42, 0, 0, 0, 0, 0, 0, 100);
-
-      await expect(gallery.connect(buyer).unplaceArt(1, mockCollection, 42))
-        .to.emit(gallery, "ArtRemoved");
-
-      const p = await gallery.placements(1, mockCollection, 42);
-      expect(p.placed).to.equal(false);
     });
 
     it("should enumerate deposited collections", async function () {
@@ -216,6 +180,34 @@ describe("SuchGallery", function () {
 
       const collections = await gallery.getDepositedCollections(1);
       expect(collections.length).to.equal(1);
+    });
+  });
+
+  describe("registerWithdrawal", function () {
+    it("should allow owner to withdraw deposited art", async function () {
+      await gallery.startAuction();
+      await gallery.connect(buyer).mint({ value: START_PRICE });
+
+      const mockCollection = other.address;
+      const mockTokenId = 42n;
+
+      await gallery.connect(buyer).registerDeposit(1, mockCollection, mockTokenId);
+      expect(await gallery.isDepositedCollection(1, mockCollection)).to.be.true;
+
+      await expect(gallery.connect(buyer).registerWithdrawal(1, mockCollection, mockTokenId))
+        .to.emit(gallery, "ArtWithdrawn")
+        .withArgs(1, mockCollection, mockTokenId);
+
+      expect(await gallery.isDepositedCollection(1, mockCollection)).to.be.false;
+    });
+
+    it("should revert if not gallery owner", async function () {
+      await gallery.startAuction();
+      await gallery.connect(buyer).mint({ value: START_PRICE });
+
+      await expect(
+        gallery.registerWithdrawal(1, other.address, 1n)
+      ).to.be.revertedWith("Not gallery owner");
     });
   });
 
