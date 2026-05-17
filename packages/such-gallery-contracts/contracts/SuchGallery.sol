@@ -156,7 +156,9 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
 
     /**
      * @notice Record that an NFT was deposited into the gallery's 6551 account.
-     *         Called after transferring the NFT to the token bound account.
+     *         Called after manually transferring the NFT to the token bound account.
+     *         For safeTransferFrom deposits, use GalleryAccount (custom TBA) which
+     *         calls autoRegisterDeposit automatically.
      */
     function registerDeposit(
         uint256 galleryTokenId,
@@ -164,6 +166,28 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
         uint256 artTokenId
     ) external {
         require(ownerOf(galleryTokenId) == msg.sender, "Not gallery owner");
+
+        if (!isDepositedCollection[galleryTokenId][collection]) {
+            depositedCollections[galleryTokenId].push(collection);
+            isDepositedCollection[galleryTokenId][collection] = true;
+        }
+
+        emit ArtDeposited(galleryTokenId, collection, artTokenId);
+    }
+
+    /**
+     * @notice Auto-register a deposit, called by the GalleryAccount TBA's
+     *         onERC721Received / onERC1155Received hooks.
+     *         Verifies caller is the legitimate TBA for this gallery token.
+     */
+    function autoRegisterDeposit(
+        uint256 galleryTokenId,
+        address collection,
+        uint256 artTokenId
+    ) external {
+        // Verify caller is the TBA for this gallery token
+        address expectedTBA = getTokenBoundAccount(galleryTokenId);
+        require(msg.sender == expectedTBA, "Not gallery TBA");
 
         if (!isDepositedCollection[galleryTokenId][collection]) {
             depositedCollections[galleryTokenId].push(collection);
