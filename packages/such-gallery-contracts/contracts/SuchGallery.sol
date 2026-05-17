@@ -7,8 +7,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts/interfaces/IERC165.sol";
-import "@openzeppelin/contracts/interfaces/IERC721.sol";
+import "./interfaces/IERC6551Registry.sol";
 /**
  * @title SuchGallery
  * @notice ERC-721 collection where each NFT is a gallery (ERC-6551 token bound account).
@@ -32,8 +31,10 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
     uint256 public auctionStartTime;
 
     // ─── 6551 Registry ───────────────────────────────────────────
-    address public immutable tokenBoundRegistry;
+    IERC6551Registry public immutable tokenBoundRegistry;
     address public immutable tokenBoundImpl;
+
+    event TokenBoundAccountCreated(uint256 indexed tokenId, address account);
 
     // ─── Deposited Art ─────────────────────────────────────────
 
@@ -62,7 +63,7 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
         address _registry,
         address _implementation
     ) ERC721("such.gallery", "SUCHGAL") Ownable(msg.sender) {
-        tokenBoundRegistry = _registry;
+        tokenBoundRegistry = IERC6551Registry(_registry);
         tokenBoundImpl = _implementation;
         _setDefaultRoyalty(msg.sender, 1000); // 10%
     }
@@ -118,6 +119,16 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
         traits[tokenId] = _generateTraits(tokenId);
 
         _safeMint(msg.sender, tokenId);
+
+        // Create ERC-6551 token bound account for this gallery
+        address tba = tokenBoundRegistry.createAccount(
+            tokenBoundImpl,
+            bytes32(0),         // salt = 0 for default single TBA per token
+            block.chainid,
+            address(this),
+            tokenId
+        );
+        emit TokenBoundAccountCreated(tokenId, tba);
 
         // Refund excess
         if (msg.value > price) {
@@ -190,20 +201,17 @@ contract SuchGallery is ERC721, ERC721Enumerable, ERC721Royalty, Ownable, Reentr
 
     /**
      * @notice Get the 6551 token bound account address for a gallery NFT.
+     *         Uses the registry's `account()` view — works even if the
+     *         account hasn't been created yet (counterfactual address).
      */
     function getTokenBoundAccount(uint256 tokenId) public view returns (address) {
-        // ERC-6551 account address is computed deterministically
-        // hash(chainId, tokenContract, tokenId, salt)
-        bytes32 salt = bytes32(tokenId);
-        bytes32 accountHash = keccak256(
-            abi.encode(
-                block.chainid,
-                address(this),
-                tokenId,
-                salt
-            )
+        return tokenBoundRegistry.account(
+            tokenBoundImpl,
+            bytes32(0),
+            block.chainid,
+            address(this),
+            tokenId
         );
-        return address(uint160(uint256(accountHash)));
     }
 
     // ─── Admin ───────────────────────────────────────────────────

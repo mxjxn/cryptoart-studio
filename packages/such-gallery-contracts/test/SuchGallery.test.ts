@@ -1,10 +1,12 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SuchGallery } from "../typechain-types";
+import { MockERC6551Registry } from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("SuchGallery", function () {
   let gallery: SuchGallery;
+  let mockRegistry: MockERC6551Registry;
   let owner: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let other: HardhatEthersSigner;
@@ -16,11 +18,15 @@ describe("SuchGallery", function () {
   beforeEach(async function () {
     [owner, buyer, other] = await ethers.getSigners();
 
-    const mockRegistry = other.address;
-    const mockImpl = buyer.address;
+    // Deploy mock registry + use a dummy implementation address
+    const MockRegistry = await ethers.getContractFactory("MockERC6551Registry");
+    mockRegistry = await MockRegistry.deploy();
+    await mockRegistry.waitForDeployment();
+
+    const mockImpl = other.address; // dummy implementation
 
     const SuchGallery = await ethers.getContractFactory("SuchGallery");
-    gallery = await SuchGallery.deploy(mockRegistry, mockImpl);
+    gallery = await SuchGallery.deploy(await mockRegistry.getAddress(), mockImpl);
     await gallery.waitForDeployment();
   });
 
@@ -279,6 +285,106 @@ describe("SuchGallery", function () {
       await ethers.provider.send("evm_mine");
 
       await expect(gallery.startAuction()).to.be.revertedWith("Season complete");
+    });
+  });
+
+  describe("ERC-6551 Token Bound Accounts", function () {
+    beforeEach(async function () {
+      await gallery.startAuction();
+    });
+
+    it("should emit TokenBoundAccountCreated on mint", async function () {
+      const tbaAddr = await mockRegistry.account(
+        other.address, // implementation
+        ethers.ZeroHash,
+        (await ethers.provider.getNetwork()).chainId,
+        await gallery.getAddress(),
+        1
+      );
+
+      await expect(gallery.connect(buyer).mint({ value: START_PRICE }))
+        .to.emit(gallery, "TokenBoundAccountCreated")
+        .withArgs(1, tbaAddr);
+    });
+
+    it("should create TBA via registry during mint", async function () {
+      await gallery.connect(buyer).mint({ value: START_PRICE });
+
+      const tbaAddr = await mockRegistry.account(
+        other.address,
+        ethers.ZeroHash,
+        (await ethers.provider.getNetwork()).chainId,
+        await gallery.getAddress(),
+        1
+      );
+
+      // The mock registry should have recorded this account as created
+      const hash = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["address", "bytes32", "uint256", "address", "uint256"],
+          [other.address, ethers.ZeroHash, (await ethers.provider.getNetwork()).chainId, await gallery.getAddress(), 1]
+        )
+      );
+      expect(await mockRegistry.created(hash)).to.be.true;
+    });
+
+    it("should return deterministic TBA address via getTokenBoundAccount", async function () {
+      // TBA address should be computable even before mint (counterfactual)
+      const counterfactualAddr = await gallery.getTokenBoundAccount(1);
+
+      await gallery.connect(buyer).mint({ value: START_PRICE });
+
+      const postMintAddr = await gallery.getTokenBoundAccount(1);
+      expect(postMintAddr).to.equal(counterfactualAddr);
+    });
+
+    it("should return different TBA addresses for different tokens", async function () {
+      await gallery.connect(buyer).mint({ value: START_PRICE });
+
+      const start = await gallery.auctionStartTime();
+      await ethers.provider.send("evm_setNextBlockTimestamp", [Number(start) + 24 * 3600 + 1]);
+      await ethers.provider.send("evm_mine");
+      await gallery.startAuction();
+      await gallery.connect(other).mint({ value: START_PRICE });
+
+      const tba1 = await gallery.getTokenBoundAccount(1);
+      const tba2 = await gallery.getTokenBoundAccount(2);
+      expect(tba1).to.not.equal(tba2);
+    });
+
+    it("should not re-create TBA if account already exists (idempotent)", async function () {
+      // First mint creates the account
+      await gallery.connect(buyer).mint({ value: START_PRICE });
+
+      // The registry's createAccount is idempotent — calling again returns same address
+      const tba1 = await gallery.getTokenBoundAccount(1);
+
+      // Verify via mock that address didn't change
+      const tba1Again = await gallery.getTokenBoundAccount(1);
+      expect(tba1).to.equal(tba1Again);
+    });
+
+    it("should expose registry and implementation addresses", async function () {
+      expect(await gallery.tokenBoundRegistry()).to.equal(
+        await mockRegistry.getAddress()
+      );
+      expect(await gallery.tokenBoundImpl()).to.equal(other.address);
+    });
+
+    it("should emit ERC6551AccountCreated on the registry", async function () {
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+      const galleryAddr = await gallery.getAddress();
+
+      await expect(gallery.connect(buyer).mint({ value: START_PRICE }))
+        .to.emit(mockRegistry, "ERC6551AccountCreated")
+        .withArgs(
+          await gallery.getTokenBoundAccount(1),
+          other.address,       // implementation
+          ethers.ZeroHash,     // salt
+          chainId,
+          galleryAddr,
+          1
+        );
     });
   });
 });

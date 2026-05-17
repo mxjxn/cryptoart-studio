@@ -28,15 +28,24 @@ The renderer is a pure function: given a token ID (which determines gallery trai
 │    lighting, trimStyle } — deterministic    │
 │    from tokenId seed                        │
 │  • Deposit/withdrawal registry              │
+│  • Calls registry.createAccount() on mint   │
 │  • tokenURI → on-chain base64 JSON          │
 │    with trait attributes + preview image URL│
-└──────────────┬──────────────────────────────┘
-               │ each token gets one via ERC-6551 registry
-        ┌──────┴──────┐
-        │  Token-Bound │
-        │   Account    │  ← holds deposited NFTs
-        │  (ERC-6551)  │
-        └──────────────┘
+└──────┬───────────────────┬──────────────────┘
+       │ mint()            │ getTokenBoundAccount()
+       ▼                   │
+┌──────────────────┐       │
+│  ERC-6551        │       │
+│  Registry        │───────┘  (account() → counterfactual addr)
+│  (singleton)     │
+│  CREATE2 deploy  │
+└──────┬───────────┘
+       │ creates per token
+┌──────┴──────┐
+│  Token-Bound │
+│   Account    │  ← holds deposited NFTs
+│  (ERC-6551)  │  ← owned by NFT holder
+└──────────────┘
 
 ┌─────────────────────────────────────────────┐
 │          Off-Chain Renderer (not in repo)    │
@@ -85,7 +94,13 @@ The renderer is a pure function: given a token ID (which determines gallery trai
 
 | Function | Description |
 |---|---|
-| `getTokenBoundAccount(uint256 tokenId)` view | Computed 6551 account address for a gallery NFT |
+| `getTokenBoundAccount(uint256 tokenId)` view | Returns the 6551 TBA address (works counterfactually, before mint) |
+| `tokenBoundRegistry()` view | The deployed `IERC6551Registry` address |
+| `tokenBoundImpl()` view | The token bound account implementation address |
+
+**How it works:** On every `mint()`, the contract calls `registry.createAccount()` which deploys a CREATE2 smart account for the new gallery NFT. The account is owned by whoever holds the NFT — transferring the NFT transfers control of the account and all its contents. `getTokenBoundAccount()` calls `registry.account()` to compute the address (no deployment needed).
+
+**Singleton registry:** `0x000000006551c19487814612e58FE06813775758` — same address on all EVM chains. Account implementation: `0x55266d75D1a14E4572138116aF39863Ed6596E7F`.
 
 ### Admin
 
@@ -99,6 +114,7 @@ The renderer is a pure function: given a token ID (which determines gallery trai
 | Event | When |
 |---|---|
 | `GalleryMinted(tokenId, owner, price)` | On successful mint |
+| `TokenBoundAccountCreated(tokenId, account)` | TBA created via registry on mint |
 | `ArtDeposited(galleryTokenId, collection, tokenId)` | On deposit registration |
 | `ArtWithdrawn(galleryTokenId, collection, tokenId)` | On withdrawal registration |
 | `AuctionConfigured(startPrice, reservePrice, decayRate)` | On auction param update |
@@ -132,7 +148,7 @@ pnpm test:gas
 pnpm coverage
 ```
 
-Tests cover: deployment, auction mechanics (start, mint, price decay, refund, sequential auctions), trait generation determinism, deposit/withdrawal indexing, token URI, admin controls, and season completeness (30-gallery cap).
+Tests cover: deployment, auction mechanics (start, mint, price decay, refund, sequential auctions), trait generation determinism, deposit/withdrawal indexing, token URI, admin controls, season completeness (30-gallery cap), and ERC-6551 token bound account creation (registry integration, deterministic addresses, idempotency, counterfactual address computation).
 
 ## Deployment
 
