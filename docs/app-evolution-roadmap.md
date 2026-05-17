@@ -65,10 +65,12 @@ PWA is intentionally **not first**. We will introduce PWA in the middle-late pha
 
 **Goal:** Establish Farcaster-lite feed behavior with channel as the primary organizing unit.
 
-- [ ] Build channel-first feed composition based on Farcaster channels.
-- [ ] Ensure default feed order is channel-contextual (not generic event-first chronology).
-- [ ] Enrich casts with marketplace context (listing/auction/sale metadata).
-- [ ] Inject on-chain events into channel feed based on channel and artist context.
+- [ ] Build channel-first feed composition based on Farcaster channels
+- [ ] Seed feed with ~22 target channels identified from ecosystem research (see [target-channels.md](./target-channels.md))
+- [ ] Ensure default feed order is channel-contextual (not generic event-first chronology)
+- [ ] Enrich casts with marketplace context (listing/auction/sale metadata)
+- [ ] Inject on-chain events into channel feed based on channel and artist context
+- [ ] Support `chain://` URL scheme for channel resolution (e.g., `/gen-art`)
 
 **Exit criteria:** Users can follow channel-native conversation while seeing marketplace-aware context and relevant chain activity.
 

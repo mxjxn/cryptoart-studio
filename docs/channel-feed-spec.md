@@ -33,12 +33,55 @@ The feed is a **Farcaster channel reader** with a marketplace enrichment layer. 
 
 ### Default Channels
 
-| Channel | Farcaster ID | Role | Content Mix |
-|---------|-------------|------|-------------|
-| `/cryptoart` | Primary | The main art community | Art posts, artist spotlights, market discussion, critiques |
-| `/generative` | Featured | Algorithmic / generative art | Process videos, output sharing, tool discussion |
-| `/photography` | Featured | Digital photography | Prints, editions, artist conversations |
-| `/1of1` | Featured | One-of-one art | High-value single pieces, auction culture |
+These channels are seeded into `channel_configs` on first deploy. Selected from research into Farcaster's art ecosystem (see [target-channels.md](./target-channels.md) for full analysis).
+
+**Home Turf:**
+
+| Channel | Farcaster ID | Followers | Role | Content Mix |
+|---------|-------------|-----------|------|-------------|
+| `/cryptoart` | `cryptoart` | 54,154 | Primary (we lead) | Art posts, market discussion, artist spotlights, critiques |
+
+**Primary Gen-Art Targets:**
+
+| Channel | Farcaster ID | Followers | Role | Content Mix |
+|---------|-------------|-----------|------|-------------|
+| `/gen-art` | `chain://eip155:8453/erc721:0x8C219c2a68881f97e53d4F4363c6D0d0aAa3a623/1` | 14,747 | Featured | Generative art, creative coding, process, output sharing |
+| `/gifart` | `https://warpcast.com/~/channel/gifart` | 10,423 | Featured | Animated art, GIFs, motion graphics |
+
+**Cryptoart Sister Channels:**
+
+| Channel | Farcaster ID | Followers | Role | Content Mix |
+|---------|-------------|-----------|------|-------------|
+| `/art` | `art` | 92,424 | Featured | General art community, broadest reach |
+| `/objkt` | `objkt` | 4,669 | Featured | Tezos marketplace, established collector base |
+| `/tezos` | `tezos` | 6,295 | Featured | Tezos ecosystem, overlaps with objkt |
+| `/zora` | `zora` | 172,334 | Featured | Zora marketplace, on-chain art |
+| `/rodeo-club` | `rodeo-club` | 13,123 | Featured | Rodeo marketplace community |
+| `/pkok` | `pkok` | 9,882 | Featured | NFT marketplace-adjacent |
+| `/superrare` | `superrare` | 96,866 | Featured | High-end digital art, 47.3 casts/contributor |
+| `/degen-art` | `degen-art` | 11,657 | Featured | Speculative art trading |
+| `/ai-art` | `ai-art` | 24,875 | Featured | AI-assisted and AI-generated art |
+
+**Gen-Art Ecosystem (high casts/person density):**
+
+| Channel | Farcaster ID | Followers | Role | Content Mix |
+|---------|-------------|-----------|------|-------------|
+| `/fxhash` | `fxhash` | — | Featured | Generative art marketplace (Tezos) |
+| `/mono` | `mono` | 527 | Featured | Monochrome/minimal art, tight community |
+| `/geometric` | `geometric` | — | Featured | Geometric art, pattern-based work |
+| `/visual-poetry` | `visual-poetry` | — | Featured | Text-based and visual poetry |
+| `/typography` | `typography` | — | Featured | Type design, lettering |
+| `/minimalism` | `minimalism` | — | Featured | Minimalist aesthetics |
+
+**High-Engagement Niche:**
+
+| Channel | Farcaster ID | Followers | Casts/Contributor | Role | Content Mix |
+|---------|-------------|-----------|-------------------|------|-------------|
+| `/emerge` | `emerge` | 1,233 | 27.0 | Featured | Emerging artists |
+| `/betr` | `betr` | 1,683 | 41.1 | Featured | High-engagement art community |
+| `/veg` | `veg` | 9,858 | 50.2 | Featured | Art + culture, very active core |
+
+> **Note:** `/gen-art` uses a `chain://` URL scheme (not the standard `warpcast.com` format). The feed client must support both URL formats for channel resolution.
 
 Channels are configurable in Postgres — admins can add, remove, or reorder featured channels without a deploy.
 
@@ -351,7 +394,7 @@ Stored in existing `follows` table.
 
 A horizontal row of channel pills at the top of the feed:
 ```
-[ All ] [ /cryptoart ] [ /generative ] [ /photography ] [ /1of1 ] [ + ]
+[ All ] [ /cryptoart ] [ /gen-art ] [ /gifart ] [ /art ] [ /fxhash ] [ + ]
 ```
 
 - **All**: Default. Shows merged feed from all followed channels.
@@ -446,7 +489,7 @@ Badge count: `unreadCount` from feed API, reflecting unseen items since last app
 
 ### Phase 1: Channel Feed (casts only)
 1. Create `channel_configs` and `channel_follows` tables in Postgres
-2. Seed with default channels (/cryptoart, /generative, /photography, /1of1)
+2. Seed with default channels (see target-channels.md — ~22 channels across home, gen-art, cryptoart sister, and niche tiers)
 3. Build `GET /api/feed` that fetches casts from Neynar for followed channels
 4. Render basic cast feed with channel pills navigation
 5. Build channel follow/unfollow endpoints
