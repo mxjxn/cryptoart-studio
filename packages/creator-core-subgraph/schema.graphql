@@ -1,0 +1,61 @@
+# Creator-Core Subgraph Schema
+# Indexes Manifold creator-core events: extensions, mints, transfers, royalties
+
+type CreatorContract @entity {
+  id: Bytes! # contract address
+  creator: Bytes! # deployer / owner
+  tokenStandard: String! # "ERC721" | "ERC1155"
+  extensions: [Extension!]! @derivedFrom(field: "contract")
+  tokens: [Token!]! @derivedFrom(field: "collection")
+  defaultRoyaltyReceiver: Bytes
+  defaultRoyaltyBPS: BigInt
+  totalSupply: BigInt!
+  createdAt: BigInt!
+}
+
+type Extension @entity {
+  id: Bytes! # keccak256(contractAddress, extensionAddress)
+  contract: CreatorContract!
+  extensionAddress: Bytes!
+  sender: Bytes!
+  status: String! # "active" | "unregistered" | "blacklisted"
+  mintPermissions: Bytes
+  approveTransfer: Boolean
+  registeredAt: BigInt!
+  updatedAt: BigInt!
+}
+
+type Token @entity {
+  id: Bytes! # keccak256(collectionAddress, tokenId)
+  collection: CreatorContract!
+  tokenId: BigInt!
+  owner: Bytes!
+  mintedBy: Bytes!
+  mintedAt: BigInt!
+  tokenURI: String
+  burnt: Boolean!
+}
+
+type RoyaltyOverride @entity {
+  id: Bytes! # keccak256(contractAddress, scopeIdentifier)
+  contract: CreatorContract!
+  scope: String! # "default" | "token" | "extension"
+  tokenId: BigInt
+  extension: Bytes
+  receivers: [Bytes!]!
+  basisPoints: [BigInt!]!
+  updatedAt: BigInt!
+}
+
+type TransferEvent @entity {
+  id: Bytes! # keccak256(txHash, logIndex)
+  token: Token!
+  from: Bytes!
+  to: Bytes!
+  tokenId: BigInt!
+  operator: Bytes
+  amount: BigInt
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+}

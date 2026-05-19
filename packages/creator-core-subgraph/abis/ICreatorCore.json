@@ -1,0 +1,165 @@
+[
+  {
+    "type": "event",
+    "name": "ExtensionRegistered",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExtensionUnregistered",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExtensionBlacklisted",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MintPermissionsUpdated",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "permissions",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RoyaltiesUpdated",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "receivers",
+        "type": "address[]",
+        "indexed": false
+      },
+      {
+        "name": "basisPoints",
+        "type": "uint256[]",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DefaultRoyaltiesUpdated",
+    "inputs": [
+      {
+        "name": "receivers",
+        "type": "address[]",
+        "indexed": false
+      },
+      {
+        "name": "basisPoints",
+        "type": "uint256[]",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ApproveTransferUpdated",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExtensionRoyaltiesUpdated",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "receivers",
+        "type": "address[]",
+        "indexed": false
+      },
+      {
+        "name": "basisPoints",
+        "type": "uint256[]",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExtensionApproveTransferUpdated",
+    "inputs": [
+      {
+        "name": "extension",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  }
+]
