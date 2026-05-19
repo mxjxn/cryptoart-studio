@@ -19,10 +19,10 @@ type CreatorContract @entity {
 }
 ```
 
-> **Note:** There's no factory-level `CreatorDeployed` event. The proxy is Yul-only (DeploymentProxy.yul).
-> Detection strategy: index `Transfer(from=0x0)` mints OR `ExtensionRegistered` events and backfill
-> the contract entity on first sight. Token standard determined by checking ERC165 interface support
-> at indexing time, or by which event signatures appear.
+> **Note:** No factory wrapper needed. Our backend deploys collections and records the address in our DB
+> at deploy time. The subgraph config is updated programmatically when new contracts are added.
+> CreatorContract entities are created on first event hit as a fallback. The DB is the source of truth
+> for which contracts exist — the subgraph just indexes events within them.
 
 ---
 
@@ -140,13 +140,10 @@ type TransferEvent @entity {
 
 ---
 
-## Open Questions
+## Resolved Decisions
 
-1. **Contract discovery** — No factory event. Options:
-   - Index all `ExtensionRegistered` events across all addresses → create CreatorContract on first hit
-   - Maintain a registry of known creator contracts in the app backend
-   - Add a custom `CreatorDeployed` event in our fork (breaks upstream compat)
+1. **Contract discovery** — Backend DB is the source of truth. We deploy collections, we record addresses. No factory wrapper, no custom events. Subgraph config updated programmatically from backend at deploy time.
 
-2. **Token standard detection** — ERC165 check at index time, or infer from event signature?
+2. **Token standard detection** — Inferred from event signatures. If `Transfer(address,address,address,uint256,uint256)` hits → ERC1155. If `Transfer(address,address,uint256)` hits → ERC721.
 
-3. **Separate subgraph or extend existing?** — Marketplace subgraph already exists. Could add these entities there, or run a dedicated creator-core subgraph and reference marketplace data cross-subgraph.
+3. **Separate subgraph** — Yes, dedicated creator-core subgraph. Cross-subgraph queries stitched in app layer. Marketplace subgraph handles bids/settlements independently.
