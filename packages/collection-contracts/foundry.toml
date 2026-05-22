@@ -1,0 +1,10 @@
+[profile.default]
+solc = "0.8.27"
+src = 'src'
+out = 'out'
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 1000
+
+[fmt]
+line_length = 120
