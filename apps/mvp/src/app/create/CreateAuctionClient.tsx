@@ -1061,6 +1061,11 @@ export default function CreateAuctionClient() {
 
     // Merge overrides with formData to handle race conditions from wizard submissions
     const effectiveFormData = overrides ? { ...formData, ...overrides } : formData;
+    if (effectiveFormData.paymentType === "ERC20" && !erc20Token.isValid) {
+      alert(erc20Token.error || "Please select a valid ERC20 token");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const now = Math.floor(Date.now() / 1000);
@@ -1287,7 +1292,7 @@ export default function CreateAuctionClient() {
       let totalPerSale: number;
       let extensionInterval: number;
       let minIncrementBPS: number;
-      const priceDecimals = effectiveFormData.paymentType === "ETH" ? 18 : (erc20Token.decimals ?? 18);
+      const priceDecimals = effectiveFormData.paymentType === "ETH" ? 18 : erc20Token.decimals;
 
       // Debug: Log the listing type being used
       console.log('[CreateListing] Creating listing with type:', effectiveFormData.listingType, '→', 

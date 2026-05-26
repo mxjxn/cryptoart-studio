@@ -149,7 +149,7 @@ export function useERC20Token(
     const hasSymbol = symbolResult.status === "success" && typeof symbolResult.result === "string";
     const hasDecimals = decimalsResult.status === "success" && typeof decimalsResult.result === "number";
 
-    if (!hasName || !hasSymbol) {
+    if (!hasName || !hasSymbol || !hasDecimals) {
       return {
         address: address!,
         name: hasName ? (nameResult.result as string) : null,
@@ -157,7 +157,7 @@ export function useERC20Token(
         decimals: hasDecimals ? (decimalsResult.result as number) : 18,
         isValid: false,
         isLoading: false,
-        error: "Not a valid ERC20 token (missing name or symbol)",
+        error: "Not a valid ERC20 token (missing name, symbol, or decimals)",
       };
     }
 
