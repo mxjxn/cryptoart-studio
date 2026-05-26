@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
 import { useRouter } from "next/navigation";
-import { type Address, parseEther, decodeEventLog } from "viem";
+import { type Address, parseUnits, decodeEventLog } from "viem";
 import { isValidAddressFormat, fetchContractInfoFromAlchemy, CONTRACT_INFO_ABI } from "~/lib/contract-info";
 import { MediaDisplay } from "~/components/media";
 import {
@@ -1287,6 +1287,7 @@ export default function CreateAuctionClient() {
       let totalPerSale: number;
       let extensionInterval: number;
       let minIncrementBPS: number;
+      const priceDecimals = effectiveFormData.paymentType === "ETH" ? 18 : (erc20Token.decimals ?? 18);
 
       // Debug: Log the listing type being used
       console.log('[CreateListing] Creating listing with type:', effectiveFormData.listingType, '→', 
@@ -1295,14 +1296,14 @@ export default function CreateAuctionClient() {
 
       if (effectiveFormData.listingType === "INDIVIDUAL_AUCTION") {
         listingType = 1;
-        initialAmount = parseEther(effectiveFormData.reservePrice);
+        initialAmount = parseUnits(effectiveFormData.reservePrice, priceDecimals);
         totalAvailable = 1;
         totalPerSale = 1;
         extensionInterval = 0;
         minIncrementBPS = parseInt(effectiveFormData.minIncrementBPS);
       } else if (effectiveFormData.listingType === "FIXED_PRICE") {
         listingType = 2;
-        initialAmount = parseEther(effectiveFormData.fixedPrice);
+        initialAmount = parseUnits(effectiveFormData.fixedPrice, priceDecimals);
         totalAvailable = parseInt(effectiveFormData.totalAvailable);
         totalPerSale = parseInt(effectiveFormData.totalPerSale);
         extensionInterval = 0; // Must be 0 for FIXED_PRICE
