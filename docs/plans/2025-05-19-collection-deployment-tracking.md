@@ -729,3 +729,15 @@ Phase 1 + 2 + 3 ──────→ Phase 5 (integration)
 ```
 
 Phase 1 and Phase 2 can run in parallel. Phase 3 starts once both are done. Phase 4 can start once Phase 2 is done (use seeded data for testing). Phase 5 is last.
+
+---
+
+## Progress
+
+| Phase | Status | Commit | Details |
+|-------|--------|--------|---------|
+| 1. Smart Contracts | Done | `2adfd0f` | 26 tests passing. Foundry, Solidity 0.8.27, OZ 5.2.0. |
+| 2. Database | Done | `4811308` | 7 tables in schema.ts, migration 0023 written manually, applied to DB. |
+| 3. Indexer | Done | `eadae29` | 10 source files. Factory watcher + collection scanner + metadata resolver. 3 chains (mainnet, base, sepolia). Cursor in indexed_contracts. On-chain totalSupply. |
+| 4. API Endpoints | Done | pending | 8 route files, 11 handlers. Deploy flow (encode/submit/status), CRUD reads, ownership-gated PATCH. |
+| 5. Integration | Not started | — | Sepolia deployment + end-to-end test. |
