@@ -1021,3 +1021,193 @@ export interface IPFSImageCacheData {
   cachedAt: Date;
   expiresAt: Date | null;
 }
+
+// ============================================
+// COLLECTION MANAGEMENT
+// ============================================
+
+export const collections = pgTable('collections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  name: text('name').notNull(),
+  symbol: text('symbol').notNull(),
+
+  chainId: integer('chain_id').notNull().default(8453),
+  contractAddress: text('contract_address').notNull(),
+  factoryAddress: text('factory_address').notNull(),
+  deployTxHash: text('deploy_tx_hash').notNull(),
+  deployBlockNumber: bigint('deploy_block_number', { mode: 'number' }),
+
+  ownerAddress: text('owner_address').notNull(),
+
+  royaltyReceiver: text('royalty_receiver'),
+  royaltyBPS: integer('royalty_bps').default(0),
+
+  description: text('description'),
+  imageUrl: text('image_url'),
+  bannerUrl: text('banner_url'),
+
+  status: text('status').notNull().default('deploying'),
+  totalSupply: integer('total_supply').notNull().default(0),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  contractChainIdx: uniqueIndex('collections_contract_chain_idx').on(table.contractAddress, table.chainId),
+  ownerIdx: index('collections_owner_address_idx').on(table.ownerAddress),
+  statusIdx: index('collections_status_idx').on(table.status),
+  factoryIdx: index('collections_factory_address_idx').on(table.factoryAddress),
+}));
+
+export const collectionTokens = pgTable('collection_tokens', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  collectionId: uuid('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+
+  chainId: integer('chain_id').notNull().default(8453),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: bigint('token_id', { mode: 'number' }).notNull(),
+
+  tokenURI: text('token_uri'),
+  name: text('name'),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  animationUrl: text('animation_url'),
+  attributes: jsonb('attributes'),
+
+  ownerAddress: text('owner_address').notNull(),
+  mintTxHash: text('mint_tx_hash').notNull(),
+  mintBlockNumber: bigint('mint_block_number', { mode: 'number' }),
+  mintedByExtension: text('minted_by_extension'),
+
+  metadataStatus: text('metadata_status').notNull().default('pending'),
+  metadataRetries: integer('metadata_retries').notNull().default(0),
+
+  burnedAt: timestamp('burned_at'),
+
+  mintedAt: timestamp('minted_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  contractTokenIdx: uniqueIndex('collection_tokens_contract_token_idx')
+    .on(table.contractAddress, table.chainId, table.tokenId),
+  collectionIdx: index('collection_tokens_collection_id_idx').on(table.collectionId),
+  ownerIdx: index('collection_tokens_owner_address_idx').on(table.ownerAddress),
+  metadataStatusIdx: index('collection_tokens_metadata_status_idx').on(table.metadataStatus),
+}));
+
+export const collectionDeployments = pgTable('collection_deployments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  collectionId: uuid('collection_id'),
+
+  chainId: integer('chain_id').notNull().default(8453),
+  txHash: text('tx_hash').notNull(),
+  fromAddress: text('from_address').notNull(),
+  toAddress: text('to_address'),
+
+  name: text('name').notNull(),
+  symbol: text('symbol').notNull(),
+  royaltyReceiver: text('royalty_receiver'),
+  royaltyBPS: integer('royalty_bps').default(0),
+
+  status: text('status').notNull().default('pending'),
+  blockNumber: bigint('block_number', { mode: 'number' }),
+  gasUsed: bigint('gas_used', { mode: 'number' }),
+  effectiveGasPrice: bigint('effective_gas_price', { mode: 'number' }),
+
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').notNull().default(0),
+
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  confirmedAt: timestamp('confirmed_at'),
+  failedAt: timestamp('failed_at'),
+}, (table) => ({
+  txHashIdx: uniqueIndex('collection_deployments_tx_hash_idx').on(table.txHash, table.chainId),
+  statusIdx: index('collection_deployments_status_idx').on(table.status),
+  fromAddressIdx: index('collection_deployments_from_address_idx').on(table.fromAddress),
+  submittedAtIdx: index('collection_deployments_submitted_at_idx').on(table.submittedAt),
+}));
+
+export const collectionExtensions = pgTable('collection_extensions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  collectionId: uuid('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  chainId: integer('chain_id').notNull().default(8453),
+  contractAddress: text('contract_address').notNull(),
+
+  extensionAddress: text('extension_address').notNull(),
+  baseURI: text('base_uri'),
+
+  status: text('status').notNull().default('active'),
+
+  registeredAt: timestamp('registered_at').defaultNow().notNull(),
+  registeredBlock: bigint('registered_block', { mode: 'number' }),
+  unregisteredAt: timestamp('unregistered_at'),
+  unregisteredBlock: bigint('unregistered_block', { mode: 'number' }),
+}, (table) => ({
+  collectionExtensionIdx: uniqueIndex('collection_extensions_collection_ext_idx')
+    .on(table.contractAddress, table.chainId, table.extensionAddress),
+  collectionIdx: index('collection_extensions_collection_id_idx').on(table.collectionId),
+  statusIdx: index('collection_extensions_status_idx').on(table.status),
+}));
+
+export const collectionRoyalties = pgTable('collection_royalties', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  collectionId: uuid('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  chainId: integer('chain_id').notNull().default(8453),
+  contractAddress: text('contract_address').notNull(),
+
+  tokenId: bigint('token_id', { mode: 'number' }),
+
+  receiverAddress: text('receiver_address').notNull(),
+  bps: integer('bps').notNull(),
+
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  defaultRoyaltyIdx: uniqueIndex('collection_royalties_default_idx')
+    .on(table.contractAddress, table.chainId, table.tokenId),
+  collectionIdx: index('collection_royalties_collection_id_idx').on(table.collectionId),
+}));
+
+export const transferEvents = pgTable('transfer_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  collectionId: uuid('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  chainId: integer('chain_id').notNull().default(8453),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: bigint('token_id', { mode: 'number' }).notNull(),
+
+  fromAddress: text('from_address').notNull(),
+  toAddress: text('to_address').notNull(),
+
+  eventType: text('event_type').notNull(),
+
+  txHash: text('tx_hash').notNull(),
+  blockNumber: bigint('block_number', { mode: 'number' }).notNull(),
+  logIndex: integer('log_index').notNull(),
+
+  timestamp: timestamp('timestamp').notNull(),
+}, (table) => ({
+  txLogIdx: uniqueIndex('transfer_events_tx_log_idx').on(table.txHash, table.logIndex),
+  collectionTokenIdx: index('transfer_events_collection_token_idx').on(table.collectionId, table.tokenId),
+  fromIdx: index('transfer_events_from_address_idx').on(table.fromAddress),
+  toIdx: index('transfer_events_to_address_idx').on(table.toAddress),
+  blockIdx: index('transfer_events_block_number_idx').on(table.blockNumber),
+}));
+
+export const indexedContracts = pgTable('indexed_contracts', {
+  contractAddress: text('contract_address').notNull(),
+  chainId: integer('chain_id').notNull().default(8453),
+
+  lastIndexedBlock: bigint('last_indexed_block', { mode: 'number' }).notNull().default(0),
+  status: text('status').notNull().default('active'),
+  contractType: text('contract_type').notNull().default('such_collection'),
+
+  discoveredAt: timestamp('discovered_at').defaultNow().notNull(),
+  errorMessage: text('error_message'),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.contractAddress, table.chainId] }),
+  statusIdx: index('indexed_contracts_status_idx').on(table.status),
+}));

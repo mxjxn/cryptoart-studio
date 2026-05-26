@@ -76,6 +76,8 @@ const MIGRATIONS = [
   '0019_contract_cache_chain_id.sql',
   '0020_market_surface_featured_chain.sql',
   '0021_seed_market_layout.sql',
+  '0022_create_market_layout_snapshots.sql',
+  '0023_add_collection_tables.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)
