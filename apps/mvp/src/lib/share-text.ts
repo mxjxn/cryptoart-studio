@@ -36,11 +36,11 @@ function formatTimeForShare(timestamp: number): string {
 /**
  * Format time remaining (e.g., "one week from first bid")
  */
-function formatTimeRemaining(endTime: number, startTime: number, now: number, hasBid: boolean): string {
+function formatTimeRemaining(endTime: number, startTime: number, now: number, hasBid: boolean, firstBidTimestamp?: number): string {
   if (startTime === 0) {
     // If startTime is 0, it means "starts on first bid/purchase"
     // If no bid yet, endTime represents duration from first bid
-    // If bid exists, endTime is absolute timestamp
+    // If bid exists, endTime MAY still be a duration if subgraph hasn't updated
     if (!hasBid) {
       // No bid yet, endTime is duration
       const durationSeconds = endTime;
@@ -56,8 +56,28 @@ function formatTimeRemaining(endTime: number, startTime: number, now: number, ha
         return `${hours} hour${hours !== 1 ? 's' : ''} from first bid`;
       }
     } else {
-      // Has bid, endTime is absolute timestamp
-      return `is live until ${formatTimeForShare(endTime)}`;
+      // Has bid — endTime could be a duration (subgraph didn't convert) or absolute timestamp
+      const ONE_YEAR_IN_SECONDS = 31536000;
+      let absoluteEndTime = endTime;
+      if (endTime <= ONE_YEAR_IN_SECONDS) {
+        // endTime is still a duration, compute actual end from first bid timestamp
+        if (firstBidTimestamp && firstBidTimestamp > 0) {
+          absoluteEndTime = firstBidTimestamp + endTime;
+        } else {
+          // No bid timestamp available, show duration-based text instead of 1970 date
+          const days = Math.floor(endTime / 86400);
+          const weeks = Math.floor(days / 7);
+          if (weeks >= 1) {
+            return `one week from first bid`;
+          } else if (days >= 1) {
+            return `${days} day${days !== 1 ? 's' : ''} from first bid`;
+          } else {
+            const hours = Math.floor(endTime / 3600);
+            return `${hours} hour${hours !== 1 ? 's' : ''} from first bid`;
+          }
+        }
+      }
+      return `is live until ${formatTimeForShare(absoluteEndTime)}`;
     }
   } else {
     // Has a specific start time
@@ -173,9 +193,10 @@ export function generateListingShareText(
   const startTime = auction.startTime ? parseInt(auction.startTime) : 0;
   const endTime = auction.endTime ? parseInt(auction.endTime) : 0;
   const hasBid = !!(auction.highestBid || auction.bidCount > 0);
+  const firstBidTimestamp = auction.highestBid?.timestamp ? parseInt(auction.highestBid.timestamp) : undefined;
   
   if (endTime > 0) {
-    const timeText = formatTimeRemaining(endTime, startTime, now, hasBid);
+    const timeText = formatTimeRemaining(endTime, startTime, now, hasBid, firstBidTimestamp);
     lines.push(timeText);
   }
   
