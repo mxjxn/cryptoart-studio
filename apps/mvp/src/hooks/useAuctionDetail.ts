@@ -16,7 +16,7 @@ import { useOffers } from "~/hooks/useOffers";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { type Address, isAddress } from "viem";
+import { type Address, isAddress, maxUint256 } from "viem";
 import { useLoadingOverlay } from "~/contexts/LoadingOverlayContext";
 import {
   MARKETPLACE_ADDRESS,
@@ -201,7 +201,8 @@ export interface UseAuctionDetailReturn {
   actions: any;
   modifyError: any;
   isExplicitEthereumListing: boolean;
-  pendingPurchaseAfterApproval: boolean;
+  needsApproval: boolean;
+  handleApproveERC20: () => Promise<void>;
   bidCount: number;
   nowTimestamp: number;
   listingData: any;
@@ -546,7 +547,6 @@ export function useAuctionDetail({
   const [offerAmount, setOfferAmount] = useState("");
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
 
@@ -683,6 +683,34 @@ export function useAuctionDetail({
     return null;
   }, [searchParams, referrerBPS]);
 
+  const needsApproval = useMemo(() => {
+    if (isPaymentETH || !auction?.erc20 || !address) return false;
+    const price = auction.currentPrice || auction.initialAmount;
+    if (!price) return false;
+    try {
+      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
+      const currentAllowance = erc20Allowance as bigint | undefined;
+      return !currentAllowance || currentAllowance < totalPrice;
+    } catch {
+      return false;
+    }
+  }, [isPaymentETH, auction, address, erc20Allowance, purchaseQuantity]);
+
+  const handleApproveERC20 = async () => {
+    if (!auction?.erc20 || isPaymentETH || !address) return;
+    try {
+      await approveERC20({
+        address: auction.erc20 as Address,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        chainId: marketplaceReadChainId,
+        args: [marketplaceReadAddress, maxUint256],
+      });
+    } catch (err) {
+      console.error("Error approving ERC-20:", err);
+    }
+  };
+
   const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
     if (!tokenAddress || isETH(tokenAddress)) return undefined;
     return `eip155:${listingApiChainId ?? CHAIN_ID}/erc20:${tokenAddress}`;
@@ -794,7 +822,7 @@ export function useAuctionDetail({
             abi: ERC20_ABI,
             functionName: 'approve',
             chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, bidAmountBigInt],
+            args: [marketplaceReadAddress, maxUint256],
           });
           return;
         }
@@ -839,13 +867,12 @@ export function useAuctionDetail({
         const currentAllowance = erc20Allowance as bigint | undefined;
 
         if (!currentAllowance || currentAllowance < totalPrice) {
-          setPendingPurchaseAfterApproval(true);
           await approveERC20({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
             chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, totalPrice],
+            args: [marketplaceReadAddress, maxUint256],
           });
           return;
         }
@@ -892,68 +919,12 @@ export function useAuctionDetail({
     }
   };
 
+  // After approval is confirmed, refetch allowance so needsApproval updates and "Buy Now" button appears
   useEffect(() => {
-    if (isApproveConfirmed && pendingPurchaseAfterApproval && !isPaymentETH && auction && address) {
-      let timer: NodeJS.Timeout | null = null;
-
-      refetchAllowance().then(() => {
-        timer = setTimeout(() => {
-          try {
-            const price = auction.currentPrice || auction.initialAmount;
-            const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-
-            console.log('[Purchase] Executing post-approval purchase:', {
-              listingId: Number(listingId),
-              purchaseQuantity,
-              totalPrice: totalPrice.toString(),
-            });
-
-            if (referrer) {
-              purchaseListing({
-                address: marketplaceReadAddress,
-                abi: PURCHASE_ABI_WITH_REFERRER,
-                functionName: 'purchase',
-                chainId: marketplaceReadChainId,
-                args: [referrer, Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            } else {
-              purchaseListing({
-                address: marketplaceReadAddress,
-                abi: PURCHASE_ABI_NO_REFERRER,
-                functionName: 'purchase',
-                chainId: marketplaceReadChainId,
-                args: [Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            }
-
-            setPendingPurchaseAfterApproval(false);
-          } catch (err) {
-            console.error("Error purchasing after approval:", err);
-            setPendingPurchaseAfterApproval(false);
-          }
-        }, 1000);
-      });
-
-      return () => {
-        if (timer) clearTimeout(timer);
-      };
+    if (isApproveConfirmed && !isPaymentETH) {
+      refetchAllowance();
     }
-  }, [
-    isApproveConfirmed,
-    pendingPurchaseAfterApproval,
-    isPaymentETH,
-    auction,
-    address,
-    purchaseQuantity,
-    listingId,
-    refetchAllowance,
-    purchaseListing,
-    referrer,
-    marketplaceReadChainId,
-    marketplaceReadAddress,
-  ]);
+  }, [isApproveConfirmed, isPaymentETH, refetchAllowance]);
 
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {
@@ -973,7 +944,7 @@ export function useAuctionDetail({
             abi: ERC20_ABI,
             functionName: 'approve',
             chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, offerAmountBigInt],
+            args: [marketplaceReadAddress, maxUint256],
           });
           return;
         }
@@ -1929,7 +1900,8 @@ export function useAuctionDetail({
     actions,
     modifyError,
     isExplicitEthereumListing,
-    pendingPurchaseAfterApproval,
+    needsApproval,
+    handleApproveERC20,
     bidCount,
     nowTimestamp,
     listingData,

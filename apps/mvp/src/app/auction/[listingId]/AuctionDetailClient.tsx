@@ -25,7 +25,7 @@ import { useOffers } from "~/hooks/useOffers";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
 import { useMiniApp } from "@neynar/react";
 import { sdk } from "@farcaster/miniapp-sdk";
-import { type Address, isAddress } from "viem";
+import { type Address, isAddress, maxUint256 } from "viem";
 import { MARKETPLACE_ADDRESS, MARKETPLACE_ABI, CHAIN_ID, PURCHASE_ABI_NO_REFERRER, PURCHASE_ABI_WITH_REFERRER } from "~/lib/contracts/marketplace";
 import { useERC20Token, useERC20Balance, isETH } from "~/hooks/useERC20Token";
 import { generateListingShareText } from "~/lib/share-text";
@@ -98,7 +98,6 @@ export default function AuctionDetailClient({
   const [bidAmount, setBidAmount] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseSimulationError, setPurchaseSimulationError] = useState<string | null>(null);
   const [showBidSharePrompt, setShowBidSharePrompt] = useState(false);
@@ -249,6 +248,34 @@ export default function AuctionDetailClient({
   }, [auction, isPaymentETH, erc20Token.isLoading, erc20Token.symbol]);
   
   const paymentDecimals = isPaymentETH ? 18 : (erc20Token.decimals || 18);
+
+  const needsApproval = useMemo(() => {
+    if (isPaymentETH || !auction?.erc20 || !address) return false;
+    const price = auction.currentPrice || auction.initialAmount;
+    if (!price) return false;
+    try {
+      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
+      const currentAllowance = erc20Allowance as bigint | undefined;
+      return !currentAllowance || currentAllowance < totalPrice;
+    } catch {
+      return false;
+    }
+  }, [isPaymentETH, auction, address, erc20Allowance, purchaseQuantity]);
+
+  const handleApproveERC20 = async () => {
+    if (!auction?.erc20 || isPaymentETH || !address) return;
+    try {
+      await approveERC20({
+        address: auction.erc20 as Address,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        chainId: CHAIN_ID,
+        args: [MARKETPLACE_ADDRESS, maxUint256],
+      });
+    } catch (err) {
+      console.error("Error approving ERC-20:", err);
+    }
+  };
 
   const shareText = useMemo(() => {
     if (!auction || auction.status === "CANCELLED") return "";
@@ -444,7 +471,7 @@ export default function AuctionDetailClient({
             abi: ERC20_ABI,
             functionName: 'approve',
             chainId: CHAIN_ID,
-            args: [MARKETPLACE_ADDRESS, bidAmountBigInt],
+            args: [MARKETPLACE_ADDRESS, maxUint256],
           });
           // Wait for approval to be confirmed before proceeding
           return;
@@ -502,22 +529,20 @@ export default function AuctionDetailClient({
       const price = auction.currentPrice || auction.initialAmount;
       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
       
-      // For ERC20 payments, check and handle approval
+      // For ERC20 payments, check and handle approval (safety fallback; primary path uses Approve button)
       if (!isPaymentETH && auction.erc20) {
         const tokenAddress = auction.erc20 as Address;
         const currentAllowance = erc20Allowance as bigint | undefined;
         
         // Check if approval is needed
         if (!currentAllowance || currentAllowance < totalPrice) {
-          // Set flag to auto-purchase after approval
-          setPendingPurchaseAfterApproval(true);
           // Approve the marketplace to spend the tokens
           await approveERC20({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: 'approve',
             chainId: CHAIN_ID,
-            args: [MARKETPLACE_ADDRESS, totalPrice],
+            args: [MARKETPLACE_ADDRESS, maxUint256],
           });
           // Wait for approval to be confirmed before proceeding
           return;
@@ -743,57 +768,12 @@ export default function AuctionDetailClient({
     }
   };
 
-  // After approval is confirmed, refetch allowance and proceed with pending purchase if needed
+  // After approval is confirmed, refetch allowance so needsApproval updates and "Buy Now" button appears
   useEffect(() => {
-    if (isApproveConfirmed && pendingPurchaseAfterApproval && !isPaymentETH && auction && address) {
-      // Refetch allowance to ensure it's updated
-      refetchAllowance().then(() => {
-        // Small delay to ensure allowance is updated
-        setTimeout(() => {
-          try {
-            const price = auction.currentPrice || auction.initialAmount;
-            const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-            
-            // Pass referrer if available and listing supports referrers
-            // Use split ABI to force correct function signature
-            console.log('[Purchase] Post-approval purchase:', {
-              hasReferrer: !!referrer,
-              referrer,
-              listingId: Number(listingId),
-              purchaseQuantity,
-            });
-            
-            if (referrer) {
-              // Call purchase(referrer, listingId, count) - 3 params
-              // Use split ABI to force correct function signature
-              purchaseListing({
-                address: MARKETPLACE_ADDRESS,
-                abi: PURCHASE_ABI_WITH_REFERRER,
-                functionName: 'purchase',
-                args: [referrer, Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            } else {
-              // Call purchase(listingId, count) - 2 params
-              // Use split ABI to force correct function signature
-              purchaseListing({
-                address: MARKETPLACE_ADDRESS,
-                abi: PURCHASE_ABI_NO_REFERRER,
-                functionName: 'purchase',
-                args: [Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            }
-            
-            setPendingPurchaseAfterApproval(false);
-          } catch (err) {
-            console.error("Error purchasing after approval:", err);
-            setPendingPurchaseAfterApproval(false);
-          }
-        }, 1000);
-      });
+    if (isApproveConfirmed && !isPaymentETH) {
+      refetchAllowance();
     }
-  }, [isApproveConfirmed, pendingPurchaseAfterApproval, isPaymentETH, auction, address, purchaseQuantity, listingId, refetchAllowance, purchaseListing, referrer]);
+  }, [isApproveConfirmed, isPaymentETH, refetchAllowance]);
 
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {
@@ -817,7 +797,7 @@ export default function AuctionDetailClient({
             abi: ERC20_ABI,
             functionName: 'approve',
             chainId: CHAIN_ID,
-            args: [MARKETPLACE_ADDRESS, offerAmountBigInt],
+            args: [MARKETPLACE_ADDRESS, maxUint256],
           });
           // Wait for approval to be confirmed before proceeding
           return;
@@ -1853,37 +1833,25 @@ export default function AuctionDetailClient({
                         Top-up {paymentSymbol}
                       </button>
                     )}
-                    {/* Check if ERC20 approval is needed */}
-                    {!isPaymentETH && auction.erc20 && address && (() => {
-                      const price = auction.currentPrice || auction.initialAmount;
-                      // Price is per copy, multiplied by purchase quantity (not by copies)
-                      // The contract sells purchaseQuantity * totalPerSale copies for price * purchaseQuantity
-                      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-                      const currentAllowance = erc20Allowance as bigint | undefined;
-                      const needsApproval = !currentAllowance || currentAllowance < totalPrice;
-                      
-                      if (needsApproval && !isApproving && !isConfirmingApprove) {
-                        return (
-                          <p className="text-xs text-yellow-400 mb-2">
-                            You need to approve {paymentSymbol} spending first. Click "Buy Now" to approve.
-                          </p>
-                        );
-                      }
-                      return null;
-                    })()}
-                    <button
-                      onClick={handlePurchase}
-                      disabled={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isApproving || isConfirmingApprove
-                        ? "Approving..."
-                        : pendingPurchaseAfterApproval
-                        ? "Completing purchase..."
-                        : isPurchasing || isConfirmingPurchase
-                        ? "Processing..."
-                        : "Buy Now"}
-                    </button>
+                    {needsApproval
+                      ? (
+                        <button
+                          onClick={handleApproveERC20}
+                          disabled={isApproving || isConfirmingApprove}
+                          className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handlePurchase}
+                          disabled={isPurchasing || isConfirmingPurchase}
+                          className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isPurchasing || isConfirmingPurchase ? "Processing..." : "Buy Now"}
+                        </button>
+                      )
+                    }
                     {approveError && (
                       <p className="text-xs text-red-400">
                         {approveError.message || "Failed to approve token"}

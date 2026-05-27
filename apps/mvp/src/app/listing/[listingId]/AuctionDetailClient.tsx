@@ -143,11 +143,11 @@ export default function AuctionDetailClient({
     actions,
     modifyError,
     isExplicitEthereumListing,
-    pendingPurchaseAfterApproval,
+    needsApproval,
+    handleApproveERC20,
     bidCount,
     nowTimestamp,
     listingData,
-    erc20Allowance,
     cancelError,
     finalizeError,
     purchaseError,
@@ -1040,44 +1040,29 @@ export default function AuctionDetailClient({
                         </div>
                       )}
                     </div>
-                    {!isPaymentETH && auction.erc20 && address && (() => {
-                      const price = auction.currentPrice || auction.initialAmount;
-                      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-                      const currentAllowance = erc20Allowance as bigint | undefined;
-                      const needsApproval = !currentAllowance || currentAllowance < totalPrice;
-                      
-                      if (needsApproval && !isApproving && !isConfirmingApprove) {
-                        return (
-                          <p className="text-xs text-yellow-400 mb-2">
-                            You need to approve {paymentSymbol} spending first. Click "Buy Now" to approve.
-                          </p>
-                        );
-                      }
-                      return null;
-                    })()}
-                    <button
-                      onClick={handlePurchase}
-                      disabled={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
-                      className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label={
-                        isApproving || isConfirmingApprove
-                          ? "Approving token spending"
-                          : pendingPurchaseAfterApproval
-                          ? "Completing purchase"
-                          : isPurchasing || isConfirmingPurchase
-                          ? "Processing purchase"
-                          : `Buy now for ${formatPrice(auction.initialAmount)} ${paymentSymbol}${auction.tokenSpec === "ERC1155" ? ` (${purchaseQuantity} purchase${purchaseQuantity !== 1 ? 's' : ''})` : ''}`
-                      }
-                      aria-busy={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
-                    >
-                      {isApproving || isConfirmingApprove
-                        ? "Approving..."
-                        : pendingPurchaseAfterApproval
-                        ? "Completing purchase..."
-                        : isPurchasing || isConfirmingPurchase
-                        ? "Processing..."
-                        : "Buy Now"}
-                    </button>
+                    {needsApproval
+                      ? (
+                        <button
+                          onClick={handleApproveERC20}
+                          disabled={isApproving || isConfirmingApprove}
+                          className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={`Approve ${paymentSymbol} spending`}
+                          aria-busy={isApproving || isConfirmingApprove}
+                        >
+                          {isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handlePurchase}
+                          disabled={isPurchasing || isConfirmingPurchase}
+                          className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={`Buy now for ${formatPrice(auction.initialAmount)} ${paymentSymbol}${auction.tokenSpec === "ERC1155" ? ` (${purchaseQuantity} purchase${purchaseQuantity !== 1 ? 's' : ''})` : ''}`}
+                          aria-busy={isPurchasing || isConfirmingPurchase}
+                        >
+                          {isPurchasing || isConfirmingPurchase ? "Processing..." : "Buy Now"}
+                        </button>
+                      )
+                    }
                     {approveError && (
                       <p className="text-xs text-red-400">
                         {approveError.message || "Failed to approve token"}
