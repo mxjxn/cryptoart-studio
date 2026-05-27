@@ -525,8 +525,8 @@ export default function AuctionDetailClient({
       const price = auction.currentPrice || auction.initialAmount;
       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
       
-      // Guard: if somehow called without sufficient allowance (should not happen in normal flow
-      // since the UI shows the Approve button instead), approve maxUint256 and bail out.
+      // Guard: if somehow called without sufficient allowance, approve maxUint256 and bail out.
+      // (This should not happen in normal flow since the UI shows the Approve button first.)
       if (!isPaymentETH && auction.erc20) {
         const tokenAddress = auction.erc20 as Address;
         const currentAllowance = erc20Allowance as bigint | undefined;
