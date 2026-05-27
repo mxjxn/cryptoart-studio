@@ -529,14 +529,13 @@ export default function AuctionDetailClient({
       const price = auction.currentPrice || auction.initialAmount;
       const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
       
-      // For ERC20 payments, check and handle approval (safety fallback; primary path uses Approve button)
+      // Guard: if somehow called without sufficient allowance (should not happen in normal flow
+      // since the UI shows the Approve button instead), approve maxUint256 and bail out.
       if (!isPaymentETH && auction.erc20) {
         const tokenAddress = auction.erc20 as Address;
         const currentAllowance = erc20Allowance as bigint | undefined;
         
-        // Check if approval is needed
         if (!currentAllowance || currentAllowance < totalPrice) {
-          // Approve the marketplace to spend the tokens
           await approveERC20({
             address: tokenAddress,
             abi: ERC20_ABI,
@@ -1839,6 +1838,8 @@ export default function AuctionDetailClient({
                           onClick={handleApproveERC20}
                           disabled={isApproving || isConfirmingApprove}
                           className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={isApproving || isConfirmingApprove ? "Approving token spending" : `Approve ${paymentSymbol} spending`}
+                          aria-busy={isApproving || isConfirmingApprove}
                         >
                           {isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`}
                         </button>
@@ -1847,6 +1848,8 @@ export default function AuctionDetailClient({
                           onClick={handlePurchase}
                           disabled={isPurchasing || isConfirmingPurchase}
                           className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={isPurchasing || isConfirmingPurchase ? "Processing purchase" : "Buy Now"}
+                          aria-busy={isPurchasing || isConfirmingPurchase}
                         >
                           {isPurchasing || isConfirmingPurchase ? "Processing..." : "Buy Now"}
                         </button>
