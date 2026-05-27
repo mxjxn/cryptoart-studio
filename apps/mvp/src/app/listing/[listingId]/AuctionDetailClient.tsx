@@ -176,7 +176,7 @@ export default function AuctionDetailClient({
     : parseInt(auction?.totalSold || "0", 10);
   const remaining = Math.max(0, totalAvailable - totalSold);
   const totalPerSale = Math.max(1, parseInt(auction?.totalPerSale || "1", 10));
-  const maxPurchases = Math.max(1, Math.floor(remaining / totalPerSale));
+  const maxPurchases = Math.max(0, Math.floor(remaining / totalPerSale));
 
   if (pageState === "ambiguous") {
     return (
@@ -944,10 +944,9 @@ export default function AuctionDetailClient({
             )}
 
             {auction.listingType === "FIXED_PRICE" && showControls && (() => {
-              const isERC721SoldOut = auction.tokenSpec === "ERC721" && 
-                totalSold >= totalAvailable;
+              const isSoldOut = totalAvailable > 0 && remaining === 0;
               
-              if (isERC721SoldOut) {
+              if (isSoldOut) {
                 return (
                   <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <p className="text-center text-lg font-medium text-neutral-500 py-4">
@@ -967,7 +966,7 @@ export default function AuctionDetailClient({
                     <input
                       type="number"
                       min="1"
-                      max={maxPurchases}
+                      max={maxPurchases > 0 ? maxPurchases : 1}
                       value={purchaseQuantity}
                       onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400"

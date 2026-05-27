@@ -938,7 +938,7 @@ export function useAuctionDetail({
   };
 
   const handleApprovePurchase = async () => {
-    if (!auction?.erc20 || !purchaseTotalPrice || isPaymentETH) return;
+    if (!auction?.erc20 || purchaseTotalPrice <= BigInt(0) || isPaymentETH) return;
     await approveERC20({
       address: auction.erc20 as Address,
       abi: ERC20_ABI,
