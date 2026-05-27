@@ -37,13 +37,17 @@ export async function POST(
       return NextResponse.json({ error: 'Deployment already confirmed' }, { status: 400 });
     }
 
-    await db
-      .update(collectionDeployments)
-      .set({
-        txHash,
-        status: 'submitted',
-      })
-      .where(eq(collectionDeployments.id, deploymentId));
+    if (deployment.txHash.startsWith('pending-')) {
+      await db
+        .update(collectionDeployments)
+        .set({ status: 'submitted' })
+        .where(eq(collectionDeployments.id, deploymentId));
+    } else {
+      await db
+        .update(collectionDeployments)
+        .set({ txHash, status: 'submitted' })
+        .where(eq(collectionDeployments.id, deploymentId));
+    }
 
     return NextResponse.json({
       deploymentId,

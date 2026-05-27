@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, collectionDeployments, collections, eq } from '@cryptoart/db';
+import { getDatabase, collectionDeployments, collections, eq, and, sql } from '@cryptoart/db';
 
 export async function GET(
   _req: NextRequest,
@@ -20,6 +20,25 @@ export async function GET(
     }
 
     const deployment = deployments[0]!;
+
+    if (deployment.txHash.startsWith('pending-') && deployment.collectionId) {
+      const collectionRows = await db
+        .select()
+        .from(collections)
+        .where(eq(collections.id, deployment.collectionId))
+        .limit(1);
+
+      return NextResponse.json({
+        deploymentId: deployment.id,
+        status: 'confirmed',
+        txHash: collectionRows[0]?.deployTxHash ?? null,
+        blockNumber: collectionRows[0]?.deployBlockNumber ?? null,
+        submittedAt: deployment.submittedAt,
+        confirmedAt: deployment.confirmedAt,
+        collectionId: collectionRows[0]?.id ?? null,
+        contractAddress: collectionRows[0]?.contractAddress ?? null,
+      });
+    }
 
     const response: Record<string, unknown> = {
       deploymentId: deployment.id,

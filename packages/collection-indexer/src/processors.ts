@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import {
   collections,
@@ -108,6 +108,24 @@ export async function processCollectionCreated(
         collectionId: result[0]!.id,
       },
     });
+
+  await db
+    .update(collectionDeployments)
+    .set({
+      status: 'confirmed',
+      blockNumber: params.blockNumber,
+      confirmedAt: params.blockTimestamp,
+      collectionId: result[0]!.id,
+    })
+    .where(
+      and(
+        sql`tx_hash LIKE 'pending-%'`,
+        eq(collectionDeployments.chainId, params.chainId),
+        eq(collectionDeployments.fromAddress, params.fromAddress),
+        eq(collectionDeployments.name, params.name),
+        eq(collectionDeployments.symbol, params.symbol),
+      ),
+    );
 
   return result[0]!.id;
 }
