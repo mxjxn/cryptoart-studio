@@ -749,12 +749,13 @@ export function useAuctionDetail({
   const parseTokenAmountToBigInt = (amount: string): bigint | null => {
     const trimmedAmount = amount.trim();
     if (!trimmedAmount) return null;
-    // Accepts integer ("123"), decimal ("123.45"), and leading-decimal ("0.45"/".45") formats.
+    // Accepts integer ("123"), decimal ("123.45"), and leading-decimal (".45", treated as "0.45") formats.
     if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(trimmedAmount)) {
       return null;
     }
     const parts = trimmedAmount.split(".");
     const wholePart = BigInt(parts[0] || "0");
+    // Intentionally truncates extra decimal precision beyond token decimals.
     const fractionalPart = parts[1]
       ? BigInt(parts[1].padEnd(paymentDecimals, "0").slice(0, paymentDecimals))
       : BigInt(0);
@@ -773,7 +774,8 @@ export function useAuctionDetail({
     !isPaymentETH &&
     !!auction?.erc20 &&
     !!address &&
-    (!!purchaseTotalPrice && (!currentAllowance || currentAllowance < purchaseTotalPrice));
+    purchaseTotalPrice > BigInt(0) &&
+    (!currentAllowance || currentAllowance < purchaseTotalPrice);
   const needsBidApproval =
     !isPaymentETH &&
     !!auction?.erc20 &&

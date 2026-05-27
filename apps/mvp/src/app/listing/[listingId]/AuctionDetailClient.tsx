@@ -930,10 +930,13 @@ export default function AuctionDetailClient({
                             : `Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`
                         }
                       >
-                        {needsBidApproval
+                      {needsBidApproval
                           ? (isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`)
                           : (isBidding || isConfirmingBid ? "Processing..." : "Place Bid")}
                       </button>
+                      <p className="sr-only" aria-live="polite">
+                        {needsBidApproval ? `Approval required before placing bid.` : "Bid action ready."}
+                      </p>
                     </div>
                   );
                 })()}
@@ -1073,6 +1076,11 @@ export default function AuctionDetailClient({
                         You need to approve {paymentSymbol} spending before purchasing.
                       </p>
                     )}
+                    <p className="sr-only" aria-live="polite">
+                      {needsPurchaseApproval
+                        ? `Approval required before purchase.`
+                        : "Purchase action ready."}
+                    </p>
                     <button
                       onClick={needsPurchaseApproval ? handleApprovePurchase : handlePurchase}
                       disabled={
@@ -1195,6 +1203,9 @@ export default function AuctionDetailClient({
                         ? (isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`)
                         : (isOffering || isConfirmingOffer ? "Processing..." : "Make Offer")}
                     </button>
+                    <p className="sr-only" aria-live="polite">
+                      {needsOfferApproval ? `Approval required before making offer.` : "Offer action ready."}
+                    </p>
                     {offerError && (
                       <p className="text-xs text-red-400">
                         {offerError.message || "Failed to make offer"}
