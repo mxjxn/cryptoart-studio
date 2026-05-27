@@ -262,9 +262,9 @@ export default function AuctionDetailClient({
     }
   }, [isPaymentETH, auction, address, erc20Allowance, purchaseQuantity]);
 
-  const handleApproveERC20 = async () => {
+  const handleApproveERC20 = () => {
     if (!auction?.erc20 || isPaymentETH || !address) return;
-    await approveERC20({
+    approveERC20({
       address: auction.erc20 as Address,
       abi: ERC20_ABI,
       functionName: 'approve',

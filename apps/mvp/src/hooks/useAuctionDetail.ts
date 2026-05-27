@@ -202,7 +202,7 @@ export interface UseAuctionDetailReturn {
   modifyError: any;
   isExplicitEthereumListing: boolean;
   needsApproval: boolean;
-  handleApproveERC20: () => Promise<void>;
+  handleApproveERC20: () => void;
   bidCount: number;
   nowTimestamp: number;
   listingData: any;
@@ -696,9 +696,9 @@ export function useAuctionDetail({
     }
   }, [isPaymentETH, auction, address, erc20Allowance, purchaseQuantity]);
 
-  const handleApproveERC20 = async () => {
+  const handleApproveERC20 = () => {
     if (!auction?.erc20 || isPaymentETH || !address) return;
-    await approveERC20({
+    approveERC20({
       address: auction.erc20 as Address,
       abi: ERC20_ABI,
       functionName: 'approve',
