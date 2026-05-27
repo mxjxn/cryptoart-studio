@@ -698,13 +698,16 @@ export function useAuctionDetail({
 
   const handleApproveERC20 = () => {
     if (!auction?.erc20 || isPaymentETH || !address) return;
-    approveERC20({
-      address: auction.erc20 as Address,
-      abi: ERC20_ABI,
-      functionName: 'approve',
-      chainId: marketplaceReadChainId,
-      args: [marketplaceReadAddress, maxUint256],
-    });
+    approveERC20(
+      {
+        address: auction.erc20 as Address,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        chainId: marketplaceReadChainId,
+        args: [marketplaceReadAddress, maxUint256],
+      },
+      { onError: (err) => console.error('ERC-20 approval failed:', err) },
+    );
   };
 
   const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {

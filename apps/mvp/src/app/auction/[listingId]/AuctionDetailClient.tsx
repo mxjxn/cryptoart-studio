@@ -264,13 +264,16 @@ export default function AuctionDetailClient({
 
   const handleApproveERC20 = () => {
     if (!auction?.erc20 || isPaymentETH || !address) return;
-    approveERC20({
-      address: auction.erc20 as Address,
-      abi: ERC20_ABI,
-      functionName: 'approve',
-      chainId: CHAIN_ID,
-      args: [MARKETPLACE_ADDRESS, maxUint256],
-    });
+    approveERC20(
+      {
+        address: auction.erc20 as Address,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        chainId: CHAIN_ID,
+        args: [MARKETPLACE_ADDRESS, maxUint256],
+      },
+      { onError: (err) => console.error('ERC-20 approval failed:', err) },
+    );
   };
 
   const shareText = useMemo(() => {
@@ -532,6 +535,7 @@ export default function AuctionDetailClient({
         const currentAllowance = erc20Allowance as bigint | undefined;
         
         if (!currentAllowance || currentAllowance < totalPrice) {
+          console.warn('handlePurchase: insufficient allowance — triggering approval guard');
           await approveERC20({
             address: tokenAddress,
             abi: ERC20_ABI,
