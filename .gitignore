@@ -39,6 +39,11 @@ yarn-error.log*
 coverage
 .nyc_output
 
+# Foundry
+cache/
+out/
+broadcast/
+
 # Misc
 *.tsbuildinfo
 

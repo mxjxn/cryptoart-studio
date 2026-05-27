@@ -39,6 +39,14 @@ export {
   listingSellerTheme,
   listingThemeOverride,
   marketLayoutSnapshots,
+  // Collection tables
+  collections,
+  collectionTokens,
+  collectionDeployments,
+  collectionExtensions,
+  collectionRoyalties,
+  transferEvents,
+  indexedContracts,
 } from './client';
 export type { 
   UserCacheData, 

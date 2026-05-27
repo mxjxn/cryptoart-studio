@@ -190,6 +190,14 @@ export {
   listingSellerTheme,
   listingThemeOverride,
   marketLayoutSnapshots,
+  // Collection tables
+  collections,
+  collectionTokens,
+  collectionDeployments,
+  collectionExtensions,
+  collectionRoyalties,
+  transferEvents,
+  indexedContracts,
 } from './schema';
 export type { 
   UserCacheData, 
