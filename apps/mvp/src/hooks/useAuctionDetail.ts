@@ -749,11 +749,11 @@ export function useAuctionDetail({
   const parseTokenAmountToBigInt = (amount: string): bigint | null => {
     const trimmedAmount = amount.trim();
     if (!trimmedAmount) return null;
+    // Accepts integer ("123"), decimal ("123.45"), and leading-decimal ("0.45"/".45") formats.
     if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(trimmedAmount)) {
       return null;
     }
     const parts = trimmedAmount.split(".");
-    if (parts.length > 2) return null;
     const wholePart = BigInt(parts[0] || "0");
     const fractionalPart = parts[1]
       ? BigInt(parts[1].padEnd(paymentDecimals, "0").slice(0, paymentDecimals))

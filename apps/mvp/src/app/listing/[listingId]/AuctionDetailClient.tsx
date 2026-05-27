@@ -1183,7 +1183,7 @@ export default function AuctionDetailClient({
                           ? needsOfferApproval
                             ? `Approve ${paymentSymbol} spending for offer`
                             : `Make offer of ${offerAmount} ${paymentSymbol}`
-                          : "Enter offer amount to continue"
+                          : "Enter offer amount to make an offer"
                       }
                       aria-busy={
                         needsOfferApproval
