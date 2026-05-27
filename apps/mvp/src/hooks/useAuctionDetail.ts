@@ -189,6 +189,12 @@ export interface UseAuctionDetailReturn {
   handleBid: () => Promise<void>;
   handlePurchase: () => Promise<void>;
   handleMakeOffer: () => Promise<void>;
+  handleApprovePurchase: () => Promise<void>;
+  handleApproveBid: () => Promise<void>;
+  handleApproveOffer: () => Promise<void>;
+  needsPurchaseApproval: boolean;
+  needsBidApproval: boolean;
+  needsOfferApproval: boolean;
   handleAcceptOffer: (offererAddress: string, offerAmount: string) => Promise<void>;
   handleCancel: () => Promise<void>;
   handleFinalize: () => Promise<void>;
@@ -201,7 +207,6 @@ export interface UseAuctionDetailReturn {
   actions: any;
   modifyError: any;
   isExplicitEthereumListing: boolean;
-  pendingPurchaseAfterApproval: boolean;
   bidCount: number;
   nowTimestamp: number;
   listingData: any;
@@ -546,7 +551,6 @@ export function useAuctionDetail({
   const [offerAmount, setOfferAmount] = useState("");
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
 
@@ -742,6 +746,49 @@ export function useAuctionDetail({
     }
   }, [auction]);
 
+  const parseTokenAmountToBigInt = (amount: string): bigint | null => {
+    const trimmedAmount = amount.trim();
+    if (!trimmedAmount) return null;
+    const parts = trimmedAmount.split(".");
+    if (parts.length > 2) return null;
+    if ((parts[0] && !/^\d+$/.test(parts[0])) || (parts[1] && !/^\d+$/.test(parts[1]))) {
+      return null;
+    }
+    const wholePart = BigInt(parts[0] || "0");
+    const fractionalPart = parts[1]
+      ? BigInt(parts[1].padEnd(paymentDecimals, "0").slice(0, paymentDecimals))
+      : BigInt(0);
+    return wholePart * BigInt(10 ** paymentDecimals) + fractionalPart;
+  };
+
+  const currentAllowance = erc20Allowance as bigint | undefined;
+  const purchaseTotalPrice = useMemo(() => {
+    if (!auction) return BigInt(0);
+    const price = auction.currentPrice || auction.initialAmount;
+    return BigInt(price) * BigInt(purchaseQuantity);
+  }, [auction, purchaseQuantity]);
+  const bidAmountBigInt = parseTokenAmountToBigInt(bidAmount);
+  const offerAmountBigInt = parseTokenAmountToBigInt(offerAmount);
+  const needsPurchaseApproval =
+    !isPaymentETH &&
+    !!auction?.erc20 &&
+    !!address &&
+    (!!purchaseTotalPrice && (!currentAllowance || currentAllowance < purchaseTotalPrice));
+  const needsBidApproval =
+    !isPaymentETH &&
+    !!auction?.erc20 &&
+    !!address &&
+    !!bidAmountBigInt &&
+    bidAmountBigInt > BigInt(0) &&
+    (!currentAllowance || currentAllowance < bidAmountBigInt);
+  const needsOfferApproval =
+    !isPaymentETH &&
+    !!auction?.erc20 &&
+    !!address &&
+    !!offerAmountBigInt &&
+    offerAmountBigInt > BigInt(0) &&
+    (!currentAllowance || currentAllowance < offerAmountBigInt);
+
   useEffect(() => {
     if (auction && calculateMinBid > BigInt(0) && !bidAmount) {
       const value = calculateMinBid;
@@ -770,12 +817,9 @@ export function useAuctionDetail({
     }
 
     try {
-      const bidAmountBigInt = (() => {
-        const parts = bidAmount.split('.');
-        const wholePart = BigInt(parts[0] || '0');
-        const fractionalPart = parts[1] ? BigInt(parts[1].padEnd(paymentDecimals, '0').slice(0, paymentDecimals)) : BigInt(0);
-        return wholePart * BigInt(10 ** paymentDecimals) + fractionalPart;
-      })();
+      if (!bidAmountBigInt) {
+        return;
+      }
 
       const minBid = calculateMinBid;
 
@@ -784,20 +828,8 @@ export function useAuctionDetail({
         return;
       }
 
-      if (!isPaymentETH && auction.erc20) {
-        const tokenAddress = auction.erc20 as Address;
-        const currentAllowance = erc20Allowance as bigint | undefined;
-
-        if (!currentAllowance || currentAllowance < bidAmountBigInt) {
-          await approveERC20({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, bidAmountBigInt],
-          });
-          return;
-        }
+      if (needsBidApproval) {
+        return;
       }
 
       if (referrer) {
@@ -831,33 +863,17 @@ export function useAuctionDetail({
     }
 
     try {
-      const price = auction.currentPrice || auction.initialAmount;
-      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-
-      if (!isPaymentETH && auction.erc20) {
-        const tokenAddress = auction.erc20 as Address;
-        const currentAllowance = erc20Allowance as bigint | undefined;
-
-        if (!currentAllowance || currentAllowance < totalPrice) {
-          setPendingPurchaseAfterApproval(true);
-          await approveERC20({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, totalPrice],
-          });
-          return;
-        }
+      if (needsPurchaseApproval) {
+        return;
       }
 
-      const purchaseValue = isPaymentETH ? totalPrice : BigInt(0);
+      const purchaseValue = isPaymentETH ? purchaseTotalPrice : BigInt(0);
 
       console.log('[Purchase] Executing purchase:', {
         listingId: Number(listingId),
         purchaseQuantity,
         purchaseValue: purchaseValue.toString(),
-        totalPrice: totalPrice.toString(),
+         totalPrice: purchaseTotalPrice.toString(),
         isPaymentETH,
         auctionData: {
           listingType: auction.listingType,
@@ -892,91 +908,18 @@ export function useAuctionDetail({
     }
   };
 
-  useEffect(() => {
-    if (isApproveConfirmed && pendingPurchaseAfterApproval && !isPaymentETH && auction && address) {
-      let timer: NodeJS.Timeout | null = null;
-
-      refetchAllowance().then(() => {
-        timer = setTimeout(() => {
-          try {
-            const price = auction.currentPrice || auction.initialAmount;
-            const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-
-            console.log('[Purchase] Executing post-approval purchase:', {
-              listingId: Number(listingId),
-              purchaseQuantity,
-              totalPrice: totalPrice.toString(),
-            });
-
-            if (referrer) {
-              purchaseListing({
-                address: marketplaceReadAddress,
-                abi: PURCHASE_ABI_WITH_REFERRER,
-                functionName: 'purchase',
-                chainId: marketplaceReadChainId,
-                args: [referrer, Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            } else {
-              purchaseListing({
-                address: marketplaceReadAddress,
-                abi: PURCHASE_ABI_NO_REFERRER,
-                functionName: 'purchase',
-                chainId: marketplaceReadChainId,
-                args: [Number(listingId), purchaseQuantity],
-                value: BigInt(0),
-              });
-            }
-
-            setPendingPurchaseAfterApproval(false);
-          } catch (err) {
-            console.error("Error purchasing after approval:", err);
-            setPendingPurchaseAfterApproval(false);
-          }
-        }, 1000);
-      });
-
-      return () => {
-        if (timer) clearTimeout(timer);
-      };
-    }
-  }, [
-    isApproveConfirmed,
-    pendingPurchaseAfterApproval,
-    isPaymentETH,
-    auction,
-    address,
-    purchaseQuantity,
-    listingId,
-    refetchAllowance,
-    purchaseListing,
-    referrer,
-    marketplaceReadChainId,
-    marketplaceReadAddress,
-  ]);
-
   const handleMakeOffer = async () => {
     if (!isConnected || !offerAmount || !auction || !address) {
       return;
     }
 
     try {
-      const offerAmountBigInt = BigInt(Math.floor(parseFloat(offerAmount) * 10 ** paymentDecimals));
+      if (!offerAmountBigInt) {
+        return;
+      }
 
-      if (!isPaymentETH && auction.erc20) {
-        const tokenAddress = auction.erc20 as Address;
-        const currentAllowance = erc20Allowance as bigint | undefined;
-
-        if (!currentAllowance || currentAllowance < offerAmountBigInt) {
-          await approveERC20({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: 'approve',
-            chainId: marketplaceReadChainId,
-            args: [marketplaceReadAddress, offerAmountBigInt],
-          });
-          return;
-        }
+      if (needsOfferApproval) {
+        return;
       }
 
       await makeOffer({
@@ -990,6 +933,39 @@ export function useAuctionDetail({
     } catch (err) {
       console.error("Error making offer:", err);
     }
+  };
+
+  const handleApprovePurchase = async () => {
+    if (!auction?.erc20 || !purchaseTotalPrice || isPaymentETH) return;
+    await approveERC20({
+      address: auction.erc20 as Address,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      chainId: marketplaceReadChainId,
+      args: [marketplaceReadAddress, purchaseTotalPrice],
+    });
+  };
+
+  const handleApproveBid = async () => {
+    if (!auction?.erc20 || !bidAmountBigInt || bidAmountBigInt <= BigInt(0) || isPaymentETH) return;
+    await approveERC20({
+      address: auction.erc20 as Address,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      chainId: marketplaceReadChainId,
+      args: [marketplaceReadAddress, bidAmountBigInt],
+    });
+  };
+
+  const handleApproveOffer = async () => {
+    if (!auction?.erc20 || !offerAmountBigInt || offerAmountBigInt <= BigInt(0) || isPaymentETH) return;
+    await approveERC20({
+      address: auction.erc20 as Address,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      chainId: marketplaceReadChainId,
+      args: [marketplaceReadAddress, offerAmountBigInt],
+    });
   };
 
   const handleAcceptOffer = async (offererAddress: string, offerAmount: string) => {
@@ -1917,6 +1893,12 @@ export function useAuctionDetail({
     handleBid,
     handlePurchase,
     handleMakeOffer,
+    handleApprovePurchase,
+    handleApproveBid,
+    handleApproveOffer,
+    needsPurchaseApproval,
+    needsBidApproval,
+    needsOfferApproval,
     handleAcceptOffer,
     handleCancel,
     handleFinalize,
@@ -1929,7 +1911,6 @@ export function useAuctionDetail({
     actions,
     modifyError,
     isExplicitEthereumListing,
-    pendingPurchaseAfterApproval,
     bidCount,
     nowTimestamp,
     listingData,

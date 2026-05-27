@@ -131,6 +131,12 @@ export default function AuctionDetailClient({
     handleBid,
     handlePurchase,
     handleMakeOffer,
+    handleApprovePurchase,
+    handleApproveBid,
+    handleApproveOffer,
+    needsPurchaseApproval,
+    needsBidApproval,
+    needsOfferApproval,
     handleAcceptOffer,
     handleCancel,
     handleFinalize,
@@ -143,11 +149,9 @@ export default function AuctionDetailClient({
     actions,
     modifyError,
     isExplicitEthereumListing,
-    pendingPurchaseAfterApproval,
     bidCount,
     nowTimestamp,
     listingData,
-    erc20Allowance,
     cancelError,
     finalizeError,
     purchaseError,
@@ -159,6 +163,20 @@ export default function AuctionDetailClient({
     setPageStatus,
     loading,
   } = useAuctionDetail({ listingId, listingApiChainId });
+
+  const hasOnChainAvailability =
+    !!listingData &&
+    typeof listingData?.details?.totalAvailable !== "undefined" &&
+    typeof listingData?.totalSold !== "undefined";
+  const totalAvailable = hasOnChainAvailability
+    ? Number(listingData.details.totalAvailable)
+    : parseInt(auction?.totalAvailable || "0", 10);
+  const totalSold = hasOnChainAvailability
+    ? Number(listingData.totalSold)
+    : parseInt(auction?.totalSold || "0", 10);
+  const remaining = Math.max(0, totalAvailable - totalSold);
+  const totalPerSale = Math.max(1, parseInt(auction?.totalPerSale || "1", 10));
+  const maxPurchases = Math.max(1, Math.floor(remaining / totalPerSale));
 
   if (pageState === "ambiguous") {
     return (
@@ -899,12 +917,22 @@ export default function AuctionDetailClient({
                         )}
                       </div>
                       <button
-                        onClick={handleBid}
-                        disabled={isBidding || isConfirmingBid}
+                        onClick={needsBidApproval ? handleApproveBid : handleBid}
+                        disabled={
+                          needsBidApproval
+                            ? (isApproving || isConfirmingApprove)
+                            : (isBidding || isConfirmingBid)
+                        }
                         className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label={`Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
+                        aria-label={
+                          needsBidApproval
+                            ? `Approve ${paymentSymbol} spending for bid`
+                            : `Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`
+                        }
                       >
-                        {isBidding || isConfirmingBid ? "Processing..." : "Place Bid"}
+                        {needsBidApproval
+                          ? (isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`)
+                          : (isBidding || isConfirmingBid ? "Processing..." : "Place Bid")}
                       </button>
                     </div>
                   );
@@ -914,7 +942,7 @@ export default function AuctionDetailClient({
 
             {auction.listingType === "FIXED_PRICE" && showControls && (() => {
               const isERC721SoldOut = auction.tokenSpec === "ERC721" && 
-                parseInt(auction.totalSold || "0") >= parseInt(auction.totalAvailable || "1");
+                totalSold >= totalAvailable;
               
               if (isERC721SoldOut) {
                 return (
@@ -936,7 +964,7 @@ export default function AuctionDetailClient({
                     <input
                       type="number"
                       min="1"
-                      max={Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))}
+                      max={maxPurchases}
                       value={purchaseQuantity}
                       onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-full px-3 py-2 bg-white border border-neutral-200 shadow-sm text-neutral-900 text-sm rounded-lg focus:ring-2 focus:ring-neutral-400 focus:border-neutral-400"
@@ -944,13 +972,13 @@ export default function AuctionDetailClient({
                       aria-describedby="purchase-quantity-info"
                     />
                     <div id="purchase-quantity-info" className="sr-only">
-                      You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies
+                      You will receive {purchaseQuantity * totalPerSale} copies
                     </div>
                     <p className="text-xs text-neutral-500 mt-1">
-                      You will receive {purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {auction.totalPerSale} copies per purchase)
+                      You will receive {purchaseQuantity * totalPerSale} copies ({purchaseQuantity} purchase{purchaseQuantity !== 1 ? 's' : ''} × {totalPerSale} copies per purchase)
                     </p>
                     <p className="text-xs text-neutral-500 mt-0.5">
-                      {parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")} copies remaining ({Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1"))} purchase{Math.floor((parseInt(auction.totalAvailable) - parseInt(auction.totalSold || "0")) / parseInt(auction.totalPerSale || "1")) !== 1 ? 's' : ''} available)
+                      {remaining} copies remaining ({maxPurchases} purchase{maxPurchases !== 1 ? 's' : ''} available)
                       {auction.erc1155TotalSupply && (
                         <span className="ml-1 text-neutral-500">
                           (of {auction.erc1155TotalSupply} total)
@@ -1040,43 +1068,33 @@ export default function AuctionDetailClient({
                         </div>
                       )}
                     </div>
-                    {!isPaymentETH && auction.erc20 && address && (() => {
-                      const price = auction.currentPrice || auction.initialAmount;
-                      const totalPrice = BigInt(price) * BigInt(purchaseQuantity);
-                      const currentAllowance = erc20Allowance as bigint | undefined;
-                      const needsApproval = !currentAllowance || currentAllowance < totalPrice;
-                      
-                      if (needsApproval && !isApproving && !isConfirmingApprove) {
-                        return (
-                          <p className="text-xs text-yellow-400 mb-2">
-                            You need to approve {paymentSymbol} spending first. Click "Buy Now" to approve.
-                          </p>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {needsPurchaseApproval && (
+                      <p className="text-xs text-yellow-400 mb-2">
+                        You need to approve {paymentSymbol} spending before purchasing.
+                      </p>
+                    )}
                     <button
-                      onClick={handlePurchase}
-                      disabled={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
+                      onClick={needsPurchaseApproval ? handleApprovePurchase : handlePurchase}
+                      disabled={
+                        needsPurchaseApproval
+                          ? (isApproving || isConfirmingApprove)
+                          : (isPurchasing || isConfirmingPurchase)
+                      }
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       aria-label={
-                        isApproving || isConfirmingApprove
-                          ? "Approving token spending"
-                          : pendingPurchaseAfterApproval
-                          ? "Completing purchase"
-                          : isPurchasing || isConfirmingPurchase
-                          ? "Processing purchase"
+                        needsPurchaseApproval
+                          ? `Approve ${paymentSymbol} spending for purchase`
                           : `Buy now for ${formatPrice(auction.initialAmount)} ${paymentSymbol}${auction.tokenSpec === "ERC1155" ? ` (${purchaseQuantity} purchase${purchaseQuantity !== 1 ? 's' : ''})` : ''}`
                       }
-                      aria-busy={isPurchasing || isConfirmingPurchase || isApproving || isConfirmingApprove || pendingPurchaseAfterApproval}
+                      aria-busy={
+                        needsPurchaseApproval
+                          ? (isApproving || isConfirmingApprove)
+                          : (isPurchasing || isConfirmingPurchase)
+                      }
                     >
-                      {isApproving || isConfirmingApprove
-                        ? "Approving..."
-                        : pendingPurchaseAfterApproval
-                        ? "Completing purchase..."
-                        : isPurchasing || isConfirmingPurchase
-                        ? "Processing..."
-                        : "Buy Now"}
+                      {needsPurchaseApproval
+                        ? (isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`)
+                        : (isPurchasing || isConfirmingPurchase ? "Processing..." : "Buy Now")}
                     </button>
                     {approveError && (
                       <p className="text-xs text-red-400">
@@ -1153,15 +1171,29 @@ export default function AuctionDetailClient({
                       )}
                     </div>
                     <button
-                      onClick={handleMakeOffer}
-                      disabled={isOffering || isConfirmingOffer || !offerAmount}
+                      onClick={needsOfferApproval ? handleApproveOffer : handleMakeOffer}
+                      disabled={
+                        needsOfferApproval
+                          ? (isApproving || isConfirmingApprove || !offerAmount)
+                          : (isOffering || isConfirmingOffer || !offerAmount)
+                      }
                       className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label={offerAmount ? `Make offer of ${offerAmount} ${paymentSymbol}` : "Enter offer amount to make an offer"}
-                      aria-busy={isOffering || isConfirmingOffer}
+                      aria-label={
+                        offerAmount
+                          ? needsOfferApproval
+                            ? `Approve ${paymentSymbol} spending for offer`
+                            : `Make offer of ${offerAmount} ${paymentSymbol}`
+                          : "Enter offer amount to continue"
+                      }
+                      aria-busy={
+                        needsOfferApproval
+                          ? (isApproving || isConfirmingApprove)
+                          : (isOffering || isConfirmingOffer)
+                      }
                     >
-                      {isOffering || isConfirmingOffer
-                        ? "Processing..."
-                        : "Make Offer"}
+                      {needsOfferApproval
+                        ? (isApproving || isConfirmingApprove ? "Approving..." : `Approve ${paymentSymbol}`)
+                        : (isOffering || isConfirmingOffer ? "Processing..." : "Make Offer")}
                     </button>
                     {offerError && (
                       <p className="text-xs text-red-400">
@@ -1317,9 +1349,6 @@ export default function AuctionDetailClient({
               }
               
               const timeStatus = getFixedPriceTimeStatus(actualEndTimeForFixed, now);
-              const totalAvailable = parseInt(auction.totalAvailable || "0");
-              const totalSold = parseInt(auction.totalSold || "0");
-              const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0 && totalAvailable > 0;
               const isEnded = actualEndTimeForFixed > 0 && actualEndTimeForFixed <= now && !isNeverExpiring(actualEndTimeForFixed);
               const isFinalized = auction.status === "FINALIZED";
@@ -1405,10 +1434,6 @@ export default function AuctionDetailClient({
               
               const timeStatus = getFixedPriceTimeStatus(actualEndTimeForOffers, now);
               const isEndedForOffers = actualEndTimeForOffers > 0 && actualEndTimeForOffers <= now && !isNeverExpiring(actualEndTimeForOffers);
-              
-              const totalAvailable = parseInt(auction.totalAvailable || "0");
-              const totalSold = parseInt(auction.totalSold || "0");
-              const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0 && totalAvailable > 0;
               const isFinalized = auction.status === "FINALIZED";
               const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
@@ -1487,10 +1512,6 @@ export default function AuctionDetailClient({
               
               const timeStatus = getFixedPriceTimeStatus(actualEndTimeForDynamic, now);
               const isEndedForDynamic = actualEndTimeForDynamic > 0 && actualEndTimeForDynamic <= now && !isNeverExpiring(actualEndTimeForDynamic);
-              
-              const totalAvailable = parseInt(auction.totalAvailable || "0");
-              const totalSold = parseInt(auction.totalSold || "0");
-              const remaining = Math.max(0, totalAvailable - totalSold);
               const isSoldOut = remaining === 0 && totalAvailable > 0;
               const isFinalized = auction.status === "FINALIZED";
               const totalSupply = auction.erc1155TotalSupply ? parseInt(auction.erc1155TotalSupply) : null;
