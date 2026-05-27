@@ -61,9 +61,8 @@ export class FactoryWatcher {
 
     const head = await this.client.getBlockNumber();
     const fromBlock = BigInt(cursor.lastIndexedBlock) + 1n;
-    const toBlock = head > fromBlock + BigInt(this.config.batchSize)
-      ? fromBlock + BigInt(this.config.batchSize)
-      : head;
+    const batchEnd = fromBlock + BigInt(this.config.batchSize) - 1n;
+    const toBlock = head > batchEnd ? batchEnd : head;
 
     if (fromBlock > toBlock) return;
 
