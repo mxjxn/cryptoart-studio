@@ -1,119 +1,173 @@
-# ERC-20 Approval Amount Bug: "Transfer amount exceeds allowance"
+# ERC-20 Purchase Flow Bugs
 
-## Problem
+Three related bugs in ERC-20 listings, all surfaced after the decimal fix (PR #144).
 
-After the ERC-20 decimal fix (PR #144), buying ERC-20 listings fails with:
+---
 
-```
-ERC20: transfer amount exceeds allowance
-```
+## Bug 1: "Transfer amount exceeds allowance" (contract + frontend)
 
-The user approves the exact `totalPrice` (listing price × quantity), but the contract's `transferFrom` tries to pull **more** than that amount because marketplace fees, referrer cuts, and royalties are all deducted via **separate `transferFrom` calls** from the buyer's wallet.
+### Problem
 
-## Root Cause
+The user approves the exact `totalPrice` (listing price × quantity), but the contract's `transferFrom` tries to pull **more** because marketplace fees, referrer cuts, and royalties are deducted via **separate `transferFrom` calls** from the buyer's wallet.
 
-### How the purchase flow works (ERC-20 path)
+### Root Cause
 
 In `SettlementLib.sol`, `performPurchase()` calls `receiveTokens()` once for the listing price:
 
 ```solidity
-// Line 280 — pulls `totalPrice` from buyer
+// Line 280 — pulls `totalPrice` from buyer to contract
 require(IERC20(listing.details.erc20).transferFrom(source, address(this), amount));
 ```
 
-Then `_paySeller()` is called with `source = msg.sender` (the buyer). It makes **additional `transferFrom` calls** from the buyer:
+Then `_paySeller()` is called with `source = msg.sender` (the buyer). It makes **additional `transferFrom` calls**:
 
-1. **Marketplace fee** (line 457): `receiveTokens(listing, source, marketplaceAmount, ...)` → `transferFrom(buyer, marketplace, marketplaceAmount)`
-2. **Referrer cut** (line 466): `sendTokens(erc20, source, referrer, referrerAmount)` → `transferFrom(buyer, referrer, referrerAmount)`
-3. **Royalties** (line 477): `sendTokens(erc20, source, recipient, amounts[i])` → `transferFrom(buyer, royaltyRecipient, amounts[i])`
-4. **Seller proceeds** (line 484 via `distributeProceeds`): `sendTokens(erc20, source, seller, sellerAmount)` → `transferFrom(buyer, seller, sellerAmount)`
+1. **Marketplace fee** (line 457): `receiveTokens(listing, source, marketplaceAmount)` → `transferFrom(buyer, ...)`
+2. **Referrer cut** (line 466): `sendTokens(erc20, source, referrer, referrerAmount)` → `transferFrom(buyer, ...)`
+3. **Royalties** (line 477): `sendTokens(erc20, source, recipient, amounts[i])` → `transferFrom(buyer, ...)`
+4. **Seller proceeds** (line 484): `sendTokens(erc20, source, seller, sellerAmount)` → `transferFrom(buyer, ...)`
 
-### The math
+Total pulled: `totalPrice + marketplaceFee + referrerFee + royalties`
+But frontend approves only: `totalPrice`
 
-The total pulled from the buyer is:
-```
-totalPulled = totalPrice + marketplaceFee + referrerFee + royalties
-```
+Example: 100 USDC listing, 2.5% marketplace, 1% referrer → approved 100, contract pulls 103.5.
 
-But the frontend only approves `totalPrice`:
-```typescript
-// useAuctionDetail.ts line 848
-args: [marketplaceReadAddress, totalPrice],
-```
+ETH works fine because `msg.value` covers everything in one tx and the contract distributes internally.
 
-So if a listing costs 100 USDC, marketplaceBPS is 250 (2.5%), and referrerBPS is 100 (1%):
-- Approved: **100 USDC**
-- Contract tries to pull: **100 + 2.5 + 1.0 = 103.5 USDC**
-- Result: ❌ "transfer amount exceeds allowance"
+The old `parseEther` bug inflated approvals by 10^12, masking this completely.
 
-### Why ETH listings work fine
+### Fix
 
-For ETH, the buyer sends `msg.value == totalPrice` in a single tx. The contract holds the funds and distributes internally — no approval needed.
-
-### Why the old `parseEther` code "worked"
-
-Before the decimal fix, listings created with USDC (6 decimals) were using `parseEther` (18 decimals), so prices were inflated by 10^12. The approval amount was astronomically large, masking the shortfall from fees.
-
-## Affected Code
-
-### Contract side (`SettlementLib.sol`)
-- `performPurchase()` line 280: pulls `totalPrice` from buyer to contract
-- `_paySeller()` line 452-485: pulls fees + royalties + seller proceeds from buyer via additional `transferFrom` calls
-- For ERC-20, `source = msg.sender` (buyer), not `address(this)`
-
-### Frontend side
-- `apps/mvp/src/hooks/useAuctionDetail.ts` lines 841-848: approves only `totalPrice`
-- Same pattern at lines 789, 968 for offers/bids
-- `apps/mvp/src/app/auction/[listingId]/AuctionDetailClient.tsx` lines 440-447, 511-520: same pattern
-
-## Fix Options
-
-### Option A: Approve with buffer (frontend fix — quickest)
-Add the maximum possible fee overhead to the approval amount:
-```typescript
-const maxFees = totalPrice * BigInt(marketplaceBPS + referrerBPS + maxRoyaltyBPS) / BigInt(10000);
-const approveAmount = totalPrice + maxFees;
-```
-Or simply approve `type(uint256).max` for a smoother UX (common pattern — Uniswap, OpenSea do this).
-
-**Pros:** No contract changes, no redeployment
-**Cons:** Over-approving is a security tradeoff
-
-### Option B: Fix contract to pull once, distribute internally (contract fix — proper)
-Change `_paySeller` for ERC-20 to use `address(this)` as source (like the ETH path already does). The initial `receiveTokens` in `performPurchase` already pulls `totalPrice` to the contract. Then `_paySeller` distributes from the contract's balance instead of making additional `transferFrom` calls from the buyer.
+**Contract (`SettlementLib.sol`):** Change `performPurchase()` line 79 — for ERC-20, pass `address(this)` instead of `msg.sender` to `_paySeller`. The initial `receiveTokens` already pulls `totalPrice` to the contract; distribute from contract balance instead of pulling again from the buyer.
 
 ```solidity
-// In performPurchase, for ERC-20, always use address(this) as source for _paySeller
+// Line 76-80: Change ERC-20 source to address(this)
 if (listing.details.erc20 == address(0)) {
-    _paySeller(royaltyEngineV1, listing, address(this), totalPrice, ...);
+    _paySeller(..., address(this), totalPrice, ...);
 } else {
-    // Pull full amount to contract first (already done above)
-    // Then distribute from contract balance
-    _paySeller(royaltyEngineV1, listing, address(this), totalPrice, ...);  // <-- change source to address(this)
+    _paySeller(..., address(this), totalPrice, ...);  // <-- was msg.sender
 }
 ```
 
-This matches how ETH already works and avoids the double-pull problem entirely.
+Verify `sendTokens()` uses `transfer` (from contract) when `source == address(this)`, which it already does (line 294).
 
-**Pros:** Correct architecture, single approval for exact price, matches ETH flow
-**Cons:** Requires contract upgrade/redeployment
+**Frontend (temporary):** As a stopgap, approve `max uint256` so users can transact immediately.
 
-### Option C: Pull total once, accounting in contract (hybrid)
-Add up all fees first, do a single `transferFrom(buyer, contract, totalPrice + allFees)`, then distribute from contract balance.
+---
 
-## Recommendation
+## Bug 2: No separate "Approve" button (frontend UX)
 
-**Option B** is the right fix — it aligns ERC-20 flow with the ETH flow. The contract already receives tokens via `receiveTokens` at line 280; `_paySeller` should distribute from `address(this)` instead of pulling again from `msg.sender`.
+### Problem
 
-As a **temporary frontend patch**, approve `max uint256` (or a generous buffer) so users can transact immediately while the contract fix is prepared.
+Users see only a "Buy Now" button. There's no explicit "Approve {token}" step. The approve is hidden inside the purchase handler — clicking "Buy Now" sends an approval tx, returns, and relies on a `useEffect` to auto-purchase after the approval confirms.
 
-## Files to Change
+### Root Cause
+
+In `useAuctionDetail.ts` lines 837-851 and `AuctionDetailClient.tsx` lines 505-524:
+
+```typescript
+if (!currentAllowance || currentAllowance < totalPrice) {
+    setPendingPurchaseAfterApproval(true);  // Set flag
+    await approveERC20({...});              // Send approve tx
+    return;                                 // Return without purchasing
+}
+```
+
+Then a `useEffect` (lines 895-956) watches for `isApproveConfirmed` and auto-triggers the purchase:
+
+```typescript
+useEffect(() => {
+    if (isApproveConfirmed && pendingPurchaseAfterApproval && ...) {
+        refetchAllowance().then(() => {
+            setTimeout(() => {         // 1-second race condition
+                purchaseListing({...});
+            }, 1000);
+        });
+    }
+}, [isApproveConfirmed, pendingPurchaseAfterApproval, ...]);
+```
+
+### Problems with this approach
+
+1. **Misleading UX**: Button says "Buy Now" but sends an approval tx. Small yellow text says *"Click 'Buy Now' to approve"* — confusing.
+2. **Fragile auto-trigger**: If component re-renders or unmounts during the 1-second `setTimeout`, the purchase never fires.
+3. **No error recovery**: If auto-purchase fails, user is stuck with approved tokens but no purchase. Must click again.
+4. **Non-standard**: OpenSea, Blur, etc. all show a distinct "Approve" step before the purchase button becomes active.
+
+### Fix
+
+**Two distinct button states:**
+
+```
+If allowance < totalPrice:
+    Show "Approve {token}" button (sends approve tx)
+    
+If allowance >= totalPrice:
+    Show "Buy Now" button (sends purchase tx)
+```
+
+**Files to change:**
+- `apps/mvp/src/hooks/useAuctionDetail.ts` — expose `needsApproval` boolean
+- `apps/mvp/src/app/auction/[listingId]/AuctionDetailClient.tsx` — separate approve/purchase buttons
+- `apps/mvp/src/app/listing/[listingId]/AuctionDetailClient.tsx` — same
+- Remove the `pendingPurchaseAfterApproval` useEffect pattern
+
+---
+
+## Bug 3: "0 out of 11 available" — stale availability display (frontend data source)
+
+### Problem
+
+Listings show "0 of 11 available" even for the first purchaser, making items appear sold out when they aren't.
+
+### Root Cause
+
+The availability display relies on **subgraph data**, not on-chain contract state.
+
+Frontend display (`AuctionDetailClient.tsx` lines 1747-1750):
+```typescript
+const totalAvailable = parseInt(auction.totalAvailable || "0");
+const totalSold = parseInt(auction.totalSold || "0");
+const remaining = Math.max(0, totalAvailable - totalSold);
+```
+
+This reads from `auction` which comes from the API → subgraph. The contract's actual state (already fetched via `useReadContract` at line 658) is **only used for debug info**, not for the availability display.
+
+Evidence this is a known issue:
+- Line 1754: `const showDebug = listingId === "11" || totalAvailable === 0 || isNaN(totalAvailable);` — hard-coded debug display for listing #11, indicating they've seen this problem before.
+
+The subgraph can lag or index incorrectly:
+- 2-minute API cache (`route.ts` revalidate: 120) serves stale data
+- If `handlePurchaseEvent` fires before `handleCreateListing` in the subgraph, `totalSold` can be miscalculated
+- Subgraph `getOrCreateListing` creates listings with `totalPerSale = 0` as default — if purchase events arrive first, `totalSold = count * 0 = 0`, then `totalAvailable` gets set correctly later but the math is already wrong
+
+### Fix
+
+**Use on-chain `listingData` (already fetched) as source of truth for availability.**
+
+The frontend already reads `getListing` from the contract (line 658-664). Use `listingData.totalSold` and `listingData.details.totalAvailable` for the availability display instead of the subgraph-derived `auction.totalSold` / `auction.totalAvailable`.
+
+**Files to change:**
+- `apps/mvp/src/app/auction/[listingId]/AuctionDetailClient.tsx` — compute `remaining` from `listingData` (on-chain) instead of `auction` (subgraph)
+- `apps/mvp/src/app/listing/[listingId]/AuctionDetailClient.tsx` — same
+- Fall back to subgraph data only if on-chain read hasn't completed yet
+
+---
+
+## Implementation Priority
+
+1. **Bug 1 contract fix** — change `_paySeller` source to `address(this)` for ERC-20 (proper architecture fix)
+2. **Bug 2 UX fix** — separate approve/purchase buttons (unblocks users, removes race condition)
+3. **Bug 3 data source fix** — use on-chain data for availability (stops showing incorrect stock)
+4. **Bug 1 frontend temp** — approve max uint256 as temporary patch if contract fix is delayed
+
+## Files Summary
 
 ### Contract
 - `packages/auctionhouse-contracts/src/libs/SettlementLib.sol`
-  - `performPurchase()`: Change ERC-20 `_paySeller` source from `msg.sender` to `address(this)`
-  - Verify `sendTokens()` uses `transfer` (from contract) when `source == address(this)`, not `transferFrom`
+  - `performPurchase()`: Change ERC-20 `_paySeller` source to `address(this)`
+  - Verify `sendTokens()` handles `source == address(this)` correctly (it does — line 294 uses `transfer`)
 
-### Frontend (temporary or permanent)
-- `apps/mvp/src/hooks/useAuctionDetail.ts` — approval amount in `handlePurchase`, `handleBid`, `handleMakeOffer`
-- `apps/mvp/src/app/auction/[listingId]/AuctionDetailClient.tsx` — same
+### Frontend
+- `apps/mvp/src/hooks/useAuctionDetail.ts` — approval amount, expose `needsApproval`, remove auto-purchase useEffect
+- `apps/mvp/src/app/auction/[listingId]/AuctionDetailClient.tsx` — separate approve/buy buttons, use on-chain availability
+- `apps/mvp/src/app/listing/[listingId]/AuctionDetailClient.tsx` — same
