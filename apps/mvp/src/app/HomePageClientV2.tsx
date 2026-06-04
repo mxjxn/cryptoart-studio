@@ -22,6 +22,7 @@ import {
   tier1CardToDisplayAuction,
 } from "~/lib/homepage-static-data";
 import { useBrowseListings } from "~/hooks/useBrowseListings";
+import { useLiveBids } from "~/hooks/useLiveBids";
 import { useKismetAuctions } from "~/hooks/useKismetAuctions";
 import { useMainnetSpotlight } from "~/hooks/useMainnetSpotlight";
 import { useHomePageMotion } from "~/hooks/useHomePageMotion";
@@ -63,6 +64,7 @@ export default function HomePageClientV2() {
 
   const nftBrowse = useBrowseListings({ tokenSpec: "ERC721", enabled: !hideAuctionCards });
   const editionBrowse = useBrowseListings({ tokenSpec: "ERC1155", enabled: !hideAuctionCards });
+  const liveBids = useLiveBids({ limit: 4, enabled: !hideAuctionCards });
 
   const [loadingListing, setLoadingListing] = useState<{
     listingId: string;
@@ -115,32 +117,7 @@ export default function HomePageClientV2() {
     }
   };
 
-  const bidTimestamp = (a: EnrichedAuctionData) => {
-    try {
-      return BigInt(a.highestBid?.timestamp ?? "0");
-    } catch {
-      return 0n;
-    }
-  };
-
-  const featuredBidListings: EnrichedAuctionData[] = [];
-  const marketBidListings = [...nftBrowse.listings, ...editionBrowse.listings].filter(
-    (auction) => auction.highestBid?.amount,
-  );
-  const seenBidIds = new Set<string>();
-  const bidListings = [...featuredBidListings, ...marketBidListings]
-    .filter((auction) => {
-      if (seenBidIds.has(auction.listingId)) return false;
-      seenBidIds.add(auction.listingId);
-      return true;
-    })
-    .sort((a, b) => {
-      const bt = bidTimestamp(b);
-      const at = bidTimestamp(a);
-      if (bt !== at) return bt > at ? 1 : -1;
-      return (b.bidCount || 0) - (a.bidCount || 0);
-    })
-    .slice(0, 4);
+  const bidListings = liveBids.listings;
 
   const gutter = "px-3 sm:px-5 md:px-8 lg:px-12 xl:px-16";
   const sectionFullBleed = "relative w-[100vw] max-w-[100vw] shrink-0 ml-[calc(50%-50vw)]";
@@ -149,6 +126,7 @@ export default function HomePageClientV2() {
     !hideAuctionCards &&
     (nftBrowse.subgraphDown ||
       editionBrowse.subgraphDown ||
+      liveBids.error != null ||
       !!nftBrowse.error ||
       !!editionBrowse.error);
 
@@ -407,7 +385,7 @@ export default function HomePageClientV2() {
         {/* Bids strip */}
         {!hideAuctionCards && (
           <section className={`${sectionFullBleed} bg-white text-black`}>
-            {nftBrowse.loading || editionBrowse.loading ? (
+            {liveBids.loading ? (
               <>
                 <h2 className={`pb-2 pt-5 font-mek-mono text-[clamp(2rem,11vw,4.25rem)] font-medium leading-none text-black ${gutter}`}>
                   Bids
