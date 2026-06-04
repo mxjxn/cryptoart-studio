@@ -14,7 +14,7 @@ export const FEATURED_MAINNET_HEADLINE = "Ethereum mainnet";
 export const FEATURED_MAINNET_DESCRIPTION =
   "List and collect on Ethereum from the same app as Base. Create a listing, pick your chain first, then approve on the network where your NFT lives. Browse Ethereum-native auctions at paths like /listing/eth/1.";
 
-export const HOMEPAGE_MAINNET_LISTING_IDS: readonly string[] = ["1"];
+export const HOMEPAGE_MAINNET_LISTING_IDS: readonly string[] = ["1"]; // deprecated: use /admin/featured → Homepage spotlight cards
 
 export const FEATURED_HEADER_HEIGHT_FALLBACK_PX = 168;
 
