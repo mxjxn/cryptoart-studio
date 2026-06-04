@@ -420,7 +420,7 @@ async function getRecentlyConcluded(limit: number): Promise<EnrichedAuctionData[
   }
 }
 
-async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
+export async function getLiveBids(limit: number): Promise<EnrichedAuctionData[]> {
   try {
     const fetchN = Math.min(Math.max(limit * 4, 40), 200);
     const multi = await queryListingsAcrossChains(LISTINGS_WITH_BIDS_QUERY, {
