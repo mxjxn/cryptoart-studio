@@ -345,6 +345,62 @@ export interface FeaturedSettingsData {
 }
 
 // ============================================
+// HOMEPAGE V2 SPOTLIGHT (lime section cards)
+// ============================================
+
+export const homepageSpotlightSettings = pgTable('homepage_spotlight_settings', {
+  id: text('id').primaryKey().default('default'),
+  cardsVisible: boolean('cards_visible').notNull().default(false),
+  sectionTitle: text('section_title').notNull().default('First listing'),
+  sectionSubline: text('section_subline').notNull().default('Physical artwork'),
+  eyebrow: text('eyebrow').notNull().default('Now live'),
+  headline: text('headline').notNull().default('Ethereum mainnet'),
+  description: text('description').notNull().default(
+    'List and collect on Ethereum from the same app as Base. Create a listing, pick your chain first, then approve on the network where your NFT lives. Browse Ethereum-native auctions at paths like /listing/eth/1.',
+  ),
+  ctaLabel: text('cta_label').notNull().default('Create listing'),
+  ctaHref: text('cta_href').notNull().default('/create'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export interface HomepageSpotlightSettingsData {
+  id: string;
+  cardsVisible: boolean;
+  sectionTitle: string;
+  sectionSubline: string;
+  eyebrow: string;
+  headline: string;
+  description: string;
+  ctaLabel: string;
+  ctaHref: string;
+  updatedAt: Date;
+}
+
+export const homepageSpotlightListings = pgTable('homepage_spotlight_listings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listingId: text('listing_id').notNull(),
+  chainId: integer('chain_id').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  displayOrderIdx: index('homepage_spotlight_listings_display_order_idx').on(table.displayOrder),
+  listingChainUnique: uniqueIndex('homepage_spotlight_listings_listing_chain_unique').on(
+    table.listingId,
+    table.chainId,
+  ),
+}));
+
+export interface HomepageSpotlightListingData {
+  id: string;
+  listingId: string;
+  chainId: number;
+  displayOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================
 // FEATURED SECTIONS
 // ============================================
 

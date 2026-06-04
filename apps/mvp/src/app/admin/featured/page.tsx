@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { TransitionLink } from '~/components/TransitionLink';
 import { HomepageLayoutManager } from '../HomepageLayoutManager';
+import { HomepageSpotlightManager } from '../HomepageSpotlightManager';
 import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -237,6 +238,8 @@ export default function FeaturedListingsPage() {
           <p className="text-sm font-medium">{successMessage}</p>
         </div>
       )}
+
+      <HomepageSpotlightManager />
 
       {/* Current Homepage Sections */}
       <div className="bg-[var(--color-background)] border border-[var(--color-border)] p-4">

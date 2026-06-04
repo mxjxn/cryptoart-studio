@@ -78,6 +78,8 @@ const MIGRATIONS = [
   '0021_seed_market_layout.sql',
   '0022_create_market_layout_snapshots.sql',
   '0023_add_collection_tables.sql',
+  '0024_homepage_spotlight.sql',
+  '0025_homepage_spotlight_copy.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)

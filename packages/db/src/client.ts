@@ -14,6 +14,8 @@ import {
   // Admin tables
   featuredListings,
   featuredSettings,
+  homepageSpotlightSettings,
+  homepageSpotlightListings,
   featuredSections,
   featuredSectionItems,
   homepageLayoutSections,
@@ -165,6 +167,8 @@ export {
   // Admin tables
   featuredListings,
   featuredSettings,
+  homepageSpotlightSettings,
+  homepageSpotlightListings,
   featuredSections,
   featuredSectionItems,
   homepageLayoutSections,

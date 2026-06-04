@@ -20,11 +20,6 @@ import { usePretextMeasure } from "~/hooks/usePretextMeasure";
 import {
   KISMET_GRADIENTS,
   tier1CardToDisplayAuction,
-  FEATURED_HEADER_TEXT,
-  FEATURED_HEADER_SUBLINE,
-  FEATURED_MAINNET_EYEBROW,
-  FEATURED_MAINNET_HEADLINE,
-  FEATURED_MAINNET_DESCRIPTION,
 } from "~/lib/homepage-static-data";
 import { useBrowseListings } from "~/hooks/useBrowseListings";
 import { useKismetAuctions } from "~/hooks/useKismetAuctions";
@@ -64,7 +59,7 @@ export default function HomePageClientV2() {
   const hideAuctionCards = process.env.NEXT_PUBLIC_HOME_TEASER === "true";
 
   const { kismetTier1Lots, kismetFullListings } = useKismetAuctions(hideAuctionCards);
-  const { mainnetSpotlightAuctions } = useMainnetSpotlight(hideAuctionCards);
+  const { mainnetSpotlightAuctions, showSpotlightCards, spotlightCopy } = useMainnetSpotlight(hideAuctionCards);
 
   const nftBrowse = useBrowseListings({ tokenSpec: "ERC721", enabled: !hideAuctionCards });
   const editionBrowse = useBrowseListings({ tokenSpec: "ERC1155", enabled: !hideAuctionCards });
@@ -159,7 +154,7 @@ export default function HomePageClientV2() {
 
   const heroTaglineText =
     "CryptoArt is an auction marketplace for digital art, centered on human curation. List on Base or Ethereum mainnet — create galleries to surface what matters.";
-  const heroDescriptionText = FEATURED_MAINNET_DESCRIPTION;
+  const heroDescriptionText = spotlightCopy.description;
   const recentSectionIntro =
     "Kismet Casa · Rome residency — Base lots from the recent drop. Events have concluded; open a card to view the listing.";
 
@@ -184,7 +179,7 @@ export default function HomePageClientV2() {
     lineHeightPx: 21,
   });
 
-  const mainnetFeaturedReady = !hideAuctionCards && mainnetSpotlightAuctions.length > 0;
+  const mainnetFeaturedReady = showSpotlightCards;
 
   const heroCtaClassName =
     "inline-flex min-h-[52px] w-full max-w-none items-center justify-center border-2 border-white bg-transparent px-6 py-3.5 !font-space-grotesk text-base font-medium leading-tight tracking-[0.08em] text-white transition-colors hover:bg-white hover:text-black sm:min-h-[60px] sm:min-w-0 sm:flex-1 sm:px-8 sm:py-4 sm:text-lg";
@@ -317,10 +312,10 @@ export default function HomePageClientV2() {
             {hideAuctionCards || mainnetFeaturedReady ? (
               <>
                 <span className="block w-full bg-gradient-to-b from-[#a7a7a7] via-[#d3d3d3] to-[#dddddd] bg-clip-text text-[clamp(2.25rem,11vw,4.75rem)] leading-[0.95] text-transparent">
-                  {FEATURED_HEADER_TEXT}
+                  {spotlightCopy.sectionTitle}
                 </span>
                 <span className="block font-space-grotesk text-base font-medium leading-snug tracking-wide text-neutral-700 md:text-lg">
-                  {FEATURED_HEADER_SUBLINE}
+                  {spotlightCopy.sectionSubline}
                 </span>
               </>
             ) : (
@@ -347,19 +342,19 @@ export default function HomePageClientV2() {
                 <div className="absolute inset-0 bg-white/25" aria-hidden />
                 <div ref={featuredCardMeasure.ref} className="relative flex min-h-[360px] flex-col justify-between gap-6 p-4 sm:p-6">
                   <div className="font-space-grotesk text-sm uppercase tracking-[0.18em] text-black">
-                    {FEATURED_MAINNET_EYEBROW}
+                    {spotlightCopy.eyebrow}
                   </div>
                   <div className="max-w-xl">
                     <h3 className="!font-space-grotesk text-[clamp(2.25rem,10vw,5.25rem)] font-medium leading-[0.9] text-black">
-                      {FEATURED_MAINNET_HEADLINE}
+                      {spotlightCopy.headline}
                     </h3>
                     <p ref={heroDescriptionMeasure.ref} className="mt-4 max-w-lg !font-space-grotesk text-sm leading-normal text-black">
                       {heroDescriptionText}
                     </p>
                   </div>
                   <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
-                    <TransitionLink href="/create" prefetch={false} className={limeCtaClassName}>
-                      Create listing
+                    <TransitionLink href={spotlightCopy.ctaHref} prefetch={false} className={limeCtaClassName}>
+                      {spotlightCopy.ctaLabel}
                     </TransitionLink>
                   </div>
                   {(hideAuctionCards || mainnetFeaturedReady) && (
@@ -368,18 +363,18 @@ export default function HomePageClientV2() {
                         {hideAuctionCards
                           ? "Ethereum + Base"
                           : mainnetSpotlightAuctions.length === 1
-                            ? "Ethereum mainnet · listing in view"
+                            ? "Ethereum + Base"
                             : `${mainnetSpotlightAuctions.length} Ethereum listings`}
                       </span>
                     </div>
                   )}
                 </div>
               </div>
-              {!hideAuctionCards && mainnetFeaturedReady && (
+              {showSpotlightCards && (
                 <div className="flex min-h-0 w-full min-w-0 flex-col lg:h-full lg:min-h-[360px]">
                   {mainnetSpotlightAuctions.map((auction, index) => (
                     <MainnetFirstListingArtCard
-                      key={`eth-spotlight-${auction.listingId}-${index}`}
+                      key={`eth-spotlight-${auction.listingId}-${auction.chainId ?? "x"}-${index}`}
                       auction={auction}
                       gradient={KISMET_GRADIENTS[(index + 3) % KISMET_GRADIENTS.length]}
                     />
@@ -396,13 +391,13 @@ export default function HomePageClientV2() {
               </>
             ) : (
               <>
-                <span className="text-black">Ethereum mainnet</span>
+                <span className="text-black">{spotlightCopy.headline}</span>
                 <span className="text-black">
                   {mainnetSpotlightAuctions.length > 0
                     ? mainnetSpotlightAuctions.length === 1
                       ? "First listing · Ethereum"
                       : `${mainnetSpotlightAuctions.length} Ethereum listings`
-                    : "Ethereum mainnet"}
+                    : spotlightCopy.headline}
                 </span>
               </>
             )}

@@ -14,6 +14,8 @@ export {
   // Admin tables
   featuredListings,
   featuredSettings,
+  homepageSpotlightSettings,
+  homepageSpotlightListings,
   featuredSections,
   featuredSectionItems,
   homepageLayoutSections,
@@ -63,6 +65,8 @@ export type {
   // Admin types
   FeaturedListingData,
   FeaturedSettingsData,
+  HomepageSpotlightSettingsData,
+  HomepageSpotlightListingData,
   FeaturedSectionData,
   FeaturedSectionItemData,
   HomepageLayoutSectionData,
