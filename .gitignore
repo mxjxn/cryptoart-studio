@@ -9,6 +9,8 @@ dist
 build
 .next
 out
+.opencode
+.cursor
 
 # Environment files
 .env
