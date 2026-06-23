@@ -8,7 +8,9 @@
 
 ## Summary
 
-This roadmap keeps all near-term product and platform work in `apps/mvp` and delivers the Farcaster-lite direction in incremental milestones. We are **not** creating a separate app yet because splitting the codebase now would slow delivery, duplicate core logic, and increase integration risk before core feed + marketplace loops are proven.
+This roadmap keeps near-term **social and feed** work in `apps/mvp` and delivers the Farcaster-lite direction in incremental milestones.
+
+> **Update (2026-06-23):** Minting and collection management move to a dedicated app — **`apps/studio`** at cryptoart.studio. See [plans/2026-06-cryptoart-studio.md](./plans/2026-06-cryptoart-studio.md). The decision below to defer a separate app applied before that pivot; social stays in `apps/mvp`.
 
 PWA is intentionally **not first**. We will introduce PWA in the middle-late phase, after feed and marketplace behavior are defined, so install/offline semantics are built around stable user loops instead of shifting requirements.
 
