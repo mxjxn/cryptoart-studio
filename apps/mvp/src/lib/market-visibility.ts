@@ -1,5 +1,5 @@
 import { getListingDisplayStatus } from "~/lib/time-utils";
-import { normalizeListingType } from "~/lib/server/auction";
+import { normalizeListingType } from "~/lib/listing-type";
 
 /** Default market browse hides ended inventory; optional toggle shows it. */
 export type MarketBrowseMode = "live" | "include-ended";

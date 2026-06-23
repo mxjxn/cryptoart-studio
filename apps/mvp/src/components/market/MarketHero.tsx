@@ -13,7 +13,7 @@ import {
 import { getMarketListingKind } from "~/lib/market-visibility";
 
 function heroStatusLabel(auction: EnrichedAuctionData): string {
-  const kind = getMarketListingKind(auction as Record<string, unknown>);
+  const kind = getMarketListingKind(auction as unknown as Record<string, unknown>);
   switch (kind) {
     case "awaiting-bid":
       return "Awaiting first bid";

@@ -23,6 +23,7 @@ import {
   chainIdsFromSubgraphRows,
   isAmbiguousListingError,
 } from "~/lib/auction-errors";
+import { normalizeListingType } from "~/lib/listing-type";
 import { pickDisplayTitle } from "~/lib/metadata-display";
 import { enrichListingMediaAndSupplyCapped } from "~/lib/server/listing-enrichment-capped";
 
@@ -182,65 +183,7 @@ const LAST_ACTIVE_TTL_MS = 10 * 60 * 1000; // 10 minutes
  * - DYNAMIC_PRICE listings MUST be lazy (per contract requirements)
  * - If we see "DYNAMIC_PRICE" but lazy=false, it's likely a buggy FIXED_PRICE (type 2)
  */
-export function normalizeListingType(
-  listingType: string | number | undefined,
-  listing?: { lazy?: boolean }
-): "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY" {
-  // Type mapping from numeric values
-  const typeFromNumber = (num: number): "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY" => {
-    switch (num) {
-      case 0: return "INDIVIDUAL_AUCTION"; // INVALID maps to INDIVIDUAL_AUCTION as fallback
-      case 1: return "INDIVIDUAL_AUCTION";
-      case 2: return "FIXED_PRICE";
-      case 3: return "DYNAMIC_PRICE";
-      case 4: return "OFFERS_ONLY";
-      default: return "INDIVIDUAL_AUCTION";
-    }
-  };
-
-  // Handle number input directly
-  if (typeof listingType === 'number') {
-    const result = typeFromNumber(listingType);
-    // Fix buggy DYNAMIC_PRICE: if not lazy, it's likely a FIXED_PRICE
-    if (result === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
-      return "FIXED_PRICE";
-    }
-    return result;
-  }
-  
-  // Handle string input - could be a numeric string or a type name
-  const typeStr = String(listingType || "").trim();
-  
-  // First, check if it's a numeric string (e.g., "2")
-  const numericValue = parseInt(typeStr, 10);
-  if (!isNaN(numericValue) && String(numericValue) === typeStr) {
-    const result = typeFromNumber(numericValue);
-    // Fix buggy DYNAMIC_PRICE: if not lazy, it's likely a FIXED_PRICE
-    if (result === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
-      return "FIXED_PRICE";
-    }
-    return result;
-  }
-  
-  // Handle string type names
-  const upperTypeStr = typeStr.toUpperCase();
-  
-  // Fix buggy "DYNAMIC_PRICE" mapping: if it's marked as DYNAMIC_PRICE but not lazy,
-  // it's likely a buggy FIXED_PRICE (type 2 was incorrectly mapped to DYNAMIC_PRICE)
-  if (upperTypeStr === "DYNAMIC_PRICE" && listing && listing.lazy === false) {
-    return "FIXED_PRICE";
-  }
-  
-  // Validate and return correct type
-  if (upperTypeStr === "INDIVIDUAL_AUCTION" || upperTypeStr === "FIXED_PRICE" || 
-      upperTypeStr === "DYNAMIC_PRICE" || upperTypeStr === "OFFERS_ONLY") {
-    return upperTypeStr as "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
-  }
-  
-  // Default fallback
-  console.warn(`[normalizeListingType] Unknown listingType: "${listingType}" (type: ${typeof listingType}), defaulting to INDIVIDUAL_AUCTION`);
-  return "INDIVIDUAL_AUCTION";
-}
+export { normalizeListingType } from "~/lib/listing-type";
 
 /**
  * Normalize tokenSpec to ensure correct string format
