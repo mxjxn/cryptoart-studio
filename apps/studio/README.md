@@ -19,9 +19,11 @@ Runs at [http://localhost:3001](http://localhost:3001) (mvp uses 3000).
 3. Add domain `cryptoart.studio` (or preview subdomain first).
 4. Environment variables (Stage A minimum):
    - `STORAGE_POSTGRES_URL` — shared with collection API / indexer
+   - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — WalletConnect project ID (optional; default exists for dev)
+   - `NEXT_PUBLIC_BASE_RPC_URL` / `NEXT_PUBLIC_MAINNET_RPC_URL` — optional RPC overrides
+   - `NEXT_PUBLIC_APP_URL` — `https://cryptoart.studio`
    - `CHAIN_8453_FACTORY_ADDRESS` — Base mainnet factory (when deployed)
    - `CHAIN_1_FACTORY_ADDRESS` — Ethereum mainnet factory (when deployed)
-   - `NEXT_PUBLIC_APP_URL` — `https://cryptoart.studio`
 
 Build command: `pnpm build` (with filter) or default Next.js build from app root.
 

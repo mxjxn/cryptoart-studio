@@ -33,9 +33,6 @@ export default function HomePage() {
           <Link href="/dashboard" className="studio-btn">
             Enter studio
           </Link>
-          <Link href="/dashboard" className="studio-btn-outline">
-            Connect wallet
-          </Link>
         </div>
       </section>
 

@@ -1,20 +1,15 @@
 import Link from 'next/link';
+import { ActiveWalletPanel } from '~/components/ActiveWalletPanel';
 
 export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
-      <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="mt-2 text-muted">
-            Wallet connection and Farcaster auth arrive in the next milestone.
-          </p>
-        </div>
-        <div className="studio-card max-w-md py-4 text-sm">
-          <p className="font-semibold">Active wallet</p>
-          <p className="mt-1 text-muted">Not connected</p>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="mt-2 text-muted">Deploy collections, mint work, and manage contracts.</p>
       </div>
+
+      <ActiveWalletPanel className="mb-8" />
 
       <div className="mb-8">
         <Link href="/collections/new" className="studio-btn">
