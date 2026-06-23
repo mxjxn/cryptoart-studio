@@ -1,9 +1,20 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { APP_NAME } from "~/lib/constants";
 import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { getMiniAppEmbedMetadata, normalizeUrl } from "~/lib/utils";
 import { getRequestSiteUrl } from "~/lib/server/request-site-url";
+import {
+  resolveListingFromSubgraph,
+  getHiddenUserAddresses,
+  isListingBlockedFromProduct,
+} from "~/lib/server/auction";
+import { isAmbiguousListingError } from "~/lib/auction-errors";
+import {
+  canonicalListingDetailPath,
+  parseListingChainIdQueryParam,
+} from "~/lib/listing-chain-paths";
 import AuctionDetailClient from "./AuctionDetailClient";
 
 function ListingDetailFallback() {
@@ -19,6 +30,24 @@ function ListingDetailFallback() {
 
 interface ListingPageProps {
   params: Promise<{ listingId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+function queryStringWithoutChainId(
+  searchParams: { [key: string]: string | string[] | undefined }
+): string {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === "chainId") continue;
+    if (typeof value === "string") {
+      qs.set(key, value);
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        qs.append(key, item);
+      }
+    }
+  }
+  return qs.toString();
 }
 
 export async function generateMetadata({ params }: ListingPageProps): Promise<Metadata> {
@@ -89,7 +118,7 @@ export async function generateMetadata({ params }: ListingPageProps): Promise<Me
   }
 }
 
-export default async function ListingPage({ params }: ListingPageProps) {
+export default async function ListingPage({ params, searchParams }: ListingPageProps) {
   let listingId: string;
   try {
     const resolvedParams = await params;
@@ -104,7 +133,53 @@ export default async function ListingPage({ params }: ListingPageProps) {
       </div>
     );
   }
-  
+
+  const resolvedSearchParams = await searchParams;
+  const chainIdFromQuery = parseListingChainIdQueryParam(
+    typeof resolvedSearchParams.chainId === "string"
+      ? resolvedSearchParams.chainId
+      : undefined
+  );
+  const trailingQuery = queryStringWithoutChainId(resolvedSearchParams);
+
+  if (chainIdFromQuery != null) {
+    const canonicalPath = canonicalListingDetailPath(chainIdFromQuery, listingId);
+    redirect(trailingQuery ? `${canonicalPath}?${trailingQuery}` : canonicalPath);
+  }
+
+  let canonicalListingPath: string | null = null;
+  try {
+    const listing = await resolveListingFromSubgraph(listingId);
+    if (listing) {
+      const hidden = await getHiddenUserAddresses();
+      if (!isListingBlockedFromProduct(listing, hidden)) {
+        const rawCid = listing.chainId;
+        const cid =
+          typeof rawCid === "number"
+            ? rawCid
+            : parseInt(String(rawCid ?? ""), 10);
+        if (Number.isFinite(cid)) {
+          canonicalListingPath = canonicalListingDetailPath(
+            cid,
+            String(listing.listingId ?? listingId)
+          );
+        }
+      }
+    }
+  } catch (e) {
+    if (!isAmbiguousListingError(e)) {
+      // Transient subgraph errors: fall through to client fetch.
+    }
+  }
+
+  if (canonicalListingPath) {
+    redirect(
+      trailingQuery
+        ? `${canonicalListingPath}?${trailingQuery}`
+        : canonicalListingPath
+    );
+  }
+
   return (
     <Suspense fallback={<ListingDetailFallback />}>
       <AuctionDetailClient listingId={listingId} />

@@ -1,7 +1,9 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
 import { useAuctionDetail } from "~/hooks/useAuctionDetail";
+import { parseListingChainIdQueryParam } from "~/lib/listing-chain-paths";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useUsername } from "~/hooks/useUsername";
 import { ShareButton } from "~/components/ShareButton";
@@ -34,8 +36,14 @@ interface AuctionDetailClientProps {
 
 export default function AuctionDetailClient({
   listingId,
-  listingApiChainId,
+  listingApiChainId: listingApiChainIdProp,
 }: AuctionDetailClientProps) {
+  const searchParams = useSearchParams();
+  const listingApiChainId =
+    listingApiChainIdProp ??
+    parseListingChainIdQueryParam(searchParams.get("chainId")) ??
+    undefined;
+
   const {
     pageState,
     auction,

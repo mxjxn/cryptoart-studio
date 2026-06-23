@@ -19,6 +19,8 @@ import { type Address } from "viem";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring, isLongTermSale } from "~/lib/time-utils";
 import { getAuction } from "~/lib/subgraph";
 import { useCountdown } from "~/hooks/useCountdown";
+import { canonicalListingDetailPath } from "~/lib/listing-chain-paths";
+import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 
 interface AuctionCardProps {
   auction: EnrichedAuctionData;
@@ -400,13 +402,15 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
   }, [auction.listingId]);
 
   const listingUrl = (() => {
+    const chainId =
+      typeof auction.chainId === "number" && Number.isFinite(auction.chainId)
+        ? auction.chainId
+        : BASE_CHAIN_ID;
+    const path = canonicalListingDetailPath(chainId, String(auction.listingId));
+    if (!referralAddress) return path;
     const qs = new URLSearchParams();
-    if (referralAddress) qs.set("referralAddress", referralAddress);
-    if (typeof auction.chainId === "number" && Number.isFinite(auction.chainId)) {
-      qs.set("chainId", String(auction.chainId));
-    }
-    const q = qs.toString();
-    return q ? `/listing/${auction.listingId}?${q}` : `/listing/${auction.listingId}`;
+    qs.set("referralAddress", referralAddress);
+    return `${path}?${qs.toString()}`;
   })();
 
   const goToListing = useCallback(() => {

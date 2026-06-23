@@ -25,3 +25,18 @@ export function canonicalListingDetailPath(chainId: number, listingId: string): 
   }
   return `/listing/${listingId}`;
 }
+
+const ALLOWED_LISTING_CHAIN_IDS = new Set<number>([
+  BASE_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
+]);
+
+/** Parse `?chainId=` from listing URLs (legacy market links, shared links). */
+export function parseListingChainIdQueryParam(
+  raw: string | null | undefined
+): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const v = parseInt(raw, 10);
+  if (!Number.isFinite(v) || !ALLOWED_LISTING_CHAIN_IDS.has(v)) return null;
+  return v;
+}
