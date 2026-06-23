@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack -p 3001",
+    "dev": "node ./scripts/dev.mjs",
     "build": "next build --webpack",
     "start": "next start -p 3001",
     "lint": "next lint",
