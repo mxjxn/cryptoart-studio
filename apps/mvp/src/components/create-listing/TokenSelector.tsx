@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { MediaDisplay } from "~/components/media";
+import { getChainNetworkInfo } from "~/lib/chain-display";
 
 interface NFT {
   tokenId: string;
@@ -18,6 +19,7 @@ interface TokenSelectorProps {
   tokenType: "ERC721" | "ERC1155";
   selectedTokenId: string | null;
   onSelectToken: (tokenId: string) => void;
+  chainId: number;
 }
 
 /**
@@ -29,6 +31,7 @@ export function TokenSelector({
   tokenType,
   selectedTokenId,
   onSelectToken,
+  chainId,
 }: TokenSelectorProps) {
   const { address } = useEffectiveAddress();
   const [nfts, setNfts] = useState<NFT[]>([]);
@@ -38,34 +41,51 @@ export function TokenSelector({
   const [hasMore, setHasMore] = useState(false);
   const limit = 20;
 
+  // Reset to page 1 when contract or chain changes
+  useEffect(() => {
+    setPage(1);
+    setNfts([]);
+  }, [contractAddress, chainId]);
+
   useEffect(() => {
     if (!contractAddress || !address) return;
+
+    let cancelled = false;
 
     async function fetchNFTs() {
       setLoading(true);
       try {
         const response = await fetch(
-          `/api/nfts/for-owner?owner=${encodeURIComponent(address!)}&contractAddress=${encodeURIComponent(contractAddress)}&page=${page}&limit=${limit}`,
+          `/api/nfts/for-owner?owner=${encodeURIComponent(address!)}&contractAddress=${encodeURIComponent(contractAddress)}&page=${page}&limit=${limit}&chainId=${chainId}`,
         );
-        if (response.ok) {
-          const data = await response.json();
-          setNfts(data.nfts || []);
-          setTotal(data.total || 0);
-          setHasMore(data.hasMore || false);
-        } else {
-          console.error("Failed to fetch NFTs");
-          setNfts([]);
+        if (!cancelled) {
+          if (response.ok) {
+            const data = await response.json();
+            setNfts(data.nfts || []);
+            setTotal(data.total || 0);
+            setHasMore(data.hasMore || false);
+          } else {
+            console.error("Failed to fetch NFTs");
+            setNfts([]);
+          }
         }
       } catch (error) {
-        console.error("Error fetching NFTs:", error);
-        setNfts([]);
+        if (!cancelled) {
+          console.error("Error fetching NFTs:", error);
+          setNfts([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     fetchNFTs();
-  }, [contractAddress, address, page]);
+    return () => {
+      cancelled = true;
+    };
+  }, [contractAddress, address, page, chainId]);
 
   const handleNextPage = () => {
     if (hasMore) {
@@ -95,7 +115,9 @@ export function TokenSelector({
         </div>
       ) : nfts.length === 0 ? (
         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-6 text-center">
-          <p className="text-neutral-600">No tokens found in this contract.</p>
+          <p className="text-neutral-600">
+            No tokens found on {getChainNetworkInfo(chainId)?.displayName ?? "this network"} for this contract.
+          </p>
         </div>
       ) : (
         <>
