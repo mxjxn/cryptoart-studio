@@ -82,6 +82,20 @@ This directory contains all project documentation. Use this guide to quickly fin
 
 ## 📋 Project Management
 
+### [plans/2026-06-cryptoart-studio.md](./plans/2026-06-cryptoart-studio.md)
+**TL;DR**: Product and implementation plan for **cryptoart.studio** (`apps/studio`) — artist dashboard for collection deploy, minting, and management. Stage A scope, routes, API, drafts, Arweave pipeline, and GitHub Project tracking guidance.
+
+**When to use**: Building or reviewing the Studio app; understanding how Studio relates to cryptoart.social; execution milestones.
+
+---
+
+### [plans/2025-05-19-collection-deployment-tracking.md](./plans/2025-05-19-collection-deployment-tracking.md)
+**TL;DR**: Backend plan for collection factory, indexer, DB schema, and API (Phases 1–5). Completed on Sepolia; frontend was deferred to Studio.
+
+**When to use**: Contract, indexer, or collections API implementation details.
+
+---
+
 ### [PROGRESS_TRACKING.md](./PROGRESS_TRACKING.md)
 **TL;DR**: Comprehensive tracking of all completed work organized by version and feature area. Includes commit summaries, statistics, and version history.
 
@@ -183,6 +197,9 @@ docs/
 │   └── LSSVM_INTEGRATION.md
 │
 ├── 📋 Project Management
+│   ├── plans/
+│   │   ├── 2026-06-cryptoart-studio.md
+│   │   └── 2025-05-19-collection-deployment-tracking.md
 │   ├── PROGRESS_TRACKING.md
 │   ├── TASKLIST.md
 │   ├── STATUS_AND_NEXT_STEPS.md
