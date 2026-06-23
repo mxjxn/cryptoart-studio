@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useTransition, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProfileDropdown } from "~/components/ProfileDropdown";
 import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
+import { MarketHero } from "~/components/market/MarketHero";
+import { MarketSections } from "~/components/market/MarketSections";
 import type { EnrichedAuctionData } from "~/lib/types";
-import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
+import type { HomepageSection } from "~/lib/server/homepage-layout";
+import type { MarketBrowseMode } from "~/lib/market-visibility";
 import { consumeBrowseListingsStream } from "~/lib/browse-stream-client";
 
-function marketTabFromSearch(raw: string | null): MarketLifecycleTab {
-  if (raw === "upcoming" || raw === "finished") return raw;
-  return "active";
+function marketModeFromSearch(raw: string | null): MarketBrowseMode {
+  if (raw === "include-ended" || raw === "finished") return "include-ended";
+  return "live";
 }
 
 const gradients = [
@@ -24,30 +27,25 @@ const gradients = [
 ];
 
 export type MarketInitialPayload = {
-  tab: MarketLifecycleTab;
+  marketMode: MarketBrowseMode;
   listings: EnrichedAuctionData[];
   hasMore: boolean;
   subgraphDown: boolean;
   degraded: boolean;
-  /** True when listings were enriched on the server (prerender / ISR) — skip duplicate client fetch for page 0. */
   ssrEnriched: boolean;
-};
-
-type MarketClientProps = {
-  initial: MarketInitialPayload;
-  /** Server-rendered market rails (must be `children`, not a named RSC prop — see Next composition docs). */
-  children?: ReactNode;
+  hero: EnrichedAuctionData | null;
+  sections: HomepageSection[];
 };
 
 const PAGE_SIZE = 20;
-/** Lifecycle + load-more can exceed 60s of enrichment; stay above browse stream wall + network */
 const BROWSE_FETCH_MAX_MS = 150_000;
 
-export default function MarketClient({ initial, children }: MarketClientProps) {
+export default function MarketClient({ initial }: { initial: MarketInitialPayload }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tab = marketTabFromSearch(searchParams.get("tab"));
-  const [isTabPending, startTabTransition] = useTransition();
+  const marketMode = marketModeFromSearch(searchParams.get("mode") ?? searchParams.get("tab"));
+  const showEnded = marketMode === "include-ended";
+  const [isFilterPending, startFilterTransition] = useTransition();
 
   const [listings, setListings] = useState<EnrichedAuctionData[]>(initial.listings);
   const [loading, setLoading] = useState(() => {
@@ -72,7 +70,6 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
 
   const fetchAbortRef = useRef<AbortController | null>(null);
 
-  /** SSR/ISR already shipped enriched cards — avoid re-fetching the same page on hydrate. */
   const skipInitialClientEnrich = useMemo(() => {
     if (refetchNonce > 0) return false;
     if (!initial.ssrEnriched) return false;
@@ -115,8 +112,7 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
 
       try {
         const skip = page * PAGE_SIZE;
-        const orderBy = tab === "finished" ? "updatedAt" : "listingId";
-        const url = `/api/listings/browse?first=${PAGE_SIZE}&skip=${skip}&enrich=true&stream=true&orderBy=${orderBy}&orderDirection=desc&lifecycle=${encodeURIComponent(tab)}`;
+        const url = `/api/listings/browse?first=${PAGE_SIZE}&skip=${skip}&enrich=true&stream=true&orderBy=listingId&orderDirection=desc&marketMode=${encodeURIComponent(marketMode)}`;
 
         const response = await fetch(url, { signal: ac.signal });
         if (!response.ok) {
@@ -142,21 +138,19 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
           setDegraded(!!metadata.degraded || isBad);
         } else {
           setListings((prev) => {
-            const ids = new Set(prev.map((l) => l.listingId));
-            const next = streamed.filter((l) => !ids.has(l.listingId));
+            const ids = new Set(prev.map((l) => `${l.listingId}-${l.chainId ?? ""}`));
+            const next = streamed.filter((l) => !ids.has(`${l.listingId}-${l.chainId ?? ""}`));
             return [...prev, ...next];
           });
           setSubgraphDown((prev) => prev || !!metadata.subgraphDown);
         }
 
         const more =
-          metadata.hasMore ??
-          (streamed.length === PAGE_SIZE && streamed.length > 0);
+          metadata.hasMore ?? (streamed.length === PAGE_SIZE && streamed.length > 0);
         setHasMore(!!more);
       } catch (err: unknown) {
         clearTimeout(maxTimer);
         if (err instanceof Error && err.name === "AbortError") {
-          // Intentional abort (navigation / new fetch): ignore. Client max wait: show message.
           if (!cancelled && fetchTimedOut) {
             const timeoutMsg =
               "Request took too long — the listings service may be slow or unavailable. Try again.";
@@ -191,7 +185,7 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
       cancelled = true;
       fetchAbortRef.current?.abort();
     };
-  }, [page, tab, refetchNonce, skipInitialClientEnrich]);
+  }, [page, marketMode, refetchNonce, skipInitialClientEnrich]);
 
   useEffect(() => {
     setListings(initial.listings);
@@ -225,20 +219,17 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
   const showDegradedBanner =
     (degraded || subgraphDown) && listings.length > 0;
 
-  const navigateToTab = (next: MarketLifecycleTab) => {
-    if (next === tab) return;
-    startTabTransition(() => {
-      router.push(`/market?tab=${next}`);
+  const setShowEnded = (next: boolean) => {
+    startFilterTransition(() => {
+      router.push(next ? "/market?mode=include-ended" : "/market");
     });
   };
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="flex justify-between items-center px-4 py-4 border-b border-[#333333]">
+      <header className="flex items-center justify-between border-b border-[#333333] px-4 py-4">
         <Logo />
-        <div className="flex items-center gap-3">
-          <ProfileDropdown />
-        </div>
+        <ProfileDropdown />
       </header>
 
       {showDegradedBanner && (
@@ -250,181 +241,147 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
       )}
 
       <div className="px-5 py-8">
-        <h1 className="text-2xl font-light mb-6">Market</h1>
-
-        {children}
-
-        <div
-          className="flex flex-wrap gap-x-6 gap-y-2 mb-2 border-b border-[#333333]"
-          role="tablist"
-          aria-label="Listing lifecycle"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "active"}
-            onClick={() => navigateToTab("active")}
-            className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
-              tab === "active"
-                ? "text-white border-b-2 border-white"
-                : "text-[#999999] hover:text-white"
-            }`}
-          >
-            Active
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "upcoming"}
-            onClick={() => navigateToTab("upcoming")}
-            className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
-              tab === "upcoming"
-                ? "text-white border-b-2 border-white"
-                : "text-[#999999] hover:text-white"
-            }`}
-          >
-            Upcoming
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "finished"}
-            onClick={() => navigateToTab("finished")}
-            className={`pb-3 text-sm font-mek-mono tracking-[0.5px] transition-colors ${
-              tab === "finished"
-                ? "text-white border-b-2 border-white"
-                : "text-[#999999] hover:text-white"
-            }`}
-          >
-            Finished
-          </button>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-light">Market</h1>
+            <p className="mt-1 max-w-xl text-sm text-[#999999]">
+              Live auctions, listings awaiting first bid, and open sales — including partially sold editions.
+            </p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 font-mek-mono text-xs tracking-[0.5px] text-[#cccccc]">
+            <input
+              type="checkbox"
+              checked={showEnded}
+              onChange={(e) => setShowEnded(e.target.checked)}
+              className="h-4 w-4 rounded border-[#666666] bg-black accent-white"
+            />
+            Show ended & sold out
+          </label>
         </div>
 
-        {isTabPending && (
-          <div
-            className="mb-6 flex items-center gap-2 text-[#cccccc]"
-            role="status"
-            aria-live="polite"
-          >
-            <span
-              className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#666666] border-t-white"
-              aria-hidden
-            />
-            <span className="font-mek-mono text-xs tracking-[0.5px]">Loading this tab…</span>
-          </div>
-        )}
+        {initial.hero ? <MarketHero auction={initial.hero} /> : null}
+        <MarketSections sections={initial.sections} />
+
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#333333] pb-3">
+          <h2 className="font-mek-mono text-sm uppercase tracking-[0.5px] text-white">
+            All listings
+          </h2>
+          {isFilterPending ? (
+            <span className="font-mek-mono text-xs text-[#999999]">Updating…</span>
+          ) : null}
+        </div>
 
         <div
           className={
-            isTabPending ? "pointer-events-none opacity-45 transition-opacity duration-150" : undefined
+            isFilterPending ? "pointer-events-none opacity-45 transition-opacity duration-150" : undefined
           }
         >
-        {loading && listings.length === 0 ? (
-          <MarketGridSkeleton />
-        ) : error && listings.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-2">Error loading listings</p>
-            <p className="text-[#999999] text-sm mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setRefetchNonce((n) => n + 1);
-                setPage(0);
-                setListings([]);
-                setError(null);
-                setLoading(true);
-              }}
-              className="text-white hover:underline"
-            >
-              Retry
-            </button>
-          </div>
-        ) : listings.length === 0 ? (
-          <div className="text-center py-12">
-            {subgraphDown ? (
-              <>
-                <p className="text-[#cccccc] mb-2">Unable to load listings</p>
-                <p className="text-[#999999] text-sm mb-4">
-                  The data service is temporarily unavailable. Please check back later.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRefetchNonce((n) => n + 1);
-                    setSubgraphDown(false);
-                    setDegraded(false);
-                    setPage(0);
-                    setError(null);
-                    setLoading(true);
-                  }}
-                  className="text-white hover:underline text-sm"
-                >
-                  Try again
-                </button>
-              </>
-            ) : (
-              <p className="text-[#cccccc]">
-                {tab === "active" && "No active listings right now."}
-                {tab === "upcoming" && "No upcoming listings."}
-                {tab === "finished" && "No finished listings yet."}
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {listings.map((listing, index) => (
-                <AuctionCard
-                  key={`${String(listing.listingId)}-${String(listing.chainId ?? "")}`}
-                  auction={listing}
-                  gradient={gradients[index % gradients.length]}
-                  index={index}
-                />
-              ))}
+          {loading && listings.length === 0 ? (
+            <MarketGridSkeleton />
+          ) : error && listings.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="mb-2 text-red-400">Error loading listings</p>
+              <p className="mb-4 text-sm text-[#999999]">{error}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setRefetchNonce((n) => n + 1);
+                  setPage(0);
+                  setListings([]);
+                  setError(null);
+                  setLoading(true);
+                }}
+                className="text-white hover:underline"
+              >
+                Retry
+              </button>
             </div>
+          ) : listings.length === 0 ? (
+            <div className="py-12 text-center">
+              {subgraphDown ? (
+                <>
+                  <p className="mb-2 text-[#cccccc]">Unable to load listings</p>
+                  <p className="mb-4 text-sm text-[#999999]">
+                    The data service is temporarily unavailable. Please check back later.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRefetchNonce((n) => n + 1);
+                      setSubgraphDown(false);
+                      setDegraded(false);
+                      setPage(0);
+                      setError(null);
+                      setLoading(true);
+                    }}
+                    className="text-sm text-white hover:underline"
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <p className="text-[#cccccc]">
+                  {showEnded
+                    ? "No listings match this view right now."
+                    : "No open listings right now. Try showing ended & sold out."}
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {listings.map((listing, index) => (
+                  <AuctionCard
+                    key={`${String(listing.listingId)}-${String(listing.chainId ?? "")}`}
+                    auction={listing}
+                    gradient={gradients[index % gradients.length]}
+                    index={index}
+                  />
+                ))}
+              </div>
 
-            {loadingMore && (
-              <div className="mt-8 text-center py-6">
-                <div className="inline-flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <p className="text-[#cccccc] text-sm">Loading more listings...</p>
+              {loadingMore && (
+                <div className="mt-8 py-6 text-center">
+                  <div className="inline-flex items-center gap-3">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <p className="text-sm text-[#cccccc]">Loading more listings…</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {loadMoreError && !loadingMore && (
-              <div className="mt-8 text-center py-6">
-                <p className="text-red-400 text-sm mb-3">{loadMoreError}</p>
-                <button
-                  type="button"
-                  onClick={retryLoadMore}
-                  className="px-4 py-1.5 text-sm text-white border border-[#666666] hover:border-white transition-colors"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
+              {loadMoreError && !loadingMore && (
+                <div className="mt-8 py-6 text-center">
+                  <p className="mb-3 text-sm text-red-400">{loadMoreError}</p>
+                  <button
+                    type="button"
+                    onClick={retryLoadMore}
+                    className="border border-[#666666] px-4 py-1.5 text-sm text-white transition-colors hover:border-white"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
 
-            {hasMore && !loadingMore && !loadMoreError && (
-              <div className="mt-8 text-center">
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loading}
-                  className="px-6 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Load More
-                </button>
-              </div>
-            )}
+              {hasMore && !loadingMore && !loadMoreError && (
+                <div className="mt-8 text-center">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loading}
+                    className="bg-white px-6 py-2 text-sm font-medium tracking-[0.5px] text-black transition-colors hover:bg-[#e0e0e0] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Load More
+                  </button>
+                </div>
+              )}
 
-            {!hasMore && listings.length > 0 && !loadingMore && (
-              <div className="mt-8 text-center py-6">
-                <p className="text-[#666666] text-xs">No more listings to load</p>
-              </div>
-            )}
-          </>
-        )}
+              {!hasMore && listings.length > 0 && !loadingMore && (
+                <div className="mt-8 py-6 text-center">
+                  <p className="text-xs text-[#666666]">No more listings to load</p>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -433,7 +390,7 @@ export default function MarketClient({ initial, children }: MarketClientProps) {
 
 function MarketGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}

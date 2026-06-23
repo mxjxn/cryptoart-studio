@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server";
 import { browseListings, browseListingsStreaming } from "~/lib/server/browse-listings";
 import { emitRouteMetric } from "~/lib/server/route-metrics";
-import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
+import type { MarketBrowseMode } from "~/lib/market-visibility";
 
-/** Allow long enriched streams (market load-more + lifecycle). */
+/** Allow long enriched streams (market load-more + browse filters). */
 export const maxDuration = 180;
 
 const BROWSE_API_TIMEOUT_MS = 7000;
 /** Default streaming wall (home / simple browse). */
 const BROWSE_STREAM_MAX_MS = 25_000;
-/** Market lifecycle + pagination can scan many batches before 20 enriched rows — allow a longer wall. */
+/** Market browse + pagination can scan many batches before 20 enriched rows — allow a longer wall. */
 const BROWSE_STREAM_MAX_MS_MARKET_HEAVY = 120_000;
 const BROWSE_LKG_TTL_MS = 10 * 60 * 1000;
 let browseTimeoutCount = 0;
@@ -45,9 +45,10 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-function parseMarketLifecycle(searchParams: URLSearchParams): MarketLifecycleTab | undefined {
-  const raw = searchParams.get("lifecycle");
-  if (raw === "active" || raw === "upcoming" || raw === "finished") return raw;
+function parseMarketBrowseMode(searchParams: URLSearchParams): MarketBrowseMode | undefined {
+  const raw = searchParams.get("marketMode") ?? searchParams.get("lifecycle");
+  if (raw === "include-ended" || raw === "finished") return "include-ended";
+  if (raw === "live" || raw === "active" || raw === "upcoming") return "live";
   return undefined;
 }
 
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
     const enrich = searchParams.get("enrich") !== "false";
     const noCache = searchParams.get("noCache") === "true";
     const stream = searchParams.get("stream") === "true"; // Enable streaming mode
-    const marketLifecycle = parseMarketLifecycle(searchParams);
+    const marketBrowseMode = parseMarketBrowseMode(searchParams);
 
     // Default order by listingId descending (newest first)
     const orderBy = searchParams.get("orderBy") || "listingId";
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
       orderDirection,
       stream,
       enrich,
-      marketLifecycle: marketLifecycle ?? null,
+      marketBrowseMode: marketBrowseMode ?? null,
     });
     
     console.log('[API /listings/browse] Request:', { first, skip, orderBy, orderDirection, enrich, stream });
@@ -129,8 +130,7 @@ export async function GET(req: NextRequest) {
             }
           };
 
-          const heavyStream =
-            !!marketLifecycle || skip > 0;
+          const heavyStream = !!marketBrowseMode || skip > 0;
           let maxMs = heavyStream ? BROWSE_STREAM_MAX_MS_MARKET_HEAVY : BROWSE_STREAM_MAX_MS;
           if (process.env.NODE_ENV !== "production") {
             const raw = new URL(req.url).searchParams.get("__streamMaxMs");
@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
                 orderBy,
                 orderDirection,
                 enrich: true,
-                marketLifecycle,
+                marketBrowseMode,
               })) {
                 if (closed) break;
                 if (listing.type === 'listing') {
@@ -239,7 +239,7 @@ export async function GET(req: NextRequest) {
             orderBy,
             orderDirection,
             enrich: false,
-            marketLifecycle,
+            marketBrowseMode,
           }),
           effectiveFallbackTimeoutMs,
           "browseListingsFallbackCore"
@@ -256,7 +256,7 @@ export async function GET(req: NextRequest) {
           orderBy,
           orderDirection,
           enrich,
-          marketLifecycle,
+          marketBrowseMode,
         }),
         effectiveBrowseTimeoutMs,
         "browseListings"

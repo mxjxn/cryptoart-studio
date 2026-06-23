@@ -1,5 +1,5 @@
 import { getListingDisplayStatus } from "~/lib/time-utils";
-import { normalizeListingType } from "~/lib/server/auction";
+import { normalizeListingType } from "~/lib/listing-type";
 
 export type MarketLifecycleTab = "active" | "upcoming" | "finished";
 

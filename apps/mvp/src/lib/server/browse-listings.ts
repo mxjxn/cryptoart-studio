@@ -19,9 +19,9 @@ import {
   resolveMediaWithFallback,
 } from "~/lib/server/listing-metadata-refresh";
 import {
-  classifyMarketLifecycle,
-  type MarketLifecycleTab,
-} from "~/lib/market-lifecycle";
+  isVisibleOnMarket,
+  type MarketBrowseMode,
+} from "~/lib/market-visibility";
 import { BASE_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import {
   queryListingsAcrossChains,
@@ -184,8 +184,8 @@ export interface BrowseListingsOptions {
   orderBy?: string;
   orderDirection?: "asc" | "desc";
   enrich?: boolean;
-  /** When set (market tabs), over-fetches and filters by lifecycle; cancelled rows only appear in finished. */
-  marketLifecycle?: MarketLifecycleTab;
+  /** When set (market browse), over-fetches and filters by visibility rules. */
+  marketBrowseMode?: MarketBrowseMode;
 }
 
 function subgraphOrderByField(orderBy: string): string {
@@ -197,14 +197,14 @@ function subgraphOrderByField(orderBy: string): string {
 function filterBrowseCandidateListings(
   listings: any[],
   hiddenAddresses: Set<string>,
-  marketLifecycle?: MarketLifecycleTab
+  marketBrowseMode?: MarketBrowseMode
 ): any[] {
   const ONE_MONTH_IN_SECONDS = 30 * 24 * 60 * 60;
   return listings.filter((listing) => {
     if (isListingBlockedFromProduct(listing, hiddenAddresses)) {
       return false;
     }
-    if (!marketLifecycle && listing.status === "CANCELLED") return false;
+    if (listing.status === "CANCELLED") return false;
     const startTime = parseInt(listing.startTime || "0", 10);
     const endTime = parseInt(listing.endTime || "0", 10);
     if (
@@ -217,7 +217,7 @@ function filterBrowseCandidateListings(
       );
       return false;
     }
-    if (marketLifecycle && classifyMarketLifecycle(listing) !== marketLifecycle) {
+    if (marketBrowseMode && !isVisibleOnMarket(listing, marketBrowseMode)) {
       return false;
     }
     return true;
@@ -359,7 +359,7 @@ function browseOptionsKey(options: BrowseListingsOptions): string {
     orderBy: options.orderBy ?? "listingId",
     orderDirection: options.orderDirection ?? "desc",
     enrich: options.enrich ?? true,
-    marketLifecycle: options.marketLifecycle ?? null,
+    marketBrowseMode: options.marketBrowseMode ?? null,
   });
 }
 
@@ -390,15 +390,15 @@ async function browseListingsInner(
     orderBy = "listingId",
     orderDirection = "desc",
     enrich = true,
-    marketLifecycle,
+    marketBrowseMode,
   } = options;
 
-  const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
+  const browseHeavySkip = !!marketBrowseMode && skip > 0;
   const fetchCount = Math.min(
-    marketLifecycle
-      ? Math.max(Math.ceil(first * (lifecycleHeavySkip ? 8 : 5)), lifecycleHeavySkip ? 120 : 80)
+    marketBrowseMode
+      ? Math.max(Math.ceil(first * (browseHeavySkip ? 8 : 5)), browseHeavySkip ? 120 : 80)
       : Math.ceil(first * 1.5),
-    marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
+    marketBrowseMode ? (browseHeavySkip ? 300 : 200) : 100
   );
   
   let mergedListings: any[] = [];
@@ -444,7 +444,7 @@ async function browseListingsInner(
   const activeListings = filterBrowseCandidateListings(
     mergedListings,
     hiddenAddresses,
-    marketLifecycle
+    marketBrowseMode
   );
 
   let enrichedListings: EnrichedAuctionData[];
@@ -541,15 +541,15 @@ export async function* browseListingsStreaming(
     orderBy = "listingId",
     orderDirection = "desc",
     enrich = true,
-    marketLifecycle,
+    marketBrowseMode,
   } = options;
 
-  const lifecycleHeavySkip = !!marketLifecycle && skip > 0;
+  const browseHeavySkip = !!marketBrowseMode && skip > 0;
   const fetchCount = Math.min(
-    marketLifecycle
-      ? Math.max(Math.ceil(first * (lifecycleHeavySkip ? 8 : 5)), lifecycleHeavySkip ? 120 : 80)
+    marketBrowseMode
+      ? Math.max(Math.ceil(first * (browseHeavySkip ? 8 : 5)), browseHeavySkip ? 120 : 80)
       : Math.ceil(first * 1.5),
-    marketLifecycle ? (lifecycleHeavySkip ? 300 : 200) : 100
+    marketBrowseMode ? (browseHeavySkip ? 300 : 200) : 100
   );
 
   let mergedListings: any[] = [];
@@ -597,7 +597,7 @@ export async function* browseListingsStreaming(
   const activeListings = filterBrowseCandidateListings(
     mergedListings,
     hiddenAddresses,
-    marketLifecycle
+    marketBrowseMode
   );
 
   console.log("[Browse Listings Streaming] phase=filtered", {

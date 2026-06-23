@@ -1,9 +1,9 @@
 import { Metadata } from "next";
-import { Suspense } from "react";
 import { APP_NAME } from "~/lib/constants";
 import { browseListings } from "~/lib/server/browse-listings";
-import type { MarketLifecycleTab } from "~/lib/market-lifecycle";
-import MarketRails from "~/components/market/MarketRails";
+import { resolveMarketSections } from "~/lib/server/homepage-layout";
+import { splitMarketHero } from "~/lib/market-layout";
+import type { MarketBrowseMode } from "~/lib/market-visibility";
 import MarketClient, { type MarketInitialPayload } from "./MarketClient";
 
 export const metadata: Metadata = {
@@ -11,56 +11,49 @@ export const metadata: Metadata = {
   description: "Browse all listings on cryptoart.social",
 };
 
-/**
- * ISR window for **auction** slice (bids, reserve, times) from the subgraph.
- * **Artwork** (title, image, artist) is cached per token for 7d via `fetchNFTMetadataCached`
- * in browse — cold IPFS once, then cheap on each regen.
- */
+/** ISR window for auction slice from subgraph; artwork cached longer via metadata cache. */
 export const revalidate = 120;
 
-function parseMarketTab(raw: string | undefined): MarketLifecycleTab {
-  if (raw === "upcoming" || raw === "finished") return raw;
-  return "active";
+function parseMarketBrowseMode(raw: string | undefined): MarketBrowseMode {
+  if (raw === "include-ended" || raw === "finished") return "include-ended";
+  return "live";
 }
 
-async function getInitialPayload(tab: MarketLifecycleTab): Promise<MarketInitialPayload> {
-  const orderBy = tab === "finished" ? "updatedAt" : "listingId";
-  const result = await browseListings({
-    first: 20,
-    skip: 0,
-    orderBy,
-    orderDirection: "desc",
-    enrich: true,
-    marketLifecycle: tab,
-  });
+async function getInitialPayload(marketMode: MarketBrowseMode): Promise<MarketInitialPayload> {
+  const [browseResult, sectionsResolved] = await Promise.all([
+    browseListings({
+      first: 20,
+      skip: 0,
+      orderBy: "listingId",
+      orderDirection: "desc",
+      enrich: true,
+      marketBrowseMode: marketMode,
+    }),
+    resolveMarketSections(false),
+  ]);
+
+  const { hero, sections } = splitMarketHero(sectionsResolved);
+
   return {
-    tab,
-    listings: result.listings,
-    hasMore: result.listings.length === 20 && result.subgraphReturnedFullCount,
-    subgraphDown: result.subgraphDown ?? false,
+    marketMode,
+    listings: browseResult.listings,
+    hasMore: browseResult.listings.length === 20 && browseResult.subgraphReturnedFullCount,
+    subgraphDown: browseResult.subgraphDown ?? false,
     degraded: false,
     ssrEnriched: true,
+    hero,
+    sections,
   };
 }
 
 export default async function MarketPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ mode?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = parseMarketTab(sp.tab);
-  const initial = await getInitialPayload(tab);
+  const marketMode = parseMarketBrowseMode(sp.mode ?? sp.tab);
+  const initial = await getInitialPayload(marketMode);
 
-  return (
-    <MarketClient key={tab} initial={initial}>
-      <Suspense
-        fallback={
-          <div className="mb-10 h-32 animate-pulse rounded border border-[#333333] bg-[#111111]" />
-        }
-      >
-        <MarketRails />
-      </Suspense>
-    </MarketClient>
-  );
+  return <MarketClient key={marketMode} initial={initial} />;
 }
