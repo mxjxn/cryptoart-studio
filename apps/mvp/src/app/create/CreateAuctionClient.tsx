@@ -1779,6 +1779,7 @@ export default function CreateAuctionClient() {
                 tokenType={selectedTokenType || "ERC721"}
                 selectedTokenId={selectedTokenId}
                 onSelectToken={handleTokenSelect}
+                chainId={createListingNftChainId}
               />
             </>
           )}
