@@ -9,6 +9,7 @@
   "scripts": {
     "build": "turbo run build --filter=mvp",
     "dev": "concurrently \"turbo run dev --filter=mvp\" \"ngrok http 3000\"",
+    "dev:studio": "turbo run dev --filter=studio",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
