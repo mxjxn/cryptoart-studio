@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
 import { mainnet } from "wagmi/chains";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAuction, AUCTION_FETCH_TIMEOUT } from "~/hooks/useAuction";
 import { useEffectiveAddress } from "~/hooks/useEffectiveAddress";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -241,9 +241,11 @@ export interface UseAuctionDetailReturn {
 export function useAuctionDetail({
   listingId,
   listingApiChainId,
+  referralAddress,
 }: {
   listingId: string;
   listingApiChainId?: number;
+  referralAddress?: string | null;
 }): UseAuctionDetailReturn {
   const isExplicitEthereumListing = listingApiChainId === ETHEREUM_MAINNET_CHAIN_ID;
   const marketplaceReadAddress = isExplicitEthereumListing
@@ -252,7 +254,6 @@ export function useAuctionDetail({
   const marketplaceReadChainId = isExplicitEthereumListing ? mainnet.id : CHAIN_ID;
   const { address, isConnected } = useEffectiveAddress();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const chainId = useChainId();
@@ -669,19 +670,18 @@ export function useAuctionDetail({
   const referrerBPS = listingData ? (listingData as any).referrerBPS : undefined;
 
   const referrer = useMemo(() => {
-    const referralAddressParam = searchParams.get('referralAddress') || searchParams.get('ref');
-    if (!referralAddressParam) {
+    if (!referralAddress) {
       return null;
     }
-    if (!isAddress(referralAddressParam)) {
-      console.warn('Invalid referrer address in URL:', referralAddressParam);
+    if (!isAddress(referralAddress)) {
+      console.warn('Invalid referrer address in URL:', referralAddress);
       return null;
     }
     if (referrerBPS && referrerBPS > 0) {
-      return referralAddressParam.toLowerCase() as Address;
+      return referralAddress.toLowerCase() as Address;
     }
     return null;
-  }, [searchParams, referrerBPS]);
+  }, [referralAddress, referrerBPS]);
 
   const getCAIP19TokenId = (tokenAddress: string | undefined): string | undefined => {
     if (!tokenAddress || isETH(tokenAddress)) return undefined;

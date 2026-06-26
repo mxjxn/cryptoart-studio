@@ -1,9 +1,9 @@
 "use client";
 
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
 import { useAuctionDetail } from "~/hooks/useAuctionDetail";
-import { parseListingChainIdQueryParam } from "~/lib/listing-chain-paths";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useUsername } from "~/hooks/useUsername";
 import { ShareButton } from "~/components/ShareButton";
@@ -34,15 +34,21 @@ interface AuctionDetailClientProps {
   listingApiChainId?: number;
 }
 
+function ReferralReader({ onRef }: { onRef: (addr: string) => void }) {
+  const searchParams = useSearchParams();
+  const ref = searchParams.get("referralAddress") || searchParams.get("ref");
+  useEffect(() => {
+    if (ref) onRef(ref);
+  }, [ref, onRef]);
+  return null;
+}
+
 export default function AuctionDetailClient({
   listingId,
   listingApiChainId: listingApiChainIdProp,
 }: AuctionDetailClientProps) {
-  const searchParams = useSearchParams();
-  const listingApiChainId =
-    listingApiChainIdProp ??
-    parseListingChainIdQueryParam(searchParams.get("chainId")) ??
-    undefined;
+  const [referralAddress, setReferralAddress] = useState<string | null>(null);
+  const listingApiChainId = listingApiChainIdProp ?? undefined;
 
   const {
     pageState,
@@ -166,7 +172,7 @@ export default function AuctionDetailClient({
     setBuildingTimedOut,
     setPageStatus,
     loading,
-  } = useAuctionDetail({ listingId, listingApiChainId });
+  } = useAuctionDetail({ listingId, listingApiChainId, referralAddress });
 
   if (pageState === "ambiguous") {
     return (
@@ -317,6 +323,9 @@ export default function AuctionDetailClient({
       className="listing-detail-page min-h-screen w-full overflow-x-hidden animate-in fade-in duration-100"
       style={listingShellStyle}
     >
+      <Suspense fallback={null}>
+        <ReferralReader onRef={setReferralAddress} />
+      </Suspense>
       {!isMiniApp && (
         <section className="border-b border-neutral-200 bg-white">
           <div className="container mx-auto flex max-w-4xl justify-center px-5 py-3">
