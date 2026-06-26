@@ -71,6 +71,8 @@ const ERC20_ABI = [
   },
 ] as const;
 
+const POST_PURCHASE_REFETCH_DELAY_MS = 2000;
+
 export type AuctionDetailPageState =
   | "ambiguous"
   | "loading"
@@ -1565,7 +1567,7 @@ export function useAuctionDetail({
 
       const timer = setTimeout(() => {
         refetchAuction(true);
-      }, 2000);
+      }, POST_PURCHASE_REFETCH_DELAY_MS);
 
       return () => clearTimeout(timer);
     }
