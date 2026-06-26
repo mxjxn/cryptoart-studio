@@ -466,21 +466,6 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
     [buyerAddress, buyerEnsName, buyerUsername]
   );
 
-  const handleImageSurfaceClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const t = e.target as HTMLElement;
-    if (t.closest("a") || t.closest("button")) return;
-    const isTouchDevice =
-      typeof window !== "undefined" &&
-      window.matchMedia("(hover: none), (pointer: coarse)").matches;
-
-    if (!isTouchDevice) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    setIsExpanded((prev) => !prev);
-  };
-
   /** Card surface is not an <a> so profile TransitionLinks stay valid (no nested anchors). */
   const handleCardSurfaceClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
@@ -514,7 +499,6 @@ export function AuctionCard({ auction, gradient, index, referralAddress, onNavig
               ? undefined
               : gradient,
           }}
-          onClick={handleImageSurfaceClick}
         >
           {/* 25% opaque black overlay on hover */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none z-[5]"></div>
