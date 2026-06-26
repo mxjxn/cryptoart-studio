@@ -141,10 +141,18 @@ export default async function ListingPage({ params, searchParams }: ListingPageP
       : undefined
   );
   const trailingQuery = queryStringWithoutChainId(resolvedSearchParams);
+  // The canonical path for this page (Base-chain listings live here without a chain prefix).
+  // Used below to skip self-redirects that would cause an infinite redirect loop.
+  const currentPath = `/listing/${listingId}`;
 
   if (chainIdFromQuery != null) {
     const canonicalPath = canonicalListingDetailPath(chainIdFromQuery, listingId);
-    redirect(trailingQuery ? `${canonicalPath}?${trailingQuery}` : canonicalPath);
+    // Only redirect if the canonical path differs from the current path to avoid self-redirect loops.
+    // For Base-chain listings, canonicalListingDetailPath returns `/listing/${id}` which is
+    // already this page, so skipping the redirect allows the page to render normally.
+    if (canonicalPath !== currentPath) {
+      redirect(trailingQuery ? `${canonicalPath}?${trailingQuery}` : canonicalPath);
+    }
   }
 
   let canonicalListingPath: string | null = null;
@@ -172,7 +180,7 @@ export default async function ListingPage({ params, searchParams }: ListingPageP
     }
   }
 
-  if (canonicalListingPath) {
+  if (canonicalListingPath && canonicalListingPath !== currentPath) {
     redirect(
       trailingQuery
         ? `${canonicalListingPath}?${trailingQuery}`
