@@ -1,9 +1,9 @@
 "use client";
 
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
 import { useAuctionDetail } from "~/hooks/useAuctionDetail";
-import { parseListingChainIdQueryParam } from "~/lib/listing-chain-paths";
 import { useArtistName } from "~/hooks/useArtistName";
 import { useUsername } from "~/hooks/useUsername";
 import { ShareButton } from "~/components/ShareButton";
@@ -34,15 +34,29 @@ interface AuctionDetailClientProps {
   listingApiChainId?: number;
 }
 
+// ReferralReader is intentionally isolated in its own Suspense boundary.
+// In Next.js 16, calling useSearchParams() in a client component that is
+// rendered inside a <Suspense> boundary triggers a 307 self-redirect loop
+// during SSR. By placing useSearchParams() here — in a leaf component with
+// its own <Suspense fallback={null}> wrapper — we prevent that bailout from
+// affecting the rest of the listing page.
+function ReferralReader({ onRef }: { onRef: (addr: string | null) => void }) {
+  const searchParams = useSearchParams();
+  const ref = searchParams.get("referralAddress") || searchParams.get("ref");
+  useEffect(() => {
+    onRef(ref ?? null);
+    return () => { onRef(null); };
+  }, [ref, onRef]);
+  return null;
+}
+
 export default function AuctionDetailClient({
   listingId,
   listingApiChainId: listingApiChainIdProp,
 }: AuctionDetailClientProps) {
-  const searchParams = useSearchParams();
-  const listingApiChainId =
-    listingApiChainIdProp ??
-    parseListingChainIdQueryParam(searchParams.get("chainId")) ??
-    undefined;
+  const [referralAddress, setReferralAddress] = useState<string | null>(null);
+  const handleRef = useCallback((addr: string | null) => setReferralAddress(addr), []);
+  const listingApiChainId = listingApiChainIdProp ?? undefined;
 
   const {
     pageState,
@@ -166,7 +180,7 @@ export default function AuctionDetailClient({
     setBuildingTimedOut,
     setPageStatus,
     loading,
-  } = useAuctionDetail({ listingId, listingApiChainId });
+  } = useAuctionDetail({ listingId, listingApiChainId, referralAddress });
 
   if (pageState === "ambiguous") {
     return (
@@ -317,6 +331,9 @@ export default function AuctionDetailClient({
       className="listing-detail-page min-h-screen w-full overflow-x-hidden animate-in fade-in duration-100"
       style={listingShellStyle}
     >
+      <Suspense fallback={null}>
+        <ReferralReader onRef={handleRef} />
+      </Suspense>
       {!isMiniApp && (
         <section className="border-b border-neutral-200 bg-white">
           <div className="container mx-auto flex max-w-4xl justify-center px-5 py-3">
