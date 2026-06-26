@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { type Address } from "viem";
 import { useAuctionDetail } from "~/hooks/useAuctionDetail";
@@ -34,11 +34,11 @@ interface AuctionDetailClientProps {
   listingApiChainId?: number;
 }
 
-function ReferralReader({ onRef }: { onRef: (addr: string) => void }) {
+function ReferralReader({ onRef }: { onRef: (addr: string | null) => void }) {
   const searchParams = useSearchParams();
   const ref = searchParams.get("referralAddress") || searchParams.get("ref");
   useEffect(() => {
-    if (ref) onRef(ref);
+    onRef(ref ?? null);
   }, [ref, onRef]);
   return null;
 }
@@ -48,6 +48,7 @@ export default function AuctionDetailClient({
   listingApiChainId: listingApiChainIdProp,
 }: AuctionDetailClientProps) {
   const [referralAddress, setReferralAddress] = useState<string | null>(null);
+  const handleRef = useCallback((addr: string | null) => setReferralAddress(addr), []);
   const listingApiChainId = listingApiChainIdProp ?? undefined;
 
   const {
@@ -324,7 +325,7 @@ export default function AuctionDetailClient({
       style={listingShellStyle}
     >
       <Suspense fallback={null}>
-        <ReferralReader onRef={setReferralAddress} />
+        <ReferralReader onRef={handleRef} />
       </Suspense>
       {!isMiniApp && (
         <section className="border-b border-neutral-200 bg-white">
