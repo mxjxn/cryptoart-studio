@@ -34,11 +34,18 @@ interface AuctionDetailClientProps {
   listingApiChainId?: number;
 }
 
+// ReferralReader is intentionally isolated in its own Suspense boundary.
+// In Next.js 16, calling useSearchParams() in a client component that is
+// rendered inside a <Suspense> boundary triggers a 307 self-redirect loop
+// during SSR. By placing useSearchParams() here — in a leaf component with
+// its own <Suspense fallback={null}> wrapper — we prevent that bailout from
+// affecting the rest of the listing page.
 function ReferralReader({ onRef }: { onRef: (addr: string | null) => void }) {
   const searchParams = useSearchParams();
   const ref = searchParams.get("referralAddress") || searchParams.get("ref");
   useEffect(() => {
     onRef(ref ?? null);
+    return () => { onRef(null); };
   }, [ref, onRef]);
   return null;
 }
