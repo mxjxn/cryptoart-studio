@@ -280,6 +280,7 @@ export function useAuctionDetail({
     refetch: refetchAuction,
     updateAuction,
   } = useAuction(listingId, { chainId: listingApiChainId });
+  const processedPurchaseHashRef = useRef<`0x${string}` | null>(null);
 
   const listingImageOverlayFallbackSrcs = useMemo(() => {
     if (!auction) return [];
@@ -1478,12 +1479,22 @@ export function useAuctionDetail({
   }, [isAcceptConfirmed, refetchOffers, router, address, auction, listingId, offers]);
 
   useEffect(() => {
-    if (isPurchaseConfirmed && address && auction) {
+    if (
+      isPurchaseConfirmed &&
+      purchaseHash &&
+      processedPurchaseHashRef.current !== purchaseHash &&
+      address &&
+      auction
+    ) {
+      processedPurchaseHashRef.current = purchaseHash;
+
       updateAuction((prev: any) => {
         if (!prev) return prev;
 
         const currentTotalSold = parseInt(prev.totalSold || "0");
-        const newTotalSold = currentTotalSold + purchaseQuantity;
+        const totalPerSale = parseInt(prev.totalPerSale || "1");
+        const copiesPurchased = purchaseQuantity * totalPerSale;
+        const newTotalSold = currentTotalSold + copiesPurchased;
         const totalAvailable = parseInt(prev.totalAvailable || "0");
         const remaining = totalAvailable - newTotalSold;
 
@@ -1552,14 +1563,13 @@ export function useAuctionDetail({
         handler(buyerData);
       }
 
-      router.refresh();
       const timer = setTimeout(() => {
-        router.push("/");
-      }, 100);
+        refetchAuction(true);
+      }, 2000);
 
       return () => clearTimeout(timer);
     }
-  }, [isPurchaseConfirmed, router, address, auction, listingId, purchaseQuantity, updateAuction]);
+  }, [isPurchaseConfirmed, purchaseHash, address, auction, listingId, purchaseQuantity, refetchAuction, updateAuction]);
 
   useEffect(() => {
     if (!isSDKLoaded) return;
