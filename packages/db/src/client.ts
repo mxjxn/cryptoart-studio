@@ -41,6 +41,7 @@ import {
   listingMediaPreview,
   listingSellerTheme,
   listingThemeOverride,
+  collectionDrafts,
 } from './schema';
 
 // Global singleton pattern for Next.js serverless environments
@@ -194,6 +195,7 @@ export {
   listingSellerTheme,
   listingThemeOverride,
   marketLayoutSnapshots,
+  collectionDrafts,
   // Collection tables
   collections,
   collectionTokens,

@@ -41,6 +41,7 @@ export {
   listingSellerTheme,
   listingThemeOverride,
   marketLayoutSnapshots,
+  collectionDrafts,
   // Collection tables
   collections,
   collectionTokens,
@@ -90,6 +91,7 @@ export type {
   ListingSellerThemeRow,
   ListingThemeOverrideRow,
   MarketLayoutSnapshotData,
+  CollectionDraftData,
 } from './schema';
 
 // Re-export common drizzle-orm functions to ensure type compatibility

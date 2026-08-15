@@ -2,6 +2,27 @@
 
 On-chain artist dashboard for collection deployment, minting, and contract management.
 
+## Design (Figma)
+
+UI redesign source of truth:
+
+**[cryptoart.studio (Figma)](https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio)**
+
+Screen-to-route mapping lives in [`figma/screens.json`](./figma/screens.json).
+
+| Screen | Route |
+|--------|-------|
+| Landing | `/` |
+| Dashboard | `/dashboard` |
+| Deploy wizard | `/collections/new` |
+| Collection dashboard | `/collections/[id]` |
+| Mint wizard | `/collections/[id]/mint` |
+| Series upload | `/collections/[id]/series` |
+| Public collection | `/c/[chainId]/[address]` |
+| Public token | `/c/[chainId]/[address]/[tokenId]` |
+
+When implementing from Figma, pass the screen’s `node-id` URL to the Figma MCP `get_design_context` tool.
+
 ## Development
 
 ```bash

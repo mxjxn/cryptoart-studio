@@ -1,0 +1,56 @@
+{
+  "fileKey": "5ipADrEaxV8v81SJI14T61",
+  "fileName": "cryptoart.studio",
+  "fileUrl": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio",
+  "screens": [
+    {
+      "name": "cryptoart-studio-landing",
+      "nodeId": "8:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=8-4",
+      "route": "/"
+    },
+    {
+      "name": "cryptoart-studio-dashboard",
+      "nodeId": "5:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=5-4",
+      "route": "/dashboard"
+    },
+    {
+      "name": "deploy-wizard-step-3",
+      "nodeId": "9:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=9-4",
+      "route": "/collections/new",
+      "notes": "Wizard step 3 (Name); other steps share the same shell"
+    },
+    {
+      "name": "collection-dashboard",
+      "nodeId": "11:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=11-4",
+      "route": "/collections/[collectionId]"
+    },
+    {
+      "name": "mint-wizard-step-2",
+      "nodeId": "18:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=18-4",
+      "route": "/collections/[collectionId]/mint"
+    },
+    {
+      "name": "series-mint-upload",
+      "nodeId": "21:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=21-4",
+      "route": "/collections/[collectionId]/series"
+    },
+    {
+      "name": "public-collection-page",
+      "nodeId": "23:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=23-4",
+      "route": "/c/[chainId]/[address]"
+    },
+    {
+      "name": "public-token-detail",
+      "nodeId": "24:4",
+      "url": "https://www.figma.com/design/5ipADrEaxV8v81SJI14T61/cryptoart.studio?node-id=24-4",
+      "route": "/c/[chainId]/[address]/[tokenId]"
+    }
+  ]
+}
