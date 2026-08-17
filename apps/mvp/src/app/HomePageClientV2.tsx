@@ -131,7 +131,7 @@ export default function HomePageClientV2() {
       !!editionBrowse.error);
 
   const heroTaglineText =
-    "CryptoArt is an auction marketplace for digital art, centered on human curation. List on Base or Ethereum mainnet — create galleries to surface what matters.";
+    "Auctionhouse and marketplace on Ethereum and Base";
   const heroDescriptionText = spotlightCopy.description;
   const recentSectionIntro =
     "Kismet Casa · Rome residency — Base lots from the recent drop. Events have concluded; open a card to view the listing.";
@@ -240,12 +240,12 @@ export default function HomePageClientV2() {
             <p ref={heroTaglineMeasure.ref} className="font-space-grotesk text-sm leading-normal text-white">
               {heroTaglineText}
             </p>
-            <div className="mt-6 flex w-full max-w-2xl flex-col gap-4 sm:mt-8 sm:flex-row sm:items-stretch sm:gap-5">
+            <div className="mt-6 flex w-full max-w-2xl flex-row gap-4 sm:mt-8 sm:flex-row sm:items-stretch sm:gap-5">
               <TransitionLink href="/create" prefetch={false} className={heroCtaClassName}>
                 Create listing
               </TransitionLink>
               <TransitionLink href="/market" prefetch={false} className={heroCtaClassName}>
-                View all listings
+                View all
               </TransitionLink>
             </div>
           </div>
@@ -365,18 +365,10 @@ export default function HomePageClientV2() {
             {hideAuctionCards ? (
               <>
                 <span className="text-black">Ethereum mainnet</span>
-                <span className="text-black">Create from app</span>
               </>
             ) : (
               <>
                 <span className="text-black">{spotlightCopy.headline}</span>
-                <span className="text-black">
-                  {mainnetSpotlightAuctions.length > 0
-                    ? mainnetSpotlightAuctions.length === 1
-                      ? "First listing · Ethereum"
-                      : `${mainnetSpotlightAuctions.length} Ethereum listings`
-                    : spotlightCopy.headline}
-                </span>
               </>
             )}
           </div>
