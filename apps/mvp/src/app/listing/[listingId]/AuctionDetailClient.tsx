@@ -223,7 +223,7 @@ export default function AuctionDetailClient({
   const updateInlineErrorMessage =
     actionErrorScope === "update"
       ? actionErrorMessage
-      : actionErrorScope == null
+      : actionErrorScope === null
         ? modifyError?.message ?? null
         : null;
 
