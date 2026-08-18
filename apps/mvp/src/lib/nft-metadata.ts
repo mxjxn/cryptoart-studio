@@ -463,6 +463,48 @@ function buildMetadataFetchUrlCandidates(tokenURI: string): string[] {
   return out;
 }
 
+/**
+ * ERC-1155 `uri()` commonly returns a template containing `{id}`.
+ * EIP-1155 requires 64-char lowercase hex with no 0x prefix; many collections
+ * (OpenSea-style IPFS folders) use the decimal token id as the filename instead.
+ * Listing 146 ("Based Mfer") is `ipfs://…/{id}` with a file named `1`.
+ */
+export function expandTokenUriIdPlaceholder(
+  tokenURI: string,
+  tokenId: bigint
+): string[] {
+  const hasPlaceholder =
+    tokenURI.includes("{id}") ||
+    tokenURI.includes("{ID}") ||
+    tokenURI.includes("%7Bid%7D") ||
+    tokenURI.includes("%7BID%7D");
+  if (!hasPlaceholder) {
+    return [tokenURI];
+  }
+
+  const decimal = tokenId.toString(10);
+  const hex = tokenId.toString(16).padStart(64, "0");
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (value: string) => {
+    if (!seen.has(value)) {
+      seen.add(value);
+      out.push(value);
+    }
+  };
+
+  for (const replacement of [decimal, hex]) {
+    push(
+      tokenURI
+        .replaceAll("{id}", replacement)
+        .replaceAll("{ID}", replacement)
+        .replaceAll("%7Bid%7D", replacement)
+        .replaceAll("%7BID%7D", replacement)
+    );
+  }
+  return out;
+}
+
 async function fetchMetadataJsonWithFallback(
   tokenURI: string
 ): Promise<NFTMetadata | null> {
@@ -590,22 +632,22 @@ export async function fetchNFTMetadata(
       return null;
     }
 
-    let metadata: NFTMetadata;
+    let metadata: NFTMetadata | null = null;
 
-    // Handle onchain metadata (data URI)
-    if (isJsonDataURI(tokenURI)) {
-      const parsed = parseJsonDataURI<NFTMetadata>(tokenURI);
-      if (!parsed) {
-        console.error('Failed to parse onchain metadata from data URI');
-        return null;
+    for (const uri of expandTokenUriIdPlaceholder(tokenURI, tokenIdBigInt)) {
+      if (isJsonDataURI(uri)) {
+        metadata = parseJsonDataURI<NFTMetadata>(uri);
+        if (!metadata) {
+          console.error('Failed to parse onchain metadata from data URI');
+        }
+      } else {
+        metadata = await fetchMetadataJsonWithFallback(uri);
       }
-      metadata = parsed;
-    } else {
-      const fetched = await fetchMetadataJsonWithFallback(tokenURI);
-      if (!fetched) {
-        return null;
-      }
-      metadata = fetched;
+      if (metadata) break;
+    }
+
+    if (!metadata) {
+      return null;
     }
 
     coerceFlexibleNFTMetadata(metadata);
