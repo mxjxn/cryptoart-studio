@@ -63,6 +63,7 @@ export interface HomepageSection {
 }
 
 const DEFAULT_LIMIT = 12;
+const GALLERY_LISTINGS_FETCH_TIMEOUT_MS = 5_000;
 
 export type LayoutSurface = 'home' | 'market';
 
@@ -615,7 +616,10 @@ async function getGalleryListings(curatorAddress?: string, stubname?: string, li
   if (!curatorAddress || !stubname) return [];
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/curation/slug/${stubname}?curatorAddress=${curatorAddress}`
+      `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/curation/slug/${stubname}?curatorAddress=${curatorAddress}`,
+      {
+        signal: AbortSignal.timeout(GALLERY_LISTINGS_FETCH_TIMEOUT_MS),
+      }
     );
     if (!response.ok) return [];
     const data = await response.json();
