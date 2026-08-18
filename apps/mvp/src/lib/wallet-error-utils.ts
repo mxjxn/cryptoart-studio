@@ -18,9 +18,11 @@ export function isChainSwitchErrorMessage(message: string | null | undefined): b
   const normalized = message.toLowerCase();
   return (
     normalized.includes("switchchain") ||
+    normalized.includes("switch chain") ||
     normalized.includes("wallet_switchethereumchain") ||
     normalized.includes("getchainid") ||
-    normalized.includes("connector")
+    normalized.includes("connector not connected") ||
+    normalized.includes("no connector")
   );
 }
 

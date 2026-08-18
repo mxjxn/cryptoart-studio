@@ -645,6 +645,18 @@ export function useAuctionDetail({
     chainId: marketplaceReadChainId,
   });
 
+  const getChainSwitchErrorScope = useCallback((error: unknown) => {
+    if (error === modifyError) {
+      return "update" as const;
+    }
+
+    if (error === bidError || (error === approveError && auction?.listingType === "INDIVIDUAL_AUCTION")) {
+      return "bid" as const;
+    }
+
+    return "network" as const;
+  }, [approveError, auction?.listingType, bidError, modifyError]);
+
   const {
     artistName: creatorName,
     isLoading: creatorNameLoading,
@@ -1212,17 +1224,17 @@ export function useAuctionDetail({
     lastAutoSwitchAttemptKey.current = attemptKey;
     setShowChainSwitchPrompt(true);
 
-    try {
-      switchToRequiredChain();
-    } catch (error) {
-      console.error("[AuctionDetail] Error auto-switching chain:", error);
-      setActionError(
-        "network",
-        error,
-        `Please switch to ${targetNetworkLabel} to continue.`,
-        isMiniApp && isExplicitEthereumListing
-      );
-    }
+    Promise.resolve()
+      .then(() => switchToRequiredChain())
+      .catch((error) => {
+        console.error("[AuctionDetail] Error auto-switching chain:", error);
+        setActionError(
+          "network",
+          error,
+          `Please switch to ${targetNetworkLabel} to continue.`,
+          isMiniApp && isExplicitEthereumListing
+        );
+      });
   }, [
     chainId,
     isConnected,
@@ -1270,16 +1282,16 @@ export function useAuctionDetail({
           console.error('[AuctionDetail] Chain ID error detected, showing switch prompt:', error);
           setShowChainSwitchPrompt(true);
           setActionError(
-            bidError === error ? "bid" : "network",
+            getChainSwitchErrorScope(error),
             error,
             `Please switch to ${targetNetworkLabel} to continue.`,
             isMiniApp && isExplicitEthereumListing
           );
-          try {
-            switchToRequiredChain();
-          } catch (switchErr) {
-            console.error('[AuctionDetail] Error switching chain:', switchErr);
-          }
+          Promise.resolve()
+            .then(() => switchToRequiredChain())
+            .catch((switchErr) => {
+              console.error('[AuctionDetail] Error switching chain:', switchErr);
+            });
           break;
         }
       }
@@ -1295,6 +1307,7 @@ export function useAuctionDetail({
     approveError,
     isMiniApp,
     isExplicitEthereumListing,
+    getChainSwitchErrorScope,
     setActionError,
     switchToRequiredChain,
     targetNetworkLabel,
