@@ -219,9 +219,9 @@ export default function AuctionDetailClient({
   const bidInlineErrorMessage =
     (actionErrorScope === "bid" || actionErrorScope === "network"
       ? actionErrorMessage
-      : null) ??
-    approveError?.message ??
-    bidError?.message ??
+      : null) ||
+    approveError?.message ||
+    bidError?.message ||
     null;
   const updateInlineErrorMessage =
     (actionErrorScope === "update" ? actionErrorMessage : null) ??

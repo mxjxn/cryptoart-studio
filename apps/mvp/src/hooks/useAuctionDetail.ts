@@ -839,11 +839,9 @@ export function useAuctionDetail({
       const minBid = calculateMinBid;
 
       if (bidAmountBigInt < minBid) {
-        setActionError(
-          "bid",
-          `Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`,
-          `Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`
-        );
+        const minBidMessage = `Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`;
+        setActionErrorScope("bid");
+        setActionErrorMessage(minBidMessage);
         return;
       }
 
