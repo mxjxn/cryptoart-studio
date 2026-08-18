@@ -6,7 +6,7 @@ import { Address, createPublicClient, http, isAddress, zeroAddress } from 'viem'
 import { base } from 'viem/chains';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 import { formatPriceForShare } from '~/lib/share-moments';
-import { getSubgraphEndpoint } from '~/lib/server/subgraph-endpoints';
+import { BASE_CHAIN_ID, getSubgraphEndpoint } from '~/lib/server/subgraph-endpoints';
 
 /**
  * Get headers for subgraph requests, including API key if available
@@ -20,6 +20,15 @@ const getSubgraphHeaders = (): Record<string, string> => {
   }
   return {};
 };
+
+function withListingChainMetadata(
+  metadata: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...metadata,
+    chainId: BASE_CHAIN_ID,
+  };
+}
 
 /**
  * Query for new listings since a timestamp
@@ -371,10 +380,10 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
         {
           fid: sellerNeynar?.fid,
           listingId: listing.listingId,
-          metadata: {
+          metadata: withListingChainMetadata({
             listingType: listing.listingType,
             artworkName,
-          },
+          }),
         }
       );
       
@@ -398,11 +407,11 @@ export async function processNewListings(sinceBlock: number): Promise<void> {
             {
               fid: followerNeynar?.fid,
               listingId: listing.listingId,
-              metadata: {
+              metadata: withListingChainMetadata({
                 seller: listing.seller,
                 listingType: listing.listingType,
                 artworkName,
-              },
+              }),
             }
           );
         }
@@ -462,11 +471,11 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         {
           fid: sellerNeynar?.fid,
           listingId: listing.listingId,
-          metadata: {
+          metadata: withListingChainMetadata({
             bidder: bid.bidder,
             amount: bid.amount,
             artworkName,
-          },
+          }),
         }
       );
       
@@ -480,10 +489,10 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
         {
           fid: bidderNeynar?.fid,
           listingId: listing.listingId,
-          metadata: {
+          metadata: withListingChainMetadata({
             amount: bid.amount,
             artworkName,
-          },
+          }),
         }
       );
       
@@ -514,11 +523,11 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
             {
               fid: favoriterNeynar?.fid,
               listingId: listing.listingId,
-              metadata: {
+              metadata: withListingChainMetadata({
                 bidder: bid.bidder,
                 amount: bid.amount,
                 artworkName,
-              },
+              }),
             }
           );
         }
@@ -584,11 +593,11 @@ export async function processNewBids(sinceTimestamp: number): Promise<void> {
             {
               fid: previousBidderNeynar?.fid,
               listingId: listing.listingId,
-              metadata: {
+              metadata: withListingChainMetadata({
                 newHighestBid: bid.amount,
                 previousBid: previousHighestBid.amount,
                 artworkName,
-              },
+              }),
             }
           );
         }
@@ -654,12 +663,12 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
         {
           fid: sellerNeynar?.fid,
           listingId: listing.listingId,
-          metadata: {
+          metadata: withListingChainMetadata({
             buyer: purchase.buyer,
             amount: purchase.amount,
             count: purchase.count,
             artworkName,
-          },
+          }),
         }
       );
       
@@ -678,11 +687,11 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
         {
           fid: buyerNeynar?.fid,
           listingId: listing.listingId,
-          metadata: {
+          metadata: withListingChainMetadata({
             amount: purchase.amount,
             count: purchase.count,
             artworkName,
-          },
+          }),
         }
       );
       
@@ -734,11 +743,11 @@ export async function processPurchases(sinceTimestamp: number): Promise<void> {
                   {
                     fid: favoriterNeynar?.fid,
                     listingId: listing.listingId,
-                    metadata: {
+                    metadata: withListingChainMetadata({
                       artworkName,
                       seller: listing.seller,
                       remaining: 1,
-                    },
+                    }),
                   }
                 );
               }
@@ -802,10 +811,10 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
           {
             fid: winnerNeynar?.fid,
             listingId: listing.listingId,
-            metadata: {
+            metadata: withListingChainMetadata({
               amount: winningBid.amount,
               artworkName,
-            },
+            }),
           }
         );
       } else {
@@ -819,9 +828,9 @@ export async function processFinalizedListings(sinceBlock: number): Promise<void
           {
             fid: sellerNeynar?.fid,
             listingId: listing.listingId,
-            metadata: {
+            metadata: withListingChainMetadata({
               artworkName,
-            },
+            }),
           }
         );
       }
@@ -946,10 +955,10 @@ export async function processEndedAuctions(): Promise<void> {
           {
             fid: winnerNeynar?.fid,
             listingId: listing.listingId,
-            metadata: {
+            metadata: withListingChainMetadata({
               amount: winningBid.amount,
               artworkName,
-            },
+            }),
           }
         );
         
@@ -963,11 +972,11 @@ export async function processEndedAuctions(): Promise<void> {
           {
             fid: sellerNeynar?.fid,
             listingId: listing.listingId,
-            metadata: {
+            metadata: withListingChainMetadata({
               winner: winnerAddress,
               amount: winningBid.amount,
               artworkName,
-            },
+            }),
           }
         );
       } else {
@@ -981,9 +990,9 @@ export async function processEndedAuctions(): Promise<void> {
           {
             fid: sellerNeynar?.fid,
             listingId: listing.listingId,
-            metadata: {
+            metadata: withListingChainMetadata({
               artworkName,
-            },
+            }),
           }
         );
       }
@@ -1117,13 +1126,13 @@ export async function processEndingSoonListings(): Promise<void> {
           {
             fid: favoriterNeynar?.fid,
             listingId: listing.listingId,
-            metadata: {
+            metadata: withListingChainMetadata({
               artworkName,
               seller: listing.seller,
               endTime: listing.endTime,
               timeRemaining,
               currentBid: (listing.bids && listing.bids.length > 0 ? listing.bids[0].amount : null),
-            },
+            }),
           }
         );
       }
@@ -1149,4 +1158,3 @@ export async function processEventsSince(
     processEndedAuctions(), // Check for auctions that have ended but not been finalized
   ]);
 }
-

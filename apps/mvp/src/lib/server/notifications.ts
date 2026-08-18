@@ -17,6 +17,24 @@ import {
 import { sendPushNotification } from './neynar-notifications';
 import { getUserFromCache } from './user-cache';
 import { lookupNeynarByAddress } from '~/lib/artist-name-resolution';
+import {
+  deriveSupportedListingChainId,
+  explicitListingDetailPathFromChainInfo,
+} from "~/lib/listing-chain-paths";
+
+function getNotificationBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+}
+
+function buildListingNotificationTargetUrl(
+  listingId: string,
+  chainId?: number | null
+): string {
+  return `${getNotificationBaseUrl()}${explicitListingDetailPathFromChainInfo(
+    listingId,
+    { chainId }
+  )}`;
+}
 
 /**
  * Check for duplicate notification within the last hour
@@ -232,6 +250,7 @@ export async function createNotification(
   options?: {
     fid?: number;
     listingId?: string;
+    chainId?: number;
     metadata?: Record<string, any>;
     sendPush?: boolean;
   }
@@ -278,6 +297,21 @@ export async function createNotification(
   
   // Auto-fetch FID if missing
   const fid = await ensureFID(userAddress, options?.fid);
+  const resolvedListingChainId = options?.listingId
+    ? deriveSupportedListingChainId({
+        chainId: options?.chainId,
+        chainSlug: options?.metadata?.chainSlug ?? options?.metadata?.chain,
+        chainName: options?.metadata?.chainName,
+        network: options?.metadata?.network,
+      })
+    : null;
+  const notificationMetadata =
+    resolvedListingChainId != null
+      ? {
+          ...(options?.metadata || {}),
+          chainId: resolvedListingChainId,
+        }
+      : (options?.metadata || null);
   
   // Get user preferences
   const preferences = await getNotificationPreferences(userAddress);
@@ -292,7 +326,7 @@ export async function createNotification(
       listingId: options?.listingId,
       title,
       message,
-      metadata: options?.metadata || null,
+      metadata: notificationMetadata,
       read: false,
       pushed: false,
     }).returning();
@@ -305,13 +339,16 @@ export async function createNotification(
     try {
       // Build target URL for the notification
       const targetUrl = options?.listingId 
-        ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}`
-        : `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/notifications`;
+        ? buildListingNotificationTargetUrl(
+            options.listingId,
+            resolvedListingChainId
+          )
+        : `${getNotificationBaseUrl()}/notifications`;
       
       await sendPushNotification(userAddress, fid, title, message, {
         type,
         listingId: options?.listingId,
-        metadata: options?.metadata,
+        metadata: notificationMetadata ?? undefined,
         targetUrl,
       });
       
@@ -502,4 +539,3 @@ export async function updateNotificationPreferences(
     return created;
   }
 }
-

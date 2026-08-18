@@ -7,6 +7,9 @@ import { Check, CheckCheck, Settings, Send, ChevronDown, ChevronUp } from 'lucid
 import Link from 'next/link';
 import { useState } from 'react';
 import type { NotificationType } from '@cryptoart/db';
+import {
+  explicitListingDetailPathFromChainInfo,
+} from "~/lib/listing-chain-paths";
 // Simple date formatting function (can be replaced with date-fns if needed)
 function formatTimeAgo(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -39,6 +42,19 @@ const NOTIFICATION_TYPES: NotificationType[] = [
   'FAVORITE_NEW_BID',
   'FAVORITE_ENDING_SOON',
 ];
+
+function getNotificationListingHref(notification: {
+  listingId?: string | null;
+  metadata?: Record<string, any> | null;
+}): string | null {
+  if (!notification.listingId) return null;
+  return explicitListingDetailPathFromChainInfo(notification.listingId, {
+    chainId: notification.metadata?.chainId,
+    chainSlug: notification.metadata?.chainSlug ?? notification.metadata?.chain,
+    chainName: notification.metadata?.chainName,
+    network: notification.metadata?.network,
+  });
+}
 
 export default function NotificationsClient() {
   const { address } = useAccount();
@@ -287,7 +303,9 @@ export default function NotificationsClient() {
         </div>
       ) : (
         <div className="space-y-2">
-          {notifications.map((notification) => (
+          {notifications.map((notification) => {
+            const listingHref = getNotificationListingHref(notification);
+            return (
             <div
               key={notification.id}
               className={`
@@ -323,13 +341,15 @@ export default function NotificationsClient() {
                             View moment
                           </Link>
                         ) : null}
-                        <Link
-                          href={`/listing/${notification.listingId}`}
-                          className="text-blue-600 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          View listing
-                        </Link>
+                        {listingHref ? (
+                          <Link
+                            href={listingHref}
+                            className="text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View listing
+                          </Link>
+                        ) : null}
                       </>
                     )}
                   </div>
@@ -348,10 +368,10 @@ export default function NotificationsClient() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
-

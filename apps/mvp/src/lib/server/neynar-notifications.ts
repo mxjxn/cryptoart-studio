@@ -10,11 +10,34 @@
  * 3. Deduplication - Prevents duplicate notifications in the same batch
  */
 
+import {
+  explicitListingDetailPathFromChainInfo,
+} from "~/lib/listing-chain-paths";
+
 interface PushNotificationOptions {
   type?: string;
   listingId?: string;
   metadata?: Record<string, any>;
   targetUrl?: string;
+}
+
+function getDefaultNotificationBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+}
+
+function getDefaultListingTargetUrl(
+  listingId: string,
+  metadata?: Record<string, any>
+): string {
+  return `${getDefaultNotificationBaseUrl()}${explicitListingDetailPathFromChainInfo(
+    listingId,
+    {
+      chainId: metadata?.chainId,
+      chainSlug: metadata?.chainSlug ?? metadata?.chain,
+      chainName: metadata?.chainName,
+      network: metadata?.network,
+    }
+  )}`;
 }
 
 // Batch queue for notifications
@@ -331,8 +354,8 @@ export async function sendPushNotification(
   if (neynarEnabled) {
     // Using Neynar managed service - use their API
     const targetUrl = options?.targetUrl || 
-      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
-       `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}`);
+      (options?.listingId ? getDefaultListingTargetUrl(options.listingId, options?.metadata) : 
+       `${getDefaultNotificationBaseUrl()}`);
     
     // Use the queue system for batched sending
     await queuePushNotification(fid, title, message, targetUrl, options?.metadata);
@@ -354,8 +377,8 @@ export async function sendPushNotification(
     
     const token = tokens[0];
     const targetUrl = options?.targetUrl || 
-      (options?.listingId ? `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/listing/${options.listingId}` : 
-       `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/notifications`);
+      (options?.listingId ? getDefaultListingTargetUrl(options.listingId, options?.metadata) : 
+       `${getDefaultNotificationBaseUrl()}/notifications`);
     
     const notificationId = `${options?.type || 'notification'}-${Date.now()}-${fid}`;
     
