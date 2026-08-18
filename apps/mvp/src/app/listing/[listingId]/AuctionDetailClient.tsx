@@ -26,6 +26,7 @@ import { MetadataViewer } from "~/components/MetadataViewer";
 import { ContractDetails } from "~/components/ContractDetails";
 import { BuyersList } from "~/components/BuyersList";
 import { ListingThemeEditor } from "~/components/ListingThemeEditor";
+import { TransactionModal } from "~/components/TransactionModal";
 import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
 import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
@@ -184,6 +185,8 @@ export default function AuctionDetailClient({
     acceptError,
     bidError,
     approveError,
+    bidHash,
+    isBidConfirmed,
     setBuildingTimedOut,
     setPageStatus,
     loading,
@@ -221,6 +224,23 @@ export default function AuctionDetailClient({
     actionErrorScope === "bid" || actionErrorScope === "network"
       ? actionErrorMessage
       : null;
+
+  // Bid transaction modal state
+  const [isBidTxModalOpen, setIsBidTxModalOpen] = useState(false);
+
+  // Compute a unified error for the bid modal (wagmi error takes priority, then inline error)
+  const bidModalError: Error | null = bidError
+    ? (bidError instanceof Error ? bidError : new Error(String(bidError)))
+    : bidInlineErrorMessage
+    ? new Error(bidInlineErrorMessage)
+    : null;
+
+  // Auto-open the modal when a bid transaction is in progress or has an error
+  useEffect(() => {
+    if (isBidding || isConfirmingBid || isBidConfirmed || bidError || bidInlineErrorMessage) {
+      setIsBidTxModalOpen(true);
+    }
+  }, [isBidding, isConfirmingBid, isBidConfirmed, bidError, bidInlineErrorMessage]);
   const updateInlineErrorMessage =
     actionErrorScope === "update"
       ? actionErrorMessage
@@ -383,6 +403,19 @@ export default function AuctionDetailClient({
       className="listing-detail-page min-h-screen w-full overflow-x-hidden animate-in fade-in duration-100"
       style={listingShellStyle}
     >
+      <TransactionModal
+        isOpen={isBidTxModalOpen}
+        onClose={() => setIsBidTxModalOpen(false)}
+        isPending={isBidding}
+        isConfirming={isConfirmingBid}
+        isSuccess={isBidConfirmed && !isBidding && !isConfirmingBid}
+        error={isBidding || isConfirmingBid ? null : bidModalError}
+        amount={bidAmount}
+        symbol={paymentSymbol}
+        action="bid"
+        transactionHash={bidHash}
+        chainId={marketplaceReadChainId}
+      />
       <Suspense fallback={null}>
         <ReferralReader onRef={handleRef} />
       </Suspense>
