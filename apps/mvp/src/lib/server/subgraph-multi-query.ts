@@ -1,8 +1,9 @@
-import { request } from "graphql-request";
 import {
   BASE_CHAIN_ID,
   getConfiguredSubgraphEndpoints,
 } from "~/lib/server/subgraph-endpoints";
+
+const SUBGRAPH_REQUEST_TIMEOUT_MS = 5_000;
 
 export function listingsSubgraphHeaders(): Record<string, string> {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY;
@@ -47,6 +48,61 @@ export async function retrySubgraphRequest<T>(
   }
 
   throw lastError;
+}
+
+type GraphQLResponse<T> = {
+  data?: T;
+  errors?: Array<{ message?: string }>;
+};
+
+async function requestListingsQuery<T>(
+  url: string,
+  document: string,
+  variables: Record<string, unknown>,
+  headers: Record<string, string>
+): Promise<T> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify({
+        query: document,
+        variables,
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(SUBGRAPH_REQUEST_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      throw new Error(`BadResponse ${response.status} ${response.statusText}`);
+    }
+
+    const payload = (await response.json()) as GraphQLResponse<T>;
+    if (payload.errors?.length) {
+      throw new Error(
+        payload.errors
+          .map((error) => error.message || "Unknown GraphQL error")
+          .join("; ")
+      );
+    }
+
+    if (payload.data === undefined) {
+      throw new Error("Empty GraphQL response");
+    }
+
+    return payload.data;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === "AbortError" || error.name === "TimeoutError")
+    ) {
+      throw new Error(`Subgraph request timeout after ${SUBGRAPH_REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  }
 }
 
 /** Ensure `chainId` is set when the subgraph row omits it (use deployment chain). */
@@ -139,7 +195,7 @@ export async function queryListingsAcrossChains(
   const settled = await Promise.allSettled(
     endpoints.map((ep) =>
       retrySubgraphRequest(() =>
-        request<ListingsQueryRow>(ep.url, document, variables, headers)
+        requestListingsQuery<ListingsQueryRow>(ep.url, document, variables, headers)
       )
     )
   );

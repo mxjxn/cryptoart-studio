@@ -1,9 +1,9 @@
 import { Metadata } from "next";
 import { APP_NAME } from "~/lib/constants";
 import { browseListings } from "~/lib/server/browse-listings";
-import { resolveMarketSections } from "~/lib/server/homepage-layout";
 import { splitMarketHero } from "~/lib/market-layout";
 import type { MarketBrowseMode } from "~/lib/market-visibility";
+import { getMarketLayoutSections } from "~/lib/server/market-layout-snapshot";
 import MarketClient, { type MarketInitialPayload } from "./MarketClient";
 
 export const metadata: Metadata = {
@@ -29,7 +29,7 @@ async function getInitialPayload(marketMode: MarketBrowseMode): Promise<MarketIn
       enrich: true,
       marketBrowseMode: marketMode,
     }),
-    resolveMarketSections(false),
+    getMarketLayoutSections(),
   ]);
 
   const { hero, sections } = splitMarketHero(sectionsResolved);
