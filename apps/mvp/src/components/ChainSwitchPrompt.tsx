@@ -2,7 +2,6 @@
 
 import { base, mainnet } from "wagmi/chains";
 import { useNetworkGuard } from "~/hooks/useNetworkGuard";
-import { useAuthMode } from "~/hooks/useAuthMode";
 
 interface ChainSwitchPromptProps {
   /** Whether to show the prompt */
@@ -13,6 +12,8 @@ interface ChainSwitchPromptProps {
   requiredChainId?: number;
   /** Display name for the target chain (e.g. "Base", "Ethereum"). */
   targetNetworkLabel?: string;
+  /** Optional browser fallback for miniapp wallets that cannot switch. */
+  onOpenInBrowser?: () => void;
 }
 
 /**
@@ -23,6 +24,7 @@ export function ChainSwitchPrompt({
   onDismiss,
   requiredChainId,
   targetNetworkLabel,
+  onOpenInBrowser,
 }: ChainSwitchPromptProps) {
   const resolvedChainId = requiredChainId ?? base.id;
   const label =
@@ -31,9 +33,8 @@ export function ChainSwitchPrompt({
   const { switchToRequiredChain, isSwitching } = useNetworkGuard({
     requiredChainId: resolvedChainId,
   });
-  const { isMiniApp } = useAuthMode();
 
-  if (!show || isMiniApp) {
+  if (!show) {
     return null;
   }
 
@@ -55,8 +56,16 @@ export function ChainSwitchPrompt({
               disabled={isSwitching}
               className="px-3 py-1.5 text-xs font-medium text-white bg-black rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isSwitching ? "Switching..." : "Switch"}
+              {isSwitching ? `Switching to ${label}...` : "Switch"}
             </button>
+            {onOpenInBrowser && (
+              <button
+                onClick={onOpenInBrowser}
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900 transition-colors"
+              >
+                Open in browser
+              </button>
+            )}
             {onDismiss && (
               <button
                 onClick={onDismiss}
@@ -84,4 +93,3 @@ export function ChainSwitchPrompt({
     </div>
   );
 }
-

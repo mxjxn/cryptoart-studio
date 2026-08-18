@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
 import { useAuctionDetail } from "~/hooks/useAuctionDetail";
 import { useArtistName } from "~/hooks/useArtistName";
@@ -28,6 +29,7 @@ import { ListingThemeEditor } from "~/components/ListingThemeEditor";
 import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
 import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
+import { getActionableWalletErrorMessage } from "~/lib/wallet-error-utils";
 
 interface AuctionDetailClientProps {
   listingId: string;
@@ -145,6 +147,11 @@ export default function AuctionDetailClient({
     setShowUpdateForm,
     showChainSwitchPrompt,
     setShowChainSwitchPrompt,
+    isWrongNetwork,
+    isSwitchingNetwork,
+    switchNetworkError,
+    actionErrorMessage,
+    actionErrorScope,
     isPaymentETH,
     paymentSymbol,
     paymentDecimals,
@@ -181,6 +188,51 @@ export default function AuctionDetailClient({
     setPageStatus,
     loading,
   } = useAuctionDetail({ listingId, listingApiChainId, referralAddress });
+
+  const openInBrowser = useCallback(async () => {
+    const url =
+      typeof window !== "undefined"
+        ? window.location.href
+        : `https://such.gallery/listing/${listingId}`;
+
+    try {
+      if (actions?.openUrl) {
+        await actions.openUrl(url);
+        return;
+      }
+
+      if (typeof sdk.actions.openUrl === "function") {
+        await sdk.actions.openUrl(url);
+        return;
+      }
+    } catch (error) {
+      console.error("[AuctionDetailClient] Failed to open browser fallback:", error);
+    }
+
+    if (typeof window !== "undefined") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, [actions, listingId]);
+
+  const targetNetworkLabel = isExplicitEthereumListing ? "Ethereum" : "Base";
+  const showMiniAppMainnetBrowserFallback =
+    isMiniApp && isExplicitEthereumListing && (isWrongNetwork || !!switchNetworkError);
+  const bidInlineErrorMessage =
+    actionErrorScope === "bid" || actionErrorScope === "network"
+      ? actionErrorMessage
+      : null;
+  const updateInlineErrorMessage =
+    actionErrorScope === "update"
+      ? actionErrorMessage
+      : actionErrorScope === null
+        ? modifyError
+          ? getActionableWalletErrorMessage(
+              modifyError,
+              "Failed to update listing.",
+              targetNetworkLabel
+            )
+          : null
+        : null;
 
   if (pageState === "ambiguous") {
     return (
@@ -662,9 +714,9 @@ export default function AuctionDetailClient({
               listingType={auction.listingType}
               hideCancel={isAtRiskListing}
             />
-            {modifyError && (
+            {updateInlineErrorMessage && (
               <p className="text-xs text-red-400 mt-2">
-                {modifyError.message || "Failed to update listing"}
+                {updateInlineErrorMessage}
               </p>
             )}
           </div>
@@ -813,9 +865,9 @@ export default function AuctionDetailClient({
               onSubmit={handleFix180DayDuration}
               isLoading={isModifyLoading}
             />
-            {modifyError && (
+            {updateInlineErrorMessage && (
               <p className="text-xs text-red-400 mt-2">
-                {modifyError.message || "Failed to fix duration"}
+                {updateInlineErrorMessage}
               </p>
             )}
           </div>
@@ -901,6 +953,13 @@ export default function AuctionDetailClient({
                   
                   return (
                     <div className="space-y-3">
+                      {isWrongNetwork && (
+                        <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-900">
+                          {isSwitchingNetwork
+                            ? `Switching to ${targetNetworkLabel}...`
+                            : `Please switch to ${targetNetworkLabel} to place a bid.`}
+                        </div>
+                      )}
                       <div>
                         <label htmlFor="bid-amount-input" className="sr-only">
                           Bid amount in {paymentSymbol}
@@ -925,12 +984,28 @@ export default function AuctionDetailClient({
                       </div>
                       <button
                         onClick={handleBid}
-                        disabled={isBidding || isConfirmingBid}
+                        disabled={isBidding || isConfirmingBid || isSwitchingNetwork}
                         className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label={`Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                       >
-                        {isBidding || isConfirmingBid ? "Processing..." : "Place Bid"}
+                        {isSwitchingNetwork
+                          ? `Switching to ${targetNetworkLabel}...`
+                          : isBidding || isConfirmingBid
+                          ? "Processing..."
+                          : "Place Bid"}
                       </button>
+                      {bidInlineErrorMessage && (
+                        <p className="text-xs text-red-400">{bidInlineErrorMessage}</p>
+                      )}
+                      {showMiniAppMainnetBrowserFallback && (
+                        <button
+                          type="button"
+                          onClick={openInBrowser}
+                          className="w-full text-left text-xs text-neutral-600 underline underline-offset-2 hover:text-neutral-900"
+                        >
+                          Open in browser if Farcaster won&apos;t switch to Ethereum
+                        </button>
+                      )}
                     </div>
                   );
                 })()}
@@ -1611,7 +1686,8 @@ export default function AuctionDetailClient({
         show={showChainSwitchPrompt}
         onDismiss={() => setShowChainSwitchPrompt(false)}
         requiredChainId={marketplaceReadChainId}
-        targetNetworkLabel={isExplicitEthereumListing ? "Ethereum" : "Base"}
+        targetNetworkLabel={targetNetworkLabel}
+        onOpenInBrowser={showMiniAppMainnetBrowserFallback ? openInBrowser : undefined}
       />
     </div>
   );
