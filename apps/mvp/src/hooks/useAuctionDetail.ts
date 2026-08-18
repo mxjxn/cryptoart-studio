@@ -1292,17 +1292,6 @@ export function useAuctionDetail({
             `Please switch to ${targetNetworkLabel} to continue.`,
             isMiniApp && isExplicitEthereumListing
           );
-          Promise.resolve()
-            .then(() => switchToRequiredChain())
-            .catch((switchErr) => {
-              console.error('[AuctionDetail] Error switching chain:', switchErr);
-              setActionError(
-                getChainSwitchErrorScope(error),
-                switchErr,
-                `Please switch to ${targetNetworkLabel} to continue.`,
-                isMiniApp && isExplicitEthereumListing
-              );
-            });
           break;
         }
       }
@@ -1320,7 +1309,6 @@ export function useAuctionDetail({
     isExplicitEthereumListing,
     getChainSwitchErrorScope,
     setActionError,
-    switchToRequiredChain,
     targetNetworkLabel,
   ]);
 

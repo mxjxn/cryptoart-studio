@@ -221,9 +221,11 @@ export default function AuctionDetailClient({
       ? actionErrorMessage
       : null;
   const updateInlineErrorMessage =
-    (actionErrorScope === "update" ? actionErrorMessage : null) ??
-    modifyError?.message ??
-    null;
+    actionErrorScope === "update"
+      ? actionErrorMessage
+      : actionErrorScope == null
+        ? modifyError?.message ?? null
+        : null;
 
   if (pageState === "ambiguous") {
     return (
