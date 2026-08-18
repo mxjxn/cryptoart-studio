@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { type Address } from "viem";
@@ -227,6 +227,8 @@ export default function AuctionDetailClient({
 
   // Bid transaction modal state
   const [isBidTxModalOpen, setIsBidTxModalOpen] = useState(false);
+  // Track the bid hash that last opened the modal so we don't reopen after the user dismisses
+  const lastShownBidHashRef = useRef<string | null>(null);
 
   // Compute a unified error for the bid modal (wagmi error takes priority, then inline error)
   const bidModalError: Error | null = bidError
@@ -237,10 +239,14 @@ export default function AuctionDetailClient({
 
   // Auto-open the modal when a bid transaction is in progress or has an error
   useEffect(() => {
-    if (isBidding || isConfirmingBid || isBidConfirmed || bidError || bidInlineErrorMessage) {
+    if (isBidding || isConfirmingBid) {
+      setIsBidTxModalOpen(true);
+    } else if (isBidConfirmed && bidHash && bidHash !== lastShownBidHashRef.current) {
+      setIsBidTxModalOpen(true);
+    } else if (bidError || bidInlineErrorMessage) {
       setIsBidTxModalOpen(true);
     }
-  }, [isBidding, isConfirmingBid, isBidConfirmed, bidError, bidInlineErrorMessage]);
+  }, [isBidding, isConfirmingBid, isBidConfirmed, bidHash, bidError, bidInlineErrorMessage]);
   const updateInlineErrorMessage =
     actionErrorScope === "update"
       ? actionErrorMessage
@@ -405,7 +411,10 @@ export default function AuctionDetailClient({
     >
       <TransactionModal
         isOpen={isBidTxModalOpen}
-        onClose={() => setIsBidTxModalOpen(false)}
+        onClose={() => {
+          if (bidHash) lastShownBidHashRef.current = bidHash;
+          setIsBidTxModalOpen(false);
+        }}
         isPending={isBidding}
         isConfirming={isConfirmingBid}
         isSuccess={isBidConfirmed && !isBidding && !isConfirmingBid}

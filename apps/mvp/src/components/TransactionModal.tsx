@@ -42,6 +42,8 @@ export function TransactionModal({
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Fallback: nothing to do if clipboard is unavailable
     });
   };
 

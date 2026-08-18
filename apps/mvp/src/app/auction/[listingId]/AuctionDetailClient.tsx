@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
@@ -110,6 +110,7 @@ export default function AuctionDetailClient({
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [isBidTxModalOpen, setIsBidTxModalOpen] = useState(false);
   const [catchBidError, setCatchBidError] = useState<Error | null>(null);
+  const lastShownBidHashRef = useRef<string | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -986,10 +987,14 @@ export default function AuctionDetailClient({
 
   // Auto-open bid tx modal when bid is in progress or has a wagmi error
   useEffect(() => {
-    if (isBidding || isConfirmingBid || isBidConfirmed || bidError) {
+    if (isBidding || isConfirmingBid) {
+      setIsBidTxModalOpen(true);
+    } else if (isBidConfirmed && bidHash && bidHash !== lastShownBidHashRef.current) {
+      setIsBidTxModalOpen(true);
+    } else if (bidError) {
       setIsBidTxModalOpen(true);
     }
-  }, [isBidding, isConfirmingBid, isBidConfirmed, bidError]);
+  }, [isBidding, isConfirmingBid, isBidConfirmed, bidHash, bidError]);
 
   // Redirect after successful cancellation
   useEffect(() => {
@@ -1380,7 +1385,11 @@ export default function AuctionDetailClient({
       {/* Bid Transaction Modal */}
       <TransactionModal
         isOpen={isBidTxModalOpen}
-        onClose={() => { setIsBidTxModalOpen(false); setCatchBidError(null); }}
+        onClose={() => {
+          if (bidHash) lastShownBidHashRef.current = bidHash;
+          setIsBidTxModalOpen(false);
+          setCatchBidError(null);
+        }}
         isPending={isBidding}
         isConfirming={isConfirmingBid}
         isSuccess={isBidConfirmed && !isBidding && !isConfirmingBid}
