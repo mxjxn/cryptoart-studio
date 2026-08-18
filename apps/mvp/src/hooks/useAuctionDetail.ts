@@ -580,6 +580,7 @@ export function useAuctionDetail({
 
   const lastProcessedBidHash = useRef<string | null>(null);
   const lastAutoSwitchAttemptKey = useRef<string | null>(null);
+  const lastProcessedSwitchNetworkError = useRef<Error | null>(null);
 
   const setActionError = useCallback((
     scope: "bid" | "update" | "network",
@@ -1259,9 +1260,15 @@ export function useAuctionDetail({
 
   useEffect(() => {
     if (!switchNetworkError) {
+      lastProcessedSwitchNetworkError.current = null;
       return;
     }
 
+    if (lastProcessedSwitchNetworkError.current === switchNetworkError) {
+      return;
+    }
+
+    lastProcessedSwitchNetworkError.current = switchNetworkError;
     setShowChainSwitchPrompt(true);
     setActionError(
       "network",
