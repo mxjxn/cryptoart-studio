@@ -46,8 +46,8 @@ export function normalizeSupportedListingChainId(
     const trimmed = raw.trim();
     if (trimmed === "") return null;
 
-    const parsed = parseInt(trimmed, 10);
-    if (Number.isFinite(parsed)) {
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = Number(trimmed);
       return ALLOWED_LISTING_CHAIN_IDS.has(parsed as SupportedListingChainId)
         ? (parsed as SupportedListingChainId)
         : null;
@@ -96,6 +96,21 @@ export function canonicalListingDetailPath(chainId: number, listingId: string): 
 export function explicitListingDetailPath(chainId: number, listingId: string): string {
   const slug = chainIdToListingChainSlug(chainId);
   return slug ? `/listing/${slug}/${listingId}` : `/listing/${listingId}`;
+}
+
+export function explicitListingDetailPathFromChainInfo(
+  listingId: string,
+  options: {
+    chainId?: unknown;
+    chainSlug?: unknown;
+    chainName?: unknown;
+    network?: unknown;
+  }
+): string {
+  const chainId = deriveSupportedListingChainId(options);
+  return chainId != null
+    ? explicitListingDetailPath(chainId, listingId)
+    : `/listing/${listingId}`;
 }
 
 /** Parse `?chainId=` from listing URLs (legacy market links, shared links). */

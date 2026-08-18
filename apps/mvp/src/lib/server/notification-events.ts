@@ -15,7 +15,7 @@ const getSubgraphHeaders = (): Record<string, string> => {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY;
   if (apiKey) {
     return {
-      Authorization: `${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     };
   }
   return {};
@@ -25,8 +25,8 @@ function withListingChainMetadata(
   metadata: Record<string, unknown>
 ): Record<string, unknown> {
   return {
-    chainId: BASE_CHAIN_ID,
     ...metadata,
+    chainId: BASE_CHAIN_ID,
   };
 }
 

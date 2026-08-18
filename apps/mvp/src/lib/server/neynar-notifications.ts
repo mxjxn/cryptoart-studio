@@ -11,8 +11,7 @@
  */
 
 import {
-  deriveSupportedListingChainId,
-  explicitListingDetailPath,
+  explicitListingDetailPathFromChainInfo,
 } from "~/lib/listing-chain-paths";
 
 interface PushNotificationOptions {
@@ -30,17 +29,15 @@ function getDefaultListingTargetUrl(
   listingId: string,
   metadata?: Record<string, any>
 ): string {
-  const resolvedChainId = deriveSupportedListingChainId({
-    chainId: metadata?.chainId,
-    chainSlug: metadata?.chainSlug ?? metadata?.chain,
-    chainName: metadata?.chainName,
-    network: metadata?.network,
-  });
-  const path =
-    resolvedChainId != null
-      ? explicitListingDetailPath(resolvedChainId, listingId)
-      : `/listing/${listingId}`;
-  return `${getDefaultNotificationBaseUrl()}${path}`;
+  return `${getDefaultNotificationBaseUrl()}${explicitListingDetailPathFromChainInfo(
+    listingId,
+    {
+      chainId: metadata?.chainId,
+      chainSlug: metadata?.chainSlug ?? metadata?.chain,
+      chainName: metadata?.chainName,
+      network: metadata?.network,
+    }
+  )}`;
 }
 
 // Batch queue for notifications

@@ -8,8 +8,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import type { NotificationType } from '@cryptoart/db';
 import {
-  deriveSupportedListingChainId,
-  explicitListingDetailPath,
+  explicitListingDetailPathFromChainInfo,
 } from "~/lib/listing-chain-paths";
 // Simple date formatting function (can be replaced with date-fns if needed)
 function formatTimeAgo(date: Date): string {
@@ -49,15 +48,12 @@ function getNotificationListingHref(notification: {
   metadata?: Record<string, any> | null;
 }): string | null {
   if (!notification.listingId) return null;
-  const chainId = deriveSupportedListingChainId({
+  return explicitListingDetailPathFromChainInfo(notification.listingId, {
     chainId: notification.metadata?.chainId,
     chainSlug: notification.metadata?.chainSlug ?? notification.metadata?.chain,
     chainName: notification.metadata?.chainName,
     network: notification.metadata?.network,
   });
-  return chainId != null
-    ? explicitListingDetailPath(chainId, notification.listingId)
-    : `/listing/${notification.listingId}`;
 }
 
 export default function NotificationsClient() {

@@ -19,7 +19,7 @@ import { getUserFromCache } from './user-cache';
 import { lookupNeynarByAddress } from '~/lib/artist-name-resolution';
 import {
   deriveSupportedListingChainId,
-  explicitListingDetailPath,
+  explicitListingDetailPathFromChainInfo,
 } from "~/lib/listing-chain-paths";
 
 function getNotificationBaseUrl(): string {
@@ -28,22 +28,12 @@ function getNotificationBaseUrl(): string {
 
 function buildListingNotificationTargetUrl(
   listingId: string,
-  options?: {
-    chainId?: number;
-    metadata?: Record<string, any> | null;
-  }
+  chainId?: number | null
 ): string {
-  const resolvedChainId = deriveSupportedListingChainId({
-    chainId: options?.chainId,
-    chainSlug: options?.metadata?.chainSlug ?? options?.metadata?.chain,
-    chainName: options?.metadata?.chainName,
-    network: options?.metadata?.network,
-  });
-  const path =
-    resolvedChainId != null
-      ? explicitListingDetailPath(resolvedChainId, listingId)
-      : `/listing/${listingId}`;
-  return `${getNotificationBaseUrl()}${path}`;
+  return `${getNotificationBaseUrl()}${explicitListingDetailPathFromChainInfo(
+    listingId,
+    { chainId }
+  )}`;
 }
 
 /**
@@ -349,10 +339,10 @@ export async function createNotification(
     try {
       // Build target URL for the notification
       const targetUrl = options?.listingId 
-        ? buildListingNotificationTargetUrl(options.listingId, {
-            chainId: resolvedListingChainId ?? undefined,
-            metadata: notificationMetadata,
-          })
+        ? buildListingNotificationTargetUrl(
+            options.listingId,
+            resolvedListingChainId
+          )
         : `${getNotificationBaseUrl()}/notifications`;
       
       await sendPushNotification(userAddress, fid, title, message, {
