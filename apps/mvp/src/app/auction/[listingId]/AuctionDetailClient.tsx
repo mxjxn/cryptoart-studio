@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient, useChainId } from "wagmi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuction } from "~/hooks/useAuction";
@@ -18,6 +18,7 @@ import { Logo } from "~/components/Logo";
 import { ImageOverlay } from "~/components/ImageOverlay";
 import { ChainSwitchPrompt } from "~/components/ChainSwitchPrompt";
 import { TxStateCard } from "~/components/TxStateCard";
+import { TransactionModal } from "~/components/TransactionModal";
 import { AuctionSkeleton } from "~/components/AuctionSkeleton";
 import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
 import { useAuthMode } from "~/hooks/useAuthMode";
@@ -107,6 +108,9 @@ export default function AuctionDetailClient({
   const [outbidData, setOutbidData] = useState<{ currentBid?: string; artworkName?: string } | null>(null);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(false);
+  const [isBidTxModalOpen, setIsBidTxModalOpen] = useState(false);
+  const [catchBidError, setCatchBidError] = useState<Error | null>(null);
+  const lastShownBidHashRef = useRef<string | null>(null);
 
   // Get referrerBPS from contract to check if listing supports referrers
   const { data: listingData } = useReadContract({
@@ -488,7 +492,8 @@ export default function AuctionDetailClient({
         }
         return;
       }
-      alert("Failed to place bid. Please try again.");
+      setCatchBidError(err instanceof Error ? err : new Error(err?.message || String(err)));
+      setIsBidTxModalOpen(true);
     }
   };
 
@@ -980,6 +985,17 @@ export default function AuctionDetailClient({
     }
   }, [cancelError, finalizeError, purchaseError, offerError, acceptError, bidError, approveError, isMiniApp, switchToBase]);
 
+  // Auto-open bid tx modal when bid is in progress or has a wagmi error
+  useEffect(() => {
+    if (isBidding || isConfirmingBid) {
+      setIsBidTxModalOpen(true);
+    } else if (isBidConfirmed && bidHash && bidHash !== lastShownBidHashRef.current) {
+      setIsBidTxModalOpen(true);
+    } else if (bidError) {
+      setIsBidTxModalOpen(true);
+    }
+  }, [isBidding, isConfirmingBid, isBidConfirmed, bidHash, bidError]);
+
   // Redirect after successful cancellation
   useEffect(() => {
     if (isCancelConfirmed) {
@@ -1364,6 +1380,29 @@ export default function AuctionDetailClient({
         error={finalizeError}
         hash={finalizeHash}
         onDismiss={() => {}} // Optional: allow dismissing
+      />
+
+      {/* Bid Transaction Modal */}
+      <TransactionModal
+        isOpen={isBidTxModalOpen}
+        onClose={() => {
+          if (bidHash) lastShownBidHashRef.current = bidHash;
+          setIsBidTxModalOpen(false);
+          setCatchBidError(null);
+        }}
+        isPending={isBidding}
+        isConfirming={isConfirmingBid}
+        isSuccess={isBidConfirmed && !isBidding && !isConfirmingBid}
+        error={isBidding || isConfirmingBid ? null : (
+          bidError
+            ? (bidError instanceof Error ? bidError : new Error(String(bidError)))
+            : catchBidError
+        )}
+        amount={bidAmount}
+        symbol={paymentSymbol}
+        action="bid"
+        transactionHash={bidHash}
+        chainId={CHAIN_ID}
       />
 
       {/* Show skeleton if finalized */}

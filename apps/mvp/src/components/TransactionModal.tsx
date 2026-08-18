@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuthMode } from "~/hooks/useAuthMode";
 import { getBaseScanUrl, getExplorerName } from "~/lib/utils";
-import { X } from "lucide-react";
+import { X, Copy, Check } from "lucide-react";
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -34,6 +34,18 @@ export function TransactionModal({
   chainId,
 }: TransactionModalProps) {
   const { isMiniApp } = useAuthMode();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyError = () => {
+    if (!error) return;
+    const text = error.message || String(error);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Fallback: nothing to do if clipboard is unavailable
+    });
+  };
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -207,9 +219,31 @@ export function TransactionModal({
             <h2 className="text-xl font-light text-white mb-2">
               Transaction failed
             </h2>
-            <p className="text-sm text-red-400 mb-4">
+            <p className="text-sm text-red-400 mb-4 break-words">
               {error.message || "Something went wrong. Please try again."}
             </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={handleCopyError}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#2a2a2a] border border-[#444] text-white text-sm rounded hover:bg-[#333] transition-colors"
+                aria-label="Copy error message"
+              >
+                {copied ? (
+                  <><Check className="w-4 h-4 text-green-400" /> Copied</>
+                ) : (
+                  <><Copy className="w-4 h-4" /> Copy Error</>
+                )}
+              </button>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-white text-black text-sm rounded hover:bg-[#e0e0e0] transition-colors"
+                  aria-label="Close error modal"
+                >
+                  Close
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
