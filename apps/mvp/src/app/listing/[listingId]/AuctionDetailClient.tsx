@@ -217,11 +217,9 @@ export default function AuctionDetailClient({
   const showMiniAppMainnetBrowserFallback =
     isMiniApp && isExplicitEthereumListing && (isWrongNetwork || !!switchNetworkError);
   const bidInlineErrorMessage =
-    actionErrorScope === "update"
-      ? null
-      : actionErrorScope === "bid" || actionErrorScope === "network"
-        ? actionErrorMessage
-        : approveError?.message ?? bidError?.message ?? null;
+    actionErrorScope === "bid" || actionErrorScope === "network"
+      ? actionErrorMessage
+      : null;
   const updateInlineErrorMessage =
     (actionErrorScope === "update" ? actionErrorMessage : null) ??
     modifyError?.message ??

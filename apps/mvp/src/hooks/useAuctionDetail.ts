@@ -1162,7 +1162,7 @@ export function useAuctionDetail({
       });
     } catch (error: any) {
       console.error('[Fix180DayDuration] Error updating listing:', error);
-      setActionError("update", error, getErrorMessage(error, "Failed to fix duration."));
+      setActionError("update", error, "Failed to fix duration.");
     }
   };
 
