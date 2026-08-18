@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { EnrichedAuctionData } from "~/lib/types";
 import { getAuction } from "~/lib/subgraph";
 import {
@@ -24,6 +24,8 @@ function normalizeAmbiguousChains(chains: number[]): number[] {
 
 /** Server returned 504 — listing may exist; do not treat as 404. */
 export const AUCTION_FETCH_TIMEOUT = "CRYPTOART_AUCTION_FETCH_TIMEOUT";
+const MAINNET_ACTIVE_POLL_MS = 8_000;
+const DEFAULT_ACTIVE_POLL_MS = 12_000;
 
 export type UseAuctionOptions = {
   /**
@@ -46,7 +48,7 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
   const [ambiguousChains, setAmbiguousChains] = useState<number[] | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchAuction = async (forceRefresh = false) => {
+  const fetchAuction = useCallback(async (forceRefresh = false) => {
     if (!listingId) return;
 
     const reqKey = auctionRequestKey(listingId, chainIdOpt);
@@ -149,7 +151,7 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
       inFlightRequests.delete(auctionRequestKey(listingId, chainIdOpt));
       setLoading(false);
     }
-  };
+  }, [listingId, chainIdOpt, initialFresh]);
 
   useEffect(() => {
     initialFreshConsumed.current = false;
@@ -165,20 +167,76 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
       return;
     }
 
-    fetchAuction();
-  }, [listingId, refreshKey, chainIdOpt]);
+    void fetchAuction();
+  }, [listingId, refreshKey, chainIdOpt, fetchAuction]);
 
-  const refetch = (forceRefresh = true) => {
+  const refetch = useCallback((forceRefresh = true) => {
     if (forceRefresh) {
-      fetchAuction(true);
+      void fetchAuction(true);
     } else {
       setRefreshKey((prev) => prev + 1);
     }
-  };
+  }, [fetchAuction]);
 
-  const updateAuction = (updater: (prev: EnrichedAuctionData | null) => EnrichedAuctionData | null) => {
+  const updateAuction = useCallback((updater: (prev: EnrichedAuctionData | null) => EnrichedAuctionData | null) => {
     setAuction((prev) => updater(prev));
-  };
+  }, []);
+
+  const auctionStatus = auction?.status;
+  const auctionChainId = auction?.chainId;
+
+  useEffect(() => {
+    if (!listingId || auctionStatus !== "ACTIVE") return;
+    let stopped = false;
+    let inFlight = false;
+    const pollMs =
+      auctionChainId === ETHEREUM_MAINNET_CHAIN_ID
+        ? MAINNET_ACTIVE_POLL_MS
+        : DEFAULT_ACTIVE_POLL_MS;
+
+    const poll = async () => {
+      if (stopped || inFlight) return;
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+
+      inFlight = true;
+      try {
+        await fetchAuction(true);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = setInterval(() => {
+      void poll();
+    }, pollMs);
+    void poll();
+
+    const onVisibilityChange = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        void poll();
+      }
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    };
+  }, [listingId, auctionStatus, auctionChainId, fetchAuction]);
 
   return { auction, loading, error, ambiguousChains, refetch, updateAuction };
 }
