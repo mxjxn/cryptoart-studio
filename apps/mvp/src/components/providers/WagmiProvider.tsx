@@ -107,33 +107,40 @@ function MiniAppAutoConnect({ children }: { children: React.ReactNode }) {
     if (hasAttemptedConnect || isConnected) return;
 
     async function autoConnect() {
-      let connectorFound = false;
+      let shouldMarkAttempted = false;
       try {
         const isMiniApp = await sdk.isInMiniApp();
-        if (isMiniApp) {
-          // Match on rdns, type, or id — display strings like name/id aliases are unstable
-          const farcasterConnector = connectors.find(
-            (c) =>
-              (c as { rdns?: string }).rdns === 'xyz.farcaster.MiniAppWallet' ||
-              c.type === 'farcasterMiniApp' ||
-              c.id === 'farcaster'
-          );
+        if (!isMiniApp) {
+          // Not a mini-app context — no need to retry
+          shouldMarkAttempted = true;
+          return;
+        }
 
-          if (farcasterConnector) {
-            connectorFound = true;
-            console.log('[MiniAppAutoConnect] Auto-connecting Farcaster wallet in mini-app context');
-            connect({ connector: farcasterConnector });
-          } else {
-            console.warn('[MiniAppAutoConnect] Farcaster connector not found. Available connectors:', connectors.map((c) => ({ id: c.id, name: c.name, type: c.type })));
+        // Match on rdns, type, or id — display strings like name/id aliases are unstable
+        const farcasterConnector = connectors.find(
+          (c) =>
+            (c as { rdns?: string }).rdns === 'xyz.farcaster.MiniAppWallet' ||
+            c.type === 'farcasterMiniApp' ||
+            c.id === 'farcaster'
+        );
+
+        if (farcasterConnector) {
+          shouldMarkAttempted = true;
+          console.log('[MiniAppAutoConnect] Auto-connecting Farcaster wallet in mini-app context');
+          connect({ connector: farcasterConnector });
+        } else {
+          // Connectors may not be loaded yet — only suppress retry if the list is non-empty
+          // but the connector is confirmed absent.
+          if (connectors.length > 0) {
+            shouldMarkAttempted = true;
           }
+          console.warn('[MiniAppAutoConnect] Farcaster connector not found. Available connectors:', connectors.map((c) => ({ id: c.id, name: c.name, type: c.type })));
         }
       } catch (error) {
         console.error('[MiniAppAutoConnect] Error during auto-connect:', error);
+        shouldMarkAttempted = true;
       } finally {
-        // Only mark as attempted when we found (and tried) the connector, or when we are
-        // confirmed to not be in a mini-app context. This allows the effect to retry if
-        // connectors haven't loaded yet.
-        if (connectorFound || connectors.length > 0) {
+        if (shouldMarkAttempted) {
           setHasAttemptedConnect(true);
         }
       }
