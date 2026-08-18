@@ -29,6 +29,7 @@ import { ListingThemeEditor } from "~/components/ListingThemeEditor";
 import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
 import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
+import { getActionableWalletErrorMessage } from "~/lib/wallet-error-utils";
 
 interface AuctionDetailClientProps {
   listingId: string;
@@ -224,7 +225,13 @@ export default function AuctionDetailClient({
     actionErrorScope === "update"
       ? actionErrorMessage
       : actionErrorScope === null
-        ? modifyError?.message ?? null
+        ? modifyError
+          ? getActionableWalletErrorMessage(
+              modifyError,
+              "Failed to update listing.",
+              targetNetworkLabel
+            )
+          : null
         : null;
 
   if (pageState === "ambiguous") {

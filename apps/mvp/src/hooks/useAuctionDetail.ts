@@ -581,6 +581,7 @@ export function useAuctionDetail({
   const lastProcessedBidHash = useRef<string | null>(null);
   const lastAutoSwitchAttemptKey = useRef<string | null>(null);
   const lastProcessedSwitchNetworkError = useRef<Error | null>(null);
+  const isAutoSwitchInFlight = useRef(false);
 
   const setActionError = useCallback((
     scope: "bid" | "update" | "network",
@@ -1215,12 +1216,17 @@ export function useAuctionDetail({
       return;
     }
 
+    if (isAutoSwitchInFlight.current) {
+      return;
+    }
+
     const attemptKey = `${chainId ?? "unknown"}:${marketplaceReadChainId}`;
     if (lastAutoSwitchAttemptKey.current === attemptKey) {
       return;
     }
 
     lastAutoSwitchAttemptKey.current = attemptKey;
+    isAutoSwitchInFlight.current = true;
     setShowChainSwitchPrompt(true);
 
     Promise.resolve()
@@ -1233,6 +1239,9 @@ export function useAuctionDetail({
           `Please switch to ${targetNetworkLabel} to continue.`,
           isMiniApp && isExplicitEthereumListing
         );
+      })
+      .finally(() => {
+        isAutoSwitchInFlight.current = false;
       });
   }, [
     chainId,
@@ -1250,6 +1259,7 @@ export function useAuctionDetail({
   useEffect(() => {
     if (!isWrongNetwork) {
       lastAutoSwitchAttemptKey.current = null;
+      isAutoSwitchInFlight.current = false;
       if (actionErrorScope === "network") {
         setActionErrorMessage(null);
         setActionErrorScope(null);
