@@ -107,23 +107,35 @@ function MiniAppAutoConnect({ children }: { children: React.ReactNode }) {
     if (hasAttemptedConnect || isConnected) return;
 
     async function autoConnect() {
+      let connectorFound = false;
       try {
         const isMiniApp = await sdk.isInMiniApp();
         if (isMiniApp) {
-          // Find the farcasterFrame connector
+          // Match on rdns, type, or id — display strings like name/id aliases are unstable
           const farcasterConnector = connectors.find(
-            (c) => c.id === 'farcasterMiniApp' || c.name === 'Farcaster Frame'
+            (c) =>
+              (c as { rdns?: string }).rdns === 'xyz.farcaster.MiniAppWallet' ||
+              c.type === 'farcasterMiniApp' ||
+              c.id === 'farcaster'
           );
-          
+
           if (farcasterConnector) {
+            connectorFound = true;
             console.log('[MiniAppAutoConnect] Auto-connecting Farcaster wallet in mini-app context');
             connect({ connector: farcasterConnector });
+          } else {
+            console.warn('[MiniAppAutoConnect] Farcaster connector not found. Available connectors:', connectors.map((c) => ({ id: c.id, name: c.name, type: c.type })));
           }
         }
       } catch (error) {
         console.error('[MiniAppAutoConnect] Error during auto-connect:', error);
       } finally {
-        setHasAttemptedConnect(true);
+        // Only mark as attempted when we found (and tried) the connector, or when we are
+        // confirmed to not be in a mini-app context. This allows the effect to retry if
+        // connectors haven't loaded yet.
+        if (connectorFound || connectors.length > 0) {
+          setHasAttemptedConnect(true);
+        }
       }
     }
 
