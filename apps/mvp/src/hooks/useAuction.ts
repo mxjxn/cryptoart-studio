@@ -182,12 +182,15 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
     setAuction((prev) => updater(prev));
   }, []);
 
+  const auctionStatus = auction?.status;
+  const auctionChainId = auction?.chainId;
+
   useEffect(() => {
-    if (!listingId || !auction || auction.status !== "ACTIVE") return;
+    if (!listingId || auctionStatus !== "ACTIVE") return;
     let stopped = false;
     let inFlight = false;
     const pollMs =
-      auction.chainId === ETHEREUM_MAINNET_CHAIN_ID
+      auctionChainId === ETHEREUM_MAINNET_CHAIN_ID
         ? MAINNET_ACTIVE_POLL_MS
         : DEFAULT_ACTIVE_POLL_MS;
 
@@ -211,6 +214,7 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
     const interval = setInterval(() => {
       void poll();
     }, pollMs);
+    void poll();
 
     const onVisibilityChange = () => {
       if (
@@ -232,7 +236,7 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     };
-  }, [listingId, auction?.status, auction?.chainId, fetchAuction]);
+  }, [listingId, auctionStatus, auctionChainId, fetchAuction]);
 
   return { auction, loading, error, ambiguousChains, refetch, updateAuction };
 }

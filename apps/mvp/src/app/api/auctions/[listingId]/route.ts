@@ -30,17 +30,12 @@ export const maxDuration = 60;
  * Get headers for subgraph requests, including API key if available
  */
 const getSubgraphHeaders = (): Record<string, string> => {
-  const apiKey =
-    process.env.GRAPH_STUDIO_API_KEY ||
-    process.env.NEXT_PUBLIC_GRAPH_STUDIO_API_KEY;
+  const apiKey = process.env.GRAPH_STUDIO_API_KEY;
   if (apiKey) {
     return {
       Authorization: `Bearer ${apiKey}`,
     };
   }
-  console.warn(
-    "[auctions/:listingId] GRAPH_STUDIO_API_KEY not set; subgraph responses may be stale."
-  );
   return {};
 };
 
