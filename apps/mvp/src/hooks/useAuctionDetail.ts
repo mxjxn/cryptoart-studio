@@ -1296,6 +1296,12 @@ export function useAuctionDetail({
             .then(() => switchToRequiredChain())
             .catch((switchErr) => {
               console.error('[AuctionDetail] Error switching chain:', switchErr);
+              setActionError(
+                getChainSwitchErrorScope(error),
+                switchErr,
+                `Please switch to ${targetNetworkLabel} to continue.`,
+                isMiniApp && isExplicitEthereumListing
+              );
             });
           break;
         }
