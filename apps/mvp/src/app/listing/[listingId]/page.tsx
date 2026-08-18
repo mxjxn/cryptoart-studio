@@ -175,8 +175,11 @@ export default async function ListingPage({ params, searchParams }: ListingPageP
       }
     }
   } catch (e) {
-    if (!isAmbiguousListingError(e)) {
-      // Transient subgraph errors: fall through to client fetch.
+    if (isAmbiguousListingError(e)) {
+      // Listing exists on multiple chains — let the client render the chain picker.
+    } else {
+      // Transient subgraph error (network, timeout, etc.): log and fall through to client fetch.
+      console.warn(`[listing/${listingId}] resolveListingFromSubgraph failed, falling through to client:`, e);
     }
   }
 

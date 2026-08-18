@@ -32,12 +32,11 @@ export function useNetworkGuard(opts?: UseNetworkGuardOptions): NetworkGuardStat
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending, error } = useSwitchChain();
-  const { isMiniApp, isLoading: authModeLoading } = useAuthMode();
+  const { isLoading: authModeLoading } = useAuthMode();
 
   const isWrongNetwork =
     requiredChainId != null &&
     !authModeLoading &&
-    !isMiniApp &&
     isConnected &&
     chainId !== requiredChainId;
 

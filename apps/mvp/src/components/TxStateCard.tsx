@@ -10,6 +10,8 @@ interface TxStateCardProps {
   error?: Error | null;
   hash?: string;
   onDismiss?: () => void;
+  /** Chain where the transaction was submitted (1 = mainnet, 8453 = Base). Defaults to Base. */
+  chainId?: number;
 }
 
 export function TxStateCard({
@@ -19,6 +21,7 @@ export function TxStateCard({
   error,
   hash,
   onDismiss,
+  chainId,
 }: TxStateCardProps) {
   // Only show if there is some active state or error
   if (!isPending && !isConfirming && !isSuccess && !error) {
@@ -47,7 +50,7 @@ export function TxStateCard({
           {/* Optional subtext or link */}
           {(isConfirming || isSuccess) && hash && (
             <a
-              href={getBaseScanUrl(hash)}
+              href={getBaseScanUrl(hash, chainId)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-[10px] text-white/50 hover:text-white/80 transition-colors font-mono mt-0.5"

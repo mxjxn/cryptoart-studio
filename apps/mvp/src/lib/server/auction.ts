@@ -242,6 +242,8 @@ export function normalizeTokenSpec(
  * Resolve the listing entity from the subgraph only (no metadata, thumbnails, or RPC).
  * Used by page-status and as the first step of getAuctionServer.
  */
+const SUBGRAPH_RESOLVE_TIMEOUT_MS = 5000;
+
 export async function resolveListingFromSubgraph(
   listingId: string,
   chainIdFilter?: number
@@ -261,23 +263,31 @@ export async function resolveListingFromSubgraph(
 
   const settled = await Promise.allSettled(
     endpoints.map((ep) => {
-      if (isNumeric) {
-        return request<{ listings: any[] }>(
-          ep.url,
-          LISTING_BY_LISTING_ID_QUERY,
-          { listingId: listingIdNum },
-          headers
-        );
-      }
+      const requestPromise = isNumeric
+        ? request<{ listings: any[] }>(
+            ep.url,
+            LISTING_BY_LISTING_ID_QUERY,
+            { listingId: listingIdNum },
+            headers
+          )
+        : request<{ listing: any | null }>(
+            ep.url,
+            LISTING_BY_ID_QUERY,
+            { id: listingId },
+            headers
+          ).then((r) => ({
+            listings: r.listing ? [r.listing] : [],
+          }));
 
-      return request<{ listing: any | null }>(
-        ep.url,
-        LISTING_BY_ID_QUERY,
-        { id: listingId },
-        headers
-      ).then((r) => ({
-        listings: r.listing ? [r.listing] : [],
-      }));
+      return Promise.race([
+        requestPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Subgraph request timeout after ${SUBGRAPH_RESOLVE_TIMEOUT_MS}ms`)),
+            SUBGRAPH_RESOLVE_TIMEOUT_MS
+          )
+        ),
+      ]);
     })
   );
 

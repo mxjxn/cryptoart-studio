@@ -87,10 +87,43 @@ export function formatNumberWithCommas(num: number | string | bigint): string {
 }
 
 /**
- * Get BaseScan URL for a transaction hash
+ * Get explorer URL for a transaction hash, chain-aware.
+ * Defaults to BaseScan (Base) when chainId is omitted or not mainnet.
  */
-export function getBaseScanUrl(hash: string): string {
+export function getBaseScanUrl(hash: string, chainId?: number): string {
+  if (chainId === 1) {
+    return `https://etherscan.io/tx/${hash}`;
+  }
   return `https://basescan.org/tx/${hash}`;
+}
+
+/**
+ * Get explorer URL for a contract address, chain-aware.
+ * Defaults to BaseScan (Base) when chainId is omitted or not mainnet.
+ */
+export function getExplorerAddressUrl(address: string, chainId?: number): string {
+  if (chainId === 1) {
+    return `https://etherscan.io/address/${address}`;
+  }
+  return `https://basescan.org/address/${address}`;
+}
+
+/**
+ * Get explorer URL for a block number, chain-aware.
+ * Defaults to BaseScan (Base) when chainId is omitted or not mainnet.
+ */
+export function getExplorerBlockUrl(block: number | string, chainId?: number): string {
+  if (chainId === 1) {
+    return `https://etherscan.io/block/${block}`;
+  }
+  return `https://basescan.org/block/${block}`;
+}
+
+/**
+ * Get the explorer name for a chain (for link labels).
+ */
+export function getExplorerName(chainId?: number): string {
+  return chainId === 1 ? "Etherscan" : "BaseScan";
 }
 
 /**

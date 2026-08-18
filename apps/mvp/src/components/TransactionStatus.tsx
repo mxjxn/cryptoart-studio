@@ -1,6 +1,6 @@
 "use client";
 
-import { getBaseScanUrl } from "~/lib/utils";
+import { getBaseScanUrl, getExplorerName } from "~/lib/utils";
 
 interface TransactionStatusProps {
   hash?: `0x${string}`;
@@ -11,6 +11,8 @@ interface TransactionStatusProps {
   successMessage?: string;
   onDismiss?: () => void;
   onRetry?: () => void;
+  /** Chain where the transaction was submitted (1 = mainnet, 8453 = Base). Defaults to Base. */
+  chainId?: number;
 }
 
 export function TransactionStatus({
@@ -22,6 +24,7 @@ export function TransactionStatus({
   successMessage = "Transaction confirmed!",
   onDismiss,
   onRetry,
+  chainId,
 }: TransactionStatusProps) {
   // Idle state - nothing to show
   if (!isPending && !isConfirming && !isSuccess && !error) {
@@ -62,12 +65,12 @@ export function TransactionStatus({
               Transaction submitted. Confirming...
             </p>
             <a
-              href={getBaseScanUrl(hash)}
+              href={getBaseScanUrl(hash, chainId)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-amber-700 hover:text-amber-900 underline mt-1 inline-block font-mono"
             >
-              View on BaseScan ↗
+              View on {getExplorerName(chainId)} ↗
             </a>
           </div>
         </div>
@@ -89,12 +92,12 @@ export function TransactionStatus({
             </p>
             {hash && (
               <a
-                href={getBaseScanUrl(hash)}
+                href={getBaseScanUrl(hash, chainId)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-green-700 hover:text-green-900 underline mt-1 inline-block font-mono"
               >
-                View transaction on BaseScan ↗
+                View transaction on {getExplorerName(chainId)} ↗
               </a>
             )}
           </div>
