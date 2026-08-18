@@ -5,7 +5,7 @@ import { Address } from "viem";
 import { useContractName } from "~/hooks/useContractName";
 import { useArtistName } from "~/hooks/useArtistName";
 import { fetchFloorPriceFromAlchemy, type FloorPriceInfo } from "~/lib/contract-info";
-import { cn } from "~/lib/utils";
+import { cn, getExplorerAddressUrl, getExplorerBlockUrl, getExplorerName } from "~/lib/utils";
 
 interface ContractDetailsProps {
   contractAddress: Address;
@@ -98,19 +98,19 @@ export function ContractDetails({
       </div>
 
       <dl className="space-y-1.5 text-xs">
-        {/* Contract Address - Basescan link */}
+        {/* Contract Address - explorer link */}
         <div className="flex items-start gap-2">
           <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>address:</dt>
           <dd>
             <a
-              href={`https://basescan.org/address/${contractAddress}`}
+              href={getExplorerAddressUrl(contractAddress, chainId)}
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
                 "font-mono break-all hover:underline",
                 light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
               )}
-              aria-label={`View contract ${contractAddress} on Basescan`}
+              aria-label={`View contract ${contractAddress} on ${getExplorerName(chainId)}`}
             >
               {contractAddress}
             </a>
@@ -171,14 +171,14 @@ export function ContractDetails({
             <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>block:</dt>
             <dd>
               <a
-                href={`https://basescan.org/block/${deploymentBlock}`}
+                href={getExplorerBlockUrl(deploymentBlock, chainId)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
                   "font-mono hover:underline",
                   light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
                 )}
-                aria-label={`View deployment block ${deploymentBlock.toLocaleString()} on Basescan`}
+                aria-label={`View deployment block ${deploymentBlock.toLocaleString()} on ${getExplorerName(chainId)}`}
               >
                 {deploymentBlock.toLocaleString()}
               </a>

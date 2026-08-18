@@ -247,19 +247,11 @@ export function useAuctionDetail({
   listingApiChainId?: number;
   referralAddress?: string | null;
 }): UseAuctionDetailReturn {
-  const isExplicitEthereumListing = listingApiChainId === ETHEREUM_MAINNET_CHAIN_ID;
-  const marketplaceReadAddress = isExplicitEthereumListing
-    ? ETHEREUM_MAINNET_MARKETPLACE_ADDRESS
-    : MARKETPLACE_ADDRESS;
-  const marketplaceReadChainId = isExplicitEthereumListing ? mainnet.id : CHAIN_ID;
   const { address, isConnected } = useEffectiveAddress();
   const router = useRouter();
   const { isSDKLoaded, actions, context } = useMiniApp();
   const { isMiniApp } = useAuthMode();
   const chainId = useChainId();
-  const { switchToRequiredChain } = useNetworkGuard({
-    requiredChainId: marketplaceReadChainId,
-  });
   const { hideOverlay } = useLoadingOverlay();
   const { isPro } = useMembershipStatus();
   const { isAdmin } = useIsAdmin();
@@ -280,6 +272,23 @@ export function useAuctionDetail({
     refetch: refetchAuction,
     updateAuction,
   } = useAuction(listingId, { chainId: listingApiChainId });
+
+  // Derive the effective chain from the resolved auction so that write calls
+  // always target the chain the listing actually lives on, even when the page
+  // was reached without an explicit chain param (e.g. bare /listing/6).
+  const effectiveListingChainId =
+    typeof auction?.chainId === "number"
+      ? auction.chainId
+      : (listingApiChainId ?? CHAIN_ID);
+  const isExplicitEthereumListing = effectiveListingChainId === ETHEREUM_MAINNET_CHAIN_ID;
+  const marketplaceReadAddress = isExplicitEthereumListing
+    ? ETHEREUM_MAINNET_MARKETPLACE_ADDRESS
+    : MARKETPLACE_ADDRESS;
+  const marketplaceReadChainId = isExplicitEthereumListing ? mainnet.id : CHAIN_ID;
+
+  const { switchToRequiredChain } = useNetworkGuard({
+    requiredChainId: marketplaceReadChainId,
+  });
 
   const listingImageOverlayFallbackSrcs = useMemo(() => {
     if (!auction) return [];

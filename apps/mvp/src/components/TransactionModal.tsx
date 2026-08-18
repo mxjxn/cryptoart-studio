@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useAuthMode } from "~/hooks/useAuthMode";
+import { getBaseScanUrl, getExplorerName } from "~/lib/utils";
 import { X } from "lucide-react";
 
 interface TransactionModalProps {
@@ -15,6 +16,8 @@ interface TransactionModalProps {
   symbol: string;
   action: "bid" | "purchase" | "offer" | "approve";
   transactionHash?: string;
+  /** Chain where the transaction was submitted (1 = mainnet, 8453 = Base). Defaults to Base. */
+  chainId?: number;
 }
 
 export function TransactionModal({
@@ -28,6 +31,7 @@ export function TransactionModal({
   symbol,
   action,
   transactionHash,
+  chainId,
 }: TransactionModalProps) {
   const { isMiniApp } = useAuthMode();
 
@@ -70,10 +74,6 @@ export function TransactionModal({
       default:
         return "transaction";
     }
-  };
-
-  const getBaseScanUrl = (hash: string) => {
-    return `https://basescan.org/tx/${hash}`;
   };
 
   return (
@@ -134,12 +134,12 @@ export function TransactionModal({
             </p>
             {transactionHash && (
               <a
-                href={getBaseScanUrl(transactionHash)}
+                href={getBaseScanUrl(transactionHash, chainId)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-amber-400 hover:text-amber-300 underline font-mono"
               >
-                View on BaseScan ↗
+                View on {getExplorerName(chainId)} ↗
               </a>
             )}
           </div>
@@ -173,12 +173,12 @@ export function TransactionModal({
             </p>
             {transactionHash && (
               <a
-                href={getBaseScanUrl(transactionHash)}
+                href={getBaseScanUrl(transactionHash, chainId)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-amber-400 hover:text-amber-300 underline font-mono"
               >
-                View on BaseScan ↗
+                View on {getExplorerName(chainId)} ↗
               </a>
             )}
           </div>
