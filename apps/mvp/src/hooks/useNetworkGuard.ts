@@ -24,8 +24,7 @@ interface NetworkGuardState {
 }
 
 /**
- * Hook to detect and handle wrong network connections on web.
- * Only active for web context - miniapp handles chain switching automatically.
+ * Hook to detect and handle wrong network connections.
  */
 export function useNetworkGuard(opts?: UseNetworkGuardOptions): NetworkGuardState {
   const requiredChainId = opts?.requiredChainId;

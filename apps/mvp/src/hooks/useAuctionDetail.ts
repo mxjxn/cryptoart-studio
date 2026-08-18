@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type CSSProperties } from "react";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { useRouter } from "next/navigation";
@@ -47,6 +47,11 @@ import {
 import { pickDisplayTitle } from "~/lib/metadata-display";
 import { getChainNetworkInfo } from "~/lib/chain-display";
 import type { EnrichedAuctionData } from "~/lib/types";
+import {
+  getActionableWalletErrorMessage,
+  getErrorMessage,
+  isChainSwitchErrorMessage,
+} from "~/lib/wallet-error-utils";
 
 const ERC20_ABI = [
   {
@@ -177,6 +182,11 @@ export interface UseAuctionDetailReturn {
   setShowUpdateForm: (v: boolean) => void;
   showChainSwitchPrompt: boolean;
   setShowChainSwitchPrompt: (v: boolean) => void;
+  isWrongNetwork: boolean;
+  isSwitchingNetwork: boolean;
+  switchNetworkError: Error | null;
+  actionErrorMessage: string | null;
+  actionErrorScope: "bid" | "update" | "network" | null;
   isPaymentETH: boolean;
   paymentSymbol: string;
   paymentDecimals: number;
@@ -286,7 +296,13 @@ export function useAuctionDetail({
     : MARKETPLACE_ADDRESS;
   const marketplaceReadChainId = isExplicitEthereumListing ? mainnet.id : CHAIN_ID;
 
-  const { switchToRequiredChain } = useNetworkGuard({
+  const targetNetworkLabel = isExplicitEthereumListing ? "Ethereum" : "Base";
+  const {
+    isWrongNetwork,
+    switchToRequiredChain,
+    isSwitching: isSwitchingNetwork,
+    error: switchNetworkError,
+  } = useNetworkGuard({
     requiredChainId: marketplaceReadChainId,
   });
 
@@ -559,8 +575,27 @@ export function useAuctionDetail({
   const [pendingPurchaseAfterApproval, setPendingPurchaseAfterApproval] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [showChainSwitchPrompt, setShowChainSwitchPrompt] = useState(false);
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
+  const [actionErrorScope, setActionErrorScope] = useState<"bid" | "update" | "network" | null>(null);
 
   const lastProcessedBidHash = useRef<string | null>(null);
+  const lastAutoSwitchAttemptKey = useRef<string | null>(null);
+
+  const setActionError = useCallback((
+    scope: "bid" | "update" | "network",
+    error: unknown,
+    fallback: string,
+    includeBrowserFallback = false
+  ) => {
+    setActionErrorScope(scope);
+    setActionErrorMessage(
+      getActionableWalletErrorMessage(
+        error,
+        fallback,
+        includeBrowserFallback ? targetNetworkLabel : undefined
+      )
+    );
+  }, [targetNetworkLabel]);
 
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
   const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
@@ -779,6 +814,9 @@ export function useAuctionDetail({
     }
 
     try {
+      setActionErrorMessage(null);
+      setActionErrorScope(null);
+
       const bidAmountBigInt = (() => {
         const parts = bidAmount.split('.');
         const wholePart = BigInt(parts[0] || '0');
@@ -789,7 +827,11 @@ export function useAuctionDetail({
       const minBid = calculateMinBid;
 
       if (bidAmountBigInt < minBid) {
-        alert(`Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`);
+        setActionError(
+          "bid",
+          `Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`,
+          `Bid must be at least ${formatPrice(minBid.toString())} ${paymentSymbol}`
+        );
         return;
       }
 
@@ -830,7 +872,12 @@ export function useAuctionDetail({
       }
     } catch (err) {
       console.error("Error placing bid:", err);
-      alert("Failed to place bid. Please try again.");
+      setActionError(
+        "bid",
+        err,
+        "Failed to place bid. Please try again.",
+        isMiniApp && isExplicitEthereumListing
+      );
     }
   };
 
@@ -1104,7 +1151,7 @@ export function useAuctionDetail({
       });
     } catch (error: any) {
       console.error('[Fix180DayDuration] Error updating listing:', error);
-      alert(`Failed to fix duration: ${error.message || 'Unknown error'}`);
+      setActionError("update", error, getErrorMessage(error, "Failed to fix duration."));
     }
   };
 
@@ -1148,24 +1195,90 @@ export function useAuctionDetail({
       });
     } catch (err) {
       console.error("Error updating listing:", err);
-      alert("Failed to update listing. Please try again.");
+      setActionError("update", err, "Failed to update listing. Please try again.");
     }
   };
+
+  useEffect(() => {
+    if (!isConnected || !isWrongNetwork || isSwitchingNetwork) {
+      return;
+    }
+
+    const attemptKey = `${chainId ?? "unknown"}:${marketplaceReadChainId}`;
+    if (lastAutoSwitchAttemptKey.current === attemptKey) {
+      return;
+    }
+
+    lastAutoSwitchAttemptKey.current = attemptKey;
+    setShowChainSwitchPrompt(true);
+
+    try {
+      switchToRequiredChain();
+    } catch (error) {
+      console.error("[AuctionDetail] Error auto-switching chain:", error);
+      setActionError(
+        "network",
+        error,
+        `Please switch to ${targetNetworkLabel} to continue.`,
+        isMiniApp && isExplicitEthereumListing
+      );
+    }
+  }, [
+    chainId,
+    isConnected,
+    isExplicitEthereumListing,
+    isSwitchingNetwork,
+    isWrongNetwork,
+    isMiniApp,
+    marketplaceReadChainId,
+    setActionError,
+    switchToRequiredChain,
+    targetNetworkLabel,
+  ]);
+
+  useEffect(() => {
+    if (!isWrongNetwork) {
+      lastAutoSwitchAttemptKey.current = null;
+      if (actionErrorScope === "network") {
+        setActionErrorMessage(null);
+        setActionErrorScope(null);
+      }
+      setShowChainSwitchPrompt(false);
+    }
+  }, [actionErrorScope, isWrongNetwork]);
+
+  useEffect(() => {
+    if (!switchNetworkError) {
+      return;
+    }
+
+    setShowChainSwitchPrompt(true);
+    setActionError(
+      "network",
+      switchNetworkError,
+      `Please switch to ${targetNetworkLabel} to continue.`,
+      isMiniApp && isExplicitEthereumListing
+    );
+  }, [isExplicitEthereumListing, isMiniApp, setActionError, switchNetworkError, targetNetworkLabel]);
 
   useEffect(() => {
     const errors = [cancelError, finalizeError, modifyError, purchaseError, offerError, acceptError, bidError, approveError];
     for (const error of errors) {
       if (error) {
         const errorMessage = error.message || String(error);
-        if (errorMessage.includes('getChainId') || errorMessage.includes('connector')) {
+        if (isChainSwitchErrorMessage(errorMessage)) {
           console.error('[AuctionDetail] Chain ID error detected, showing switch prompt:', error);
           setShowChainSwitchPrompt(true);
-          if (!isMiniApp) {
-            try {
-              switchToRequiredChain();
-            } catch (switchErr) {
-              console.error('[AuctionDetail] Error switching chain:', switchErr);
-            }
+          setActionError(
+            bidError === error ? "bid" : "network",
+            error,
+            `Please switch to ${targetNetworkLabel} to continue.`,
+            isMiniApp && isExplicitEthereumListing
+          );
+          try {
+            switchToRequiredChain();
+          } catch (switchErr) {
+            console.error('[AuctionDetail] Error switching chain:', switchErr);
           }
           break;
         }
@@ -1181,7 +1294,10 @@ export function useAuctionDetail({
     bidError,
     approveError,
     isMiniApp,
+    isExplicitEthereumListing,
+    setActionError,
     switchToRequiredChain,
+    targetNetworkLabel,
   ]);
 
   useEffect(() => {
@@ -1914,6 +2030,11 @@ export function useAuctionDetail({
     setShowUpdateForm,
     showChainSwitchPrompt,
     setShowChainSwitchPrompt,
+    isWrongNetwork,
+    isSwitchingNetwork,
+    switchNetworkError,
+    actionErrorMessage,
+    actionErrorScope,
     isPaymentETH,
     paymentSymbol,
     paymentDecimals,
