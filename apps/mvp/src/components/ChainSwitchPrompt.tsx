@@ -47,7 +47,7 @@ export function ChainSwitchPrompt({
               Switch to {label}
             </p>
             <p className="text-xs text-gray-600">
-              Please switch to the {label} network to continue.
+              Confirm the switch in your wallet if a popup appears. Many wallets have no switch-network button of their own.
             </p>
           </div>
           <div className="flex items-center gap-2">

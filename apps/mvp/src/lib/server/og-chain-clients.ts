@@ -1,5 +1,6 @@
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base, mainnet } from "viem/chains";
+import { mainnetTransport } from "~/lib/chain-rpc";
 
 /** Minimal ERC20 ABI for OG price labels (symbol + decimals). */
 export const OG_ERC20_ABI = [
@@ -39,14 +40,14 @@ export async function getOgErc20TokenInfo(
   try {
     const publicClient = createPublicClient({
       chain: onMainnet ? mainnet : base,
-      transport: http(
-        onMainnet
-          ? process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"
-          : process.env.NEXT_PUBLIC_RPC_URL ||
-            process.env.RPC_URL ||
-            process.env.NEXT_PUBLIC_BASE_RPC_URL ||
-            "https://mainnet.base.org"
-      ),
+      transport: onMainnet
+        ? mainnetTransport()
+        : http(
+            process.env.NEXT_PUBLIC_RPC_URL ||
+              process.env.RPC_URL ||
+              process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+              "https://mainnet.base.org"
+          ),
     });
 
     const [symbol, decimals] = await Promise.all([

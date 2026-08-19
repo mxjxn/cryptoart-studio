@@ -643,15 +643,10 @@ export default function CreateAuctionClient() {
       // Continue with approval even if check fails (fail open)
     }
 
-    // Check if we're on the correct chain (web only - miniapp handles this automatically)
-    if (!isMiniApp && connectedChainId !== createListingNftChainId) {
+    if (connectedChainId !== createListingNftChainId) {
       console.log("[CreateAuction] Wrong network for listing target chain");
       try {
-        switchToRequiredChain();
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (connectedChainId !== createListingNftChainId) {
-          return;
-        }
+        await switchToRequiredChain();
       } catch (err) {
         console.error('[CreateAuction] Error switching chain:', err);
         alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} to continue`);
@@ -1411,17 +1406,10 @@ export default function CreateAuctionClient() {
         // Continue with submission even if check fails (fail open)
       }
 
-      // Check if we're on the correct chain (web only - miniapp handles this automatically)
-      if (!isMiniApp && connectedChainId !== createListingNftChainId) {
+      if (connectedChainId !== createListingNftChainId) {
         console.log("[CreateAuction] Wrong network for listing target chain (submit)");
         try {
-          switchToRequiredChain();
-          await new Promise(resolve => setTimeout(resolve, 500));
-          if (connectedChainId !== createListingNftChainId) {
-            setIsSubmitting(false);
-            alert(`Please switch to ${getChainNetworkInfo(createListingNftChainId).displayName} to continue`);
-            return;
-          }
+          await switchToRequiredChain();
         } catch (err) {
           console.error('[CreateAuction] Error switching chain:', err);
           setIsSubmitting(false);

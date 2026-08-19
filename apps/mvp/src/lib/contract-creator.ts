@@ -1,6 +1,7 @@
 import { type Address, createPublicClient, http, isAddress } from "viem";
 import { base, mainnet } from "viem/chains";
-import { CHAIN_ID } from "./contracts/marketplace";
+import { CHAIN_ID } from "~/lib/contracts/marketplace";
+import { mainnetTransport } from "~/lib/chain-rpc";
 import { discoverAndCacheUserBackground } from "~/lib/server/user-discovery";
 import { cacheContractInfo, getContractFromCache } from "~/lib/server/user-cache";
 
@@ -57,14 +58,14 @@ function getPublicClientForChain(chainId: number) {
   const onMainnet = chainId === 1;
   return createPublicClient({
     chain: onMainnet ? mainnet : base,
-    transport: http(
-      onMainnet
-        ? process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"
-        : process.env.NEXT_PUBLIC_RPC_URL ||
-          process.env.RPC_URL ||
-          process.env.NEXT_PUBLIC_BASE_RPC_URL ||
-          "https://mainnet.base.org"
-    ),
+    transport: onMainnet
+      ? mainnetTransport()
+      : http(
+          process.env.NEXT_PUBLIC_RPC_URL ||
+            process.env.RPC_URL ||
+            process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+            "https://mainnet.base.org"
+        ),
   });
 }
 

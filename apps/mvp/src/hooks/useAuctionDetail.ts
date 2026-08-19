@@ -33,6 +33,7 @@ import {
   getAuctionTimeStatus,
   getFixedPriceTimeStatus,
   isNeverExpiring,
+  earliestBidUnixSeconds,
   resolveStartedAuctionEndTime,
 } from "~/lib/time-utils";
 import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
@@ -244,7 +245,7 @@ export interface UseAuctionDetailReturn {
   auctionFetchError: Error | null;
   setBuildingTimedOut: (v: boolean) => void;
   setPageStatus: (v: "building" | "ready" | "not_found" | "error" | "ambiguous" | null) => void;
-  switchToRequiredChain: () => void;
+  switchToRequiredChain: () => Promise<void>;
   referrer: Address | null;
 }
 
@@ -578,6 +579,12 @@ export function useAuctionDetail({
   const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
   const [actionErrorScope, setActionErrorScope] = useState<"bid" | "update" | "network" | null>(null);
 
+  useEffect(() => {
+    if (isWrongNetwork) {
+      setShowChainSwitchPrompt(true);
+    }
+  }, [isWrongNetwork]);
+
   const lastProcessedBidHash = useRef<string | null>(null);
   const lastAutoSwitchAttemptKey = useRef<string | null>(null);
   const lastProcessedSwitchNetworkError = useRef<Error | null>(null);
@@ -598,6 +605,28 @@ export function useAuctionDetail({
       )
     );
   }, [targetNetworkLabel]);
+
+  /** Prompt the wallet to switch (and add the chain if needed), then continue the write. */
+  const ensureListingChain = useCallback(async () => {
+    try {
+      await switchToRequiredChain();
+    } catch (err) {
+      setShowChainSwitchPrompt(true);
+      setActionError(
+        "network",
+        err,
+        `Please switch to ${targetNetworkLabel} to continue.`,
+        isMiniApp && isExplicitEthereumListing
+      );
+      throw err;
+    }
+  }, [
+    isExplicitEthereumListing,
+    isMiniApp,
+    setActionError,
+    switchToRequiredChain,
+    targetNetworkLabel,
+  ]);
 
   const { writeContract: cancelListing, data: cancelHash, isPending: isCancelling, error: cancelError } = useWriteContract();
   const { isLoading: isConfirmingCancel, isSuccess: isCancelConfirmed } = useWaitForTransactionReceipt({
@@ -827,10 +856,16 @@ export function useAuctionDetail({
       return;
     }
 
-    try {
-      setActionErrorMessage(null);
-      setActionErrorScope(null);
+    setActionErrorMessage(null);
+    setActionErrorScope(null);
 
+    try {
+      await ensureListingChain();
+    } catch {
+      return;
+    }
+
+    try {
       const bidAmountBigInt = (() => {
         const parts = bidAmount.split('.');
         const wholePart = BigInt(parts[0] || '0');
@@ -895,6 +930,12 @@ export function useAuctionDetail({
 
   const handlePurchase = async () => {
     if (!isConnected || !auction || !address) {
+      return;
+    }
+
+    try {
+      await ensureListingChain();
+    } catch {
       return;
     }
 
@@ -1029,6 +1070,12 @@ export function useAuctionDetail({
     }
 
     try {
+      await ensureListingChain();
+    } catch {
+      return;
+    }
+
+    try {
       const offerAmountBigInt = BigInt(Math.floor(parseFloat(offerAmount) * 10 ** paymentDecimals));
 
       if (!isPaymentETH && auction.erc20) {
@@ -1066,6 +1113,12 @@ export function useAuctionDetail({
     }
 
     try {
+      await ensureListingChain();
+    } catch {
+      return;
+    }
+
+    try {
       const offerAmountBigInt = BigInt(offerAmount);
 
       await acceptOffer({
@@ -1090,9 +1143,9 @@ export function useAuctionDetail({
       return;
     }
 
-    if (!chainId) {
-      console.error("Chain ID not available");
-      setShowChainSwitchPrompt(true);
+    try {
+      await ensureListingChain();
+    } catch {
       return;
     }
 
@@ -1127,6 +1180,12 @@ export function useAuctionDetail({
     }
 
     try {
+      await ensureListingChain();
+    } catch {
+      return;
+    }
+
+    try {
       await finalizeAuction({
         address: marketplaceReadAddress,
         abi: MARKETPLACE_ABI,
@@ -1141,6 +1200,12 @@ export function useAuctionDetail({
 
   const handleFix180DayDuration = async (durationSeconds: number) => {
     if (!isConnected || !auction) {
+      return;
+    }
+
+    try {
+      await ensureListingChain();
+    } catch {
       return;
     }
 
@@ -1169,6 +1234,12 @@ export function useAuctionDetail({
 
   const handleUpdateListing = async (startTime: number | null, endTime: number | null) => {
     if (!isConnected || !auction) {
+      return;
+    }
+
+    try {
+      await ensureListingChain();
+    } catch {
       return;
     }
 
@@ -1896,6 +1967,7 @@ export function useAuctionDetail({
   const listingFullscreenImageUrl =
     auction?.detailThumbnailUrl ?? auction?.image ?? auction?.thumbnailUrl;
   const hasBid = bidCount > 0 || !!auction?.highestBid;
+  const firstBidTimestamp = earliestBidUnixSeconds(auction?.bids);
 
   const auctionHasStarted = startTime === 0
     ? hasBid
@@ -1912,7 +1984,7 @@ export function useAuctionDetail({
       subgraphEndTime: endTime,
       contractEndTime,
       contractStartTime,
-      highestBidTimestamp: auction?.highestBid?.timestamp,
+      firstBidTimestamp,
       now,
     });
   } else if (startTime === 0 && !auctionHasStarted) {
@@ -1921,7 +1993,9 @@ export function useAuctionDetail({
     actualEndTime = endTime;
   }
 
-  const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && auction?.status === "ACTIVE" && !isCancelled;
+  const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && !isCancelled && (
+    auction?.status === "ACTIVE" || auction?.status === "FINALIZED"
+  );
   const isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now) && auction?.status === "ACTIVE";
 
   let effectiveEndTime: number | null;

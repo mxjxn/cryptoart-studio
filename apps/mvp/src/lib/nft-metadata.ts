@@ -2,6 +2,7 @@ import { Address, type PublicClient } from 'viem';
 import { createPublicClient, http } from 'viem';
 import { base, mainnet } from 'viem/chains';
 import { CHAIN_ID } from './contracts/marketplace';
+import { mainnetTransport } from './chain-rpc';
 import { getMediaType, isDataURI, isJsonDataURI, parseJsonDataURI } from './media-utils';
 import { pickDisplayTitle } from './metadata-display';
 
@@ -36,10 +37,6 @@ function baseRpcUrl(): string {
   );
 }
 
-function mainnetRpcUrl(): string {
-  return process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com";
-}
-
 let _baseMetadataClient: PublicClient | undefined;
 let _mainnetMetadataClient: PublicClient | undefined;
 
@@ -52,7 +49,7 @@ export function getNftMetadataReadClient(chainId?: number): PublicClient {
     if (!_mainnetMetadataClient) {
       _mainnetMetadataClient = createPublicClient({
         chain: mainnet,
-        transport: http(mainnetRpcUrl()),
+        transport: mainnetTransport(),
       }) as PublicClient;
     }
     return _mainnetMetadataClient;

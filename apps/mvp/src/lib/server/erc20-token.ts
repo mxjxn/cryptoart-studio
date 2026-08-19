@@ -1,6 +1,7 @@
 import { createPublicClient, http, type Address, isAddress, zeroAddress } from "viem";
 import { base, mainnet } from "viem/chains";
 import { CHAIN_ID } from "~/lib/contracts/marketplace";
+import { mainnetTransport } from "~/lib/chain-rpc";
 
 // Standard ERC20 ABI for the functions we need
 const ERC20_ABI = [
@@ -77,14 +78,14 @@ export async function getERC20TokenInfoServer(
   try {
     const publicClient = createPublicClient({
       chain: onMainnet ? mainnet : base,
-      transport: http(
-        onMainnet
-          ? process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"
-          : process.env.NEXT_PUBLIC_RPC_URL ||
-            process.env.RPC_URL ||
-            process.env.NEXT_PUBLIC_BASE_RPC_URL ||
-            "https://mainnet.base.org"
-      ),
+      transport: onMainnet
+        ? mainnetTransport()
+        : http(
+            process.env.NEXT_PUBLIC_RPC_URL ||
+              process.env.RPC_URL ||
+              process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+              "https://mainnet.base.org"
+          ),
     });
 
     // Fetch symbol and decimals in parallel

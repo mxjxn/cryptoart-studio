@@ -1,6 +1,7 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient } from "viem";
 import { mainnet } from "viem/chains";
 import { getUserFromCache, cacheUserInfo } from "~/lib/server/user-cache";
+import { mainnetTransport } from "~/lib/chain-rpc";
 
 /**
  * Shared artist name resolution utilities.
@@ -10,7 +11,7 @@ import { getUserFromCache, cacheUserInfo } from "~/lib/server/user-cache";
 // Create a public client for ENS resolution (mainnet)
 export const publicClient = createPublicClient({
   chain: mainnet,
-  transport: http(process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"),
+  transport: mainnetTransport(),
 });
 
 /**

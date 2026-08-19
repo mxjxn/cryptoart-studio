@@ -186,8 +186,17 @@ export function handleBidEvent(event: BidEvent): void {
     event.address
   );
   
-  // Update listing hasBid flag
+  // Update listing hasBid flag. On first bid of a start-on-first-bid listing
+  // the contract converts endTime from a duration into an absolute timestamp
+  // (`endTime += block.timestamp`) and sets startTime to now. The subgraph
+  // previously left the raw duration in place, so the app thought auctions were
+  // still live (or already ended in 1970) until a contract read succeeded.
+  const isFirstBid = !listing.hasBid && listing.startTime.equals(BigInt.fromI32(0));
   listing.hasBid = true;
+  if (isFirstBid) {
+    listing.startTime = event.block.timestamp;
+    listing.endTime = listing.endTime.plus(event.block.timestamp);
+  }
   listing.updatedAt = event.block.timestamp;
   listing.updatedAtBlock = event.block.number;
   listing.save();

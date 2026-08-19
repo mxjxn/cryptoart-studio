@@ -106,18 +106,50 @@ interface ResolveStartedAuctionEndTimeInput {
   subgraphEndTime: number;
   contractEndTime?: number | null;
   contractStartTime?: number | null;
-  highestBidTimestamp?: string | null;
+  /** Unix seconds of the first bid (auction clock starts here when startTime is 0). */
+  firstBidTimestamp?: string | number | null;
+  /**
+   * @deprecated Use firstBidTimestamp. Highest-bid time is wrong: it extends the
+   * auction by however long bidding lasted, hiding finalize and leaving a live
+   * bid form after the contract has already expired.
+   */
+  highestBidTimestamp?: string | number | null;
   now: number;
+}
+
+/**
+ * Earliest bid unix seconds from a bid list (order-independent).
+ */
+export function earliestBidUnixSeconds(
+  bids?: Array<{ timestamp?: string | number | null }> | null
+): number | null {
+  if (!bids?.length) return null;
+  let min = Number.POSITIVE_INFINITY;
+  for (const bid of bids) {
+    const raw = bid.timestamp;
+    const t = typeof raw === "number" ? raw : raw != null ? parseInt(String(raw), 10) : NaN;
+    if (Number.isFinite(t) && t > 0 && t < min) min = t;
+  }
+  return min === Number.POSITIVE_INFINITY ? null : min;
+}
+
+function parseUnixSeconds(value: string | number | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const t = typeof value === "number" ? value : parseInt(String(value), 10);
+  return Number.isFinite(t) && t > 0 ? t : null;
 }
 
 /**
  * Resolve end time for start-on-first-bid auctions after they've started.
  * Prefer contract values when available because subgraph values can remain as raw duration.
+ * Duration fallback must use the FIRST bid, not the highest — the contract sets
+ * `endTime = block.timestamp + duration` on the opening bid.
  */
 export function resolveStartedAuctionEndTime({
   subgraphEndTime,
   contractEndTime,
   contractStartTime,
+  firstBidTimestamp,
   highestBidTimestamp,
   now,
 }: ResolveStartedAuctionEndTimeInput): number {
@@ -129,11 +161,11 @@ export function resolveStartedAuctionEndTime({
     return subgraphEndTime;
   }
 
-  const auctionStartTimestamp = contractStartTime && contractStartTime > 0
-    ? contractStartTime
-    : highestBidTimestamp
-      ? parseInt(highestBidTimestamp, 10)
-      : now;
+  const auctionStartTimestamp =
+    (contractStartTime && contractStartTime > 0 ? contractStartTime : null) ??
+    parseUnixSeconds(firstBidTimestamp) ??
+    parseUnixSeconds(highestBidTimestamp) ??
+    now;
 
   return auctionStartTimestamp + subgraphEndTime;
 }
