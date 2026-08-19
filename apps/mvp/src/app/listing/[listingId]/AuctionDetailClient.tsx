@@ -998,8 +998,8 @@ export default function AuctionDetailClient({
                       {isWrongNetwork && (
                         <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-900">
                           {isSwitchingNetwork
-                            ? `Switching to ${targetNetworkLabel}...`
-                            : `Please switch to ${targetNetworkLabel} to place a bid.`}
+                            ? `Switching to ${targetNetworkLabel}... confirm in your wallet.`
+                            : `This listing is on ${targetNetworkLabel}. Your wallet will be asked to switch — many wallets have no switch-network button of their own.`}
                         </div>
                       )}
                       <div>
@@ -1026,7 +1026,7 @@ export default function AuctionDetailClient({
                       </div>
                       <button
                         onClick={handleBid}
-                        disabled={isBidding || isConfirmingBid || isSwitchingNetwork}
+                        disabled={isBidding || isConfirmingBid}
                         className="w-full px-4 py-2 bg-white text-black text-sm font-medium tracking-[0.5px] hover:bg-[#e0e0e0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label={`Place bid of ${bidAmount || formatPrice(calculateMinBid.toString())} ${paymentSymbol}`}
                       >
@@ -1034,6 +1034,8 @@ export default function AuctionDetailClient({
                           ? `Switching to ${targetNetworkLabel}...`
                           : isBidding || isConfirmingBid
                           ? "Processing..."
+                          : isWrongNetwork
+                          ? `Switch to ${targetNetworkLabel} and bid`
                           : "Place Bid"}
                       </button>
                       {showMiniAppMainnetBrowserFallback && (

@@ -4,6 +4,7 @@ import {
   getActionableWalletErrorMessage,
   getErrorMessage,
   isChainSwitchErrorMessage,
+  isUnrecognizedChainError,
 } from "./wallet-error-utils";
 
 describe("getErrorMessage", () => {
@@ -25,6 +26,28 @@ describe("isChainSwitchErrorMessage", () => {
   it("ignores unrelated transaction failures", () => {
     assert.equal(isChainSwitchErrorMessage("execution reverted"), false);
   });
+
+  it("detects missing-chain (4902) failures", () => {
+    assert.equal(isChainSwitchErrorMessage("Unrecognized chain ID '0x1'. Try adding the chain using wallet_addEthereumChain first."), true);
+    assert.equal(isChainSwitchErrorMessage("error 4902"), true);
+  });
+});
+
+describe("isUnrecognizedChainError", () => {
+  it("detects EIP-1193 code 4902 on the error or its cause", () => {
+    assert.equal(isUnrecognizedChainError({ code: 4902, message: "Unrecognized chain" }), true);
+    assert.equal(
+      isUnrecognizedChainError({
+        message: "SwitchChainError",
+        cause: { code: 4902, message: "Unrecognized chain ID" },
+      }),
+      true
+    );
+  });
+
+  it("ignores unrelated errors", () => {
+    assert.equal(isUnrecognizedChainError(new Error("User rejected the request")), false);
+  });
 });
 
 describe("getActionableWalletErrorMessage", () => {
@@ -39,6 +62,17 @@ describe("getActionableWalletErrorMessage", () => {
     assert.equal(
       getActionableWalletErrorMessage(
         new Error("SwitchChainError: wallet_switchEthereumChain failed"),
+        "Fallback",
+        "Ethereum"
+      ),
+      "Couldn't switch your wallet to Ethereum. Try again, or open this listing in your browser."
+    );
+  });
+
+  it("replaces 4902 missing-chain failures with a browser fallback hint", () => {
+    assert.equal(
+      getActionableWalletErrorMessage(
+        { code: 4902, message: "Unrecognized chain ID" },
         "Fallback",
         "Ethereum"
       ),

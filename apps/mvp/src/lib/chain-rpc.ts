@@ -1,4 +1,5 @@
-import { fallback, http, type Transport } from "viem";
+import { fallback, http, type AddEthereumChainParameter, type Transport } from "viem";
+import { base, mainnet } from "viem/chains";
 
 /**
  * Public Ethereum RPC endpoints used when `NEXT_PUBLIC_MAINNET_RPC_URL` is
@@ -39,4 +40,30 @@ export function mainnetTransport(): Transport {
   const urls = mainnetRpcUrls();
   if (urls.length === 1) return http(urls[0]);
   return fallback(urls.map((url) => http(url)));
+}
+
+/**
+ * EIP-3085 params for `wallet_addEthereumChain`. Wallets that cannot switch
+ * to a chain they have never seen (error 4902) need the dapp to add it.
+ */
+export function addEthereumChainParameterFor(
+  chainId: number
+): AddEthereumChainParameter | undefined {
+  const chain = chainId === mainnet.id ? mainnet : chainId === base.id ? base : undefined;
+  if (!chain) return undefined;
+
+  const rpcUrls =
+    chain.id === mainnet.id
+      ? mainnetRpcUrls()
+      : [...(chain.rpcUrls.default.http ?? [])];
+
+  return {
+    chainId: `0x${chain.id.toString(16)}`,
+    chainName: chain.name,
+    nativeCurrency: chain.nativeCurrency,
+    rpcUrls,
+    blockExplorerUrls: chain.blockExplorers
+      ? [chain.blockExplorers.default.url]
+      : undefined,
+  };
 }
