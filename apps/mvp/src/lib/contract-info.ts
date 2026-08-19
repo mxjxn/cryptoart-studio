@@ -141,7 +141,8 @@ export interface FloorPriceInfo {
  * Returns null if no floor price is available or if there's an error
  */
 export async function fetchFloorPriceFromAlchemy(
-  contractAddress: string
+  contractAddress: string,
+  chainId: number = 8453
 ): Promise<FloorPriceInfo | null> {
   const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
   if (!apiKey) {
@@ -149,11 +150,12 @@ export async function fetchFloorPriceFromAlchemy(
     return null;
   }
 
-  console.log(`[FloorPrice] Fetching floor price from Alchemy for contract: ${contractAddress}`);
+  const host = chainId === 1 ? "eth-mainnet" : "base-mainnet";
+  console.log(`[FloorPrice] Fetching floor price from Alchemy for contract: ${contractAddress} (chainId=${chainId})`);
 
   try {
     // Use v2 API endpoint for getFloorPrice (as per Alchemy docs)
-    const url = `https://base-mainnet.g.alchemy.com/nft/v2/${apiKey}/getFloorPrice?contractAddress=${contractAddress}`;
+    const url = `https://${host}.g.alchemy.com/nft/v2/${apiKey}/getFloorPrice?contractAddress=${contractAddress}`;
     console.log(`[FloorPrice] Fetching from: ${url}`);
     
     const response = await fetch(url);
