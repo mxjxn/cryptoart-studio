@@ -1,9 +1,10 @@
-import { createConfig, http, WagmiProvider, useConnect, useAccount, createStorage } from "wagmi";
+import { createConfig, http, fallback, WagmiProvider, useConnect, useAccount, createStorage } from "wagmi";
 import { base, mainnet } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/miniapp-wagmi-connector";
 import { configureFabricSDK } from '@withfabric/protocol-sdks';
 import { APP_NAME, APP_ICON_URL, APP_URL } from "~/lib/constants";
+import { mainnetRpcUrls } from "~/lib/chain-rpc";
 import React, { useEffect, useState } from "react";
 import sdk from "@farcaster/miniapp-sdk";
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
@@ -82,7 +83,7 @@ export const config = createConfig({
       process.env.NEXT_PUBLIC_BASE_RPC_URL || 
       'https://mainnet.base.org'
     ),
-    [mainnet.id]: http(process.env.NEXT_PUBLIC_MAINNET_RPC_URL || 'https://eth.llamarpc.com'),
+    [mainnet.id]: fallback(mainnetRpcUrls().map((url) => http(url))),
   },
   ssr: true,
   storage: sessionStorage,

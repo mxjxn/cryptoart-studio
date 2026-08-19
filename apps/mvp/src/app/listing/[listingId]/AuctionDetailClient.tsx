@@ -1393,7 +1393,17 @@ export default function AuctionDetailClient({
                     <span className="text-neutral-400">•</span>
                     <span>{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>
                     <span className="text-neutral-400">•</span>
-                    <span>{timeStatus.status === "Not started" ? "Not started" : isEnded ? "Ended" : isActive ? "Active" : "Ended"}</span>
+                    <span>
+                      {auction.status === "FINALIZED"
+                        ? "Finalized"
+                        : timeStatus.status === "Not started"
+                          ? "Not started"
+                          : isEnded
+                            ? "Ended"
+                            : isActive
+                              ? "Active"
+                              : "Ended"}
+                    </span>
                     {!timeStatus.neverExpires && timeStatus.timeRemaining && !isEnded && (
                       <>
                         <span className="text-neutral-400">•</span>

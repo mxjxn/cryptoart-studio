@@ -33,6 +33,7 @@ import {
   getAuctionTimeStatus,
   getFixedPriceTimeStatus,
   isNeverExpiring,
+  earliestBidUnixSeconds,
   resolveStartedAuctionEndTime,
 } from "~/lib/time-utils";
 import { useHasNFTAccess } from "~/hooks/useHasNFTAccess";
@@ -578,6 +579,12 @@ export function useAuctionDetail({
   const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
   const [actionErrorScope, setActionErrorScope] = useState<"bid" | "update" | "network" | null>(null);
 
+  useEffect(() => {
+    if (isWrongNetwork) {
+      setShowChainSwitchPrompt(true);
+    }
+  }, [isWrongNetwork]);
+
   const lastProcessedBidHash = useRef<string | null>(null);
   const lastAutoSwitchAttemptKey = useRef<string | null>(null);
   const lastProcessedSwitchNetworkError = useRef<Error | null>(null);
@@ -824,6 +831,12 @@ export function useAuctionDetail({
 
   const handleBid = async () => {
     if (!isConnected || !bidAmount || !auction || !address) {
+      return;
+    }
+
+    if (isWrongNetwork) {
+      setShowChainSwitchPrompt(true);
+      switchToRequiredChain();
       return;
     }
 
@@ -1123,6 +1136,12 @@ export function useAuctionDetail({
 
   const handleFinalize = async () => {
     if (!isConnected || !auction) {
+      return;
+    }
+
+    if (isWrongNetwork) {
+      setShowChainSwitchPrompt(true);
+      switchToRequiredChain();
       return;
     }
 
@@ -1896,6 +1915,7 @@ export function useAuctionDetail({
   const listingFullscreenImageUrl =
     auction?.detailThumbnailUrl ?? auction?.image ?? auction?.thumbnailUrl;
   const hasBid = bidCount > 0 || !!auction?.highestBid;
+  const firstBidTimestamp = earliestBidUnixSeconds(auction?.bids);
 
   const auctionHasStarted = startTime === 0
     ? hasBid
@@ -1912,7 +1932,7 @@ export function useAuctionDetail({
       subgraphEndTime: endTime,
       contractEndTime,
       contractStartTime,
-      highestBidTimestamp: auction?.highestBid?.timestamp,
+      firstBidTimestamp,
       now,
     });
   } else if (startTime === 0 && !auctionHasStarted) {
@@ -1921,7 +1941,9 @@ export function useAuctionDetail({
     actualEndTime = endTime;
   }
 
-  const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && auction?.status === "ACTIVE" && !isCancelled;
+  const isEnded = auctionHasStarted && actualEndTime > 0 && actualEndTime <= now && !isCancelled && (
+    auction?.status === "ACTIVE" || auction?.status === "FINALIZED"
+  );
   const isActive = auctionHasStarted && (actualEndTime === 0 || actualEndTime > now) && auction?.status === "ACTIVE";
 
   let effectiveEndTime: number | null;

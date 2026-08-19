@@ -2,6 +2,7 @@ import { createPublicClient, http, type Address } from "viem";
 import { base, mainnet } from "viem/chains";
 import { CHAIN_ID } from "~/lib/contracts/marketplace";
 import { CONTRACT_INFO_ABI, fetchContractInfoFromAlchemy } from "~/lib/contract-info";
+import { mainnetTransport } from "~/lib/chain-rpc";
 
 export type GetContractNameServerOptions = {
   /** Chain where the NFT contract is deployed (`1` = Ethereum, `8453` = Base). Defaults to app Base. */
@@ -33,14 +34,14 @@ export async function getContractNameServer(
   try {
     const publicClient = createPublicClient({
       chain: onMainnet ? mainnet : base,
-      transport: http(
-        onMainnet
-          ? process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://eth.llamarpc.com"
-          : process.env.NEXT_PUBLIC_RPC_URL ||
-            process.env.RPC_URL ||
-            process.env.NEXT_PUBLIC_BASE_RPC_URL ||
-            "https://mainnet.base.org"
-      ),
+      transport: onMainnet
+        ? mainnetTransport()
+        : http(
+            process.env.NEXT_PUBLIC_RPC_URL ||
+              process.env.RPC_URL ||
+              process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+              "https://mainnet.base.org"
+          ),
     });
 
     const name = await publicClient.readContract({
