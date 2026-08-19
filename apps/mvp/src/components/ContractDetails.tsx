@@ -5,12 +5,14 @@ import { Address } from "viem";
 import { useContractName } from "~/hooks/useContractName";
 import { useArtistName } from "~/hooks/useArtistName";
 import { fetchFloorPriceFromAlchemy, type FloorPriceInfo } from "~/lib/contract-info";
-import { cn, getExplorerAddressUrl, getExplorerBlockUrl, getExplorerName } from "~/lib/utils";
+import { cn, getExplorerAddressUrl, getExplorerBlockUrl, getExplorerChainLabel, getExplorerName, getExplorerNftUrl, isPresentTokenId } from "~/lib/utils";
 
 interface ContractDetailsProps {
   contractAddress: Address;
   /** Chain where the contract is deployed (1 or 8453); omit for app default (Base). */
   chainId?: number;
+  /** NFT token id for this listing. `"0"` is valid and must be shown. */
+  tokenId?: string | number | null;
   imageUrl?: string | null;
   /** `light`: black text on white listing panel. `dark`: original minimal theme. */
   variant?: "dark" | "light";
@@ -19,6 +21,7 @@ interface ContractDetailsProps {
 export function ContractDetails({
   contractAddress,
   chainId,
+  tokenId,
   imageUrl,
   variant = "dark",
 }: ContractDetailsProps) {
@@ -46,7 +49,7 @@ export function ContractDetails({
       setFloorPriceLoading(true);
       setFloorPrice(null);
       try {
-        const floorPriceData = await fetchFloorPriceFromAlchemy(contractAddress);
+        const floorPriceData = await fetchFloorPriceFromAlchemy(contractAddress, chainId ?? 8453);
         if (isMounted && floorPriceData) {
           setFloorPrice(floorPriceData);
         }
@@ -64,7 +67,7 @@ export function ContractDetails({
     return () => {
       isMounted = false;
     };
-  }, [contractAddress]);
+  }, [contractAddress, chainId]);
 
   // Get creator/deployer from contract cache
   const { artistName: deployerName, creatorAddress: deployerAddress } = useArtistName(
@@ -98,24 +101,58 @@ export function ContractDetails({
       </div>
 
       <dl className="space-y-1.5 text-xs">
-        {/* Contract Address - explorer link */}
+        <div className="flex items-start gap-2">
+          <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>network:</dt>
+          <dd>
+            <span className={cn("font-mono", light ? "text-neutral-800" : "text-[#cccccc]")}>
+              {getExplorerChainLabel(chainId)}
+            </span>
+          </dd>
+        </div>
+
+        {/* Contract Address - NFT page when token id is known, so explorers
+            do not send Manifold proxies to the ERC-20 /token/ view. */}
         <div className="flex items-start gap-2">
           <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>address:</dt>
           <dd>
             <a
-              href={getExplorerAddressUrl(contractAddress, chainId)}
+              href={
+                isPresentTokenId(tokenId)
+                  ? getExplorerNftUrl(contractAddress, String(tokenId), chainId)
+                  : getExplorerAddressUrl(contractAddress, chainId)
+              }
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
                 "font-mono break-all hover:underline",
                 light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
               )}
-              aria-label={`View contract ${contractAddress} on ${getExplorerName(chainId)}`}
+              aria-label={`View ${isPresentTokenId(tokenId) ? `token ${tokenId}` : `contract ${contractAddress}`} on ${getExplorerName(chainId)}`}
             >
               {contractAddress}
             </a>
           </dd>
         </div>
+
+        {isPresentTokenId(tokenId) && (
+          <div className="flex items-start gap-2">
+            <dt className={cn("min-w-[100px]", light ? "text-neutral-500" : "text-[#999999]")}>token id:</dt>
+            <dd>
+              <a
+                href={getExplorerNftUrl(contractAddress, String(tokenId), chainId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "font-mono hover:underline",
+                  light ? "text-neutral-800 hover:text-neutral-950" : "text-[#cccccc] hover:text-white",
+                )}
+                aria-label={`View token ${tokenId} on ${getExplorerName(chainId)}`}
+              >
+                {String(tokenId)}
+              </a>
+            </dd>
+          </div>
+        )}
 
         {/* Contract Name */}
         {contractNameLoading ? (

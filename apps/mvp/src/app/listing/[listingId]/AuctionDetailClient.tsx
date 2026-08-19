@@ -28,9 +28,9 @@ import { BuyersList } from "~/components/BuyersList";
 import { ListingThemeEditor } from "~/components/ListingThemeEditor";
 import { TransactionModal } from "~/components/TransactionModal";
 import { AmbiguousListingPicker } from "~/components/AmbiguousListingPicker";
-import { ETHEREUM_MAINNET_CHAIN_ID } from "~/lib/server/subgraph-endpoints";
 import { getAuctionTimeStatus, getFixedPriceTimeStatus, isNeverExpiring } from "~/lib/time-utils";
 import { getActionableWalletErrorMessage } from "~/lib/wallet-error-utils";
+import { getOpenSeaItemUrl, isPresentTokenId } from "~/lib/utils";
 
 interface AuctionDetailClientProps {
   listingId: string;
@@ -599,11 +599,11 @@ export default function AuctionDetailClient({
             </p>
           ) : null}
 
-          {auction.tokenAddress && auction.tokenId && (
+          {auction.tokenAddress && isPresentTokenId(auction.tokenId) && (
             <div className={auction.description ? "mt-4" : "mt-3"}>
               <MetadataViewer
                 contractAddress={auction.tokenAddress as Address}
-                tokenId={auction.tokenId}
+                tokenId={String(auction.tokenId)}
                 tokenSpec={auction.tokenSpec || "ERC721"}
                 collectionName={contractName || undefined}
                 totalSupply={auction.erc721TotalSupply}
@@ -692,24 +692,27 @@ export default function AuctionDetailClient({
           {auction.tokenAddress && (
             <ContractDetails
               contractAddress={auction.tokenAddress as Address}
-              chainId={typeof auction.chainId === "number" ? auction.chainId : undefined}
+              chainId={marketplaceReadChainId}
+              tokenId={auction.tokenId}
               imageUrl={auction.image || auction.metadata?.image || null}
               variant="light"
             />
           )}
 
-          {(auction.tokenAddress || auction.tokenId) && (
+          {(auction.tokenAddress || isPresentTokenId(auction.tokenId)) && (
             <div className="mt-4 flex items-center gap-3 text-xs">
               {auction.tokenSpec && (
                 <span className="rounded border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-700">
                   {auction.tokenSpec === "ERC1155" || String(auction.tokenSpec) === "2" ? "ERC-1155" : "ERC-721"}
                 </span>
               )}
-              {auction.tokenAddress && auction.tokenId && (
+              {auction.tokenAddress && isPresentTokenId(auction.tokenId) && (
                 <a
-                  href={`https://opensea.io/item/${
-                    auction.chainId === ETHEREUM_MAINNET_CHAIN_ID ? "ethereum" : "base"
-                  }/${auction.tokenAddress}/${auction.tokenId}`}
+                  href={getOpenSeaItemUrl(
+                    auction.tokenAddress,
+                    auction.tokenId,
+                    marketplaceReadChainId
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-neutral-600 underline-offset-2 hover:text-neutral-900 hover:underline"

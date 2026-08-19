@@ -98,6 +98,15 @@ export function getBaseScanUrl(hash: string, chainId?: number): string {
 }
 
 /**
+ * True when a listing has a token id to show, including `"0"`.
+ * `if (tokenId)` hides token 0 and was dropping the id row on some pages.
+ */
+export function isPresentTokenId(tokenId: unknown): boolean {
+  if (tokenId == null) return false;
+  return String(tokenId).trim() !== "";
+}
+
+/**
  * Get explorer URL for a contract address, chain-aware.
  * Defaults to BaseScan (Base) when chainId is omitted or not mainnet.
  */
@@ -106,6 +115,35 @@ export function getExplorerAddressUrl(address: string, chainId?: number): string
     return `https://etherscan.io/address/${address}`;
   }
   return `https://basescan.org/address/${address}`;
+}
+
+/**
+ * NFT token page on the explorer (`/nft/{address}/{id}`), not `/token/` which
+ * Etherscan/BaseScan often label as ERC-20 for Manifold-style proxies.
+ */
+export function getExplorerNftUrl(
+  address: string,
+  tokenId: string | number | bigint,
+  chainId?: number
+): string {
+  const id = encodeURIComponent(String(tokenId));
+  if (chainId === 1) {
+    return `https://etherscan.io/nft/${address}/${id}`;
+  }
+  return `https://basescan.org/nft/${address}/${id}`;
+}
+
+export function getOpenSeaItemUrl(
+  address: string,
+  tokenId: string | number | bigint,
+  chainId?: number
+): string {
+  const chain = chainId === 1 ? "ethereum" : "base";
+  return `https://opensea.io/item/${chain}/${address}/${encodeURIComponent(String(tokenId))}`;
+}
+
+export function getExplorerChainLabel(chainId?: number): string {
+  return chainId === 1 ? "Ethereum" : "Base";
 }
 
 /**
