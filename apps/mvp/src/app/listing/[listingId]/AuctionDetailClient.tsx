@@ -1036,9 +1036,6 @@ export default function AuctionDetailClient({
                           ? "Processing..."
                           : "Place Bid"}
                       </button>
-                      {bidInlineErrorMessage && (
-                        <p className="text-xs text-red-400">{bidInlineErrorMessage}</p>
-                      )}
                       {showMiniAppMainnetBrowserFallback && (
                         <button
                           type="button"
