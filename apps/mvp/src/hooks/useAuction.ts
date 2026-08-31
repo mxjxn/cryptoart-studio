@@ -27,6 +27,14 @@ export const AUCTION_FETCH_TIMEOUT = "CRYPTOART_AUCTION_FETCH_TIMEOUT";
 const MAINNET_ACTIVE_POLL_MS = 8_000;
 const DEFAULT_ACTIVE_POLL_MS = 12_000;
 
+/** True only for the first fetch when no auction is shown yet (not background polls). */
+export function shouldShowAuctionPageLoading(
+  loading: boolean,
+  hasAuction: boolean
+): boolean {
+  return loading && !hasAuction;
+}
+
 export type UseAuctionOptions = {
   /**
    * When true, the first fetch for this `listingId` calls `/api/auctions/:id?refresh=1`
@@ -41,6 +49,7 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
   const initialFresh = options?.initialFresh ?? false;
   const chainIdOpt = options?.chainId;
   const initialFreshConsumed = useRef(false);
+  const auctionRef = useRef<EnrichedAuctionData | null>(null);
   const [auction, setAuction] = useState<EnrichedAuctionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -51,6 +60,7 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
   const fetchAuction = useCallback(async (forceRefresh = false) => {
     if (!listingId) return;
 
+    const showLoading = auctionRef.current == null;
     const reqKey = auctionRequestKey(listingId, chainIdOpt);
     if (forceRefresh) {
       inFlightRequests.delete(reqKey);
@@ -74,7 +84,9 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
           setAmbiguousChains(null);
         }
       } finally {
-        setLoading(false);
+        if (showLoading) {
+          setLoading(false);
+        }
       }
       return;
     }
@@ -132,7 +144,9 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
     inFlightRequests.set(reqKey, requestPromise);
 
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       setError(null);
       const data = await requestPromise;
       setAmbiguousChains(null);
@@ -149,9 +163,15 @@ export function useAuction(listingId: string | null, options?: UseAuctionOptions
       }
     } finally {
       inFlightRequests.delete(auctionRequestKey(listingId, chainIdOpt));
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [listingId, chainIdOpt, initialFresh]);
+
+  useEffect(() => {
+    auctionRef.current = auction;
+  }, [auction]);
 
   useEffect(() => {
     initialFreshConsumed.current = false;
