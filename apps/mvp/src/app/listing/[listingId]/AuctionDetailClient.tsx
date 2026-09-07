@@ -128,6 +128,7 @@ export default function AuctionDetailClient({
     isModifyLoading,
     isPurchasing,
     isConfirmingPurchase,
+    isPurchaseConfirmed,
     isBidding,
     isConfirmingBid,
     isOffering,
@@ -1227,6 +1228,13 @@ export default function AuctionDetailClient({
                     {purchaseError && (
                       <p className="text-xs text-red-400">
                         {purchaseError.message || "Failed to purchase"}
+                      </p>
+                    )}
+                    {isPurchaseConfirmed && !purchaseError && (
+                      <p className="text-xs text-green-700" aria-live="polite">
+                        {auction.tokenSpec === "ERC1155"
+                          ? `You purchased ${purchaseQuantity * parseInt(auction.totalPerSale || "1")} copies of ${title}.`
+                          : `You purchased ${title}.`}
                       </p>
                     )}
                   </>

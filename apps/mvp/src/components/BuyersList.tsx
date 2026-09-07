@@ -55,43 +55,37 @@ export function BuyersList({ listingId, onBuyerAdded }: BuyersListProps) {
 
   // Listen for buyer added events (for optimistic updates)
   useEffect(() => {
-    if (onBuyerAdded) {
-      // This will be called from parent component when purchase succeeds
-      const handleBuyerAdded = (buyer: Buyer) => {
-        setBuyers(prev => {
-          // Check if buyer already exists
-          const existingIndex = prev.findIndex(
-            b => b.address.toLowerCase() === buyer.address.toLowerCase()
+    const handleBuyerAdded = (buyer: Buyer) => {
+      setBuyers(prev => {
+        const existingIndex = prev.findIndex(
+          b => b.address.toLowerCase() === buyer.address.toLowerCase()
+        );
+        
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            totalCount: updated[existingIndex].totalCount + buyer.totalCount,
+            lastPurchase: buyer.lastPurchase,
+          };
+          return updated.sort(
+            (a, b) => parseInt(b.lastPurchase) - parseInt(a.lastPurchase)
           );
-          
-          if (existingIndex >= 0) {
-            // Update existing buyer's count
-            const updated = [...prev];
-            updated[existingIndex] = {
-              ...updated[existingIndex],
-              totalCount: updated[existingIndex].totalCount + buyer.totalCount,
-              lastPurchase: buyer.lastPurchase,
-            };
-            // Re-sort by last purchase
-            return updated.sort(
-              (a, b) => parseInt(b.lastPurchase) - parseInt(a.lastPurchase)
-            );
-          } else {
-            // Add new buyer and sort
-            return [...prev, buyer].sort(
-              (a, b) => parseInt(b.lastPurchase) - parseInt(a.lastPurchase)
-            );
-          }
-        });
-      };
-      
-      // Store handler for parent to call
-      (window as any)[`buyerAdded_${listingId}`] = handleBuyerAdded;
-      
-      return () => {
-        delete (window as any)[`buyerAdded_${listingId}`];
-      };
-    }
+        }
+
+        return [...prev, buyer].sort(
+          (a, b) => parseInt(b.lastPurchase) - parseInt(a.lastPurchase)
+        );
+      });
+
+      onBuyerAdded?.(buyer);
+    };
+    
+    (window as any)[`buyerAdded_${listingId}`] = handleBuyerAdded;
+    
+    return () => {
+      delete (window as any)[`buyerAdded_${listingId}`];
+    };
   }, [listingId, onBuyerAdded]);
 
   if (loading && buyers.length === 0) {
@@ -167,7 +161,6 @@ function BuyerRow({ buyer }: { buyer: Buyer }) {
     </div>
   );
 }
-
 
 
 
