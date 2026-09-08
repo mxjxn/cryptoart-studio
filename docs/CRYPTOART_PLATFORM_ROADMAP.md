@@ -1,7 +1,11 @@
 # Cryptoart Platform Roadmap
 
 **Status:** Active product and architecture direction  
-**Updated:** 2026-09-07
+**Updated:** 2026-09-08
+
+The current cutover gates, administration model, artist-funded media pipeline,
+and clean-room recovery requirements are defined in
+[`CUTOVER_AND_DURABILITY_PLAN.md`](./CUTOVER_AND_DURABILITY_PLAN.md).
 
 ## Product direction
 
@@ -131,6 +135,8 @@ marketplace without returning to the MVP interface.
 - [ ] Attach verified live commerce state to artwork casts.
 - [ ] Replace explicit listing 5/6 placements with curator-managed placements.
 - [ ] Preserve transaction recovery, explorer links, and actionable errors.
+- [ ] Add seller auction management for active, scheduled, ended, cancelled, sold,
+      and settlement-required states.
 
 **Exit:** Existing auctionhouse listings can be discovered and completed entirely
 within Social.
@@ -143,6 +149,7 @@ within Social.
 - [ ] Add gallery-level sharing and discussion.
 - [ ] Add “Add to gallery” for owned work.
 - [ ] Add editorial publication controls for the `/market` exhibition slots.
+- [ ] Add scoped curator grants and an append-only publication audit trail.
 - [ ] Defer live chat, presence, and embedded 3D until the 2D experience is stable.
 
 **Exit:** Manually curated such.gallery exhibitions publish reliably on Social.
@@ -156,6 +163,8 @@ within Social.
 - [ ] Enable authenticated reactions, comments, casts, blocks, and mutes.
 - [ ] Build a shared auction transaction workflow.
 - [ ] Expose quick auction creation in Social and the complete flow in Studio.
+- [ ] Replace environment-only administration with scoped owner, admin, editor,
+      and curator roles recoverable from a documented onchain owner.
 
 **Exit:** Users can participate socially and create auctions through supported,
 Cryptoart-owned authentication and transaction paths.
@@ -164,6 +173,8 @@ Cryptoart-owned authentication and transaction paths.
 
 - [ ] Deploy cryptoart.studio with production configuration.
 - [ ] Complete collection deployment, minting, and token management.
+- [ ] Add x402-funded Arweave quote, payment, idempotent upload, confirmation, and
+      recovery flows so artists pay their own permanent media costs.
 - [ ] Share identity, media, contract, and marketplace modules with Social.
 - [ ] Add contextual round trips between artwork pages and Studio management.
 - [ ] Add lazy-mint creation and lifecycle management in Studio.
@@ -191,6 +202,8 @@ it through Social without duplicate data entry.
 - [ ] Move background ingestion and caches behind stable platform services.
 - [ ] Add redirects and preserve listing/share URLs and social previews.
 - [ ] Run a read-only shadow period against production data.
+- [ ] Pass a clean-room reconstruction drill using public chains, deployment
+      manifests, subgraph/indexer seeds, and canonical Arweave transaction IDs.
 - [ ] Cut cryptoart.social to `apps/social` with rollback capability.
 - [ ] Retire `apps/mvp` only after transaction, webhook, cache, and admin parity.
 

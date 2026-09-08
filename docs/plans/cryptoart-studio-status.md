@@ -1,6 +1,6 @@
 # cryptoart.studio — compact status
 
-**Updated:** 2026-06-23  
+**Updated:** 2026-09-08
 **Full spec:** [2026-06-cryptoart-studio.md](./2026-06-cryptoart-studio.md)  
 **Project board:** [cryptoart.studio](https://github.com/users/mxjxn/projects/2) · issues `#159`–`#168`
 
@@ -41,14 +41,14 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 
 ## Next (in order)
 
-1. ~~Merge **#170** (auth)~~ ✅
-2. **#161** — move collections API → studio (branch `feat/studio-api-move`, PR pending)
-3. **#162** — `collection_drafts` + API
-4. **#163** — Arweave quote/upload
-5. **#165** — deploy wizard
-6. **#164** — collection dashboard + public pages
-7. **#166** / **#167** — single + series mint
-8. **#168** — mainnet factories + indexer ops
+1. Specify and test the x402-funded Arweave job state machine, including retries, payment reconciliation, confirmation, and recovery.
+2. Add `collection_drafts`, upload jobs, payment receipts, and canonical Arweave transaction records.
+3. Complete the deploy wizard and collection dashboard/public pages.
+4. Complete single and series mint flows using the proven paid-upload pipeline.
+5. Share auction creation and management with Social.
+6. Deploy mainnet factories, finish indexer operations, and pass the clean-room reconstruction drill.
+
+See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md). Existing issue numbers remain useful, but their implementation order now follows the paid media proof rather than building mint UI on an unsettled storage boundary.
 
 ---
 

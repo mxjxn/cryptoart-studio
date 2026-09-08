@@ -50,7 +50,7 @@ Backend for collection deployment is largely complete (Phases 1–5 of [collecti
 
 | Topic | Decision |
 |-------|----------|
-| Storage | Arweave; artist pays pinning fees at upload |
+| Storage | Arweave; artist funds an x402-quoted, idempotent upload job |
 | Draft resume | Server-side drafts; pinned Arweave URIs stored in payload (no double-pay on resume) |
 | Series batch size | No hard cap; soft UI guidance only (gas warnings, suggested batch sizes) |
 | Volume stat | Show `—` on collection table until Stage B listings |
@@ -292,7 +292,9 @@ Work is ordered for incremental delivery. GitHub Issues (see [Execution tracking
 
 ### Phase 3 — Arweave upload
 
-- [ ] Port quote + upload flow from archived studio
+- [ ] Implement x402 quote, payment verification/settlement, and upload-job ledger
+- [ ] Make paid jobs idempotent, resumable, and credit/refund failures durably
+- [ ] Confirm uploads and verify retrieval through multiple gateways before mint
 - [ ] Single-file upload component
 - [ ] URI persistence in draft payload
 
@@ -384,7 +386,7 @@ Issue labels to add: `studio`, `stage-a`, `stage-b`, `backend`, `frontend`, `inf
 
 ## Open Items (resolve during build)
 
-- [ ] Arweave bundler / payment flow details (client vs server relay)
+- [ ] Choose the initial x402 facilitator and Arweave submission adapter after the testnet failure-recovery proof; keep both replaceable
 - [ ] Exact Farcaster auth package alignment with latest `apps/mvp` patterns
 - [ ] Indexer hosting target for production
 - [ ] Whether `apps/mvp` collections API stays as proxy during transition or is removed immediately after Studio ships
