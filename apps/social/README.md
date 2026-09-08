@@ -24,7 +24,8 @@ From this directory:
 ```sh
 pnpm setup
 cp web/.env.example web/.env.local
-# Set NEYNAR_API_KEY in web/.env.local; never use a VITE_ prefix for the key.
+# Set NEYNAR_API_KEY and ALCHEMY_API_KEY in web/.env.local; never use a VITE_
+# prefix for either server key.
 pnpm dev
 ```
 
@@ -60,6 +61,7 @@ Curator reactions are fetched with Neynar's bulk casts endpoint and `viewer_fid=
 Ranking and interlacing happen before pagination. Cursors identify retained snapshots, scoped to the selected channel, for 10 minutes. Refreshing another view does not reshuffle an existing page sequence. Candidate casts are deduplicated by hash. New content does not automatically jump into a reading session.
 
 References:
+
 - https://docs.neynar.com/reference/fetch-feed-by-channel-ids
 - https://docs.neynar.com/reference/fetch-bulk-casts
 
@@ -72,6 +74,8 @@ References:
   disclosure, and server-side marketplace proxying for local development.
 - Cryptoart-native wallet connection using Wagmi, installed browser wallets, and
   Coinbase Wallet, with session-scoped persistence and no managed-auth vendor.
+- Progressive Ethereum/Base wallet inventory with session caching, metadata
+  fallbacks, and a chain-verified manual NFT import path.
 - Popular/latest mixing, verified weighted-like scoring, channel selection, refresh, pagination, source errors, and development ranking explanations.
 - Artwork image and Open Graph mapping into the upstream embed model.
 - Cryptoart listing URL recognition for Base/Ethereum, including legacy chain query links, with canonical links into the existing marketplace.
@@ -88,8 +92,9 @@ References:
 - Personalization and authenticated viewer blocks/mutes. This first adapter is a public read feed.
 - General chain-verified listing enrichment, continuous activity ingestion, and inline transactions. The initial featured-auction and recent-sale cards are implemented as explicit test placements.
 - Author/listing diversity caps and production-scale background indexing.
-- Live gallery service integration, wallet-owned “Your items,” and Studio actions.
-  The market currently uses a typed such.gallery-shaped editorial fixture.
+- Live gallery service integration and “Add to gallery.” The market currently
+  uses a typed such.gallery-shaped editorial fixture; owned items already expose
+  Cast, Discuss, List, and Studio paths.
 - Production branding/navigation pruning, bundle reduction, and domain cutover.
 
 Keep the auctionhouse production deployment on MVP while developing this app and

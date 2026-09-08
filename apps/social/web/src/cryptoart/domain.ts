@@ -7,6 +7,25 @@ export interface ArtworkId {
   tokenId: string;
 }
 
+export type AssetSource = 'cryptoart' | 'alchemy' | 'manual';
+export type AssetMetadataStatus = 'resolved' | 'missing' | 'unreachable';
+
+export interface OwnedAsset extends Artwork {
+  standard: TokenStandard;
+  balance: string;
+  owner: string;
+  source: AssetSource;
+  metadataStatus: AssetMetadataStatus;
+  verifiedAt?: number;
+}
+
+export interface OwnedAssetPage {
+  items: OwnedAsset[];
+  nextPageKey: string | null;
+  degraded: boolean;
+  warnings: string[];
+}
+
 export interface Artwork {
   id: ArtworkId;
   title: string;

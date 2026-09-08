@@ -28,18 +28,18 @@ Related systems retain their own responsibilities:
 
 ## Experience ownership
 
-| Capability | Social | Studio | Shared service or protocol |
-| --- | --- | --- | --- |
-| Curated exhibitions | Primary public view | Curator management later | such.gallery |
-| Farcaster feed and conversations | Primary | Contextual sharing only | Neynar/Farcaster |
-| Browse marketplace inventory | Primary | Owned work only | Auctionhouse read model |
-| Bid, buy, and sell | Primary | Available in management flows | Auctionhouse contracts |
-| Quick auction creation | Yes | Yes | Shared transaction workflow |
-| Advanced auction management | Link to Studio | Primary | Shared transaction workflow |
-| Collection deployment and minting | Link to Studio | Primary | Creator Core |
-| Lazy mint configuration | Discovery and purchase | Primary creation surface | Shared lazy-mint protocol |
-| Pool discovery and swaps | Primary | Owned pool overview | LSSVM |
-| Pool creation and liquidity management | Link to Studio | Primary | LSSVM |
+| Capability                             | Social                 | Studio                        | Shared service or protocol  |
+| -------------------------------------- | ---------------------- | ----------------------------- | --------------------------- |
+| Curated exhibitions                    | Primary public view    | Curator management later      | such.gallery                |
+| Farcaster feed and conversations       | Primary                | Contextual sharing only       | Neynar/Farcaster            |
+| Browse marketplace inventory           | Primary                | Owned work only               | Auctionhouse read model     |
+| Bid, buy, and sell                     | Primary                | Available in management flows | Auctionhouse contracts      |
+| Quick auction creation                 | Yes                    | Yes                           | Shared transaction workflow |
+| Advanced auction management            | Link to Studio         | Primary                       | Shared transaction workflow |
+| Collection deployment and minting      | Link to Studio         | Primary                       | Creator Core                |
+| Lazy mint configuration                | Discovery and purchase | Primary creation surface      | Shared lazy-mint protocol   |
+| Pool discovery and swaps               | Primary                | Owned pool overview           | LSSVM                       |
+| Pool creation and liquidity management | Link to Studio         | Primary                       | LSSVM                       |
 
 ## Market information architecture
 
@@ -114,8 +114,10 @@ Decentralized source media must not block marketplace rendering.
 - [x] Define normalized `Artwork`, `Commerce`, and `Exhibition` contracts.
 - [x] Build `/market` with a curated exhibition and a cached marketplace preview.
 - [x] Build `/market/all` with pagination, filters, and stable URLs.
-- [ ] Add “Your items” progressive wallet inventory loading.
-- [ ] Add cast, discuss, list, gallery, and Studio actions to owned items.
+- [x] Add “Your items” progressive Ethereum/Base wallet inventory loading with
+      cached results and chain-verified manual import.
+- [x] Add cast, discuss, list, and Studio paths to owned items.
+- [ ] Add “Add to gallery” after the such.gallery write boundary is specified.
 - [ ] Treat auction, fixed-price edition, lazy mint, and pool cards distinctly.
 
 **Exit:** A visitor can discover curated work and browse the complete existing
@@ -148,7 +150,7 @@ within Social.
 ### Phase 4 — Cryptoart-owned identity and creation
 
 - [x] Add the zero-cost wallet connection foundation with injected and Coinbase
-  connectors, Base/Ethereum support, and session-scoped persistence.
+      connectors, Base/Ethereum support, and session-scoped persistence.
 - [ ] Replace the imported proprietary login/sync-channel flow.
 - [ ] Join wallet identity, Farcaster identity, and posting authorization.
 - [ ] Enable authenticated reactions, comments, casts, blocks, and mutes.
@@ -175,7 +177,7 @@ it through Social without duplicate data entry.
 - [ ] Consume the `@mxjxn/lssvm-abis` package and deployment registry.
 - [ ] Integrate the LSSVM subgraph into the platform read model.
 - [ ] Add pool discovery, inventory, quotes, buys, sells, and swap activity to
-  Social.
+      Social.
 - [ ] Add pool creation, deposits, withdrawals, and advanced settings to Studio.
 - [ ] Preserve royalty, fee, slippage, and curve information through confirmation.
 - [ ] Reuse the existing such-lssvm Mini App where it improves cast interactions.
@@ -201,7 +203,7 @@ responsibility.
 - [ ] Add more weighted curators and transparent ranking controls.
 - [ ] Add personalized taste signals with diversity and anti-spam constraints.
 - [ ] Evaluate bringing such.gallery presence, chat, and 3D rooms back into the
-  connected experience.
+      connected experience.
 
 ## Near-term implementation sequence
 
@@ -221,6 +223,9 @@ for later Studio, gallery, and LSSVM work.
 ## Decisions still to make
 
 - Where the combined read model runs and which database owns its derived records.
+- The persistent asset-registry store and background ingestion runtime. The
+  interim browser cache and server adapter are specified in
+  `docs/ASSET_DISCOVERY_SPEC.md`.
 - Whether such.gallery remains independently deployed or shares platform database
   access through an API boundary. An API boundary is the current recommendation.
 - The canonical artwork identifier across EVM chains and future non-EVM sources.

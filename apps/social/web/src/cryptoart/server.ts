@@ -5,6 +5,7 @@ import { normalizeCast, type NeynarCast } from './neynar';
 import { rankFeed } from './ranking';
 import { fetchAuctionCard, fetchLatestListings, type AuctionCardData, type MarketplaceListingData } from './marketplace';
 import { fetchMarketPage } from './marketClient';
+import { createAssetDiscoveryService } from './assetDiscovery';
 
 type Snapshot = { id: string; createdAt: number; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>;
   auctions: AuctionCardData[]; latestListings: MarketplaceListingData[]; warnings: string[] };
@@ -172,6 +173,27 @@ export function marketMiddleware(request: Fetch = fetch) {
     } catch {
       res.statusCode = 502;
       res.end(JSON.stringify({ error: 'Marketplace data is temporarily unavailable.' }));
+    }
+  };
+}
+
+export function assetDiscoveryMiddleware(apiKey?: string, request: Fetch = fetch) {
+  const service = createAssetDiscoveryService(apiKey, request);
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const handler = url.pathname === '/api/cryptoart/assets/owned' ? service.owned
+      : url.pathname === '/api/cryptoart/assets/import' ? service.imported : null;
+    if (!handler) return next();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'private, no-store');
+    if (req.method !== 'GET') { res.statusCode = 405; res.end(JSON.stringify({ error: 'Method not allowed' })); return; }
+    try {
+      const result = await handler(url);
+      res.statusCode = result.status;
+      res.end(JSON.stringify(result.body));
+    } catch {
+      res.statusCode = 502;
+      res.end(JSON.stringify({ error: 'NFT discovery is temporarily unavailable.' }));
     }
   };
 }
