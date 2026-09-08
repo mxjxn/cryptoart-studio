@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFeedService } from './server';
 
-const makeCast = (i: number) => ({ hash: `hash-${i}`, timestamp: new Date(Date.now() - i * 1000).toISOString(),
+const makeCast = (i: number) => ({ hash: `hash-${i}`, timestamp: new Date(Date.now() - 5000 - i * 1000).toISOString(),
   text: 'art', author: { fid: i + 1 }, channel: { id: 'cryptoart' }, reactions: { likes_count: i } });
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 describe('feed adapter', () => {

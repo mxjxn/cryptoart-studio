@@ -1,3 +1,5 @@
+import { WalletIdentityButton } from './WalletIdentityButton';
+
 export function CryptoartHeader({ active }: { active: 'feed' | 'market' }) {
   const tab = (name: 'feed' | 'market') =>
     active === name ? 'bg-white !text-black' : 'hover:bg-white hover:!text-black';
@@ -8,7 +10,7 @@ export function CryptoartHeader({ active }: { active: 'feed' | 'market' }) {
     <header className="border-b border-[#333] bg-black px-4 pb-0 pt-5 sm:px-8 lg:px-12">
       <div className="cryptoart-mono flex items-center justify-between text-[11px] uppercase tracking-[0.1em] text-[#aaa]">
         <span>Cryptoart · social marketplace</span>
-        <div className="flex gap-4"><a href="/market" className="hover:text-white">Market</a><a href="/market#exhibitions" className="hover:text-white">Galleries</a><a href="/~/sign-in-with-farcaster" className="hover:text-white">Sign in</a></div>
+        <div className="flex gap-4"><a href="/market" className="hover:text-white">Market</a><a href="/market#exhibitions" className="hover:text-white">Galleries</a><WalletIdentityButton /></div>
       </div>
       <div className="grid items-end gap-5 py-8 md:grid-cols-[minmax(0,1.4fr)_minmax(230px,0.6fr)] md:py-12">
         <a href="/" aria-label="Cryptoart Social home"><img src="/cryptoart-logo-wgmeets.png" alt="Cryptoart" className="w-full max-w-[650px]" /></a>

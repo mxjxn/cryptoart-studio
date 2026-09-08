@@ -147,6 +147,8 @@ within Social.
 
 ### Phase 4 — Cryptoart-owned identity and creation
 
+- [x] Add the zero-cost wallet connection foundation with injected and Coinbase
+  connectors, Base/Ethereum support, and session-scoped persistence.
 - [ ] Replace the imported proprietary login/sync-channel flow.
 - [ ] Join wallet identity, Farcaster identity, and posting authorization.
 - [ ] Enable authenticated reactions, comments, casts, blocks, and mutes.

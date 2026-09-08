@@ -70,6 +70,8 @@ References:
   Social marketplace client and the production auctionhouse browse API.
 - URL-stable catalog pagination, chain/type filters, ordering, degraded-source
   disclosure, and server-side marketplace proxying for local development.
+- Cryptoart-native wallet connection using Wagmi, installed browser wallets, and
+  Coinbase Wallet, with session-scoped persistence and no managed-auth vendor.
 - Popular/latest mixing, verified weighted-like scoring, channel selection, refresh, pagination, source errors, and development ranking explanations.
 - Artwork image and Open Graph mapping into the upstream embed model.
 - Cryptoart listing URL recognition for Base/Ethereum, including legacy chain query links, with canonical links into the existing marketplace.
@@ -79,6 +81,10 @@ References:
 ## Not yet completed
 
 - Cryptoart authentication and posting signer integration. Imported login, secondary routes, and social write actions still use upstream API assumptions; they are not verified Cryptoart integrations.
+- SIWE session verification and WalletConnect mobile pairing. WalletConnect is
+  intentionally withheld from the active connector list because its Wagmi 3
+  connector currently stalls this imported client during startup; the existing
+  monorepo project ID is not the observed problem.
 - Personalization and authenticated viewer blocks/mutes. This first adapter is a public read feed.
 - General chain-verified listing enrichment, continuous activity ingestion, and inline transactions. The initial featured-auction and recent-sale cards are implemented as explicit test placements.
 - Author/listing diversity caps and production-scale background indexing.

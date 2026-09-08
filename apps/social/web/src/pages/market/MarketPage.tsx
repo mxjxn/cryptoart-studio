@@ -3,6 +3,7 @@ import { CryptoartHeader } from '~/cryptoart/CryptoartHeader';
 import { editorialExhibition } from '~/cryptoart/exhibitionFixture';
 import { MarketCard } from '~/cryptoart/MarketCard';
 import { fetchMarketPage } from '~/cryptoart/marketClient';
+import { YourItems } from '~/cryptoart/YourItems';
 
 export function MarketPage() {
   const market = useQuery({
@@ -41,16 +42,7 @@ export function MarketPage() {
       </div>
     </section>
 
-    <section aria-labelledby="your-items" className="grid border-b border-white bg-[#f5b0d3] text-black md:grid-cols-2">
-      <div className="border-b border-black p-8 md:border-b-0 md:border-r lg:p-12">
-        <p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em]">Personal collection</p>
-        <h2 id="your-items" className="mt-2 text-[clamp(3rem,8vw,6rem)] font-medium leading-[0.82] tracking-[-0.05em]">Your items</h2>
-      </div>
-      <div className="flex flex-col justify-between gap-8 p-8 lg:p-12">
-        <p className="max-w-xl text-lg leading-7">Connect your wallet to share work, start a conversation, create a listing, or place an item in one of your galleries.</p>
-        <a href="/~/sign-in-with-farcaster" className="cryptoart-mono w-fit border border-black bg-black px-6 py-3 text-xs uppercase tracking-[0.1em] text-white">Connect identity →</a>
-      </div>
-    </section>
+    <YourItems />
 
     <section aria-labelledby="market-selections" className="bg-white px-4 py-14 text-black sm:px-8 lg:px-12 lg:py-20">
       <header className="mb-10 flex items-end justify-between gap-5">

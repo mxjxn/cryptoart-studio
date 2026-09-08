@@ -1,6 +1,8 @@
 import { robinhood } from 'farcaster-client-data';
 import { bsc, degen, monadTestnet, unichain } from 'viem/chains';
-import { Config, createConfig, http, Transport } from 'wagmi';
+import { Config, createConfig, createStorage, http, Transport } from 'wagmi';
+import { coinbaseWallet } from 'wagmi/connectors/coinbaseWallet';
+import { injected } from 'wagmi/connectors/injected';
 import {
   arbitrum,
   arbitrumSepolia,
@@ -47,7 +49,11 @@ const transports = chains.reduce(
 const wagmiConfig: Config = createConfig({
   chains,
   transports,
-  connectors: [],
+  connectors: [
+    injected(),
+    coinbaseWallet({ appName: 'Cryptoart Social' }),
+  ],
+  storage: createStorage({ storage: window.sessionStorage }),
 });
 
 export { wagmiConfig };
