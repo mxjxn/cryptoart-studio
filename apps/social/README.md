@@ -1,6 +1,12 @@
 # Cryptoart Social
 
-The actual Farcaster **web** client, ported into the Cryptoart monorepo. This is an initial development foundation, not a production replacement for MVP.
+The actual Farcaster **web** client, ported into the Cryptoart monorepo. This is
+the in-development replacement for `apps/mvp` at cryptoart.social. The production
+cutover will be incremental and will retain the existing marketplace until route,
+transaction, caching, webhook, and administration parity is complete.
+
+The canonical cross-project plan is
+[Cryptoart Platform Roadmap](../../docs/CRYPTOART_PLATFORM_ROADMAP.md).
 
 ## Source layout
 
@@ -75,4 +81,5 @@ References:
 - Gallery service ownership, 2D gallery views, and Studio integration.
 - Production branding/navigation pruning, bundle reduction, and domain cutover.
 
-Keep the auctionhouse production deployment on MVP while developing this app.
+Keep the auctionhouse production deployment on MVP while developing this app and
+follow the cutover criteria in the platform roadmap.

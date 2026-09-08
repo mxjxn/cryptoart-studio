@@ -8,10 +8,16 @@ A monorepo containing all projects related to the Cryptoart channel on farcaster
 
 This monorepo contains several projects that work together:
 
-1. **MVP App** - Main marketplace app with auctions, curation, and social features
-2. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
-3. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
-4. **Auctionhouse Subgraph** - The Graph subgraph for indexing marketplace events
+1. **Social App** - In-development replacement for cryptoart.social, combining
+   curated exhibitions, Farcaster conversation, and marketplace activity
+2. **Studio App** - Artist workspace for collection deployment, minting, and management
+3. **MVP App** - Current production marketplace and incremental migration source
+4. **Creator Core Contracts** - ERC721/ERC1155 NFT framework with extensions
+5. **Auctionhouse Contracts** - Solidity smart contracts for the auction house
+6. **Auctionhouse Subgraph** - The Graph subgraph for indexing marketplace events
+
+See the [Cryptoart Platform Roadmap](./docs/CRYPTOART_PLATFORM_ROADMAP.md) for the
+active product boundaries, integration plan, and production cutover sequence.
 
 ## Related Projects
 
@@ -306,4 +312,3 @@ See individual project directories for license information.
 - **[LSSVM Development Suite](https://github.com/mxjxn/such-lssvm)** - Protocol contracts, miniapp, and subgraph for NFT liquidity pools
   - Documentation: [mxjxn.github.io/such-lssvm](https://mxjxn.github.io/such-lssvm/)
   - Integration Guide: [LSSVM_INTEGRATION.md](./LSSVM_INTEGRATION.md)
-

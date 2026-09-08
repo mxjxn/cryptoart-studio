@@ -2,6 +2,11 @@
 
 On-chain artist dashboard for collection deployment, minting, and contract management.
 
+Studio is the artist operations surface paired with cryptoart.social. Social owns
+public discovery and collecting; Studio owns minting, collection administration,
+advanced auction configuration, and liquidity management. See the canonical
+[Cryptoart Platform Roadmap](../../docs/CRYPTOART_PLATFORM_ROADMAP.md).
+
 ## Development
 
 ```bash

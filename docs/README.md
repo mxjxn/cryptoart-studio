@@ -82,6 +82,16 @@ This directory contains all project documentation. Use this guide to quickly fin
 
 ## 📋 Project Management
 
+### [CRYPTOART_PLATFORM_ROADMAP.md](./CRYPTOART_PLATFORM_ROADMAP.md)
+**TL;DR**: Canonical product architecture and phased migration plan for replacing
+`apps/mvp` with Social while integrating Studio, such.gallery, auctionhouse, and
+LSSVM liquidity.
+
+**When to use**: Planning or implementing work that crosses application,
+marketplace, gallery, identity, media, or protocol boundaries.
+
+---
+
 ### [plans/2026-06-cryptoart-studio.md](./plans/2026-06-cryptoart-studio.md)
 **TL;DR**: Product and implementation plan for **cryptoart.studio** (`apps/studio`) — artist dashboard for collection deploy, minting, and management. Stage A scope, routes, API, drafts, Arweave pipeline, and GitHub Project tracking guidance.
 
@@ -213,7 +223,6 @@ docs/
 ---
 
 **Need help?** Start with [DEPLOYMENT_QUICKSTART.md](./DEPLOYMENT_QUICKSTART.md) for deployment or [STATUS_AND_NEXT_STEPS.md](./STATUS_AND_NEXT_STEPS.md) for project overview.
-
 
 
 

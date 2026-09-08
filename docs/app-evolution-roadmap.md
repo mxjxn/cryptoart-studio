@@ -1,5 +1,11 @@
 # apps/mvp Incremental Evolution Roadmap
 
+> **Superseded on 2026-09-07.** The active direction moves the public Social
+> experience into `apps/social`, uses `apps/mvp` as a temporary migration source,
+> and keeps minting and artist operations in `apps/studio`. See the
+> [Cryptoart Platform Roadmap](./CRYPTOART_PLATFORM_ROADMAP.md). This document is
+> retained as historical context.
+
 **Project:** CryptoArt MVP (`apps/mvp`)  
 **Status:** Finalized implementation plan  
 **Date:** 2026-05-14
