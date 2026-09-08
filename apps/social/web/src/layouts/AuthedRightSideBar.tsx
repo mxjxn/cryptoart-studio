@@ -25,6 +25,7 @@ const AuthedRightSideBar: FC = memo(() => {
     routeFamily === 'settings' ||
     routeFamily === 'invites' ||
     routeFamily === 'directCasts' ||
+    routeName === 'homeFeed' ||
     onDevelopersPage;
 
   const items = useMemo(() => {
@@ -50,7 +51,7 @@ const AuthedRightSideBar: FC = memo(() => {
   }, [routeFamily, routeName, shouldHideRightSidebar]);
 
   let variant: MinimizableWindowHostVariant = 'sidebar';
-  if (onDevelopersPage || routeFamily === 'settings') {
+  if (onDevelopersPage || routeFamily === 'settings' || routeName === 'homeFeed') {
     variant = 'screen-right';
   } else if (routeFamily === 'directCasts') {
     variant = 'direct-casts';

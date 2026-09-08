@@ -1,4 +1,5 @@
 import { FC, memo } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { HomeIcon } from '~/components/icons/HomeIcon';
 import { NavLink } from '~/components/links/NavLink';
@@ -10,8 +11,9 @@ import { LeftSideBarLogo } from '~/layouts/LeftSideBarLogo';
 
 const UnauthedLeftSideBar: FC = memo(() => {
   const routeFamily = useCurrentRouteFamily();
+  const location = useLocation();
 
-  if (routeFamily === 'invites') {
+  if (routeFamily === 'invites' || location.pathname === '/') {
     return null;
   }
 

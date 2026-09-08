@@ -8,6 +8,9 @@ import {
 
 const usePageLayoutSize = () => {
   const location = useLocation();
+  if (location.pathname === '/') {
+    return 'full';
+  }
   if (location.pathname.startsWith(`${appSettingsPathPrefix}`)) {
     return 'full';
   }

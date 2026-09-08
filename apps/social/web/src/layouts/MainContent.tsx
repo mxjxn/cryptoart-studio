@@ -1,6 +1,6 @@
 import cn from 'classnames';
 import { FC, memo, Suspense } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 import { FullScreenErrorBoundary } from '~/components/errors/FullScreenErrorBoundary';
 import { FullScreenLoadingIndicator } from '~/components/loaders/FullScreenLoadingIndicator';
@@ -9,6 +9,7 @@ import { MobileHeader } from '~/layouts/MobileHeader';
 
 const MainContent: FC = memo(() => {
   const size = usePageLayoutSize();
+  const location = useLocation();
 
   return (
     <main
@@ -16,9 +17,11 @@ const MainContent: FC = memo(() => {
         'h-full w-full shrink-0 justify-center',
         'sm:mr-4 sm:w-[540px] lg:w-[620px]',
         size === 'full' && 'lg:!w-[1013px]',
+        location.pathname === '/' &&
+          'sm:!mr-0 sm:!w-full lg:!w-full xl:!w-[1216px]',
       )}
     >
-      <MobileHeader />
+      {location.pathname !== '/' && <MobileHeader />}
       <Suspense fallback={<FullScreenLoadingIndicator />}>
         <FullScreenErrorBoundary>
           <Outlet />

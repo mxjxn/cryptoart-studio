@@ -12,6 +12,7 @@ import {
   UserPlusIcon,
 } from 'lucide-react';
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { AvatarImage } from '~/components/avatar/AvatarImage';
 import { NavLink } from '~/components/links/NavLink';
@@ -26,6 +27,7 @@ import { LeftSideBar } from '~/layouts/LeftSideBar';
 import { LeftSideBarLogo } from '~/layouts/LeftSideBarLogo';
 
 const AuthedLeftSideBar: React.FC = React.memo(() => {
+  const location = useLocation();
   const { notificationsCount, inboxCount, channelFeedsUnseenStatus } =
     useUnseen();
   const { developerModeEnabled } = useUserAppContext();
@@ -34,6 +36,7 @@ const AuthedLeftSideBar: React.FC = React.memo(() => {
   const currentUserProfileCastsLinkProps = useCurrentUserProfileCastsLinkProps({
     title: 'Profile',
   });
+  if (location.pathname === '/') return null;
   const updatesUnseenCount = channelFeedsUnseenStatus?.['fc-updates']
     ?.hasNewItems
     ? 1

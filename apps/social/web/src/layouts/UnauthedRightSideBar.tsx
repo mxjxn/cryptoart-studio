@@ -1,6 +1,7 @@
 import { PersonAddIcon, SignInIcon } from '@primer/octicons-react';
 import { AnalyticsEvent } from 'farcaster-analytics';
 import { FC, memo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { DefaultButton } from '~/components/forms/buttons/DefaultButton';
 import { LoginModal } from '~/components/modals/LoginModal';
@@ -16,8 +17,9 @@ const UnauthedRightSideBar: FC = memo(() => {
   const navigate = useNavigate();
 
   const routeFamily = useCurrentRouteFamily();
+  const location = useLocation();
 
-  if (routeFamily === 'invites') {
+  if (routeFamily === 'invites' || location.pathname === '/') {
     return null;
   }
 
