@@ -1,0 +1,38 @@
+{
+  "name": "Cryptoart Social",
+  "short_name": "Cryptoart",
+  "description": "Art and conversation from your channels.",
+  "background_color": "#ffffff",
+  "categories": [
+    "social"
+  ],
+  "display": "standalone",
+  "icons": [
+    {
+      "purpose": "any",
+      "src": "512x512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "purpose": "any",
+      "src": "1024x1024-v2.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ],
+  "share_target": {
+    "action": "/~/compose",
+    "enctype": "multipart/form-data",
+    "method": "POST",
+    "params": {
+      "text": "text"
+    }
+  },
+  "start_url": ".",
+  "theme_color": "#ffffff",
+  "scope": "/",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
+}

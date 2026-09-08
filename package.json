@@ -27,7 +27,11 @@
     "services:restart": "docker-compose restart",
     "services:logs": "docker-compose logs -f",
     "services:clean": "docker-compose down -v",
-    "services:status": "docker-compose ps"
+    "services:status": "docker-compose ps",
+    "dev:social": "pnpm --dir apps/social dev",
+    "build:social": "pnpm --dir apps/social build",
+    "test:social": "pnpm --dir apps/social test",
+    "setup:social": "pnpm --dir apps/social setup"
   },
   "dependencies": {
     "@mxjxn/lssvm-abis": "^0.1.0"

@@ -1,0 +1,10 @@
+packages:
+  - web
+  - packages/*
+
+minimumReleaseAge: 10080
+onlyBuiltDependencies:
+  - esbuild
+  - keccak
+  - secp256k1
+  - protobufjs
