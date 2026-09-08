@@ -111,9 +111,9 @@ Decentralized source media must not block marketplace rendering.
 
 ### Phase 1 — Market discovery in Social
 
-- [ ] Define normalized `Artwork`, `Commerce`, and `Exhibition` contracts.
-- [ ] Build `/market` with a curated exhibition and a cached marketplace preview.
-- [ ] Build `/market/all` with pagination, filters, and stable URLs.
+- [x] Define normalized `Artwork`, `Commerce`, and `Exhibition` contracts.
+- [x] Build `/market` with a curated exhibition and a cached marketplace preview.
+- [x] Build `/market/all` with pagination, filters, and stable URLs.
 - [ ] Add “Your items” progressive wallet inventory loading.
 - [ ] Add cast, discuss, list, gallery, and Studio actions to owned items.
 - [ ] Treat auction, fixed-price edition, lazy mint, and pool cards distinctly.

@@ -13,6 +13,8 @@ import { useIsSignedIn } from '~/hooks/data/useIsSignedIn';
 import { AuthedLayout } from '~/layouts/AuthedLayout';
 import { UnauthedLayout } from '~/layouts/UnauthedLayout';
 import { HomeFeedPage } from '~/lazy/pages';
+import { MarketAllPage } from '~/pages/market/MarketAllPage';
+import { MarketPage } from '~/pages/market/MarketPage';
 import { trackError } from '~/utils/errorUtils';
 import { getItem } from '~/utils/storageUtils';
 
@@ -41,6 +43,8 @@ const Router: React.FC = () => {
         {/* DebugProvider must be a child of BrowserRouter */}
         <DebugProvider>
           <Routes>
+            <Route path="/market" element={<MarketPage />} />
+            <Route path="/market/all" element={<MarketAllPage />} />
             {redirects.map((redirect) => (
               <Route
                 key={redirect.path}

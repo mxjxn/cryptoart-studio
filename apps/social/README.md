@@ -66,6 +66,10 @@ References:
 ## Working now
 
 - Live public approved-channel feed using the original Farcaster cast presentation.
+- Curated `/market` entrance and `/market/all` inventory backed by a normalized
+  Social marketplace client and the production auctionhouse browse API.
+- URL-stable catalog pagination, chain/type filters, ordering, degraded-source
+  disclosure, and server-side marketplace proxying for local development.
 - Popular/latest mixing, verified weighted-like scoring, channel selection, refresh, pagination, source errors, and development ranking explanations.
 - Artwork image and Open Graph mapping into the upstream embed model.
 - Cryptoart listing URL recognition for Base/Ethereum, including legacy chain query links, with canonical links into the existing marketplace.
@@ -78,7 +82,8 @@ References:
 - Personalization and authenticated viewer blocks/mutes. This first adapter is a public read feed.
 - General chain-verified listing enrichment, continuous activity ingestion, and inline transactions. The initial featured-auction and recent-sale cards are implemented as explicit test placements.
 - Author/listing diversity caps and production-scale background indexing.
-- Gallery service ownership, 2D gallery views, and Studio integration.
+- Live gallery service integration, wallet-owned “Your items,” and Studio actions.
+  The market currently uses a typed such.gallery-shaped editorial fixture.
 - Production branding/navigation pruning, bundle reduction, and domain cutover.
 
 Keep the auctionhouse production deployment on MVP while developing this app and

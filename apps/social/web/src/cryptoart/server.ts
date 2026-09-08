@@ -4,6 +4,7 @@ import { APPROVED_CHANNELS, FEATURED_AUCTIONS, FEED_POLICY, isApprovedChannel, R
 import { normalizeCast, type NeynarCast } from './neynar';
 import { rankFeed } from './ranking';
 import { fetchAuctionCard, fetchLatestListings, type AuctionCardData, type MarketplaceListingData } from './marketplace';
+import { fetchMarketPage } from './marketClient';
 
 type Snapshot = { id: string; createdAt: number; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>;
   auctions: AuctionCardData[]; latestListings: MarketplaceListingData[]; warnings: string[] };
@@ -147,6 +148,30 @@ export function feedMiddleware(apiKey?: string) {
       res.statusCode = result.status; res.end(JSON.stringify(result.body));
     } catch {
       res.statusCode = 502; res.end(JSON.stringify({ error: 'Farcaster feed is unavailable. Check provider access and try again.' }));
+    }
+  };
+}
+
+export function marketMiddleware(request: Fetch = fetch) {
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (url.pathname !== '/api/cryptoart/market') return next();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+    if (req.method !== 'GET') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return;
+    }
+    const first = Math.min(48, Math.max(1, Number(url.searchParams.get('first')) || 24));
+    const skip = Math.max(0, Number(url.searchParams.get('skip')) || 0);
+    try {
+      const result = await fetchMarketPage({ first, skip }, request);
+      res.statusCode = 200;
+      res.end(JSON.stringify(result));
+    } catch {
+      res.statusCode = 502;
+      res.end(JSON.stringify({ error: 'Marketplace data is temporarily unavailable.' }));
     }
   };
 }
