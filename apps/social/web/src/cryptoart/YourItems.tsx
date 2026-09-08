@@ -28,9 +28,12 @@ function writeCache(address: string, items: OwnedAsset[]) {
   }
 }
 
-async function getOwnedAssets(address: string): Promise<OwnedAsset[]> {
+async function getOwnedAssets(
+  address: string,
+  chains: SupportedChainId[],
+): Promise<OwnedAsset[]> {
   const pages = await Promise.allSettled(
-    ([1, 8453] as SupportedChainId[]).map(async (chainId) => {
+    chains.map(async (chainId) => {
       const response = await fetch(
         `/api/cryptoart/assets/owned?owner=${address}&chainId=${chainId}`,
       );
@@ -117,13 +120,22 @@ export function YourItems() {
   const [showImport, setShowImport] = useState(false);
   const [contract, setContract] = useState('');
   const [tokenId, setTokenId] = useState('');
-  const [importChain, setImportChain] = useState<SupportedChainId>(8453);
+  const [importChain, setImportChain] = useState<SupportedChainId>(1);
   const [importError, setImportError] = useState('');
   const [importing, setImporting] = useState(false);
-  const cached = useMemo(() => (address ? readCache(address) : []), [address]);
+  const [includeBase, setIncludeBase] = useState(false);
+  const cached = useMemo(
+    () =>
+      address
+        ? readCache(address).filter(
+            (item) => includeBase || item.id.chainId === 1,
+          )
+        : [],
+    [address, includeBase],
+  );
   const owned = useQuery({
-    queryKey: ['cryptoart-owned-assets', address],
-    queryFn: () => getOwnedAssets(address!),
+    queryKey: ['cryptoart-owned-assets', address, { includeBase }],
+    queryFn: () => getOwnedAssets(address!, includeBase ? [1, 8453] : [1]),
     enabled: Boolean(address),
     initialData: cached.length ? cached : undefined,
     staleTime: 60_000,
@@ -152,7 +164,10 @@ export function YourItems() {
         ).values(),
       ];
       writeCache(address, items);
-      queryClient.setQueryData(['cryptoart-owned-assets', address], items);
+      queryClient.setQueryData(
+        ['cryptoart-owned-assets', address, { includeBase }],
+        includeBase ? items : items.filter((item) => item.id.chainId === 1),
+      );
       setContract('');
       setTokenId('');
       setShowImport(false);
@@ -191,9 +206,9 @@ export function YourItems() {
                   {shortAddress(address)}
                 </p>
                 <p className="mt-4 max-w-xl text-sm leading-6">
-                  Your cached works appear first. Cryptoart checks Ethereum and
-                  Base in the background; missing work can be verified and
-                  imported directly.
+                  Ethereum works appear first. Base stays out of the room unless
+                  you ask for it; missing work can be verified and imported
+                  directly.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -238,8 +253,8 @@ export function YourItems() {
             }
             className="border border-black bg-white px-3 py-3 text-sm"
           >
-            <option value="8453">Base</option>
             <option value="1">Ethereum</option>
+            <option value="8453">Base</option>
           </select>
           <input
             aria-label="Contract address"
@@ -273,12 +288,31 @@ export function YourItems() {
       )}
       {address && (
         <div className="border-t border-black bg-white p-4 sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-black pb-4">
+            <div>
+              <p className="cryptoart-mono text-[10px] uppercase tracking-[0.1em]">
+                Ethereum collection
+              </p>
+              <p className="mt-1 max-w-xl text-sm text-neutral-600">
+                Ethereum is the default view. A curated collection library will
+                bring known artists and collections forward as it grows.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-pressed={includeBase}
+              onClick={() => setIncludeBase((value) => !value)}
+              className={`cryptoart-mono border border-black px-4 py-2 text-[10px] uppercase ${includeBase ? 'bg-black text-white' : 'bg-white text-black'}`}
+            >
+              {includeBase ? 'Base included' : 'Include Base'}
+            </button>
+          </div>
           {owned.isPending && (
             <p
               role="status"
               className="cryptoart-mono py-10 text-center text-xs uppercase"
             >
-              Finding work on Ethereum and Base…
+              Finding work on {includeBase ? 'Ethereum and Base' : 'Ethereum'}…
             </p>
           )}
           {owned.error && (

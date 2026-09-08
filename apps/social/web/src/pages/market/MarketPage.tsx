@@ -19,20 +19,22 @@ export function MarketPage() {
   return <main className="cryptoart-shell min-h-screen overflow-hidden bg-black text-white">
     <CryptoartHeader active="market" />
     <section id="exhibitions" aria-labelledby="current-exhibition" className="bg-[#dcf54c] px-4 py-12 text-black sm:px-8 md:py-20 lg:px-12">
-      <div className="grid gap-8 lg:grid-cols-[0.68fr_1.32fr]">
-        <header className="lg:sticky lg:top-8 lg:self-start">
+      <div>
+        <header className="grid gap-6 border-b border-black pb-10 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
+          <div>
           <p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em]">Current exhibition · curated by {exhibition.curator}</p>
           <h1 id="current-exhibition" className="mt-4 text-[clamp(4rem,11vw,9rem)] font-medium leading-[0.72] tracking-[-0.07em]">{exhibition.title}</h1>
-          <p className="mt-8 max-w-md text-lg leading-7">{exhibition.description}</p>
-          <p className="cryptoart-mono mt-8 text-[10px] uppercase tracking-[0.12em]">such.gallery editorial presentation · native 2D preview</p>
+          </div>
+          <div className="lg:pb-2"><p className="max-w-md text-lg leading-7">{exhibition.description}</p><p className="cryptoart-mono mt-6 text-[10px] uppercase tracking-[0.12em]">such.gallery editorial presentation · native 2D preview</p></div>
         </header>
-        <div className="space-y-16">
-          {exhibition.placements.map((placement, index) => <article key={placement.id} className={index % 2 ? 'ml-auto max-w-[78%]' : 'max-w-[90%]'}>
-            <a href={placement.commerce?.href ?? '#'} className="group block">
-              <div className="flex min-h-[260px] items-center bg-black p-3 sm:min-h-[420px]">
-                <img src={placement.artwork.media.previewUrl} alt={placement.artwork.title} className="max-h-[680px] w-full object-contain" />
+        <div className="mt-8 grid gap-5 md:grid-cols-2 lg:gap-8">
+          {exhibition.placements.map((placement, index) => <article key={placement.id} className="border-2 border-black bg-[#f8f5eb] shadow-[8px_8px_0_#000]">
+            <a href={placement.commerce?.href ?? '#'} className="group flex h-full flex-col">
+              <div className="cryptoart-mono flex items-center justify-between border-b border-black px-4 py-3 text-[10px] uppercase tracking-[0.1em]"><span>Artist room {String(index + 1).padStart(2, '0')}</span><span>{placement.commerce ? 'Available' : 'Collected'}</span></div>
+              <div className="flex aspect-square items-center bg-black p-3 sm:p-5">
+                <img src={placement.artwork.media.previewUrl} alt={placement.artwork.title} className="h-full w-full object-contain transition duration-500 group-hover:scale-[0.985]" />
               </div>
-              <div className="cryptoart-mono mt-3 grid grid-cols-[1fr_auto] gap-4 text-[11px] uppercase tracking-[0.08em]">
+              <div className="cryptoart-mono grid flex-1 grid-cols-[1fr_auto] gap-4 p-4 text-[11px] uppercase tracking-[0.08em]">
                 <p><strong>{placement.artwork.title}</strong><br />{placement.artwork.artist}</p>
                 <p className="text-right">{placement.caption}<br />{placement.commerce ? `${placement.commerce.amount} ${placement.commerce.currency}` : 'Not currently listed'}</p>
               </div>

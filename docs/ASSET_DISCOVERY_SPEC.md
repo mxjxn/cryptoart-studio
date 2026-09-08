@@ -35,6 +35,12 @@ current wallet ownership alone does not establish authorship.
    or a manual import is accepted.
 5. Let the user submit a missing `(chain, contract, tokenId)`.
 
+The personal collection opens on Ethereum. Base inventory is available through
+an explicit toggle because unsolicited airdrops are substantially noisier there
+for the initial collector set. As Cryptoart observes trusted Studio, marketplace,
+gallery, and pool contracts, a collection library will rank those known sources
+ahead of unclassified provider results on either chain.
+
 Provider spam labels are ranking and presentation evidence, not grounds for
 permanent deletion. Missing metadata remains visible in a “Needs attention”
 state with refresh and direct URI recovery added in a later iteration.
