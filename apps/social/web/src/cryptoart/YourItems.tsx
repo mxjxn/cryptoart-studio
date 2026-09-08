@@ -94,7 +94,7 @@ async function getOwnedAssets(
 
 function OwnedItemCard({ item }: { item: OwnedAsset }) {
   const artworkPath = `/artwork/${item.id.chainId}/${item.id.contractAddress}/${item.id.tokenId}`;
-  const createUrl = `https://cryptoart.social/create?chainId=${item.id.chainId}&tokenAddress=${item.id.contractAddress}&tokenId=${item.id.tokenId}`;
+  const createUrl = `/create?chainId=${item.id.chainId}&tokenAddress=${item.id.contractAddress}&tokenId=${item.id.tokenId}`;
   return (
     <article className="border border-black bg-[#f8f5eb]">
       <div className="aspect-square bg-black p-2">

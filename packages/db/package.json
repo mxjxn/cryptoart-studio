@@ -17,6 +17,7 @@
     "db:migrate-notification-tokens": "tsx scripts/migrate-notification-tokens.ts",
     "db:migrate-featured-sections": "tsx scripts/migrate-featured-sections.ts",
     "db:migrate-curation-items": "tsx scripts/migrate-curation-items.ts",
+    "db:migrate-identity": "tsx scripts/migrate-identity-editorial-media.ts",
     
     "db:status": "tsx scripts/check-tables.ts",
     "db:check": "tsx scripts/check-migrations.ts",

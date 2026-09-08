@@ -15,6 +15,11 @@ import { UnauthedLayout } from '~/layouts/UnauthedLayout';
 import { HomeFeedPage } from '~/lazy/pages';
 import { MarketAllPage } from '~/pages/market/MarketAllPage';
 import { MarketPage } from '~/pages/market/MarketPage';
+import { ListingPage } from '~/pages/listing/ListingPage';
+import { CreateListingPage } from '~/pages/listing/CreateListingPage';
+import { ExhibitionPage } from '~/pages/exhibitions/ExhibitionPage';
+import { CuratorDirectoryPage } from '~/pages/admin/CuratorDirectoryPage';
+import { ExhibitionAdminPage } from '~/pages/admin/ExhibitionAdminPage';
 import { trackError } from '~/utils/errorUtils';
 import { getItem } from '~/utils/storageUtils';
 
@@ -45,6 +50,14 @@ const Router: React.FC = () => {
           <Routes>
             <Route path="/market" element={<MarketPage />} />
             <Route path="/market/all" element={<MarketAllPage />} />
+            <Route path="/listing/eth/:listingId" element={<ListingPage chainHint="eth" />} />
+            <Route path="/listing/base/:listingId" element={<ListingPage chainHint="base" />} />
+            <Route path="/listing/:listingId" element={<ListingPage chainHint="base" />} />
+            <Route path="/create" element={<CreateListingPage />} />
+            <Route path="/exhibitions/:slug" element={<ExhibitionPage />} />
+            <Route path="/admin" element={<CuratorDirectoryPage />} />
+            <Route path="/admin/curators" element={<CuratorDirectoryPage />} />
+            <Route path="/admin/exhibitions" element={<ExhibitionAdminPage />} />
             {redirects.map((redirect) => (
               <Route
                 key={redirect.path}

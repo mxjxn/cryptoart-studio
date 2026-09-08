@@ -20,6 +20,9 @@ export function StudioHeader() {
           <Link href="/dashboard" className="studio-btn-outline text-sm">
             Dashboard
           </Link>
+          <Link href="/media/upload" className="studio-btn-outline text-sm">
+            Arweave proof
+          </Link>
 
           {isConnected && address && (
             <div className="hidden rounded-lg border border-border px-3 py-2 text-left md:block">

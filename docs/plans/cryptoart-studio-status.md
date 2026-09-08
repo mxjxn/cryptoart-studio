@@ -41,7 +41,7 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 
 ## Next (in order)
 
-1. Specify and test the x402-funded Arweave job state machine, including retries, payment reconciliation, confirmation, and recovery.
+1. Specify and test the x402-funded Arweave job state machine, including retries, payment reconciliation, confirmation, and recovery. Scaffold: Studio `/media/upload` (`@cryptoart/media`).
 2. Add `collection_drafts`, upload jobs, payment receipts, and canonical Arweave transaction records.
 3. Complete the deploy wizard and collection dashboard/public pages.
 4. Complete single and series mint flows using the proven paid-upload pipeline.

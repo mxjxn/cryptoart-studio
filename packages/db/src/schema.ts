@@ -1267,3 +1267,161 @@ export const indexedContracts = pgTable('indexed_contracts', {
   pk: primaryKey({ columns: [table.contractAddress, table.chainId] }),
   statusIdx: index('indexed_contracts_status_idx').on(table.status),
 }));
+
+/**
+ * SIWE nonce store. Nonces are single-use and short-lived.
+ */
+export const siweNonces = pgTable('siwe_nonces', {
+  nonce: text('nonce').primaryKey().notNull(),
+  address: text('address').notNull(),
+  domain: text('domain').notNull(),
+  uri: text('uri').notNull(),
+  chainId: integer('chain_id').notNull(),
+  issuedAt: timestamp('issued_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  consumedAt: timestamp('consumed_at'),
+}, (table) => ({
+  addressIdx: index('siwe_nonces_address_idx').on(table.address),
+  expiresAtIdx: index('siwe_nonces_expires_at_idx').on(table.expiresAt),
+}));
+
+/**
+ * Server-verified wallet sessions. Token hashes are stored; raw tokens live in httpOnly cookies.
+ */
+export const walletSessions = pgTable('wallet_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tokenHash: text('token_hash').notNull(),
+  address: text('address').notNull(),
+  chainId: integer('chain_id').notNull(),
+  fid: integer('fid'),
+  domain: text('domain').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
+}, (table) => ({
+  tokenHashIdx: uniqueIndex('wallet_sessions_token_hash_idx').on(table.tokenHash),
+  addressIdx: index('wallet_sessions_address_idx').on(table.address),
+  expiresAtIdx: index('wallet_sessions_expires_at_idx').on(table.expiresAt),
+}));
+
+/**
+ * Application role grants. Revocation sets revoked_at; history is preserved.
+ * Curator capabilities are independent grants (feed weight, gallery, homepage publish).
+ */
+export const roleGrants = pgTable('role_grants', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  walletAddress: text('wallet_address').notNull(),
+  role: text('role').notNull(), // owner | admin | editor | curator
+  capability: text('capability').notNull(),
+  scope: jsonb('scope').$type<Record<string, unknown>>(),
+  grantedBy: text('granted_by').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at'),
+  revokedAt: timestamp('revoked_at'),
+  revokedBy: text('revoked_by'),
+}, (table) => ({
+  walletIdx: index('role_grants_wallet_address_idx').on(table.walletAddress),
+  roleIdx: index('role_grants_role_idx').on(table.role),
+  capabilityIdx: index('role_grants_capability_idx').on(table.capability),
+}));
+
+/**
+ * Append-only audit history for grants and publication changes. Never update or delete.
+ */
+export const auditEvents = pgTable('audit_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  occurredAt: timestamp('occurred_at').defaultNow().notNull(),
+  actorAddress: text('actor_address').notNull(),
+  action: text('action').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>(),
+}, (table) => ({
+  occurredAtIdx: index('audit_events_occurred_at_idx').on(table.occurredAt),
+  actorIdx: index('audit_events_actor_address_idx').on(table.actorAddress),
+  entityIdx: index('audit_events_entity_idx').on(table.entityType, table.entityId),
+}));
+
+export const exhibitions = pgTable('exhibitions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  curatorAddress: text('curator_address').notNull(),
+  curatorLabel: text('curator_label'),
+  status: text('status').notNull().default('draft'), // draft | published | unpublished
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  publishedAt: timestamp('published_at'),
+  unpublishedAt: timestamp('unpublished_at'),
+}, (table) => ({
+  slugIdx: uniqueIndex('exhibitions_slug_idx').on(table.slug),
+  statusIdx: index('exhibitions_status_idx').on(table.status),
+  curatorIdx: index('exhibitions_curator_address_idx').on(table.curatorAddress),
+}));
+
+export const exhibitionItems = pgTable('exhibition_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  exhibitionId: uuid('exhibition_id').notNull().references(() => exhibitions.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  caption: text('caption'),
+  chainId: integer('chain_id').notNull().default(1),
+  contractAddress: text('contract_address').notNull(),
+  tokenId: text('token_id').notNull(),
+  listingId: text('listing_id'),
+  title: text('title').notNull(),
+  artist: text('artist'),
+  previewUrl: text('preview_url'),
+  canonicalUrl: text('canonical_url'),
+}, (table) => ({
+  exhibitionIdx: index('exhibition_items_exhibition_id_idx').on(table.exhibitionId),
+}));
+
+export const exhibitionSlots = pgTable('exhibition_slots', {
+  slotKey: text('slot_key').primaryKey().notNull(),
+  exhibitionId: uuid('exhibition_id').references(() => exhibitions.id, { onDelete: 'set null' }),
+  assignedBy: text('assigned_by'),
+  assignedAt: timestamp('assigned_at'),
+  scheduledAt: timestamp('scheduled_at'),
+});
+
+export const uploadJobs = pgTable('upload_jobs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  payerAddress: text('payer_address').notNull(),
+  status: text('status').notNull(),
+  quote: jsonb('quote').$type<Record<string, unknown>>().notNull(),
+  payment: jsonb('payment').$type<Record<string, unknown>>(),
+  media: jsonb('media').$type<Record<string, unknown>>(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  confirmation: jsonb('confirmation').$type<Record<string, unknown>>(),
+  credit: jsonb('credit').$type<Record<string, unknown>>(),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  idempotencyIdx: uniqueIndex('upload_jobs_idempotency_key_idx').on(table.idempotencyKey),
+  payerIdx: index('upload_jobs_payer_address_idx').on(table.payerAddress),
+  statusIdx: index('upload_jobs_status_idx').on(table.status),
+}));
+
+export const paymentReceipts = pgTable('payment_receipts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  jobId: uuid('job_id').notNull().references(() => uploadJobs.id, { onDelete: 'cascade' }),
+  idempotencyKey: text('idempotency_key').notNull(),
+  network: text('network').notNull(),
+  asset: text('asset').notNull(),
+  amount: text('amount').notNull(),
+  payer: text('payer').notNull(),
+  payTo: text('pay_to').notNull(),
+  settlementTx: text('settlement_tx'),
+  facilitator: text('facilitator'),
+  status: text('status').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  idempotencyIdx: uniqueIndex('payment_receipts_idempotency_key_idx').on(table.idempotencyKey),
+  jobIdx: index('payment_receipts_job_id_idx').on(table.jobId),
+}));
+

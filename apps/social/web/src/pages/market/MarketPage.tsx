@@ -4,6 +4,65 @@ import { editorialExhibition } from '~/cryptoart/exhibitionFixture';
 import { MarketCard } from '~/cryptoart/MarketCard';
 import { fetchMarketPage } from '~/cryptoart/marketClient';
 import { YourItems } from '~/cryptoart/YourItems';
+import { localListingHref } from '~/cryptoart/listingClient';
+import type { Exhibition } from '~/cryptoart/domain';
+
+function fromApi(record: {
+  slug: string;
+  title: string;
+  description: string;
+  curatorLabel?: string | null;
+  curatorAddress: string;
+  items: Array<{
+    id: string;
+    position: number;
+    caption?: string;
+    chainId: number;
+    contractAddress: string;
+    tokenId: string;
+    listingId?: string;
+    title: string;
+    artist?: string;
+    previewUrl?: string;
+    canonicalUrl?: string;
+  }>;
+}): Exhibition {
+  return {
+    id: record.slug,
+    slug: record.slug,
+    title: record.title,
+    description: record.description,
+    curator: record.curatorLabel || record.curatorAddress,
+    source: 'such-gallery',
+    publication: 'editorial',
+    placements: record.items.map((item) => ({
+      id: item.id,
+      position: item.position,
+      caption: item.caption,
+      artwork: {
+        id: {
+          chainId: item.chainId === 8453 ? 8453 : 1,
+          contractAddress: item.contractAddress,
+          tokenId: item.tokenId,
+        },
+        title: item.title,
+        artist: item.artist,
+        media: { canonicalUrl: item.canonicalUrl, previewUrl: item.previewUrl },
+      },
+      commerce: item.listingId ? {
+        kind: 'auction',
+        chainId: item.chainId === 8453 ? 8453 : 1,
+        id: item.listingId,
+        href: localListingHref(item.chainId === 8453 ? 8453 : 1, item.listingId),
+        amount: '',
+        currency: 'ETH',
+        available: 1,
+        bidCount: 0,
+        status: 'active',
+      } : undefined,
+    })),
+  };
+}
 
 export function MarketPage() {
   const market = useQuery({
@@ -15,7 +74,17 @@ export function MarketPage() {
     staleTime: 60_000,
     retry: false,
   });
-  const exhibition = editorialExhibition;
+  const published = useQuery({
+    queryKey: ['cryptoart-market-exhibition'],
+    queryFn: async ({ signal }) => {
+      const response = await fetch('/api/cryptoart/exhibitions/slot/market-current', { signal });
+      const body = await response.json() as { exhibition?: Parameters<typeof fromApi>[0] | null };
+      return body.exhibition ? fromApi(body.exhibition) : editorialExhibition;
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+  const exhibition = published.data ?? editorialExhibition;
   return <main className="cryptoart-shell min-h-screen overflow-hidden bg-black text-white">
     <CryptoartHeader active="market" />
     <section id="exhibitions" aria-labelledby="current-exhibition" className="bg-[#dcf54c] px-4 py-12 text-black sm:px-8 md:py-20 lg:px-12">

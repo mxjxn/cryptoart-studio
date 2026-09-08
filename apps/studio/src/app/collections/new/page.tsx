@@ -4,7 +4,8 @@ export default function NewCollectionPlaceholderPage() {
       <div className="studio-card">
         <h1 className="text-2xl font-bold">Collection deploy wizard</h1>
         <p className="mt-3 text-muted">
-          The multi-step deploy wizard lands with drafts and Arweave upload in upcoming milestones.
+          The multi-step deploy wizard lands after the paid Arweave upload proof.
+          Use <a className="underline" href="/media/upload">/media/upload</a> to test quote, payment, upload, and confirmation.
         </p>
       </div>
     </div>

@@ -173,12 +173,13 @@ Publish the drill procedure and its resulting verification report in the repo.
 
 ## Immediate implementation sequence
 
-1. Create the MVP route and operational parity inventory.
-2. Finish SIWE sessions and the shared role/audit model.
-3. Port listing details and one complete auction lifecycle into Social.
-4. Build the curator directory and exhibition publication workflow.
-5. Implement an x402 + Arweave proof on test networks with one file, one metadata
-   record, idempotent retry, and simulated failure after payment.
+1. [x] Create the MVP route and operational parity inventory.
+2. [x] Finish SIWE sessions and the shared role/audit model.
+3. [x] Port listing details and one complete auction lifecycle into Social.
+4. [x] Build the curator directory and exhibition publication workflow.
+5. [ ] Implement an x402 + Arweave proof on test networks with one file, one metadata
+   record, idempotent retry, and simulated failure after payment. Scaffold is in
+   Studio `/media/upload`; confirm real Arweave inclusion manually.
 6. Use the proven upload job in Studio's single and series mint flows.
 7. Add deployment manifests, replay tooling, editorial exports, and the recovery
    command before mainnet Studio launch.

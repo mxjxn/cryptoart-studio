@@ -4,6 +4,7 @@ import {
   feedMiddleware,
   marketMiddleware,
 } from './src/cryptoart/server';
+import { platformMiddleware } from './src/cryptoart/platform';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
@@ -18,6 +19,7 @@ export default defineConfig({
       name: 'cryptoart-feed',
       configureServer(server) {
         const env = loadEnv(server.config.mode, process.cwd(), '');
+        server.middlewares.use(platformMiddleware(env));
         server.middlewares.use(
           assetDiscoveryMiddleware(
             env.ALCHEMY_API_KEY ||
@@ -32,6 +34,7 @@ export default defineConfig({
       },
       configurePreviewServer(server) {
         const env = loadEnv(server.config.mode, process.cwd(), '');
+        server.middlewares.use(platformMiddleware(env));
         server.middlewares.use(
           assetDiscoveryMiddleware(
             env.ALCHEMY_API_KEY ||
@@ -59,6 +62,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '~': path.resolve(__dirname, './src'),
+      '@cryptoart/identity': path.resolve(__dirname, '../../../packages/identity/src/index.ts'),
+      '@cryptoart/marketplace': path.resolve(__dirname, '../../../packages/marketplace/src/index.ts'),
+      '@cryptoart/media': path.resolve(__dirname, '../../../packages/media/src/index.ts'),
     },
   },
   server: {

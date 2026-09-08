@@ -79,7 +79,7 @@ interface HandlesResponse {
 }
 
 function canonicalHref(chainId: number, listingId: string) {
-  return `${MARKETPLACE_ORIGIN}/listing/${chainId === 1 ? 'eth/' : ''}${listingId}`;
+  return `/listing/${chainId === 1 ? 'eth/' : 'base/'}${listingId}`;
 }
 
 function amountLabel(raw: string, decimals: number) {

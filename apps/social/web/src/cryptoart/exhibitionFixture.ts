@@ -20,7 +20,7 @@ export const editorialExhibition: Exhibition = {
           previewUrl: 'https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/2e4643bd5e404271.webp',
         },
       },
-      commerce: { kind: 'auction', chainId: 1, id: '5', href: 'https://cryptoart.social/listing/eth/5', amount: '0.05', currency: 'ETH', available: 1, bidCount: 0, status: 'active' },
+      commerce: { kind: 'auction', chainId: 1, id: '5', href: '/listing/eth/5', amount: '0.05', currency: 'ETH', available: 1, bidCount: 0, status: 'active' },
     },
     {
       id: 'nearcaster', position: 1, caption: 'Recently acquired for 0.02 ETH.',

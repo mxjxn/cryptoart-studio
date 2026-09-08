@@ -13,6 +13,9 @@
   },
   "dependencies": {
     "@cryptoart/db": "file:../../packages/db",
+    "@cryptoart/identity": "file:../../packages/identity",
+    "@cryptoart/marketplace": "file:../../packages/marketplace",
+    "@cryptoart/media": "file:../../packages/media",
     "@farcaster/miniapp-sdk": ">=0.1.6 <1.0.0",
     "@farcaster/miniapp-wagmi-connector": "^1.0.0",
     "@neynar/react": "^1.2.15",

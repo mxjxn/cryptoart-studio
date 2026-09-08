@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
+import { useAccount, useConnect, useDisconnect, useSignMessage } from 'wagmi';
+import { useSiweSession } from './useSiweSession';
 
 const shortAddress = (address: string) =>
   `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -9,6 +10,8 @@ export function WalletIdentityButton() {
   const { address, chain, isConnected, isConnecting } = useAccount();
   const { connectors, connectAsync, error, isPending, reset } = useConnect();
   const { disconnect } = useDisconnect();
+  const { signMessageAsync } = useSignMessage();
+  const { session, verify, signOut } = useSiweSession();
 
   useEffect(() => {
     if (!open) reset();
@@ -21,7 +24,13 @@ export function WalletIdentityButton() {
       </button>
       <div className="invisible absolute right-0 top-full z-50 min-w-48 border border-white bg-black p-3 text-left opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
         <p className="text-[9px] text-neutral-400">{chain?.name ?? 'Unknown network'}</p>
-        <button type="button" className="mt-3 block w-full border border-white px-3 py-2 text-center text-[10px] hover:bg-white hover:text-black" onClick={() => disconnect()}>Disconnect</button>
+        {session.data
+          ? <p className="cryptoart-mono mt-2 text-[9px] uppercase text-[#dcf54c]">Session {session.data.capabilities.owner ? 'owner' : session.data.grants[0]?.role ?? 'signed'}</p>
+          : <button type="button" className="mt-3 block w-full border border-white px-3 py-2 text-center text-[10px] hover:bg-white hover:text-black" disabled={verify.isPending} onClick={() => void verify.mutateAsync({ address, chainId: chain?.id ?? 1, sign: (message) => signMessageAsync({ message }) })}>
+            {verify.isPending ? 'Signing…' : 'Create SIWE session'}
+          </button>}
+        {verify.error && <p role="alert" className="mt-2 text-[10px] text-[#f5b0d3]">{verify.error.message}</p>}
+        <button type="button" className="mt-3 block w-full border border-white px-3 py-2 text-center text-[10px] hover:bg-white hover:text-black" onClick={() => { void signOut.mutateAsync(); disconnect(); }}>Disconnect</button>
       </div>
     </div>;
   }
@@ -41,7 +50,7 @@ export function WalletIdentityButton() {
           </button>)}
         </div>
         {error && <p role="alert" className="mt-4 border border-black bg-[#f5b0d3] p-3 text-xs leading-5">{error.message.includes('rejected') ? 'The wallet request was declined.' : 'That wallet could not connect. Check the wallet and try again.'}</p>}
-        <p className="mt-5 text-[9px] uppercase leading-4 tracking-[0.08em]">Connecting is free. Cryptoart will ask for a separate signature before creating a secure account session.</p>
+        <p className="mt-5 text-[9px] uppercase leading-4 tracking-[0.08em]">Connecting is free. Cryptoart will ask for a SIWE signature before creating a secure account session.</p>
       </div>
     </div>}
   </>;

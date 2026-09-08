@@ -8,7 +8,7 @@ import {
   useConnect,
   WagmiProvider,
 } from 'wagmi';
-import { base, mainnet } from 'wagmi/chains';
+import { base, baseSepolia, mainnet } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { farcasterFrame } from '@farcaster/miniapp-wagmi-connector';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
@@ -72,7 +72,7 @@ const sessionStorage = createStorage({
 });
 
 export const wagmiConfig = createConfig({
-  chains: [base, mainnet],
+  chains: [base, baseSepolia, mainnet],
   connectors: [...connectors, farcasterFrame()],
   transports: {
     [base.id]: http(
@@ -80,6 +80,7 @@ export const wagmiConfig = createConfig({
         process.env.NEXT_PUBLIC_RPC_URL ||
         'https://mainnet.base.org',
     ),
+    [baseSepolia.id]: http(),
     [mainnet.id]: http(
       process.env.NEXT_PUBLIC_MAINNET_RPC_URL || 'https://eth.llamarpc.com',
     ),

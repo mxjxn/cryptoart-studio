@@ -16,7 +16,7 @@ describe('auction timeline cards', () => {
       : json({ success: true, handles: [{ username: 'mxjxn', displayName: 'Max Jackson' }] }));
     const card = await fetchAuctionCard({ chainId: 1, listingId: '5' }, 'featured-auction', request as typeof fetch);
     expect(card).toMatchObject({ kind: 'featured-auction', title: 'Respiration', amount: '0.05', currency: 'ETH',
-      href: 'https://cryptoart.social/listing/eth/5', seller: { username: 'mxjxn' } });
+      href: '/listing/eth/5', seller: { username: 'mxjxn' } });
   });
 
   it('creates a sale only from finalized auction data with a winning bid', async () => {
@@ -47,6 +47,6 @@ describe('auction timeline cards', () => {
     const listings = await fetchLatestListings(request as typeof fetch);
     expect(listings).toHaveLength(1);
     expect(listings[0]).toMatchObject({ listingId: '146', title: 'Based Mfer', amount: '0.05', available: 10,
-      href: 'https://cryptoart.social/listing/146' });
+      href: '/listing/base/146' });
   });
 });

@@ -49,6 +49,15 @@ export {
   collectionRoyalties,
   transferEvents,
   indexedContracts,
+  siweNonces,
+  walletSessions,
+  roleGrants,
+  auditEvents,
+  exhibitions,
+  exhibitionItems,
+  exhibitionSlots,
+  uploadJobs,
+  paymentReceipts,
 } from './client';
 export type { 
   UserCacheData, 

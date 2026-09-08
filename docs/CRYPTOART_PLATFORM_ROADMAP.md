@@ -8,6 +8,8 @@ and clean-room recovery requirements are defined in
 [`CUTOVER_AND_DURABILITY_PLAN.md`](./CUTOVER_AND_DURABILITY_PLAN.md).
 The joint `such.market` / `such.gallery` product model is defined in
 [`MARKET_GESTURES_AND_GALLERY_MODEL.md`](./MARKET_GESTURES_AND_GALLERY_MODEL.md).
+The first such.gallery publication API is defined in
+[`SUCH_GALLERY_READ_API_PLAN.md`](./SUCH_GALLERY_READ_API_PLAN.md).
 
 ## Product direction
 
@@ -214,7 +216,7 @@ it through Social without duplicate data entry.
 
 ### Phase 7 — Production cutover
 
-- [ ] Inventory all MVP public routes, APIs, cron jobs, webhooks, and admin tools.
+- [x] Inventory all MVP public routes, APIs, cron jobs, webhooks, and admin tools.
 - [ ] Migrate or explicitly retire each item with route-level parity tracking.
 - [ ] Move background ingestion and caches behind stable platform services.
 - [ ] Add redirects and preserve listing/share URLs and social previews.

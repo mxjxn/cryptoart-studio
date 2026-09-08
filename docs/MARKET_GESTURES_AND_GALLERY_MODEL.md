@@ -16,6 +16,9 @@ become legible to a wider public.
 The terms describe product responsibilities before they require separate domains
 or deployments. The initial public home remains cryptoart.social.
 
+The concrete published-exhibition boundary is defined in
+[`SUCH_GALLERY_READ_API_PLAN.md`](./SUCH_GALLERY_READ_API_PLAN.md).
+
 ## Shared model
 
 The stable objects are:

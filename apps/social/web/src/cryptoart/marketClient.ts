@@ -59,7 +59,7 @@ const kind = (value: SourceListing['listingType']): CommerceKind | null => {
 };
 
 const listingHref = (chain: SupportedChainId, id: string) =>
-  `${MARKETPLACE_ORIGIN}/listing/${chain === 1 ? 'eth/' : ''}${id}`;
+  `/listing/${chain === 1 ? 'eth/' : 'base/'}${id}`;
 
 export function formatTokenAmount(raw: string, decimals: number) {
   const value = BigInt(raw);

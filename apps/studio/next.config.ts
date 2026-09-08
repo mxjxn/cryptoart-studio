@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@cryptoart/db', '@pigment-css/react'],
+  transpilePackages: ['@cryptoart/db', '@cryptoart/identity', '@cryptoart/marketplace', '@cryptoart/media', '@pigment-css/react'],
   turbopack: {},
   webpack: (config, { isServer }) => {
     try {
