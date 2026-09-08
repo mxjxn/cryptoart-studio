@@ -18,7 +18,7 @@ describe('feed adapter', () => {
       expect(parsed.searchParams.get('viewer_fid')).toBe('4905');
       return json({ result: { casts: casts.map(c => ({ ...c, viewer_context: { liked: c.hash === 'hash-0' } })) } });
     });
-    const service = createFeedService('test-key', mock as typeof fetch);
+    const service = createFeedService('test-key', mock as typeof fetch, null);
     const first = await service.page(new URL('http://localhost/api/cryptoart/feed?channel=cryptoart'));
     expect(first.status).toBe(200);
     if (!first.body.items) throw new Error('Expected feed');
@@ -30,7 +30,7 @@ describe('feed adapter', () => {
     expect(new Set(all).size).toBe(45); expect(mock).toHaveBeenCalledTimes(2);
   });
   it('rejects unapproved channels and malformed cursors without a provider request', async () => {
-    const mock = vi.fn(); const service = createFeedService('key', mock);
+    const mock = vi.fn(); const service = createFeedService('key', mock, null);
     expect((await service.page(new URL('http://localhost/?channel=outside'))).status).toBe(400);
     expect((await service.page(new URL('http://localhost/?cursor=garbage'))).status).toBe(400);
     expect(mock).not.toHaveBeenCalled();
@@ -43,7 +43,7 @@ describe('feed adapter', () => {
       ? json({ casts }) : json({ result: { casts } }));
     try {
       clock.mockReturnValue(start);
-      const service = createFeedService('key', mock as typeof fetch);
+      const service = createFeedService('key', mock as typeof fetch, null);
       const first = await service.page(new URL('http://localhost/?channel=cryptoart'));
       if (!first.body.items) throw new Error('Expected first page');
       clock.mockReturnValue(start + 61000);
@@ -57,7 +57,7 @@ describe('feed adapter', () => {
   it('reports failed curation lookups while retaining the ordinary feed', async () => {
     const mock = vi.fn(async (url: URL | RequestInfo) => String(url).includes('feed/channels')
       ? json({ casts: [makeCast(0)] }) : new Response('', { status: 503 }));
-    const result = await createFeedService('key', mock as typeof fetch).page(new URL('http://localhost/?channel=cryptoart'));
+    const result = await createFeedService('key', mock as typeof fetch, null).page(new URL('http://localhost/?channel=cryptoart'));
     if (!result.body.items) throw new Error('Expected degraded feed');
     expect(result.body.warnings).toHaveLength(1); expect(result.body.items[0].score.curation).toBe(0);
   });

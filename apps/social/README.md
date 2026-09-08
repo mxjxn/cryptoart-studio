@@ -41,6 +41,7 @@ The feed API is currently a Vite development/preview middleware. A static deploy
 - Popular casts published within the last 24 hours interlaced with latest.
 - Extra weight for actual likes from FID 4905; more FIDs can be added in `policy.ts`.
 - Active-listing boosts, illustrated marketplace activity, inline bidding, and social 2D galleries are subsequent integrations.
+- Featured auction: Ethereum listing 5. Recent-sale presentation example: Ethereum listing 6. Both are fetched and validated from the live marketplace API before display.
 
 The first tuning defaults are two popular slots to one latest slot, engagement `log2(1 + likes + 2 × recasts + replies)`, plus 20 for a verified like by FID 4905. Coefficients are provisional. A verified active listing can add 8, but the live adapter intentionally does not set that flag merely because a listing link exists.
 
@@ -69,7 +70,7 @@ References:
 
 - Cryptoart authentication and posting signer integration. Imported login, secondary routes, and social write actions still use upstream API assumptions; they are not verified Cryptoart integrations.
 - Personalization and authenticated viewer blocks/mutes. This first adapter is a public read feed.
-- Chain-verified active-listing enrichment, activity ingestion/cards, and inline transactions.
+- General chain-verified listing enrichment, continuous activity ingestion, and inline transactions. The initial featured-auction and recent-sale cards are implemented as explicit test placements.
 - Author/listing diversity caps and production-scale background indexing.
 - Gallery service ownership, 2D gallery views, and Studio integration.
 - Production branding/navigation pruning, bundle reduction, and domain cutover.

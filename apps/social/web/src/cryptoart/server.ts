@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { APPROVED_CHANNELS, FEED_POLICY, isApprovedChannel } from './policy';
+import { APPROVED_CHANNELS, FEATURED_AUCTIONS, FEED_POLICY, isApprovedChannel, RECENT_SALE_EXAMPLES } from './policy';
 import { normalizeCast, type NeynarCast } from './neynar';
 import { rankFeed } from './ranking';
+import { fetchAuctionCard, type AuctionCardData } from './marketplace';
 
-type Snapshot = { id: string; createdAt: number; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>; warnings: string[] };
+type Snapshot = { id: string; createdAt: number; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>;
+  auctions: AuctionCardData[]; warnings: string[] };
 type Fetch = typeof fetch;
 
 /** This first read adapter runs in local Vite/preview. Production hosting is a separate milestone. */
-export function createFeedService(apiKey: string | undefined, request: Fetch = fetch) {
+export function createFeedService(apiKey: string | undefined, request: Fetch = fetch, marketplaceRequest: Fetch | null = request) {
   const snapshots = new Map<string, Snapshot>();
   const retained = new Map<string, { key: string; snapshot: Snapshot }>();
   const pending = new Map<string, Promise<Snapshot>>();
@@ -69,7 +71,18 @@ export function createFeedService(apiKey: string | undefined, request: Fetch = f
         warnings.push(`Weighted likes for FID ${fid} are incomplete for this snapshot.`);
       }
     }
-    return { id: randomUUID(), createdAt: now, warnings,
+    const auctionResults = marketplaceRequest ? await Promise.allSettled([
+      ...FEATURED_AUCTIONS.map(ref => fetchAuctionCard(ref, 'featured-auction', marketplaceRequest)),
+      ...RECENT_SALE_EXAMPLES.map(ref => fetchAuctionCard(ref, 'recent-sale', marketplaceRequest)),
+    ]) : [];
+    const auctions: AuctionCardData[] = [];
+    auctionResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') auctions.push(result.value);
+      else warnings.push(index < FEATURED_AUCTIONS.length
+        ? 'A featured auction could not be verified.'
+        : 'A recent sale could not be verified.');
+    });
+    return { id: randomUUID(), createdAt: now, warnings, auctions,
       items: rankFeed([...raw.values()].map(cast => normalizeCast(cast, liked.get(cast.hash))), now) };
   }
 
@@ -108,7 +121,7 @@ export function createFeedService(apiKey: string | undefined, request: Fetch = f
       }
     }
     const items = snapshot.items.slice(offset, offset + 30);
-    return { status: 200, body: { items, warnings: snapshot.warnings, snapshotAt: snapshot.createdAt,
+    return { status: 200, body: { items, auctions: offset === 0 ? snapshot.auctions : [], warnings: snapshot.warnings, snapshotAt: snapshot.createdAt,
       nextCursor: offset + 30 < snapshot.items.length ? `${snapshot.id}:${offset + 30}` : null } };
   }
 

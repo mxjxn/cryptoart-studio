@@ -5,9 +5,12 @@ import { buildCastsWithContext } from '~/utils/castUtils';
 import { APPROVED_CHANNELS } from './policy';
 import type { SocialCandidate } from './neynar';
 import type { scoreCast } from './ranking';
+import type { AuctionCardData } from './marketplace';
+import { AuctionCard } from './AuctionCard';
 
 interface FeedPage {
   items: { candidate: SocialCandidate; lane: 'popular' | 'latest'; score: ReturnType<typeof scoreCast> }[];
+  auctions: AuctionCardData[];
   warnings: string[];
   snapshotAt: number;
   nextCursor: string | null;
@@ -35,6 +38,9 @@ export function CryptoartFeed() {
   });
   const items = useMemo(() => feed.data?.pages.flatMap(page => page.items) ?? [], [feed.data]);
   const warnings = [...new Set(feed.data?.pages.flatMap(page => page.warnings) ?? [])];
+  const auctions = feed.data?.pages[0]?.auctions ?? [];
+  const featured = auctions.filter(auction => auction.kind === 'featured-auction');
+  const sales = auctions.filter(auction => auction.kind === 'recent-sale');
   return <>
     <nav aria-label="Feed channels" className="flex flex-wrap gap-2 border-b border-default p-4">
       {['', ...APPROVED_CHANNELS].map(value => <button key={value} type="button"
@@ -52,7 +58,8 @@ export function CryptoartFeed() {
     {warnings.length > 0 && <details className="p-4 text-sm"><summary>Some feed sources are incomplete</summary>
       <ul>{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
     {!feed.isPending && !feed.error && !items.length && <p className="p-6">No casts are available in these channels yet.</p>}
-    {items.map(({ candidate, lane, score }) => {
+    {featured.map(auction => <AuctionCard key={`${auction.kind}:${auction.chainId}:${auction.listingId}`} auction={auction} />)}
+    {items.map(({ candidate, lane, score }, index) => {
       const context = buildCastsWithContext([{ cast: candidate.cast }], { showChannelTag: true })[0];
       if (!context) return null;
       return <div key={candidate.hash}>
@@ -65,6 +72,7 @@ export function CryptoartFeed() {
           <summary>Ranking: {lane}</summary>
           Engagement {score.engagement.toFixed(2)} · weighted likes {score.curation} · active listing {score.listing}
         </details>}
+        {index === 2 && sales.map(auction => <AuctionCard key={`${auction.kind}:${auction.chainId}:${auction.listingId}`} auction={auction} />)}
       </div>;
     })}
     {feed.hasNextPage && <button type="button" className="m-4 rounded-lg border border-default px-4 py-2"
