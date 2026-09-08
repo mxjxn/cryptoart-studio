@@ -4,12 +4,14 @@ import { Cast } from '~/components/casts/Cast';
 import { buildCastsWithContext } from '~/utils/castUtils';
 import { AuctionCard } from './AuctionCard';
 import { composeExhibition, type RankedSocialItem } from './exhibition';
-import type { AuctionCardData } from './marketplace';
+import { MarketplaceGrid } from './MarketplaceGrid';
+import type { AuctionCardData, MarketplaceListingData } from './marketplace';
 import { APPROVED_CHANNELS } from './policy';
 
 interface FeedPage {
   items: RankedSocialItem[];
   auctions: AuctionCardData[];
+  latestListings: MarketplaceListingData[];
   warnings: string[];
   snapshotAt: number;
   nextCursor: string | null;
@@ -104,6 +106,9 @@ export function CryptoartFeed() {
   const auctions = feed.data?.pages[0]?.auctions ?? [];
   const featured = auctions.filter(auction => auction.kind === 'featured-auction');
   const sales = auctions.filter(auction => auction.kind === 'recent-sale');
+  const latestListings = (feed.data?.pages[0]?.latestListings ?? []).filter(
+    listing => !featured.some(auction => auction.chainId === listing.chainId && auction.listingId === listing.listingId),
+  );
 
   return <main>
     <div className="border-b border-default px-4 py-5 sm:px-8">
@@ -138,6 +143,8 @@ export function CryptoartFeed() {
     </section>}
 
     {sales.map(auction => <AuctionCard key={`${auction.kind}:${auction.chainId}:${auction.listingId}`} auction={auction} />)}
+
+    <MarketplaceGrid listings={latestListings} />
 
     {exhibition.miniApps.length > 0 && <section aria-labelledby="interactive-works">
       <SectionTitle eyebrow="Participatory works">Interactive</SectionTitle>

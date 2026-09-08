@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchAuctionCard, personLabel } from './marketplace';
+import { fetchAuctionCard, fetchLatestListings, personLabel } from './marketplace';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const auction = {
@@ -35,5 +35,18 @@ describe('auction timeline cards', () => {
     await expect(fetchAuctionCard({ chainId: 1, listingId: '5' }, 'recent-sale', makeRequest(auction))).rejects.toThrow('not a finalized');
     await expect(fetchAuctionCard({ chainId: 1, listingId: '5' }, 'featured-auction', makeRequest({ ...auction, listingId: '7' }))).rejects.toThrow('did not match');
     await expect(fetchAuctionCard({ chainId: 1, listingId: '5' }, 'featured-auction', makeRequest({ ...auction, erc20: '0xtoken' }))).rejects.toThrow('unresolved');
+  });
+
+  it('builds a newest-first grid from live graph-backed listings and removes sold inventory', async () => {
+    const fixed = { ...auction, chainId: 8453, listingId: '146', title: 'Based Mfer', listingType: 'FIXED_PRICE' as const,
+      totalAvailable: '10', totalSold: '0' };
+    const soldOut = { ...fixed, listingId: '145', totalSold: '10' };
+    const request = vi.fn(async (url: URL | RequestInfo) => String(url).includes('/api/listings/browse')
+      ? json({ success: true, listings: [fixed, soldOut] })
+      : json({ success: true, auction: fixed }));
+    const listings = await fetchLatestListings(request as typeof fetch);
+    expect(listings).toHaveLength(1);
+    expect(listings[0]).toMatchObject({ listingId: '146', title: 'Based Mfer', amount: '0.05', available: 10,
+      href: 'https://cryptoart.social/listing/146' });
   });
 });

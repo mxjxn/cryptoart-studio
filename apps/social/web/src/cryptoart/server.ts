@@ -3,10 +3,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { APPROVED_CHANNELS, FEATURED_AUCTIONS, FEED_POLICY, isApprovedChannel, RECENT_SALE_EXAMPLES } from './policy';
 import { normalizeCast, type NeynarCast } from './neynar';
 import { rankFeed } from './ranking';
-import { fetchAuctionCard, type AuctionCardData } from './marketplace';
+import { fetchAuctionCard, fetchLatestListings, type AuctionCardData, type MarketplaceListingData } from './marketplace';
 
 type Snapshot = { id: string; createdAt: number; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>;
-  auctions: AuctionCardData[]; warnings: string[] };
+  auctions: AuctionCardData[]; latestListings: MarketplaceListingData[]; warnings: string[] };
 type Fetch = typeof fetch;
 
 /** This first read adapter runs in local Vite/preview. Production hosting is a separate milestone. */
@@ -82,7 +82,13 @@ export function createFeedService(apiKey: string | undefined, request: Fetch = f
         ? 'A featured auction could not be verified.'
         : 'A recent sale could not be verified.');
     });
+    let latestListings: MarketplaceListingData[] = [];
+    if (marketplaceRequest) {
+      try { latestListings = await fetchLatestListings(marketplaceRequest); }
+      catch { warnings.push('Latest marketplace listings could not be loaded.'); }
+    }
     return { id: randomUUID(), createdAt: now, warnings, auctions,
+      latestListings,
       items: rankFeed([...raw.values()].map(cast => normalizeCast(cast, liked.get(cast.hash))), now) };
   }
 
@@ -121,7 +127,7 @@ export function createFeedService(apiKey: string | undefined, request: Fetch = f
       }
     }
     const items = snapshot.items.slice(offset, offset + 30);
-    return { status: 200, body: { items, auctions: offset === 0 ? snapshot.auctions : [], warnings: snapshot.warnings, snapshotAt: snapshot.createdAt,
+    return { status: 200, body: { items, auctions: offset === 0 ? snapshot.auctions : [], latestListings: offset === 0 ? snapshot.latestListings : [], warnings: snapshot.warnings, snapshotAt: snapshot.createdAt,
       nextCursor: offset + 30 < snapshot.items.length ? `${snapshot.id}:${offset + 30}` : null } };
   }
 
