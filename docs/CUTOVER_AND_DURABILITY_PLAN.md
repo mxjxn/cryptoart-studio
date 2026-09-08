@@ -67,6 +67,9 @@ The existing MVP featured-section, homepage-layout, listing, user, and error too
 are migration sources. Each is either ported, replaced, or explicitly retired in
 the route-parity inventory.
 
+The joint gallery and market direction is specified in
+[`MARKET_GESTURES_AND_GALLERY_MODEL.md`](./MARKET_GESTURES_AND_GALLERY_MODEL.md).
+
 ### 4. Artist-funded permanent media in Studio
 
 Build and prove this vertical slice before finishing the mint wizards:

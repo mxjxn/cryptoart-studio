@@ -6,6 +6,8 @@
 The current cutover gates, administration model, artist-funded media pipeline,
 and clean-room recovery requirements are defined in
 [`CUTOVER_AND_DURABILITY_PLAN.md`](./CUTOVER_AND_DURABILITY_PLAN.md).
+The joint `such.market` / `such.gallery` product model is defined in
+[`MARKET_GESTURES_AND_GALLERY_MODEL.md`](./MARKET_GESTURES_AND_GALLERY_MODEL.md).
 
 ## Product direction
 
@@ -32,18 +34,19 @@ Related systems retain their own responsibilities:
 
 ## Experience ownership
 
-| Capability                             | Social                 | Studio                        | Shared service or protocol  |
-| -------------------------------------- | ---------------------- | ----------------------------- | --------------------------- |
-| Curated exhibitions                    | Primary public view    | Curator management later      | such.gallery                |
-| Farcaster feed and conversations       | Primary                | Contextual sharing only       | Neynar/Farcaster            |
-| Browse marketplace inventory           | Primary                | Owned work only               | Auctionhouse read model     |
-| Bid, buy, and sell                     | Primary                | Available in management flows | Auctionhouse contracts      |
-| Quick auction creation                 | Yes                    | Yes                           | Shared transaction workflow |
-| Advanced auction management            | Link to Studio         | Primary                       | Shared transaction workflow |
-| Collection deployment and minting      | Link to Studio         | Primary                       | Creator Core                |
-| Lazy mint configuration                | Discovery and purchase | Primary creation surface      | Shared lazy-mint protocol   |
-| Pool discovery and swaps               | Primary                | Owned pool overview           | LSSVM                       |
-| Pool creation and liquidity management | Link to Studio         | Primary                       | LSSVM                       |
+| Capability                             | Social                 | Studio                        | Shared service or protocol   |
+| -------------------------------------- | ---------------------- | ----------------------------- | ---------------------------- |
+| Curated exhibitions                    | Primary public view    | Curator management later      | such.gallery                 |
+| Farcaster feed and conversations       | Primary                | Contextual sharing only       | Neynar/Farcaster             |
+| Browse marketplace inventory           | Primary                | Owned work only               | Auctionhouse read model      |
+| Bid, buy, and sell                     | Primary                | Available in management flows | Auctionhouse contracts       |
+| Quick auction creation                 | Yes                    | Yes                           | Shared transaction workflow  |
+| Advanced auction management            | Link to Studio         | Primary                       | Shared transaction workflow  |
+| Collection deployment and minting      | Link to Studio         | Primary                       | Creator Core                 |
+| Lazy mint configuration                | Discovery and purchase | Primary creation surface      | Shared lazy-mint protocol    |
+| Pool discovery and swaps               | Primary                | Owned pool overview           | LSSVM                        |
+| Pool creation and liquidity management | Link to Studio         | Primary                       | LSSVM                        |
+| Collector trade proposals              | Discovery and context  | Owned-work entry point        | such.market / order protocol |
 
 ## Market information architecture
 
@@ -153,6 +156,20 @@ within Social.
 - [ ] Defer live chat, presence, and embedded 3D until the 2D experience is stable.
 
 **Exit:** Manually curated such.gallery exhibitions publish reliably on Social.
+
+### Phase 3.5 — Market gestures
+
+- [ ] Define a shared gesture record for listings, auctions, bids, sales, gallery
+      placements, curator endorsements, and proposals.
+- [ ] Attach market gestures to canonical artwork pages and the Social feed.
+- [ ] Implement a collector-to-collector trade proposal for one desired artwork,
+      offered works, optional ETH/WETH, expiry, and all-or-nothing acceptance.
+- [ ] Render public proposal context: offered work, provenance, person, note, and
+      current validity.
+- [ ] Add scoped curator-backed gesture cards.
+
+**Exit:** Social makes gallery context and a small number of expressive market
+actions legible as one public experience.
 
 ### Phase 4 — Cryptoart-owned identity and creation
 
