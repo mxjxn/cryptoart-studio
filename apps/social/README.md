@@ -74,8 +74,9 @@ References:
   disclosure, and server-side marketplace proxying for local development.
 - Cryptoart-native wallet connection using Wagmi, installed browser wallets, and
   Coinbase Wallet, with session-scoped persistence and no managed-auth vendor.
-- Progressive Ethereum/Base wallet inventory with session caching, metadata
-  fallbacks, and a chain-verified manual NFT import path.
+- Cursor-paginated wallet inventory with Ethereum as the default, opt-in Base,
+  compact local pointer caching, metadata fallbacks, and a chain-verified manual
+  NFT import path.
 - Popular/latest mixing, verified weighted-like scoring, channel selection, refresh, pagination, source errors, and development ranking explanations.
 - Artwork image and Open Graph mapping into the upstream embed model.
 - Cryptoart listing URL recognition for Base/Ethereum, including legacy chain query links, with canonical links into the existing marketplace.

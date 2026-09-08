@@ -57,9 +57,11 @@ contract event range. Cryptoart does not crawl every NFT contract on every chain
 `apps/social/web/src/cryptoart/assetDiscovery.ts` provides the server-side Alchemy
 adapter and onchain verification boundary. `/api/cryptoart/assets/owned` discovers
 wallet items and `/api/cryptoart/assets/import` resolves and verifies a submitted
-token. The market UI stores its last successful wallet snapshot in session
-storage, queries Ethereum and Base concurrently, preserves metadata-missing
-tokens, and offers import plus Cast, Discuss, List, and Studio paths.
+token. The market UI stores up to 300 compact asset records per wallet in local
+storage and loads additional inventory through provider cursors. It caches token
+identities and media URLs, not image bytes. Ethereum is queried by default; Base
+is queried only after the user enables it. Metadata-missing tokens remain visible,
+and each work offers import plus Cast, Discuss, List, and Studio paths.
 
 Alchemy authentication uses the current server-side `Authorization: Bearer`
 header form so credentials do not enter request URLs or browser code.

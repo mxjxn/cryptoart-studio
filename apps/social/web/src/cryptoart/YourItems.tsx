@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { FormEvent, useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
 import type { OwnedAsset, OwnedAssetPage, SupportedChainId } from './domain';
@@ -9,20 +9,41 @@ const shortAddress = (address: string) =>
 const assetKey = (item: OwnedAsset) =>
   `${item.id.chainId}:${item.id.contractAddress}:${item.id.tokenId}`;
 const cacheKey = (address: string) =>
-  `cryptoart:owned-assets:v1:${address.toLowerCase()}`;
+  `cryptoart:owned-assets:v2:${address.toLowerCase()}`;
+type CursorSet = Partial<Record<SupportedChainId, string | null>> & {
+  _initial?: boolean;
+};
+type InventoryPage = { items: OwnedAsset[]; next: CursorSet };
+type CachedInventory = { updatedAt: number; items: OwnedAsset[] };
 
 function readCache(address: string): OwnedAsset[] {
   try {
-    return JSON.parse(
-      sessionStorage.getItem(cacheKey(address)) ?? '[]',
-    ) as OwnedAsset[];
+    const cached = JSON.parse(
+      localStorage.getItem(cacheKey(address)) ?? 'null',
+    ) as CachedInventory | null;
+    return cached?.items ?? [];
   } catch {
     return [];
   }
 }
 function writeCache(address: string, items: OwnedAsset[]) {
   try {
-    sessionStorage.setItem(cacheKey(address), JSON.stringify(items));
+    const seen = new Set<string>();
+    const compact = items
+      .filter((item) => {
+        const key = assetKey(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 300);
+    localStorage.setItem(
+      cacheKey(address),
+      JSON.stringify({
+        updatedAt: Date.now(),
+        items: compact,
+      } satisfies CachedInventory),
+    );
   } catch {
     /* storage can be unavailable */
   }
@@ -31,30 +52,44 @@ function writeCache(address: string, items: OwnedAsset[]) {
 async function getOwnedAssets(
   address: string,
   chains: SupportedChainId[],
-): Promise<OwnedAsset[]> {
+  cursors: CursorSet,
+): Promise<InventoryPage> {
+  const requestedChains = chains.filter(
+    (chainId) => cursors._initial || Boolean(cursors[chainId]),
+  );
   const pages = await Promise.allSettled(
-    chains.map(async (chainId) => {
-      const response = await fetch(
-        `/api/cryptoart/assets/owned?owner=${address}&chainId=${chainId}`,
-      );
+    requestedChains.map(async (chainId) => {
+      const params = new URLSearchParams({
+        owner: address,
+        chainId: String(chainId),
+      });
+      if (cursors[chainId]) params.set('pageKey', cursors[chainId]!);
+      const response = await fetch(`/api/cryptoart/assets/owned?${params}`);
       const body = (await response.json()) as
         | OwnedAssetPage
         | { error: string };
       if (!response.ok || 'error' in body)
         throw new Error('error' in body ? body.error : 'NFT discovery failed.');
-      return body.items;
+      return { chainId, ...body };
     }),
   );
   const items = pages.flatMap((page) =>
-    page.status === 'fulfilled' ? page.value : [],
+    page.status === 'fulfilled' ? page.value.items : [],
   );
   if (!items.length && pages.every((page) => page.status === 'rejected'))
     throw (pages[0] as PromiseRejectedResult).reason;
   const unique = [
     ...new Map(items.map((item) => [assetKey(item), item])).values(),
   ];
-  writeCache(address, unique);
-  return unique;
+  const next = Object.fromEntries(
+    pages.flatMap((page) =>
+      page.status === 'fulfilled'
+        ? [[page.value.chainId, page.value.nextPageKey]]
+        : [],
+    ),
+  ) as CursorSet;
+  writeCache(address, [...unique, ...readCache(address)]);
+  return { items: unique, next };
 }
 
 function OwnedItemCard({ item }: { item: OwnedAsset }) {
@@ -116,7 +151,6 @@ function OwnedItemCard({ item }: { item: OwnedAsset }) {
 
 export function YourItems() {
   const { address, chain, isConnected } = useAccount();
-  const queryClient = useQueryClient();
   const [showImport, setShowImport] = useState(false);
   const [contract, setContract] = useState('');
   const [tokenId, setTokenId] = useState('');
@@ -124,6 +158,7 @@ export function YourItems() {
   const [importError, setImportError] = useState('');
   const [importing, setImporting] = useState(false);
   const [includeBase, setIncludeBase] = useState(false);
+  const [importedItems, setImportedItems] = useState<OwnedAsset[]>([]);
   const cached = useMemo(
     () =>
       address
@@ -133,14 +168,32 @@ export function YourItems() {
         : [],
     [address, includeBase],
   );
-  const owned = useQuery({
+  const chains: SupportedChainId[] = includeBase ? [1, 8453] : [1];
+  const owned = useInfiniteQuery({
     queryKey: ['cryptoart-owned-assets', address, { includeBase }],
-    queryFn: () => getOwnedAssets(address!, includeBase ? [1, 8453] : [1]),
+    queryFn: ({ pageParam }) => getOwnedAssets(address!, chains, pageParam),
+    initialPageParam: { _initial: true } as CursorSet,
+    getNextPageParam: (lastPage) =>
+      Object.values(lastPage.next).some(Boolean) ? lastPage.next : undefined,
     enabled: Boolean(address),
-    initialData: cached.length ? cached : undefined,
+    initialData: cached.length
+      ? { pages: [{ items: cached, next: {} }], pageParams: [{}] }
+      : undefined,
+    initialDataUpdatedAt: 0,
     staleTime: 60_000,
     retry: false,
   });
+  const items = useMemo(
+    () => [
+      ...new Map(
+        [
+          ...importedItems,
+          ...(owned.data?.pages.flatMap((page) => page.items) ?? []),
+        ].map((item) => [assetKey(item), item]),
+      ).values(),
+    ],
+    [importedItems, owned.data],
+  );
 
   async function importItem(event: FormEvent) {
     event.preventDefault();
@@ -160,14 +213,11 @@ export function YourItems() {
         throw new Error('error' in body ? body.error : 'Import failed.');
       const items = [
         ...new Map(
-          [body, ...(owned.data ?? [])].map((item) => [assetKey(item), item]),
+          [body, ...readCache(address)].map((item) => [assetKey(item), item]),
         ).values(),
       ];
       writeCache(address, items);
-      queryClient.setQueryData(
-        ['cryptoart-owned-assets', address, { includeBase }],
-        includeBase ? items : items.filter((item) => item.id.chainId === 1),
-      );
+      setImportedItems((current) => [body, ...current]);
       setContract('');
       setTokenId('');
       setShowImport(false);
@@ -302,7 +352,9 @@ export function YourItems() {
               type="button"
               aria-pressed={includeBase}
               onClick={() => setIncludeBase((value) => !value)}
-              className={`cryptoart-mono border border-black px-4 py-2 text-[10px] uppercase ${includeBase ? 'bg-black text-white' : 'bg-white text-black'}`}
+              className={`cryptoart-mono border border-black px-4 py-2 text-[10px] uppercase ${
+                includeBase ? 'bg-black text-white' : 'bg-white text-black'
+              }`}
             >
               {includeBase ? 'Base included' : 'Include Base'}
             </button>
@@ -323,23 +375,35 @@ export function YourItems() {
               {owned.error.message} You can still import a known work above.
             </p>
           )}
-          {owned.data?.length === 0 && !owned.isFetching && (
+          {items.length === 0 && !owned.isFetching && (
             <p className="cryptoart-mono py-10 text-center text-xs uppercase">
               No works found yet · import one if a provider missed it
             </p>
           )}
-          {owned.data && owned.data.length > 0 && (
+          {items.length > 0 && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-              {owned.data.map((item) => (
+              {items.map((item) => (
                 <OwnedItemCard key={assetKey(item)} item={item} />
               ))}
             </div>
           )}
-          {owned.isFetching && owned.data?.length ? (
+          {owned.isFetching && items.length ? (
             <p className="cryptoart-mono mt-5 text-[9px] uppercase">
               Checking for newer wallet items…
             </p>
           ) : null}
+          {owned.hasNextPage && (
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                disabled={owned.isFetchingNextPage}
+                onClick={() => void owned.fetchNextPage()}
+                className="cryptoart-mono border border-black bg-black px-7 py-3 text-[10px] uppercase tracking-[0.1em] text-white disabled:opacity-50"
+              >
+                {owned.isFetchingNextPage ? 'Loading…' : 'Load more works'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
