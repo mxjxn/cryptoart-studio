@@ -67,4 +67,13 @@ describe('listing references', () => {
     expect(candidate.cast.embeds?.urls[0].openGraph.title).toBe('Artwork');
     expect(candidate.cast.embeds?.unknowns).toHaveLength(0);
   });
+  it('preserves Neynar mini-app metadata for the upstream interactive renderer', () => {
+    const candidate = normalizeCast({ hash: 'mini', author: { fid: 1 }, timestamp: new Date(now).toISOString(), text: 'play',
+      embeds: [{ url: 'https://app.example/play', metadata: { html: { ogTitle: 'Example', ogSiteName: 'Example App' },
+        frame: { version: '1', title: 'Enter', image: 'https://app.example/preview.png', frames_url: 'https://app.example/play' } } }] });
+    expect(candidate.cast.embeds?.urls[0].openGraph.frameEmbedNext).toMatchObject({
+      frameUrl: 'https://app.example/play', frameEmbed: { imageUrl: 'https://app.example/preview.png',
+        button: { title: 'Enter', action: { type: 'launch_miniapp', name: 'Example App' } } },
+    });
+  });
 });

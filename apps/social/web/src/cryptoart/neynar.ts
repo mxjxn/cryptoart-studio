@@ -16,7 +16,8 @@ export interface NeynarCast {
   replies?: { count?: number };
   mentioned_profiles?: NeynarUser[];
   embeds?: { url?: string; metadata?: { content_type?: string; image?: { width_px?: number; height_px?: number };
-    html?: { ogTitle?: string; ogDescription?: string; ogImage?: { url: string }[] } } }[];
+    html?: { ogTitle?: string; ogDescription?: string; ogSiteName?: string; ogImage?: { url: string }[] };
+    frame?: { version?: string; title?: string; image?: string; frames_url?: string } } }[];
   viewer_context?: { liked?: boolean; recasted?: boolean };
 }
 
@@ -49,10 +50,17 @@ export function normalizeCast(raw: NeynarCast, weightedLikerFids: number[] = [])
   const images = (raw.embeds ?? []).filter(isImage)
     .map(embed => ({ type: 'image' as const, url: embed.url!, sourceUrl: embed.url!, alt: '' }));
   const imageUrls = new Set(images.map(image => image.url));
-  const links = (raw.embeds ?? []).filter(embed => embed.url && !imageUrls.has(embed.url) && embed.metadata?.html)
-    .map(embed => ({ type: 'url' as const, openGraph: { url: embed.url!, sourceUrl: embed.url!,
-      title: embed.metadata!.html!.ogTitle, description: embed.metadata!.html!.ogDescription,
-      image: embed.metadata!.html!.ogImage?.[0]?.url } }));
+  const links = (raw.embeds ?? []).filter(embed => embed.url && !imageUrls.has(embed.url) && (embed.metadata?.html || embed.metadata?.frame))
+    .map(embed => {
+      const html = embed.metadata?.html;
+      const frame = embed.metadata?.frame;
+      const frameUrl = frame?.frames_url || embed.url!;
+      return { type: 'url' as const, openGraph: { url: embed.url!, sourceUrl: embed.url!,
+        title: html?.ogTitle, description: html?.ogDescription, image: html?.ogImage?.[0]?.url,
+        ...(frame ? { frameEmbedNext: { frameUrl, frameEmbed: { version: '1' as const,
+          imageUrl: frame.image || html?.ogImage?.[0]?.url, button: { title: frame.title || 'Open Mini App',
+            action: { type: 'launch_miniapp' as const, name: html?.ogSiteName || html?.ogTitle || 'Mini App', url: frameUrl } } } } } : {}) } };
+    });
   const linkUrls = new Set(links.map(link => link.openGraph.url));
   const timestamp = Date.parse(raw.timestamp);
   const likes = raw.reactions?.likes_count ?? 0;

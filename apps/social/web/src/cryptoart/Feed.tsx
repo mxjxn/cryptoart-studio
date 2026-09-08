@@ -139,6 +139,13 @@ export function CryptoartFeed() {
 
     {sales.map(auction => <AuctionCard key={`${auction.kind}:${auction.chainId}:${auction.listingId}`} auction={auction} />)}
 
+    {exhibition.miniApps.length > 0 && <section aria-labelledby="interactive-works">
+      <SectionTitle eyebrow="Participatory works">Interactive</SectionTitle>
+      <div id="interactive-works" className="space-y-4 px-4 pb-16 sm:px-8">
+        {exhibition.miniApps.map(item => <FullCast key={item.candidate.hash} item={item} />)}
+      </div>
+    </section>}
+
     {exhibition.arrivals.length > 0 && <section aria-labelledby="new-arrivals">
       <SectionTitle eyebrow="Discovery room">New arrivals</SectionTitle>
       <div id="new-arrivals" className="grid grid-cols-2 gap-x-3 gap-y-7 px-4 pb-14 sm:grid-cols-3 sm:gap-x-4 sm:px-8">
