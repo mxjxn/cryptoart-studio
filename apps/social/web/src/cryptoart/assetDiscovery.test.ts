@@ -32,8 +32,10 @@ describe('asset discovery', () => {
   });
 
   it('proxies wallet discovery without exposing the provider key to the client response', async () => {
-    const request = vi.fn(async (url: URL | RequestInfo) => {
-      expect(String(url)).toContain('/secret/getNFTsForOwner');
+    const request = vi.fn(async (url: URL | RequestInfo, init?: RequestInit) => {
+      expect(String(url)).toContain('/nft/v3/getNFTsForOwner');
+      expect(String(url)).not.toContain('secret');
+      expect(init?.headers).toEqual({ Authorization: 'Bearer secret' });
       return json({
         ownedNfts: [
           { contract: { address: contract }, tokenId: '1', name: 'Work' },

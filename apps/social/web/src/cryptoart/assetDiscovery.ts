@@ -131,13 +131,14 @@ export function createAssetDiscoveryService(
         },
       };
 
-    const endpoint = new URL(`${API_ROOT[chainId]}/${apiKey}/getNFTsForOwner`);
+    const endpoint = new URL(`${API_ROOT[chainId]}/getNFTsForOwner`);
     endpoint.searchParams.set('owner', owner);
     endpoint.searchParams.set('withMetadata', 'true');
     endpoint.searchParams.set('pageSize', '24');
     const pageKey = url.searchParams.get('pageKey');
     if (pageKey) endpoint.searchParams.set('pageKey', pageKey);
     const response = await request(endpoint, {
+      headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(15000),
     });
     if (!response.ok)
@@ -187,11 +188,12 @@ export function createAssetDiscoveryService(
             'Configure ALCHEMY_API_KEY on the Social server to import items.',
         },
       };
-    const endpoint = new URL(`${API_ROOT[chainId]}/${apiKey}/getNFTMetadata`);
+    const endpoint = new URL(`${API_ROOT[chainId]}/getNFTMetadata`);
     endpoint.searchParams.set('contractAddress', contract);
     endpoint.searchParams.set('tokenId', tokenId);
     endpoint.searchParams.set('refreshCache', 'false');
     const response = await request(endpoint, {
+      headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(15000),
     });
     if (!response.ok)

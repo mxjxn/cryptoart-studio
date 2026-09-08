@@ -55,6 +55,9 @@ token. The market UI stores its last successful wallet snapshot in session
 storage, queries Ethereum and Base concurrently, preserves metadata-missing
 tokens, and offers import plus Cast, Discuss, List, and Studio paths.
 
+Alchemy authentication uses the current server-side `Authorization: Bearer`
+header form so credentials do not enter request URLs or browser code.
+
 This browser cache is an interim read-through registry. A persistent platform
 read model will later store asset identities, observations, metadata snapshots,
 claims, verification timestamps, and visibility state.
