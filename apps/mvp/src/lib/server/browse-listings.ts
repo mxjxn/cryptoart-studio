@@ -27,6 +27,10 @@ import {
   queryListingsAcrossChains,
   sortMergedListingsForBrowse,
 } from "~/lib/server/subgraph-multi-query";
+import {
+  BROWSE_STREAM_ENRICH_BATCH,
+  listingsForEnrichment,
+} from "~/lib/server/browse-listings-helpers";
 
 /** Thumbnail cache reads hit Postgres; without a ceiling a stuck query blocks the whole browse batch */
 const THUMBNAIL_LOOKUP_TIMEOUT_MS = 2500;
@@ -245,26 +249,25 @@ async function enrichSingleListing(listing: any): Promise<EnrichedAuctionData> {
     listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
 
   if (listing.tokenAddress && listing.tokenId) {
-    try {
-      const listingChain =
-        typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
-          ? listing.chainId
-          : BASE_CHAIN_ID;
-      const creatorPromise = getContractCreator(
-        listing.tokenAddress,
-        listing.tokenId,
-        { chainId: listingChain }
-      );
-      const timeoutPromise = new Promise<{ creator: Address | null; source: string | null }>((resolve) =>
-        setTimeout(() => resolve({ creator: null, source: null }), 3000)
-      );
-      const creatorResult = await Promise.race([creatorPromise, timeoutPromise]);
-      if (creatorResult.creator && creatorResult.creator.toLowerCase() !== listing.seller?.toLowerCase()) {
-        discoverAndCacheUserBackground(creatorResult.creator);
-      }
-    } catch {
-      // Ignore creator discovery errors
-    }
+    const listingChain =
+      typeof listing.chainId === "number" && Number.isFinite(listing.chainId)
+        ? listing.chainId
+        : BASE_CHAIN_ID;
+    const tokenAddress = listing.tokenAddress;
+    const tokenId = listing.tokenId;
+    const seller = listing.seller;
+    void getContractCreator(tokenAddress, tokenId, { chainId: listingChain })
+      .then((creatorResult) => {
+        if (
+          creatorResult.creator &&
+          creatorResult.creator.toLowerCase() !== seller?.toLowerCase()
+        ) {
+          discoverAndCacheUserBackground(creatorResult.creator);
+        }
+      })
+      .catch(() => {
+        /* fire-and-forget user discovery */
+      });
   }
 
   let metadata = null;
@@ -447,10 +450,11 @@ async function browseListingsInner(
     marketBrowseMode
   );
 
+  const pageListings = listingsForEnrichment(activeListings, first);
   let enrichedListings: EnrichedAuctionData[];
 
   if (!enrich) {
-    enrichedListings = activeListings.map((listing) => {
+    enrichedListings = pageListings.map((listing) => {
       const bidCount = listing.bids?.length || 0;
       const highestBid =
         listing.bids && listing.bids.length > 0 ? listing.bids[0] : undefined;
@@ -486,28 +490,33 @@ async function browseListingsInner(
       } as EnrichedAuctionData;
     });
   } else {
-    console.log('[Browse Listings] Enriching', activeListings.length, 'listings');
-    
+    console.log("[Browse Listings] Enriching", pageListings.length, "listings", {
+      activeCount: activeListings.length,
+    });
+
     const addressesToDiscover = new Set<string>();
-    activeListings.forEach(listing => {
+    pageListings.forEach((listing) => {
       if (listing.seller) {
         addressesToDiscover.add(listing.seller.toLowerCase());
       }
     });
-    addressesToDiscover.forEach(address => {
+    addressesToDiscover.forEach((address) => {
       discoverAndCacheUserBackground(address);
     });
 
     const allResults = await Promise.allSettled(
-      activeListings.map((listing) => enrichSingleListing(listing))
+      pageListings.map((listing) => enrichSingleListing(listing))
     );
 
     enrichedListings = allResults.map((result, index) => {
-      if (result.status === 'fulfilled') {
+      if (result.status === "fulfilled") {
         return result.value;
       }
-      const listing = activeListings[index];
-      console.warn(`[Browse Listings] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
+      const listing = pageListings[index];
+      console.warn(
+        `[Browse Listings] Enrichment failed for listing ${listing.listingId}, using basic data:`,
+        result.reason
+      );
       return makeBasicListing(listing);
     });
   }
@@ -608,22 +617,24 @@ export async function* browseListingsStreaming(
   const subgraphReturnedFullCount = maxEndpointListingCount >= fetchCount;
   yield { type: "metadata", subgraphReturnedFullCount, subgraphDown: false };
 
+  const pageListings = listingsForEnrichment(activeListings, first);
+
   if (!enrich) {
-    // If not enriching, yield all listings immediately
-    for (const listing of activeListings.slice(0, first)) {
+    for (const listing of pageListings) {
       yield {
-        type: 'listing',
+        type: "listing",
         data: {
           ...listing,
           listingType: normalizeListingType(listing.listingType, listing),
           bidCount: listing.bids?.length || 0,
-          highestBid: listing.bids && listing.bids.length > 0
-            ? {
-                amount: listing.bids[0].amount,
-                bidder: listing.bids[0].bidder,
-                timestamp: listing.bids[0].timestamp,
-              }
-            : undefined,
+          highestBid:
+            listing.bids && listing.bids.length > 0
+              ? {
+                  amount: listing.bids[0].amount,
+                  bidder: listing.bids[0].bidder,
+                  timestamp: listing.bids[0].timestamp,
+                }
+              : undefined,
         },
       };
     }
@@ -631,35 +642,38 @@ export async function* browseListingsStreaming(
   }
 
   const addressesToDiscover = new Set<string>();
-  activeListings.forEach(listing => {
+  pageListings.forEach((listing) => {
     if (listing.seller) {
       addressesToDiscover.add(listing.seller.toLowerCase());
     }
   });
-  addressesToDiscover.forEach(address => {
+  addressesToDiscover.forEach((address) => {
     discoverAndCacheUserBackground(address);
   });
 
   const enrichStarted = Date.now();
-  const allResults = await Promise.allSettled(
-    activeListings.map((listing) => enrichSingleListing(listing))
-  );
+  for (let i = 0; i < pageListings.length; i += BROWSE_STREAM_ENRICH_BATCH) {
+    const batch = pageListings.slice(i, i + BROWSE_STREAM_ENRICH_BATCH);
+    const allResults = await Promise.allSettled(
+      batch.map((listing) => enrichSingleListing(listing))
+    );
+    for (let j = 0; j < allResults.length; j++) {
+      const result = allResults[j];
+      if (result.status === "fulfilled") {
+        yield { type: "listing", data: result.value };
+      } else {
+        const listing = batch[j];
+        console.warn(
+          `[Browse Listings Streaming] Enrichment failed for listing ${listing.listingId}, using basic data:`,
+          result.reason
+        );
+        yield { type: "listing", data: makeBasicListing(listing) };
+      }
+    }
+  }
   console.log("[Browse Listings Streaming] phase=enrich_done", {
     ms: Date.now() - enrichStarted,
-    total: activeListings.length,
+    total: pageListings.length,
   });
-
-  let yieldedCount = 0;
-  for (let i = 0; i < allResults.length && yieldedCount < first; i++) {
-    const result = allResults[i];
-    if (result.status === 'fulfilled') {
-      yield { type: 'listing', data: result.value };
-    } else {
-      const listing = activeListings[i];
-      console.warn(`[Browse Listings Streaming] Enrichment failed for listing ${listing.listingId}, using basic data:`, result.reason);
-      yield { type: 'listing', data: makeBasicListing(listing) };
-    }
-    yieldedCount++;
-  }
 }
 

@@ -9,8 +9,8 @@ export const maxDuration = 180;
 const BROWSE_API_TIMEOUT_MS = 7000;
 /** Default streaming wall (home / simple browse). */
 const BROWSE_STREAM_MAX_MS = 25_000;
-/** Market browse + pagination can scan many batches before 20 enriched rows — allow a longer wall. */
-const BROWSE_STREAM_MAX_MS_MARKET_HEAVY = 120_000;
+/** Load-more still over-fetches the subgraph, but only enriches one page of cards. */
+const BROWSE_STREAM_MAX_MS_MARKET_HEAVY = 40_000;
 const BROWSE_LKG_TTL_MS = 10 * 60 * 1000;
 let browseTimeoutCount = 0;
 let browseDegradedCount = 0;
