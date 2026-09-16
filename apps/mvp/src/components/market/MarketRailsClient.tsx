@@ -3,6 +3,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AuctionCard } from '~/components/AuctionCard';
+import { useSearchParams } from 'next/navigation';
+import {
+  filterMarketSections,
+  type MarketBrowseMode,
+} from '~/lib/market-visibility';
 
 const gradients = [
   'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -21,6 +26,11 @@ async function fetchMarketLayout() {
 }
 
 export default function MarketRailsClient() {
+  const searchParams = useSearchParams();
+  const marketMode: MarketBrowseMode =
+    searchParams.get('mode') === 'include-ended' || searchParams.get('tab') === 'finished'
+      ? 'include-ended'
+      : 'live';
   const { data: sections = [], isLoading, isError } = useQuery({
     queryKey: ['market-layout'],
     queryFn: fetchMarketLayout,
@@ -28,6 +38,7 @@ export default function MarketRailsClient() {
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
+  const visibleSections = filterMarketSections(sections, marketMode);
 
   if (isLoading) {
     return (
@@ -39,7 +50,7 @@ export default function MarketRailsClient() {
     );
   }
 
-  if (isError || !sections || sections.length === 0) {
+  if (isError) {
     return (
       <div className="mb-6 flex items-center gap-3">
         <div className="w-28 h-16 rounded bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.03)] animate-pulse" />
@@ -49,9 +60,11 @@ export default function MarketRailsClient() {
     );
   }
 
+  if (!visibleSections.length) return null;
+
   return (
     <div className="mb-10 space-y-10">
-      {sections.map((section: any, si: number) => (
+      {visibleSections.map((section: any, si: number) => (
         <section key={section.id} className="border-b border-[#333333] pb-8 last:border-b-0">
           {(section.title || section.sectionType) && (
             <h2 className="mb-1 font-mek-mono text-sm uppercase tracking-[0.5px] text-white">

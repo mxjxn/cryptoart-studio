@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  filterMarketSections,
   getMarketListingKind,
   isListingSoldOut,
   isMarketListingEnded,
@@ -84,5 +85,59 @@ describe("isVisibleOnMarket", () => {
     });
     assert.equal(isVisibleOnMarket(listing, "live", NOW), true);
     assert.equal(getMarketListingKind(listing, NOW), "scheduled");
+  });
+
+  it("hides start-on-first-bid auctions whose duration has elapsed", () => {
+    const listing = auction({
+      startTime: "0",
+      endTime: "86400",
+      hasBid: true,
+      bids: [
+        {
+          id: "1",
+          bidder: "0x1",
+          amount: "1",
+          timestamp: String(NOW - 200_000),
+        },
+      ],
+    });
+    assert.equal(isMarketListingEnded(listing, NOW), true);
+    assert.equal(isVisibleOnMarket(listing, "live", NOW), false);
+    assert.equal(isVisibleOnMarket(listing, "include-ended", NOW), true);
+  });
+
+  it("keeps start-on-first-bid auctions live while duration remains", () => {
+    const listing = auction({
+      startTime: "0",
+      endTime: "86400",
+      hasBid: true,
+      bids: [
+        {
+          id: "1",
+          bidder: "0x1",
+          amount: "1",
+          timestamp: String(NOW - 3_600),
+        },
+      ],
+    });
+    assert.equal(isVisibleOnMarket(listing, "live", NOW), true);
+  });
+
+  it("drops ended lots from live rails but keeps them when include-ended is on", () => {
+    const live = auction({ listingId: "1" });
+    const ended = auction({
+      listingId: "2",
+      status: "FINALIZED",
+      finalized: true,
+    });
+    const sections = [
+      { id: "live", listings: [live] },
+      { id: "done", listings: [ended] },
+    ];
+    assert.deepEqual(
+      filterMarketSections(sections, "live").map((s) => s.id),
+      ["live"]
+    );
+    assert.equal(filterMarketSections(sections, "include-ended").length, 2);
   });
 });

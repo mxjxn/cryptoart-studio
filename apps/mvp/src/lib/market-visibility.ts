@@ -25,15 +25,19 @@ function rawToDisplayInput(listing: Record<string, unknown>) {
   const bids = listing.bids as
     | { id: string; bidder: string; amount: string; timestamp: string }[]
     | undefined;
-  const bidCount = bids?.length ?? 0;
+  const highestBid = listing.highestBid as { timestamp?: string | number } | undefined;
+  const bidCount =
+    bids?.length ?? (typeof listing.bidCount === "number" ? listing.bidCount : 0);
   return {
     status: listing.status as "ACTIVE" | "FINALIZED" | "CANCELLED",
     listingType: normalizeListingType(listing.listingType as never, listing as never),
     startTime: listing.startTime as string,
     endTime: listing.endTime as string,
+    createdAt: listing.createdAt as string | number | undefined,
     hasBid: listing.hasBid as boolean | undefined,
     bidCount,
     bids,
+    highestBid,
     finalized: listing.finalized as boolean | undefined,
   };
 }
@@ -69,6 +73,28 @@ export function isVisibleOnMarket(
   if (isMarketListingHardExcluded(listing)) return false;
   if (mode === "include-ended") return true;
   return !isMarketListingEnded(listing, nowSec);
+}
+
+export function filterListingsForMarketMode<T>(
+  listings: T[] | undefined,
+  mode: MarketBrowseMode
+): T[] {
+  if (!listings?.length) return [];
+  return listings.filter((listing) =>
+    isVisibleOnMarket(listing as Record<string, unknown>, mode)
+  );
+}
+
+export function filterMarketSections<T extends { listings?: unknown[] }>(
+  sections: T[],
+  mode: MarketBrowseMode
+): T[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      listings: filterListingsForMarketMode(section.listings, mode),
+    }))
+    .filter((section) => (section.listings?.length ?? 0) > 0);
 }
 
 export function getMarketListingKind(
