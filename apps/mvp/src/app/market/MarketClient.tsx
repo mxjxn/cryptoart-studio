@@ -12,6 +12,11 @@ import type { EnrichedAuctionData } from "~/lib/types";
 import type { MarketBrowseMode } from "~/lib/market-visibility";
 import { consumeBrowseListingsStream } from "~/lib/browse-stream-client";
 import type { MarketInitialPayload } from "~/lib/market-page-types";
+import {
+  filterListingsForMarketMode,
+  filterMarketSections,
+  isVisibleOnMarket,
+} from "~/lib/market-visibility";
 
 function marketModeFromSearch(raw: string | null): MarketBrowseMode {
   if (raw === "include-ended" || raw === "finished") return "include-ended";
@@ -77,6 +82,21 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
     marketMode,
     refetchNonce,
   ]);
+
+  const visibleListings = useMemo(
+    () => filterListingsForMarketMode(listings, marketMode),
+    [listings, marketMode]
+  );
+  const visibleHero = useMemo(() => {
+    if (!initial.hero) return null;
+    return isVisibleOnMarket(initial.hero as unknown as Record<string, unknown>, marketMode)
+      ? initial.hero
+      : null;
+  }, [initial.hero, marketMode]);
+  const visibleSections = useMemo(
+    () => filterMarketSections(initial.sections, marketMode),
+    [initial.sections, marketMode]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -273,12 +293,12 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
           </label>
         </div>
 
-        {initial.hero ? <MarketHero auction={initial.hero} /> : null}
-        {initial.sections.length > 0 ? (
-          <MarketSections sections={initial.sections} />
-        ) : (
+        {visibleHero ? <MarketHero auction={visibleHero} /> : null}
+        {visibleSections.length > 0 ? (
+          <MarketSections sections={visibleSections} />
+        ) : initial.sections.length === 0 ? (
           <MarketRails />
-        )}
+        ) : null}
 
         <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#333333] pb-3">
           <h2 className="font-mek-mono text-sm uppercase tracking-[0.5px] text-white">
@@ -294,9 +314,9 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
             isFilterPending ? "pointer-events-none opacity-45 transition-opacity duration-150" : undefined
           }
         >
-          {loading && listings.length === 0 ? (
+          {loading && visibleListings.length === 0 ? (
             <MarketGridSkeleton />
-          ) : error && listings.length === 0 ? (
+          ) : error && visibleListings.length === 0 ? (
             <div className="py-12 text-center">
               <p className="mb-2 text-red-400">Error loading listings</p>
               <p className="mb-4 text-sm text-[#999999]">{error}</p>
@@ -314,7 +334,7 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
                 Retry
               </button>
             </div>
-          ) : listings.length === 0 ? (
+          ) : visibleListings.length === 0 ? (
             <div className="py-12 text-center">
               {subgraphDown ? (
                 <>
@@ -348,7 +368,7 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
           ) : (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {listings.map((listing, index) => (
+                {visibleListings.map((listing, index) => (
                   <AuctionCard
                     key={`${String(listing.listingId)}-${String(listing.chainId ?? "")}`}
                     auction={listing}
@@ -393,7 +413,7 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
                 </div>
               )}
 
-              {!hasMore && listings.length > 0 && !loadingMore && (
+              {!hasMore && visibleListings.length > 0 && !loadingMore && (
                 <div className="mt-8 py-6 text-center">
                   <p className="text-xs text-[#666666]">No more listings to load</p>
                 </div>

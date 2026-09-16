@@ -3,7 +3,12 @@ import { browseListings } from "~/lib/server/browse-listings";
 import { readMarketLayoutSnapshot } from "~/lib/server/market-layout-snapshot";
 import { splitMarketHero } from "~/lib/market-layout";
 import { withTimeout } from "~/lib/utils";
-import type { MarketBrowseMode } from "~/lib/market-visibility";
+import {
+  filterListingsForMarketMode,
+  filterMarketSections,
+  isVisibleOnMarket,
+  type MarketBrowseMode,
+} from "~/lib/market-visibility";
 import type { BrowseListingsResult } from "~/lib/server/browse-listings";
 import type { MarketInitialPayload } from "~/lib/market-page-types";
 
@@ -55,7 +60,12 @@ export async function getMarketInitialPayload(
 
     const browseResult = browseTimed.result;
     const { hero, sections: restSections } = splitMarketHero(sections);
-    const listings = browseResult.listings;
+    const listings = filterListingsForMarketMode(browseResult.listings, marketMode);
+    const visibleHero =
+      hero && isVisibleOnMarket(hero as unknown as Record<string, unknown>, marketMode)
+        ? hero
+        : null;
+    const visibleSections = filterMarketSections(restSections, marketMode);
 
     return {
       marketMode,
@@ -64,8 +74,8 @@ export async function getMarketInitialPayload(
       subgraphDown: browseResult.subgraphDown ?? false,
       degraded: browseTimed.timedOut,
       ssrEnriched: !browseTimed.timedOut,
-      hero,
-      sections: restSections,
+      hero: visibleHero,
+      sections: visibleSections,
     };
   } catch (error) {
     console.error("[Market] SSR payload failed", error);

@@ -171,6 +171,40 @@ export function resolveStartedAuctionEndTime({
 }
 
 /**
+ * Unix second when a listing actually ends.
+ * Start-on-first-bid rows often keep `endTime` as a duration until the subgraph
+ * rewrites it to a timestamp; market filters must use the same clock as cards.
+ */
+export function resolveActualEndTime(
+  listing: {
+    startTime: string | number;
+    endTime: string | number;
+    createdAt?: string | number;
+    bids?: Array<{ timestamp?: string | number | null }>;
+    highestBid?: { timestamp?: string | number };
+  },
+  now: number = Math.floor(Date.now() / 1000)
+): number {
+  const startTime = parseInt(String(listing.startTime ?? "0"), 10) || 0;
+  const endTime = parseInt(String(listing.endTime ?? "0"), 10) || 0;
+  if (endTime <= 0 || isNeverExpiring(endTime)) return endTime;
+
+  if (startTime === 0) {
+    const firstBid =
+      earliestBidUnixSeconds(listing.bids) ??
+      parseUnixSeconds(listing.highestBid?.timestamp);
+    const createdAt = parseUnixSeconds(listing.createdAt);
+    return resolveStartedAuctionEndTime({
+      subgraphEndTime: endTime,
+      firstBidTimestamp: firstBid,
+      now: firstBid ?? createdAt ?? now,
+    });
+  }
+
+  return endTime;
+}
+
+/**
  * Get auction time status information
  * Returns status text, end date, and time remaining based on auction configuration
  */
@@ -299,9 +333,11 @@ export function getListingDisplayStatus(
     listingType: "INDIVIDUAL_AUCTION" | "FIXED_PRICE" | "DYNAMIC_PRICE" | "OFFERS_ONLY";
     startTime: string | number;
     endTime: string | number;
+    createdAt?: string | number;
     hasBid?: boolean;
     bidCount?: number;
     bids?: Array<{ id: string; bidder: string; amount: string; timestamp: string }>;
+    highestBid?: { timestamp?: string | number };
     finalized?: boolean; // Subgraph also has a finalized boolean field
   },
   now?: number
@@ -335,29 +371,12 @@ export function getListingDisplayStatus(
     if (listing.listingType === "INDIVIDUAL_AUCTION" && startTime === 0) {
       if (!hasBid) {
         return "not started";
-      } else {
-        // Has started, check if ended
-        // For start-on-first-bid auctions, endTime can be either:
-        // 1. A duration (in seconds) if subgraph hasn't updated yet
-        // 2. A timestamp if contract has already converted it
-        // Heuristic: if endTime is less than 1 year (31536000 seconds), it's likely a duration
-        const ONE_YEAR_IN_SECONDS = 31536000;
-        
-        if (endTime > currentTime) {
-          // endTime is greater than current time, so it's likely a timestamp
-          // and the auction hasn't ended yet
-          return "active";
-        } else if (endTime <= ONE_YEAR_IN_SECONDS) {
-          // endTime is a small number (duration), and it's <= currentTime
-          // This means the subgraph hasn't updated yet, or it's a very short duration
-          // Without the auction start timestamp, we can't determine if it's ended
-          // Default to "active" for safety (the listing page will show correct status)
-          return "active";
-        } else {
-          // endTime is a large number (timestamp) and <= currentTime, so it's concluded
-          return "concluded";
-        }
       }
+      const actualEnd = resolveActualEndTime(listing, currentTime);
+      if (actualEnd > 0 && actualEnd <= currentTime && !isNeverExpiring(actualEnd)) {
+        return "concluded";
+      }
+      return "active";
     }
 
     // For FIXED_PRICE, OFFERS_ONLY, DYNAMIC_PRICE listings with startTime = 0, endTime is a duration (not a timestamp)
@@ -371,8 +390,10 @@ export function getListingDisplayStatus(
       if (isNeverExpiring(endTime)) {
         return "active";
       }
-      // For startTime=0 non-auction listings, they're active immediately
-      // We can't determine if ended without creation timestamp, so default to active
+      const actualEnd = resolveActualEndTime(listing, currentTime);
+      if (actualEnd > 0 && actualEnd <= currentTime) {
+        return "concluded";
+      }
       return "active";
     }
 
