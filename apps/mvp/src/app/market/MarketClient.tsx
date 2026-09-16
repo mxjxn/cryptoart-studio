@@ -7,10 +7,11 @@ import { Logo } from "~/components/Logo";
 import { AuctionCard } from "~/components/AuctionCard";
 import { MarketHero } from "~/components/market/MarketHero";
 import { MarketSections } from "~/components/market/MarketSections";
+import MarketRails from "~/components/market/MarketRails";
 import type { EnrichedAuctionData } from "~/lib/types";
-import type { HomepageSection } from "~/lib/server/homepage-layout";
 import type { MarketBrowseMode } from "~/lib/market-visibility";
 import { consumeBrowseListingsStream } from "~/lib/browse-stream-client";
+import type { MarketInitialPayload } from "~/lib/market-page-types";
 
 function marketModeFromSearch(raw: string | null): MarketBrowseMode {
   if (raw === "include-ended" || raw === "finished") return "include-ended";
@@ -26,19 +27,10 @@ const gradients = [
   "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
 ];
 
-export type MarketInitialPayload = {
-  marketMode: MarketBrowseMode;
-  listings: EnrichedAuctionData[];
-  hasMore: boolean;
-  subgraphDown: boolean;
-  degraded: boolean;
-  ssrEnriched: boolean;
-  hero: EnrichedAuctionData | null;
-  sections: HomepageSection[];
-};
+export type { MarketInitialPayload } from "~/lib/market-page-types";
 
 const PAGE_SIZE = 20;
-const BROWSE_FETCH_MAX_MS = 150_000;
+const BROWSE_FETCH_MAX_MS = 45_000;
 
 export default function MarketClient({ initial }: { initial: MarketInitialPayload }) {
   const router = useRouter();
@@ -72,6 +64,7 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
 
   const skipInitialClientEnrich = useMemo(() => {
     if (refetchNonce > 0) return false;
+    if (initial.marketMode !== marketMode) return false;
     if (!initial.ssrEnriched) return false;
     if (initial.degraded || initial.subgraphDown) return false;
     return initial.listings.length > 0;
@@ -80,6 +73,8 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
     initial.degraded,
     initial.subgraphDown,
     initial.listings.length,
+    initial.marketMode,
+    marketMode,
     refetchNonce,
   ]);
 
@@ -112,21 +107,40 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
 
       try {
         const skip = page * PAGE_SIZE;
-        const url = `/api/listings/browse?first=${PAGE_SIZE}&skip=${skip}&enrich=true&stream=true&orderBy=listingId&orderDirection=desc&marketMode=${encodeURIComponent(marketMode)}`;
+        const pageAtStart = page;
+        const enrich = isInitialLoad ? "false" : "true";
+        const stream = isInitialLoad ? "false" : "true";
+        const url = `/api/listings/browse?first=${PAGE_SIZE}&skip=${skip}&enrich=${enrich}&stream=${stream}&orderBy=listingId&orderDirection=desc&marketMode=${encodeURIComponent(marketMode)}`;
 
         const response = await fetch(url, { signal: ac.signal });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const pageAtStart = page;
-        const { listings: streamed, metadata } = await consumeBrowseListingsStream(response, {
-          signal: ac.signal,
-          onListing: (_listing, accumulated) => {
-            if (cancelled || ac.signal.aborted || pageAtStart !== 0) return;
-            setListings([...accumulated]);
-          },
-        });
+        const { listings: streamed, metadata } = isInitialLoad
+          ? await (async () => {
+              const data = (await response.json()) as {
+                listings?: EnrichedAuctionData[];
+                subgraphDown?: boolean;
+                degraded?: boolean;
+                pagination?: { hasMore?: boolean };
+              };
+              return {
+                listings: data.listings ?? [],
+                metadata: {
+                  subgraphDown: data.subgraphDown,
+                  degraded: data.degraded,
+                  hasMore: data.pagination?.hasMore,
+                },
+              };
+            })()
+          : await consumeBrowseListingsStream(response, {
+              signal: ac.signal,
+              onListing: (_listing, accumulated) => {
+                if (cancelled || ac.signal.aborted || pageAtStart !== 0) return;
+                setListings([...accumulated]);
+              },
+            });
 
         if (cancelled || ac.signal.aborted) return;
 
@@ -260,7 +274,11 @@ export default function MarketClient({ initial }: { initial: MarketInitialPayloa
         </div>
 
         {initial.hero ? <MarketHero auction={initial.hero} /> : null}
-        <MarketSections sections={initial.sections} />
+        {initial.sections.length > 0 ? (
+          <MarketSections sections={initial.sections} />
+        ) : (
+          <MarketRails />
+        )}
 
         <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#333333] pb-3">
           <h2 className="font-mek-mono text-sm uppercase tracking-[0.5px] text-white">

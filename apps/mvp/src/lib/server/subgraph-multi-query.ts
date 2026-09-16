@@ -4,6 +4,29 @@ import {
   getConfiguredSubgraphEndpoints,
 } from "~/lib/server/subgraph-endpoints";
 
+/** Prevent a hung Graph Studio indexer from stalling market / listing reads indefinitely. */
+const SUBGRAPH_ATTEMPT_TIMEOUT_MS = 5_000;
+
+async function withSubgraphAttemptTimeout<T>(
+  requestFn: () => Promise<T>,
+  timeoutMs = SUBGRAPH_ATTEMPT_TIMEOUT_MS
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      requestFn(),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(`subgraph request timeout after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export function listingsSubgraphHeaders(): Record<string, string> {
   const apiKey = process.env.GRAPH_STUDIO_API_KEY;
   if (apiKey) {
@@ -21,7 +44,7 @@ export async function retrySubgraphRequest<T>(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await requestFn();
+      return await withSubgraphAttemptTimeout(requestFn);
     } catch (error: unknown) {
       lastError = error;
       const errorMessage = error instanceof Error ? error.message : String(error);
