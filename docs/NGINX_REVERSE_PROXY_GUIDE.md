@@ -32,11 +32,13 @@ While Docker Compose includes an nginx container, using **host-level nginx** pro
 Internet
     ↓
 Host Nginx (Port 80/443)
-    ├─→ cryptoart.social → Docker: studio-app:3000
-    ├─→ api.cryptoart.social → Docker: studio-app:3000/api
-    ├─→ admin.cryptoart.social → Internal service (not public)
-    └─→ Internal services communicate via Docker network
+    ├─→ staging.cryptoart.social → Docker: mvp:3000  (shadow before DNS cutover)
+    ├─→ cryptoart.social → Docker: mvp:3000
+    ├─→ www.cryptoart.social → same
+    └─→ Internal services (redis, cron, indexer) stay on the Docker network
 ```
+
+See also `nginx/sites-available/staging.cryptoart.social.example` and [VPS_CUTOVER.md](./VPS_CUTOVER.md).
 
 ## Installation
 

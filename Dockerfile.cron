@@ -1,0 +1,14 @@
+# Lightweight cron runner that hits mvp /api/cron/* routes (replaces Vercel Cron)
+FROM alpine:3.20
+
+RUN apk add --no-cache curl bash tzdata && \
+    cp /usr/share/zoneinfo/UTC /etc/localtime && \
+    echo UTC > /etc/timezone
+
+COPY deploy/cron/run-cron.sh /usr/local/bin/run-cron.sh
+COPY deploy/cron/crontab /etc/crontabs/root
+RUN chmod +x /usr/local/bin/run-cron.sh
+
+ENV MVP_INTERNAL_URL=http://mvp:3000
+
+CMD ["crond", "-f", "-l", "2"]

@@ -1,82 +1,39 @@
 # Deployment Configuration Summary
 
-This document summarizes all the deployment configuration files and their purposes.
+This document summarizes deployment configuration files and their purposes.
 
-## 📁 Files Created
+> **Current cutover:** [VPS_CUTOVER.md](./VPS_CUTOVER.md) — `apps/mvp` + external Supabase + R2 + cron. Legacy `Dockerfile.studio-app` is obsolete for production.
+
+## Files
 
 ### Docker Configuration
 
-1. **`Dockerfile.studio-app`** - Multi-stage Dockerfile for building the Next.js studio app
-   - Optimized for production with standalone output
-   - Non-root user for security
-   - Minimal image size
+1. **`Dockerfile.mvp`** — Multi-stage build for `apps/mvp` (standalone Next.js)
+2. **`Dockerfile.cron`** — Alpine crond that hits `/api/cron/*` with `CRON_SECRET`
+3. **`Dockerfile.indexer`** — Creator-core indexer
+4. **`Dockerfile.studio-app`** — Legacy; do not use for the VPS cutover
+5. **`docker-compose.prod.yml`** — `mvp` + `cron` + `redis` + `indexer`; optional `postgres` via `--profile self-host-db` only
+6. **`.dockerignore`** — Keeps Social/archive out of the mvp image context
 
-2. **`Dockerfile.indexer`** - Multi-stage Dockerfile for the creator-core-indexer service
-   - Builds TypeScript indexer service
-   - Includes all workspace dependencies
+### CI/CD
 
-3. **`docker-compose.prod.yml`** - Production Docker Compose configuration
-   - PostgreSQL database with health checks
-   - Redis cache with persistence
-   - Studio app (Next.js) on port 3000
-   - Indexer service (background worker)
-   - Nginx reverse proxy (optional, for SSL)
-   - Docker secrets for sensitive data
+7. **`.github/workflows/deploy.yml`** — Build/push `mvp`, `cron`, `indexer` to GHCR; SSH deploy to Hostinger
 
-4. **`.dockerignore`** - Excludes unnecessary files from Docker builds
+### Nginx
 
-### CI/CD Configuration
-
-5. **`.github/workflows/deploy.yml`** - GitHub Actions workflow
-   - Builds Docker images on push to `main`
-   - Pushes to GitHub Container Registry
-   - Deploys to Hostinger server via SSH
-   - Runs health checks
-
-### Nginx Configuration
-
-6. **`nginx/nginx.conf`** - Nginx reverse proxy configuration
-   - SSL/TLS termination
-   - Rate limiting
-   - Security headers
-   - HTTP to HTTPS redirect
+8. **`nginx/nginx.conf`** + **`nginx/sites-available/cryptoart.social.example`**
+9. **`nginx/sites-available/staging.cryptoart.social.example`** — Shadow host before DNS cutover
 
 ### Documentation
 
-7. **`DEPLOYMENT_PRODUCTION.md`** - Complete deployment guide
-   - Step-by-step instructions
-   - Server setup
-   - SSL configuration
-   - Troubleshooting
+10. **`VPS_CUTOVER.md`** / **`PLATFORM_ROADMAP.md`** — Cutover + post-VPS product order
+11. **`DEPLOYMENT_PRODUCTION.md`**, **`DEPLOYMENT_QUICKSTART.md`**, **`ENV_VARS_MANAGEMENT.md`**, **`NGINX_REVERSE_PROXY_GUIDE.md`**
 
-8. **`DEPLOYMENT_QUICKSTART.md`** - Quick reference guide
-   - 5-minute setup checklist
-   - Common commands
-   - Quick troubleshooting
+### Application
 
-9. **`ENV_VARS_MANAGEMENT.md`** - Environment variables guide
-   - Security best practices
-   - Secret management
-   - Rotation procedures
-   - Backup strategies
-
-10. **`NGINX_REVERSE_PROXY_GUIDE.md`** - Nginx reverse proxy setup
-    - Host-level nginx installation
-    - Multiple domain routing
-    - Internal service communication
-    - SSL/TLS for multiple domains
-    - Advanced configuration
-
-### Application Updates
-
-10. **`apps/cryptoart-studio-app/src/app/api/health/route.ts`** - Health check endpoint
-    - Returns service status
-    - Checks database connectivity
-    - Used by monitoring and CI/CD
-
-11. **`apps/cryptoart-studio-app/next.config.ts`** - Updated for Docker
-    - Standalone output enabled
-    - Flexible output tracing root
+12. **`apps/mvp/src/app/api/health/route.ts`** — Liveness for Docker/CI
+13. **`apps/mvp/next.config.ts`** — `output: 'standalone'`
+14. **`apps/mvp/src/lib/server/object-storage.ts`** — R2-first shared blob backend
 
 ## 🔐 Security Features
 
@@ -150,29 +107,29 @@ Health Check
 
 ### Ports
 
-- **3000**: Studio app (Next.js)
-- **5432**: PostgreSQL (localhost only)
+- **3000**: mvp (localhost only; host nginx proxies here)
+- **5432**: only with `--profile self-host-db` (cutover uses external Supabase)
 - **6379**: Redis (localhost only)
-- **80/443**: Nginx (public)
+- **80/443**: host nginx (public)
 
 ### Volumes
 
-- **postgres-data**: Persistent PostgreSQL data
 - **redis-data**: Persistent Redis data
+- **postgres-data**: Only if self-hosting Postgres later
 
 ### Networks
 
 - **cryptoart-network**: Isolated Docker network for all services
 
-## 📚 Documentation Structure
+## Documentation Structure
 
 ```
+VPS_CUTOVER.md / PLATFORM_ROADMAP.md
 DEPLOYMENT_SUMMARY.md (this file)
-    ├── DEPLOYMENT_PRODUCTION.md (detailed guide)
-    ├── DEPLOYMENT_QUICKSTART.md (quick reference)
-    ├── ENV_VARS_MANAGEMENT.md (secrets guide)
-    ├── NGINX_REVERSE_PROXY_GUIDE.md (nginx setup)
-    └── apps/cryptoart-studio-app/ENV_VARS.md (app-specific)
+    ├── DEPLOYMENT_PRODUCTION.md
+    ├── DEPLOYMENT_QUICKSTART.md
+    ├── ENV_VARS_MANAGEMENT.md
+    └── NGINX_REVERSE_PROXY_GUIDE.md
 ```
 
 ## 🆘 Quick Troubleshooting

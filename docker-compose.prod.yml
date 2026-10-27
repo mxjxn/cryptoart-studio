@@ -1,16 +1,26 @@
+# Production stack for Hostinger VPS
+#
+# Cutover rules (see docs/VPS_CUTOVER.md):
+# - Postgres: use existing Supabase cryptoart-db via STORAGE_POSTGRES_URL / POSTGRES_URL
+#   Do NOT enable the optional `postgres` profile for production cutover.
+# - App: apps/mvp (not the legacy studio-app image)
+# - Blob: Cloudflare R2 (R2_* env vars); do not rely on Vercel Blob
+# - Cron: deploy/cron replaces Vercel Cron
+
 services:
-  # PostgreSQL Database
+  # Optional local Postgres — DEV / future self-host only.
+  # Production cutover keeps using Supabase: leave this profile off.
   postgres:
+    profiles: ["self-host-db"]
     image: postgres:16-alpine
     container_name: cryptoart-postgres-prod
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      # Use env password for the optional self-host profile only (not used on cutover).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRES_DB:-cryptoart}
-    secrets:
-      - postgres_password
     ports:
-      - "127.0.0.1:5432:5432"  # Only expose on localhost
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +33,6 @@ services:
     networks:
       - cryptoart-network
 
-  # Redis Cache
   redis:
     image: redis:7-alpine
     container_name: cryptoart-redis-prod
@@ -32,7 +41,7 @@ services:
     secrets:
       - redis_password
     ports:
-      - "127.0.0.1:6379:6379"  # Only expose on localhost
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -44,18 +53,18 @@ services:
     networks:
       - cryptoart-network
 
-  # Creator Core Indexer Service
   indexer:
     build:
       context: .
       dockerfile: Dockerfile.indexer
+    image: ghcr.io/${GITHUB_REPOSITORY:-mxjxn/cryptoart-studio}-indexer:latest
     container_name: cryptoart-indexer-prod
     env_file:
       - .env.production
     environment:
       - NODE_ENV=production
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-cryptoart}
+      - STORAGE_POSTGRES_URL=${STORAGE_POSTGRES_URL}
+      - POSTGRES_URL=${POSTGRES_URL:-${STORAGE_POSTGRES_URL}}
       - RPC_URL=${RPC_URL}
       - CHAIN_ID=${CHAIN_ID:-8453}
       - START_BLOCK=${START_BLOCK:-}
@@ -64,11 +73,8 @@ services:
       - ERC1155_IMPLEMENTATION_ADDRESSES=${ERC1155_IMPLEMENTATION_ADDRESSES:-}
       - ERC6551_IMPLEMENTATION_ADDRESSES=${ERC6551_IMPLEMENTATION_ADDRESSES:-}
     secrets:
-      - postgres_password
       - redis_password
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -86,42 +92,60 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # CryptoArt Studio App (Next.js)
-  studio-app:
+  # Live marketplace app (apps/mvp)
+  mvp:
     build:
       context: .
-      dockerfile: Dockerfile.studio-app
-    container_name: cryptoart-studio-app-prod
+      dockerfile: Dockerfile.mvp
+    image: ghcr.io/${GITHUB_REPOSITORY:-mxjxn/cryptoart-studio}-mvp:latest
+    container_name: cryptoart-mvp-prod
     env_file:
       - .env.production
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_URL=${NEXT_PUBLIC_URL}
-      - POSTGRES_URL=postgres://${POSTGRES_USER:-postgres}:$$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB:-cryptoart}
+      # External Supabase / managed Postgres (required for cutover)
+      - STORAGE_POSTGRES_URL=${STORAGE_POSTGRES_URL}
+      - POSTGRES_URL=${POSTGRES_URL:-${STORAGE_POSTGRES_URL}}
       - NEYNAR_API_KEY=${NEYNAR_API_KEY}
       - NEYNAR_CLIENT_ID=${NEYNAR_CLIENT_ID}
       - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+      - RPC_URL=${RPC_URL}
       - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
       - KV_REST_API_URL=${KV_REST_API_URL:-}
       - KV_REST_API_TOKEN=${KV_REST_API_TOKEN:-}
       - CRYPTOART_HYPERSUB_CONTRACT=${CRYPTOART_HYPERSUB_CONTRACT:-}
       - DEV_BYPASS_MEMBERSHIP=${DEV_BYPASS_MEMBERSHIP:-}
-      - CRON_SECRET=${CRON_SECRET:-}
+      - CRON_SECRET=${CRON_SECRET}
       - AIRDROP_WALLET_PRIVATE_KEY=${AIRDROP_WALLET_PRIVATE_KEY:-}
+      # Object storage — R2 preferred (do not use Hostinger disk for collector images)
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - R2_REGION=${R2_REGION:-auto}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_REGION=${S3_REGION:-}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL:-}
     secrets:
-      - postgres_password
       - redis_password
     ports:
-      - "127.0.0.1:3000:3000"  # Only expose on localhost (use host nginx for public access)
+      - "127.0.0.1:3000:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      indexer:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -135,28 +159,30 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Nginx Reverse Proxy (optional, for SSL termination)
-  # NOTE: For production, we recommend using host-level nginx instead
-  # See NGINX_REVERSE_PROXY_GUIDE.md for setup instructions
-  # Uncomment below if you want to use Docker nginx instead
-  # nginx:
-  #   image: nginx:alpine
-  #   container_name: cryptoart-nginx-prod
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./nginx/ssl:/etc/nginx/ssl:ro
-  #   depends_on:
-  #     - studio-app
-  #   restart: unless-stopped
-  #   networks:
-  #     - cryptoart-network
+  # Replaces Vercel Cron — hits mvp routes with Bearer CRON_SECRET
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    image: ghcr.io/${GITHUB_REPOSITORY:-mxjxn/cryptoart-studio}-cron:latest
+    container_name: cryptoart-cron-prod
+    environment:
+      - MVP_INTERNAL_URL=http://mvp:3000
+      - CRON_SECRET=${CRON_SECRET}
+      - TZ=UTC
+    depends_on:
+      mvp:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cryptoart-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 secrets:
-  postgres_password:
-    file: ./secrets/postgres_password.txt
   redis_password:
     file: ./secrets/redis_password.txt
 
@@ -169,4 +195,3 @@ volumes:
 networks:
   cryptoart-network:
     driver: bridge
-

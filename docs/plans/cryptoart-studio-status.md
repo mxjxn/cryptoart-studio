@@ -1,8 +1,10 @@
 # cryptoart.studio — compact status
 
-**Updated:** 2026-06-23  
+**Updated:** 2026-10-27  
 **Full spec:** [2026-06-cryptoart-studio.md](./2026-06-cryptoart-studio.md)  
 **Project board:** [cryptoart.studio](https://github.com/users/mxjxn/projects/2) · issues `#159`–`#168`
+
+> **Parked for VPS cutover:** Finish Hostinger lift of `apps/mvp` before resuming Studio mint / Social. Sequence: VPS → Hypersnap social → Studio mint → lazy mint → LSSVM → STP. See [PLATFORM_ROADMAP.md](../PLATFORM_ROADMAP.md) and [VPS_CUTOVER.md](../VPS_CUTOVER.md).
 
 ---
 

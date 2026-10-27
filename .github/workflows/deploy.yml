@@ -1,10 +1,10 @@
-name: Deploy to Production
+name: Deploy to Production (Hostinger VPS)
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allow manual triggers
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -31,16 +31,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Build and push mvp image
+        uses: docker/build-push-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer
+          context: .
+          file: ./Dockerfile.mvp
+          push: true
           tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-mvp:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-mvp:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push cron image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.cron
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cron:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cron:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build and push Indexer image
         uses: docker/build-push-action@v5
@@ -48,7 +61,9 @@ jobs:
           context: .
           file: ./Dockerfile.indexer
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -62,27 +77,23 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.DEPLOY_PATH || '/opt/cryptoart' }}
-            
-            # Login to GitHub Container Registry
+
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # Pull latest code
+
             git fetch origin
             git reset --hard origin/main
-            
-            # Pull latest images
+
+            export GITHUB_REPOSITORY=${{ github.repository }}
+
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-mvp:latest
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cron:latest
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-indexer:latest || true
-            
-            # Restart services with new images
+
             docker compose -f docker-compose.prod.yml pull || true
-            docker compose -f docker-compose.prod.yml up -d --no-deps indexer || docker compose -f docker-compose.prod.yml up -d
-            
-            # Wait for services to be healthy
-            sleep 10
-            
-            # Run database migrations if needed (optional, can be done manually)
-            
-            # Clean up old images
+            docker compose -f docker-compose.prod.yml up -d
+
+            sleep 15
+            docker compose -f docker-compose.prod.yml ps
             docker image prune -f
 
       - name: Health Check
@@ -91,4 +102,3 @@ jobs:
           url: ${{ secrets.NEXT_PUBLIC_URL }}/api/health
           max-attempts: 10
           retry-delay: 30s
-

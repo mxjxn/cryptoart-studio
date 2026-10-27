@@ -1,6 +1,8 @@
 # Production Deployment Guide - Hostinger KVM2
 
-This guide walks you through deploying cryptoart.social (cryptoart-studio-app) and all related backends to your Hostinger KVM2 server using Docker Compose with GitHub Actions CI/CD.
+> **Updated cutover:** Prefer [VPS_CUTOVER.md](./VPS_CUTOVER.md). Production app is **`apps/mvp`** (`Dockerfile.mvp`), Postgres stays on **existing Supabase `cryptoart-db`**, object storage is **Cloudflare R2**, and crons run in the **`cron`** container. Do not create a fresh compose Postgres for the cutover.
+
+This guide walks you through deploying cryptoart.social and related backends to your Hostinger KVM2 server using Docker Compose with GitHub Actions CI/CD.
 
 ## Table of Contents
 

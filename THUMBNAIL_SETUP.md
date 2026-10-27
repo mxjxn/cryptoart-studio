@@ -67,20 +67,22 @@ BLOB_READ_URL=https://your-project.public.blob.vercel-storage.com
 
 The thumbnail system will automatically use Vercel Blob when these environment variables are set.
 
-## Alternative: Use Cloudflare R2 (Cheaper Option)
+## Preferred on VPS: Cloudflare R2
 
-If you want to avoid Vercel Blob costs, you can use Cloudflare R2 instead (no egress fees):
+Vercel Blob is legacy. On Hostinger, configure R2 (no egress fees). Shared helper: `apps/mvp/src/lib/server/object-storage.ts` (thumbnails + IPFS cache).
 
 ```bash
-# .env.local
+# .env.production / .env.local
 R2_BUCKET=your-bucket-name
 R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
 R2_REGION=auto
-S3_ACCESS_KEY_ID=your-access-key-id
-S3_SECRET_ACCESS_KEY=your-secret-access-key
+R2_ACCESS_KEY_ID=your-access-key-id
+R2_SECRET_ACCESS_KEY=your-secret-access-key
+# Public CDN / r2.dev URL used in <img src> — not the API endpoint
+R2_PUBLIC_URL=https://media.cryptoart.social
 ```
 
-The system will automatically use R2 if `R2_BUCKET` is set, otherwise it will try Vercel Blob if `BLOB_READ_WRITE_TOKEN` is set.
+`S3_*` aliases still work. If `R2_BUCKET` is set, R2 wins over `BLOB_READ_WRITE_TOKEN`.
 
 ## Testing
 

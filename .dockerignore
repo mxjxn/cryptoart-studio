@@ -13,5 +13,9 @@ coverage
 *.md
 !README.md
 secrets
-docker-compose*.yml
-Dockerfile*
+# Keep Dockerfiles and deploy/ in context for multi-stage builds
+apps/social
+archive
+docs
+**/*.test.ts
+**/*.test.tsx

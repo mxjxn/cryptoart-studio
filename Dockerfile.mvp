@@ -1,0 +1,52 @@
+# Multi-stage build for apps/mvp (cryptoart.social) — Hostinger VPS
+FROM node:20-alpine AS base
+RUN npm install -g pnpm@9.1.4
+
+FROM base AS deps
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages ./packages
+COPY apps/mvp/package.json ./apps/mvp/
+
+RUN find ./packages -type f \( -name "*.md" -o -name "*.log" \) -delete && \
+    find ./packages -type d -name "node_modules" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name "dist" -exec rm -rf {} + 2>/dev/null || true && \
+    find ./packages -type d -name ".next" -exec rm -rf {} + 2>/dev/null || true
+
+RUN pnpm install --no-frozen-lockfile
+
+FROM base AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+COPY --from=deps /app/apps ./apps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/mvp ./apps/mvp
+COPY packages/db ./packages/db
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+RUN pnpm --filter mvp build
+
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/apps/mvp/public ./apps/mvp/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/mvp/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/mvp/.next/static ./apps/mvp/.next/static
+
+USER nextjs
+EXPOSE 3000
+
+CMD ["sh", "-c", "if [ -f server.js ]; then node server.js; elif [ -f apps/mvp/server.js ]; then node apps/mvp/server.js; else echo 'Error: server.js not found'; find . -name server.js -type f 2>/dev/null; exit 1; fi"]

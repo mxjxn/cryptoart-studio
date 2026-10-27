@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Standalone output for Docker / Hostinger VPS (node server.js)
+  output: 'standalone',
   // Transpile monorepo packages that use TypeScript
   transpilePackages: ['@cryptoart/db', '@pigment-css/react'],
   // Next.js 16 uses Turbopack by default - empty config silences the webpack warning

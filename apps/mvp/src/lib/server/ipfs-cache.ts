@@ -1,18 +1,13 @@
 /**
  * IPFS Image Caching Service
- * 
- * Caches IPFS images to Vercel Blob to avoid repeated gateway calls
- * and serve images from CDN for better performance and reliability.
- * 
- * This service:
- * 1. Normalizes IPFS URLs (ipfs://, /ipfs/, gateway URLs)
- * 2. Checks if image is already cached in Vercel Blob
- * 3. If not cached, fetches from free IPFS gateway and uploads to Vercel Blob
- * 4. Stores mapping in database for fast lookups
+ *
+ * Caches IPFS images to object storage (R2 preferred on VPS) to avoid
+ * repeated gateway calls and serve images from a CDN.
  */
 
 import { getDatabase, ipfsImageCache, eq, and, gte } from '@cryptoart/db';
 import type { IPFSImageCacheData } from '@cryptoart/db';
+import { requireObjectStorageBackend } from './object-storage';
 
 /**
  * Normalize IPFS URL to a consistent format
@@ -147,36 +142,15 @@ async function cacheIPFSImageUrl(
 }
 
 /**
- * Upload image to Vercel Blob
+ * Upload image to the configured object storage backend (R2 / S3 / legacy Blob).
  */
-async function uploadToVercelBlob(
+async function uploadCachedImage(
   imageBuffer: Buffer,
   contentType: string,
   key: string
 ): Promise<string> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error('BLOB_READ_WRITE_TOKEN environment variable is required for Vercel Blob Storage');
-  }
-  
-  try {
-    const { put } = await import('@vercel/blob');
-    
-    const blob = await put(key, imageBuffer, {
-      access: 'public',
-      contentType,
-      addRandomSuffix: false, // Use deterministic key
-    });
-    
-    return blob.url;
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('Cannot find module') || error.message.includes("Can't resolve")) {
-        throw new Error('@vercel/blob package is not installed. Run: npm install @vercel/blob');
-      }
-      throw new Error(`Vercel Blob upload failed: ${error.message}`);
-    }
-    throw new Error('Vercel Blob upload failed: Unknown error');
-  }
+  const storage = requireObjectStorageBackend();
+  return storage.upload(imageBuffer, key, contentType);
 }
 
 /**
@@ -293,12 +267,11 @@ export async function cacheIPFSImage(
     throw new Error(`Failed to fetch IPFS image from all gateways: ${lastError?.message || 'Unknown error'}`);
   }
   
-  // Generate deterministic key for Vercel Blob
+  // Generate deterministic key for object storage
   const hash = normalized.replace('ipfs://', '');
   const key = `ipfs-images/${hash}`;
-  
-  // Upload to Vercel Blob
-  const blobUrl = await uploadToVercelBlob(imageBuffer, contentType, key);
+
+  const blobUrl = await uploadCachedImage(imageBuffer, contentType, key);
   
   // Cache in database
   await cacheIPFSImageUrl(normalized, blobUrl, expiresAt);

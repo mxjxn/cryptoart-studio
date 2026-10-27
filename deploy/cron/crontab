@@ -1,0 +1,29 @@
+# VPS cron jobs — hit mvp cron routes with Bearer CRON_SECRET
+# Schedules mirror apps/mvp/vercel.json
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Every minute — notification worker
+* * * * * /usr/local/bin/run-cron.sh /api/cron/notifications >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Every 15 minutes — homepage revalidate
+*/15 * * * * /usr/local/bin/run-cron.sh /api/revalidate-homepage >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Every 20 minutes — market layout snapshot
+*/20 * * * * /usr/local/bin/run-cron.sh /api/cron/refresh-market-layout >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Hourly — featured refresh
+0 * * * * /usr/local/bin/run-cron.sh /api/cron/featured-refresh >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Every 4 hours — listing previews
+0 */4 * * * /usr/local/bin/run-cron.sh /api/cron/listing-previews >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Daily 00:00 UTC — analytics stats
+0 0 * * * /usr/local/bin/run-cron.sh /api/cron/calculate-stats >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Daily 01:00 UTC — homepage OG
+0 1 * * * /usr/local/bin/run-cron.sh /api/cron/refresh-homepage-og >/proc/1/fd/1 2>/proc/1/fd/2
+
+# Daily 02:00 UTC — cache cleanup
+0 2 * * * /usr/local/bin/run-cron.sh /api/cron/cleanup-cache >/proc/1/fd/1 2>/proc/1/fd/2

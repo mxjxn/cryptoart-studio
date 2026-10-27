@@ -1,200 +1,19 @@
 /**
  * Thumbnail generation service
- * 
- * This service handles:
- * 1. Fetching original images
- * 2. Resizing/optimizing them
- * 3. Storing thumbnails (to object storage, CDN, or local filesystem)
- * 4. Returning URLs to the cached thumbnails
- * 
- * Storage backends supported:
- * - Local filesystem (for development)
- * - Vercel Blob Storage (if on Vercel)
- * - Cloudflare R2 (S3-compatible)
- * - AWS S3
- * 
- * For 500 users/month, this is very affordable:
- * - Storage: ~$0.015/GB/month (Cloudflare R2)
- * - Processing: Minimal (only on cache miss)
- * - Bandwidth: Free on R2, or minimal on other providers
+ *
+ * Fetches, resizes, and stores thumbnails via shared object storage
+ * (R2 preferred on VPS; Vercel Blob legacy; local in development).
  */
 
 import { getThumbnailDimensions, ThumbnailSize, cacheThumbnail } from './thumbnail-cache';
 import { createHash } from 'crypto';
+import {
+  createLocalObjectStorage,
+  getObjectStorageBackend,
+  type ObjectStorageBackend,
+} from './object-storage';
 
-/**
- * Storage backend interface
- */
-interface StorageBackend {
-  upload(buffer: Buffer, key: string, contentType: string): Promise<string>;
-  getUrl(key: string): string;
-}
-
-/**
- * Local filesystem storage (for development)
- */
-class LocalStorageBackend implements StorageBackend {
-  private basePath: string;
-  private baseUrl: string;
-
-  constructor(basePath: string = '/tmp/thumbnails', baseUrl: string = '/api/thumbnails') {
-    this.basePath = basePath;
-    this.baseUrl = baseUrl;
-  }
-
-  async upload(buffer: Buffer, key: string, contentType: string): Promise<string> {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    
-    const filePath = path.join(this.basePath, key);
-    const dir = path.dirname(filePath);
-    
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(filePath, buffer);
-    
-    return `${this.baseUrl}/${key}`;
-  }
-
-  getUrl(key: string): string {
-    return `${this.baseUrl}/${key}`;
-  }
-}
-
-/**
- * Vercel Blob Storage backend
- */
-class VercelBlobBackend implements StorageBackend {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = process.env.BLOB_READ_URL || '';
-  }
-
-  async upload(buffer: Buffer, key: string, contentType: string): Promise<string> {
-    // Check if token is set before trying to use Vercel Blob
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      throw new Error('BLOB_READ_WRITE_TOKEN environment variable is required for Vercel Blob Storage');
-    }
-    
-    // Dynamic import to avoid bundling issues
-    // Use try-catch to handle case where @vercel/blob is not installed
-    try {
-      // @ts-ignore - @vercel/blob is optional and may not be installed
-      const { put } = await import('@vercel/blob');
-      
-      // Upload blob with allowOverwrite: true to handle existing blobs gracefully
-      // This avoids the "already exists" error and handles race conditions
-      const blob = await put(key, buffer, {
-        access: 'public',
-        contentType,
-        allowOverwrite: true, // Allow overwriting if blob was created between head check and upload
-      });
-      
-      return blob.url;
-    } catch (error) {
-        // Provide more helpful error message
-        if (error instanceof Error) {
-          if (error.message.includes('Cannot find module') || error.message.includes("Can't resolve")) {
-            throw new Error('@vercel/blob package is not installed. Run: npm install @vercel/blob');
-          }
-          // If blob already exists error (shouldn't happen with allowOverwrite: true, but handle it)
-          if (error.message.includes('already exists') || error.message.includes('This blob already exists')) {
-            // Construct URL from key - blob exists, we just need its URL
-            return this.getUrl(key);
-          }
-          throw new Error(`Vercel Blob upload failed: ${error.message}`);
-        }
-        throw new Error('Vercel Blob upload failed: Unknown error');
-    }
-  }
-
-  getUrl(key: string): string {
-    return `${this.baseUrl}/${key}`;
-  }
-}
-
-/**
- * S3-compatible storage backend (R2, S3, etc.)
- */
-class S3Backend implements StorageBackend {
-  private bucket: string;
-  private region: string;
-  private endpoint?: string;
-  private baseUrl: string;
-
-  constructor() {
-    this.bucket = process.env.S3_BUCKET || process.env.R2_BUCKET || '';
-    this.region = process.env.S3_REGION || process.env.R2_REGION || 'auto';
-    this.endpoint = process.env.S3_ENDPOINT || process.env.R2_ENDPOINT;
-    
-    // Construct base URL
-    if (this.endpoint) {
-      this.baseUrl = this.endpoint.replace(/\/$/, '');
-    } else if (this.bucket) {
-      this.baseUrl = `https://${this.bucket}.s3.${this.region}.amazonaws.com`;
-    } else {
-      this.baseUrl = '';
-    }
-  }
-
-  async upload(buffer: Buffer, key: string, contentType: string): Promise<string> {
-    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-    
-    const client = new S3Client({
-      region: this.region,
-      endpoint: this.endpoint,
-      credentials: process.env.S3_ACCESS_KEY_ID ? {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID,
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-      } : undefined,
-    });
-
-    await client.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-      CacheControl: 'public, max-age=2592000', // 30 days
-    }));
-
-    return `${this.baseUrl}/${key}`;
-  }
-
-  getUrl(key: string): string {
-    return `${this.baseUrl}/${key}`;
-  }
-}
-
-/**
- * Get the appropriate storage backend based on environment
- */
-function getStorageBackend(): StorageBackend | null {
-  // In development, prioritize local storage unless explicitly configured
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  // Check for S3/R2 (highest priority if configured)
-  if (process.env.S3_BUCKET || process.env.R2_BUCKET) {
-    return new S3Backend();
-  }
-  
-  // Check for Vercel Blob Storage (only if token is set)
-  // In development, skip this unless explicitly needed
-  if (process.env.BLOB_READ_WRITE_TOKEN && (!isDevelopment || process.env.FORCE_VERCEL_BLOB === 'true')) {
-    return new VercelBlobBackend();
-  }
-  
-  // Fallback to local storage (development default)
-  if (isDevelopment) {
-    return new LocalStorageBackend();
-  }
-  
-  // Production: require some storage backend
-  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.S3_BUCKET && !process.env.R2_BUCKET) {
-    console.warn('[Thumbnail] No storage backend configured. Thumbnails will not be cached.');
-  }
-  
-  return null;
-}
+type StorageBackend = ObjectStorageBackend;
 
 /**
  * Generate a unique key for a thumbnail
@@ -404,18 +223,16 @@ export async function generateThumbnail(
   imageUrl: string,
   size: ThumbnailSize = 'medium'
 ): Promise<string> {
-  const storage = getStorageBackend();
+  const storage = getObjectStorageBackend();
   if (!storage) {
-    // In development, this shouldn't happen as we fall back to local storage
-    // In production, provide helpful error message
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    if (isDevelopment) {
-      // Force local storage as last resort
-      return await generateThumbnailWithStorage(new LocalStorageBackend(), imageUrl, size);
+    if (process.env.NODE_ENV === 'development') {
+      return await generateThumbnailWithStorage(createLocalObjectStorage(), imageUrl, size);
     }
-    throw new Error('No storage backend configured. Set BLOB_READ_WRITE_TOKEN, S3_BUCKET, or R2_BUCKET environment variable.');
+    throw new Error(
+      'No storage backend configured. Set R2_BUCKET (preferred on VPS), S3_BUCKET, or BLOB_READ_WRITE_TOKEN.',
+    );
   }
-  
+
   return await generateThumbnailWithStorage(storage, imageUrl, size);
 }
 

@@ -4,6 +4,16 @@ This directory contains all project documentation. Use this guide to quickly fin
 
 ## 🚀 Deployment Guides
 
+### [VPS_CUTOVER.md](./VPS_CUTOVER.md)
+**TL;DR**: Current plan — lift `apps/mvp` onto Hostinger, keep Supabase Postgres, switch blob to R2, shadow on staging, then DNS. Replaces stale “studio-app + new Postgres” assumptions.
+
+**When to use**: Moving production off Vercel onto the VPS.
+
+### [PLATFORM_ROADMAP.md](./PLATFORM_ROADMAP.md)
+**TL;DR**: Order of work after VPS is live — Hypersnap social → Studio mint → lazy mint → LSSVM → STP. Social branch stays parked until cutover.
+
+**When to use**: Prioritizing product work; avoiding premature Social/Studio merges.
+
 ### [DEPLOYMENT_QUICKSTART.md](./DEPLOYMENT_QUICKSTART.md)
 **TL;DR**: 5-minute setup checklist for deploying cryptoart.social to Hostinger. Quick commands, common tasks, and troubleshooting.
 
