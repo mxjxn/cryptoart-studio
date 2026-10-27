@@ -28,6 +28,7 @@
  *   0019_contract_cache_chain_id.sql - contract_cache composite PK (chain_id, contract_address)
  *   0020_market_surface_featured_chain.sql - homepage_layout_sections.surface; featured_listings.chain_id + composite unique
  *   0021_seed_market_layout.sql - default /market layout rows when none exist
+ *   0027_enable_rls_public_tables.sql - RLS on public tables (Data API lockdown)
  */
 
 import { config } from 'dotenv';
@@ -80,6 +81,7 @@ const MIGRATIONS = [
   '0023_add_collection_tables.sql',
   '0024_homepage_spotlight.sql',
   '0025_homepage_spotlight_copy.sql',
+  '0027_enable_rls_public_tables.sql',
 ];
 
 // Log which database we're connecting to (without exposing credentials)
