@@ -13,7 +13,7 @@ export const userCache = pgTable('user_cache', {
   pfpUrl: text('pfp_url'), // Profile picture URL
   verifiedWallets: jsonb('verified_wallets'), // Array of verified wallet addresses
   ensName: text('ens_name'), // ENS name if resolved
-  source: text('source').notNull(), // 'neynar' | 'ens' | 'manual' | 'contract-creator'
+  source: text('source').notNull(), // 'neynar' | 'hypersnap' | 'ens' | 'manual' | 'contract-creator'
   cachedAt: timestamp('cached_at').defaultNow().notNull(),
   expiresAt: timestamp('expires_at').notNull(), // TTL: 30 days
   refreshedAt: timestamp('refreshed_at'), // Manual refresh timestamp
@@ -60,7 +60,7 @@ export interface UserCacheData {
   pfpUrl?: string | null;
   verifiedWallets?: string[] | null;
   ensName?: string | null;
-  source: 'neynar' | 'ens' | 'manual' | 'contract-creator';
+  source: 'neynar' | 'hypersnap' | 'ens' | 'manual' | 'contract-creator';
   cachedAt: Date;
   expiresAt: Date;
   refreshedAt?: Date | null;

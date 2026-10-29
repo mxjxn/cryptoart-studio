@@ -17,6 +17,10 @@ Cryptoart is becoming one connected platform with two public surfaces:
 
 - **cryptoart.social** is the public destination for exhibitions, social discovery,
   collecting, bidding, buying, selling, galleries, and lightweight auction creation.
+  Conversation is channel-less on Hypersnap. A cast is a caption on one artwork,
+  listing, or gallery. Existing Farcaster channels are not used. Later, a mainnet
+  NFT parents mainnet casts and a Base NFT parents Base casts. Those NFTs are not
+  deployed yet. The decision is recorded in `apps/social/PLAN.md`.
 - **cryptoart.studio** is the artist workspace for collection deployment, minting,
   token management, advanced auction setup, and liquidity management.
 

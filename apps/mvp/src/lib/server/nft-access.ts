@@ -1,5 +1,6 @@
 import { createPublicClient, http, type Address, isAddress } from "viem";
 import { base } from "viem/chains";
+import { HYPERSNAP_FARCASTER_URL, fetchFarcasterAccountByAddress } from "../../../../../packages/identity/src/farcasterDirectory";
 import { STP_V2_CONTRACT_ADDRESS } from "~/lib/constants";
 import { isAdminAddress } from "~/lib/server/admin";
 import { getDatabase, membershipCache, eq, and, gt } from "@cryptoart/db";
@@ -115,64 +116,27 @@ async function checkAddressBalance(address: Address): Promise<boolean> {
 }
 
 /**
- * Get verified addresses for a user from Neynar API
+ * Addresses listed on the same Farcaster account as this wallet.
+ * Used for membership checks. This is not a posting credential.
  */
 async function getVerifiedAddresses(address: Address): Promise<Address[]> {
-  const apiKey = process.env.NEYNAR_API_KEY;
-  if (!apiKey) {
-    return [address]; // Fallback to just the provided address
-  }
-
   try {
-    const url = `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${address}`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-key": apiKey,
-        "x-neynar-experimental": "false",
-      },
-      next: { revalidate: 3600 },
-    });
-
-    if (!response.ok) {
-      return [address];
+    const account = await fetchFarcasterAccountByAddress(
+      address,
+      fetch,
+      process.env.HYPERSNAP_BASE_URL || HYPERSNAP_FARCASTER_URL,
+    );
+    if (!account) return [address];
+    const verifiedAddresses: Address[] = [address];
+    for (const candidate of account.verifiedAddresses) {
+      if (!isAddress(candidate)) continue;
+      if (verifiedAddresses.some(current => current.toLowerCase() === candidate.toLowerCase())) continue;
+      verifiedAddresses.push(candidate);
     }
-
-    const data = await response.json();
-    const addressLower = address.toLowerCase();
-    const users = data[addressLower];
-
-    if (users && Array.isArray(users) && users.length > 0) {
-      const user = users[0];
-      const verifiedAddresses: Address[] = [address]; // Always include the provided address
-      
-      // Add verified addresses from Farcaster
-      if (user.verified_addresses?.eth_addresses) {
-        for (const addr of user.verified_addresses.eth_addresses) {
-          if (isAddress(addr)) {
-            const addrLower = addr.toLowerCase();
-            if (addrLower !== address.toLowerCase()) {
-              verifiedAddresses.push(addr as Address);
-            }
-          }
-        }
-      }
-      
-      // Add custody address
-      if (user.custody_address && isAddress(user.custody_address)) {
-        const custodyLower = user.custody_address.toLowerCase();
-        if (!verifiedAddresses.some(a => a.toLowerCase() === custodyLower)) {
-          verifiedAddresses.push(user.custody_address as Address);
-        }
-      }
-      
-      return verifiedAddresses;
-    }
-
-    return [address];
+    return verifiedAddresses;
   } catch (error) {
     console.error(`[getVerifiedAddresses] Error fetching verified addresses for ${address}:`, error);
-    return [address]; // Fallback to just the provided address
+    return [address];
   }
 }
 
@@ -184,7 +148,7 @@ async function getVerifiedAddresses(address: Address): Promise<Address[]> {
  * - Checks multiple addresses:
  *   1. The provided address
  *   2. Any verifiedAddresses provided by the client (from client-side hook)
- *   3. Falls back to fetching verified addresses from Neynar API if verifiedAddresses not provided
+ *   3. Falls back to addresses Hypersnap lists for this wallet if verifiedAddresses is not provided
  * 
  * Uses database cache to avoid repeated onchain calls.
  * 
@@ -227,7 +191,7 @@ export async function hasGalleryAccess(
       return true;
     }
     
-    // As a fallback, try to get verified addresses from Neynar and check them
+    // As a fallback, check addresses Hypersnap lists for this wallet
     // (This helps when client doesn't provide verifiedAddresses, e.g., direct API calls)
     const allVerifiedAddresses = await getVerifiedAddresses(address);
     for (const addr of allVerifiedAddresses) {

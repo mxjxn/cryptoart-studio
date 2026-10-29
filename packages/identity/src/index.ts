@@ -27,3 +27,5 @@ export {
 export { createPostgresIdentityStore } from './postgres';
 export { createIdentityRouter } from './router';
 export { applyCookies, parseCookies, serializeCookie, toPlatformRequest } from './http';
+export { HYPERSNAP_FARCASTER_URL, farcasterDisplayName, fetchFarcasterAccountByAddress, fetchFarcasterAccountsByAddress, parseFarcasterAccountByAddress, parseFarcasterAccountsByAddress } from './farcasterDirectory';
+export type { FarcasterAccount } from './farcasterDirectory';

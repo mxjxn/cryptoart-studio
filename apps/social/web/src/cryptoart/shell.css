@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+@config '../../tailwind.config.js';
+
+@font-face {
+  font-family: 'MEK Mono';
+  src: url('/MEK-Mono.otf') format('opentype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MEK Sans';
+  src: url('/MEKSans-Regular.otf') format('opentype');
+  font-display: swap;
+}
+
+.cryptoart-shell {
+  font-family: 'MEK Sans', Inter, sans-serif;
+}
+
+.cryptoart-mono {
+  font-family: 'MEK Mono', monospace;
+}

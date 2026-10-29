@@ -1,7 +1,9 @@
 import { defineConfig, loadEnv } from 'vite';
 import {
   assetDiscoveryMiddleware,
+  farcasterAccountMiddleware,
   feedMiddleware,
+  HYPERSNAP_BASE_URL,
   marketMiddleware,
 } from './src/cryptoart/server';
 import { platformMiddleware } from './src/cryptoart/platform';
@@ -29,7 +31,10 @@ export default defineConfig({
         );
         server.middlewares.use(marketMiddleware());
         server.middlewares.use(
-          feedMiddleware(env.NEYNAR_API_KEY || process.env.NEYNAR_API_KEY),
+          farcasterAccountMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
+        );
+        server.middlewares.use(
+          feedMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
         );
       },
       configurePreviewServer(server) {
@@ -44,7 +49,10 @@ export default defineConfig({
         );
         server.middlewares.use(marketMiddleware());
         server.middlewares.use(
-          feedMiddleware(env.NEYNAR_API_KEY || process.env.NEYNAR_API_KEY),
+          farcasterAccountMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
+        );
+        server.middlewares.use(
+          feedMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
         );
       },
     },

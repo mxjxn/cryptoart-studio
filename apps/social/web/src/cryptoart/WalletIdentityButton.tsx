@@ -5,6 +5,33 @@ import { useSiweSession } from './useSiweSession';
 const shortAddress = (address: string) =>
   `${address.slice(0, 6)}…${address.slice(-4)}`;
 
+type ListedAccount = {
+  fid: number;
+  username: string | null;
+  displayName: string | null;
+};
+
+function useListedFarcasterAccount(address: string | undefined) {
+  const [listed, setListed] = useState<{ status: 'loading' | 'found' | 'missing'; account: ListedAccount | null }>({ status: 'loading', account: null });
+  useEffect(() => {
+    if (!address) {
+      setListed({ status: 'missing', account: null });
+      return;
+    }
+    const controller = new AbortController();
+    setListed({ status: 'loading', account: null });
+    fetch(`/api/cryptoart/account?address=${address}`, { signal: controller.signal })
+      .then(async response => response.ok ? response.json() as Promise<ListedAccount> : null)
+      .then(account => setListed(account?.fid ? { status: 'found', account } : { status: 'missing', account: null }))
+      .catch(error => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setListed({ status: 'missing', account: null });
+      });
+    return () => controller.abort();
+  }, [address]);
+  return listed;
+}
+
 export function WalletIdentityButton() {
   const [open, setOpen] = useState(false);
   const { address, chain, isConnected, isConnecting } = useAccount();
@@ -12,6 +39,10 @@ export function WalletIdentityButton() {
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const { session, verify, signOut } = useSiweSession();
+  const listed = useListedFarcasterAccount(isConnected ? address : undefined);
+  const farcasterLabel = listed.account?.username
+    ? `@${listed.account.username.replace(/^@/, '')}`
+    : listed.account?.displayName ?? null;
 
   useEffect(() => {
     if (!open) reset();
@@ -19,11 +50,14 @@ export function WalletIdentityButton() {
 
   if (isConnected && address) {
     return <div className="group relative">
-      <button type="button" className="hover:text-white" aria-label={`Connected wallet ${address}`}>
-        {shortAddress(address)}
+      <button type="button" className="hover:text-white" aria-label={farcasterLabel ? `Connected wallet ${address}, Farcaster ${farcasterLabel}` : `Connected wallet ${address}`}>
+        {farcasterLabel ?? shortAddress(address)}
       </button>
       <div className="invisible absolute right-0 top-full z-50 min-w-48 border border-white bg-black p-3 text-left opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
         <p className="text-[9px] text-neutral-400">{chain?.name ?? 'Unknown network'}</p>
+        <p className="cryptoart-mono mt-2 text-[9px] uppercase">{shortAddress(address)}</p>
+        {listed.status === 'found' && farcasterLabel && <p className="mt-2 text-[10px] text-[#dcf54c]">{farcasterLabel}{listed.account?.fid ? ` · FID ${listed.account.fid}` : ''}</p>}
+        {listed.status === 'missing' && <p className="mt-2 text-[10px] text-neutral-400">No Farcaster account lists this wallet.</p>}
         {session.data
           ? <p className="cryptoart-mono mt-2 text-[9px] uppercase text-[#dcf54c]">Session {session.data.capabilities.owner ? 'owner' : session.data.grants[0]?.role ?? 'signed'}</p>
           : <button type="button" className="mt-3 block w-full border border-white px-3 py-2 text-center text-[10px] hover:bg-white hover:text-black" disabled={verify.isPending} onClick={() => void verify.mutateAsync({ address, chainId: chain?.id ?? 1, sign: (message) => signMessageAsync({ message }) })}>

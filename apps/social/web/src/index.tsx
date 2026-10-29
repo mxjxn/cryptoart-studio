@@ -1,34 +1,16 @@
-import '~/index.css';
-// Initialize dayjs with plugins and custom locale (replaces moment)
-import '~/utils/dayjs';
+import '~/cryptoart/shell.css';
 
-import { initDateFns } from 'farcaster-client-hooks';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import { App } from '~/components/App';
-import { initAnalytics } from '~/init/initAnalytics';
-import { initFarcasterApi } from '~/init/initFarcasterApi';
-import { initPolyfills } from '~/init/initPolyfills';
-import { initPreloadLazyComponents } from '~/init/initPreloadLazyComponents';
+import { Shell } from '~/cryptoart/Shell';
 
-const init = () => {
-  initAnalytics();
-  initDateFns();
-  initFarcasterApi();
-  initPolyfills();
-  initPreloadLazyComponents();
-};
+const root = document.getElementById('root');
 
-init();
-
-const $root = document.getElementById('root');
-
-if ($root) {
-  const root = ReactDOM.createRoot($root);
-  root.render(
+if (root) {
+  ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <App />
+      <Shell />
     </React.StrictMode>,
   );
 }

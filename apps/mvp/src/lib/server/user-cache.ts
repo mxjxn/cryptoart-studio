@@ -187,7 +187,7 @@ export async function cacheUserInfo(
     pfpUrl?: string;
     verifiedWallets?: string[];
     ensName?: string;
-    source: 'neynar' | 'ens' | 'manual' | 'contract-creator';
+    source: 'neynar' | 'hypersnap' | 'ens' | 'manual' | 'contract-creator';
   }
 ): Promise<UserCacheData> {
   const normalizedAddress = address.toLowerCase();
@@ -318,7 +318,7 @@ export async function getOrFetchUserInfo(
       username: fresh.username,
       displayName: fresh.displayName,
       pfpUrl: fresh.pfpUrl,
-      source: 'neynar',
+      source: 'hypersnap',
     });
   }
   

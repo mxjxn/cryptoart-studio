@@ -18,7 +18,7 @@ export interface DiscoveredUserData {
   pfpUrl?: string | null;
   verifiedWallets?: string[];
   ensName?: string | null;
-  source: 'neynar' | 'ens' | 'cached' | null;
+  source: 'hypersnap' | 'neynar' | 'ens' | 'cached' | null;
 }
 
 /**
@@ -83,7 +83,7 @@ export async function discoverAndCacheUser(
       return null;
     }
 
-    // Step 2: Try Neynar lookup (Farcaster)
+    // Step 2: Hypersnap lists the FID for this address. That is not a posting credential.
     const neynarResult = await lookupNeynarByAddress(normalizedAddress);
     
     if (neynarResult) {
@@ -99,7 +99,7 @@ export async function discoverAndCacheUser(
           pfpUrl: cachedAfterNeynar.pfpUrl || null,
           verifiedWallets: (cachedAfterNeynar.verifiedWallets as string[] | null) || undefined,
           ensName: cachedAfterNeynar.ensName || null,
-          source: 'neynar',
+          source: 'hypersnap',
         };
       }
     }
@@ -128,7 +128,7 @@ export async function discoverAndCacheUser(
     // We'll cache with minimal data to indicate we've tried
     if (!cached) {
       await cacheUserInfo(normalizedAddress, {
-        source: 'neynar', // Use neynar as source even though lookup failed
+        source: 'hypersnap',
       });
     }
 

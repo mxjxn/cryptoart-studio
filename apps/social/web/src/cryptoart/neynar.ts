@@ -1,6 +1,50 @@
-import type { ApiCast, ApiUser } from 'farcaster-client-data';
 import type { Candidate } from './ranking';
 import { listingReferences } from './listing-links';
+
+export type CastAuthor = {
+  fid: number;
+  username?: string;
+  displayName: string;
+  pfp?: { url: string; verified: boolean };
+};
+
+export type CastCard = {
+  hash: string;
+  threadHash: string;
+  parentHash?: string;
+  parentUrl?: string;
+  author: CastAuthor;
+  text: string;
+  timestamp: number;
+  mentions: CastAuthor[];
+  channel?: { key: string; name: string; imageUrl?: string };
+  reactions: { count: number };
+  recasts: { count: number };
+  replies: { count: number };
+  watches: { count: number };
+  embeds: {
+    images: { type: 'image'; url: string; sourceUrl: string; alt: string }[];
+    urls: {
+      type: 'url';
+      openGraph: {
+        url: string;
+        sourceUrl: string;
+        title?: string;
+        description?: string;
+        image?: string;
+        frameEmbedNext?: {
+          frameUrl: string;
+          frameEmbed: {
+            version: '1';
+            imageUrl?: string;
+            button: { title: string; action: { type: 'launch_miniapp'; name: string; url: string } };
+          };
+        };
+      };
+    }[];
+    unknowns: { type: 'unknown'; source: string }[];
+  };
+};
 
 export interface NeynarUser {
   fid: number; username?: string; display_name?: string; pfp_url?: string;
@@ -22,7 +66,7 @@ export interface NeynarCast {
 }
 
 export interface SocialCandidate extends Candidate {
-  cast: ApiCast;
+  cast: CastCard;
   listings: ReturnType<typeof listingReferences>;
 }
 
@@ -38,11 +82,13 @@ function isImage(embed: NonNullable<NeynarCast['embeds']>[number]) {
   } catch { return false; }
 }
 
-function user(raw: NeynarUser): ApiUser {
-  return { fid: raw.fid, username: raw.username, displayName: raw.display_name || raw.username || `FID ${raw.fid}`,
+function user(raw: NeynarUser): CastAuthor {
+  return {
+    fid: raw.fid,
+    username: raw.username,
+    displayName: raw.display_name || raw.username || `FID ${raw.fid}`,
     pfp: raw.pfp_url ? { url: raw.pfp_url, verified: false } : undefined,
-    profile: { bio: { text: raw.profile?.bio?.text ?? '', mentions: [] } },
-    followerCount: raw.follower_count ?? 0, followingCount: raw.following_count ?? 0 };
+  };
 }
 
 export function normalizeCast(raw: NeynarCast, weightedLikerFids: number[] = []): SocialCandidate {

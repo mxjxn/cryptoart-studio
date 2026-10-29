@@ -1,20 +1,25 @@
 # Cryptoart Social — implementation brief
 
+## Decisions as of 2026-10-28
+
+Hypersnap is the only network. Existing Farcaster channels stay on the Farcaster side and are not a Cryptoart surface. The channel filter and channel browser come out. The app is channel-less until it has its own channel keys.
+
+A cast is a caption on one subject the app already has: an artwork, a listing, or a gallery. The caption may be empty. The only embed is that subject's canonical Cryptoart URL. There is no image upload and no free-text cast. Replies stay in the thread under that subject. The imported `/compose` route is not the write UI.
+
+The app feed is the index of those casts. It is not a Hypersnap channel listing. Hypersnap does not give a newest-first listing of a channel, and a channel-less cast has no channel to list. Publishing a cast records its hash and subject here. That record is what the feed and the subject page show.
+
+Later, two NFTs can become the channel keys. Do not deploy them now.
+
+- A mainnet NFT is the parent for casts about mainnet works, listings, and galleries.
+- A Base NFT is the parent for casts about Base works, listings, and galleries.
+- The cast's parent URL is that NFT's canonical Cryptoart URL. The caption and the single subject embed stay as they are.
+- Until those NFTs exist, top-level casts omit a channel parent.
+
 ## Confirmed product decisions
 
-Build `apps/social` as a web Farcaster client focused on approved art channels, drawing from the web application in `~/workspace/farcaster-client`. Mobile/Expo is outside the initial scope.
+Build `apps/social` as the public Cryptoart exhibition, market, and conversation. The imported Farcaster web client remains a source for reading threads. It is not the product shell. Mobile/Expo is outside the initial scope.
 
-Approved channels:
-
-- cryptoart
-- degen-art
-- gen-art
-- ai-art
-- gifart
-- veg
-- kismet
-
-The default feed prioritizes popular casts published within the last 24 hours, interlaced with latest casts. Likes from FID **4905** carry extra algorithmic weight. More weighted casters can be configured later. Curation means a Farcaster like; it does not require a special endorsement action.
+The default feed prioritizes popular casts published within the last 24 hours, interlaced with latest casts. Likes from FID **4905** carry extra algorithmic weight. More weighted casters can be configured later. Curation means a like; it does not require a special endorsement action.
 
 Casts associated with active Cryptoart listings receive additional priority. Resolve listing links and embeds into artwork and auction cards, ultimately supporting bidding directly inside the cast.
 
@@ -24,7 +29,7 @@ Standalone marketplace activity belongs between casts, with artwork and concise 
 
 > artiste.eth listed 10 copies of Brambles 2 for sale for 0.003 eth each
 
-The composer offers the approved channels and defaults to `cryptoart`. Replies remain attached to their existing conversations.
+Compose opens on the artwork, listing, or gallery. It does not offer a channel picker. Replies remain attached to their existing conversations.
 
 Galleries should have native, social-friendly 2D views. Reuse useful work from `such-gallery-elixir`; full 3D rooms and live gallery chat are deferred. Studio manages collections and supplies shared artwork and marketplace capabilities.
 
@@ -43,8 +48,8 @@ Galleries should have native, social-friendly 2D views. Reuse useful work from `
 
 ## Feed pipeline
 
-1. Resolve and validate channel identifiers through the provider.
-2. Collect popular-window and latest candidates from the approved channels.
+1. Read casts from the app's own subject index. A cast is eligible when its single embed is a canonical artwork, listing, or gallery URL.
+2. Collect popular-window and latest candidates from that index.
 3. Fetch sufficient reaction information to establish whether FID 4905 actually liked each cast. A provider's abbreviated liker preview is not proof of absence.
 4. Parse supported Cryptoart URLs into chain, marketplace, and listing identity. Treat ambiguous references as links, not transaction instructions.
 5. Resolve artwork, listing state, and payment-token details through existing marketplace/indexing capabilities.
@@ -53,7 +58,7 @@ Galleries should have native, social-friendly 2D views. Reuse useful work from `
 
 “Most popular” requires adequate candidate coverage: ranking only a small latest page is not equivalent to ranking the channel's last 24 hours. Verify provider capabilities and pagination before committing to the ingestion design.
 
-Weighted likes affect the liked cast. They do not automatically boost every cast referencing the same artwork. Boosts cannot admit a cast from outside the approved channels.
+Weighted likes affect the liked cast. They do not automatically boost every cast referencing the same artwork. Boosts cannot admit a cast that lacks a Cryptoart subject.
 
 ## Marketplace activity semantics
 
@@ -81,13 +86,24 @@ Resolve listing embeds and introduce illustrated bids, new listings, and purchas
 
 Acceptance: a supported listing cast displays verified artwork/listing information; marketplace activity describes actual indexed events without inventing artists, outbid relationships, or prices.
 
-### 3. Social actions and bidding inside casts
+### 3. Compose
 
-Integrate Farcaster authentication and approved posting authorization, channel-selectable composition defaulting to cryptoart, replies, likes, and recasts. Reuse transaction logic through an appropriate shared boundary to support wallet-confirmed bids inside casts.
+1. Remove the channel filter from the feed. One stream, ranked as it is now.
+2. Define a compose intent: subject kind, canonical URL, chain, ids, and an optional caption. Reject a second embed, an uploaded image, or a missing subject.
+3. Replace the Cast link with a caption sheet on the artwork, listing, or gallery page. The imported composer stays unused.
+4. Keep signing off this origin. The sheet holds the intent. A separate signer origin submits it after a one-time custody import and a gasless app-key add. No account registration until the Hypersnap identity contract is forked. No seed phrase in this app.
+5. On submit, send one Hypersnap cast with that single embed and no channel parent. Record the hash and subject in the app feed index.
+6. Show that record on the subject page and in the feed.
 
-Acceptance: posting uses the selected approved channel; social writes require the user's authorization; bidding checks current chain/listing state and updates its result. No automatic casts are published for blockchain activity.
+Acceptance: Cast never opens `/compose`. A cast without a Cryptoart subject cannot be submitted. The feed shows captions on works, listings, and galleries. The signer is the only place a phrase can be entered, and it discards the phrase after the app key exists.
 
-### 4. Social galleries
+### 4. Social actions and bidding inside casts
+
+Add replies, likes, and recasts on subject threads. Reuse transaction logic through a shared boundary to support wallet-confirmed bids inside casts.
+
+Acceptance: social writes require the user's authorization; bidding checks current chain/listing state and updates its result. No automatic casts are published for blockchain activity.
+
+### 5. Social galleries
 
 Compare existing MVP curation records with Such Gallery's artwork/placement model and select a single authoritative gallery service before writing a second competing model. Build gallery previews, 2D detail pages, ordering, notes, and add-to-gallery actions. Galleries hold artwork independent of whether it is currently listed.
 

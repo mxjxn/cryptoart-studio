@@ -1,5 +1,6 @@
 import { createPublicClient } from "viem";
 import { mainnet } from "viem/chains";
+import { HYPERSNAP_FARCASTER_URL, fetchFarcasterAccountByAddress, fetchFarcasterAccountsByAddress } from "../../../../packages/identity/src/farcasterDirectory";
 import { getUserFromCache, cacheUserInfo } from "~/lib/server/user-cache";
 import { mainnetTransport } from "~/lib/chain-rpc";
 
@@ -15,14 +16,13 @@ export const publicClient = createPublicClient({
 });
 
 /**
- * Lookup user by verified ETH address using Neynar API
- * Uses the bulk-by-address endpoint which is more reliable
- * Now checks cache first before making API calls
+ * Lookup the Farcaster account that lists this ETH address.
+ * A match means the address is custody or verified for that FID. It does not authorize posting.
+ * The function name stays so existing callers keep working.
  */
 export async function lookupNeynarByAddress(
   address: string
 ): Promise<{ name: string; fid: number } | null> {
-  // Check cache first
   try {
     const cached = await getUserFromCache(address);
     if (cached && cached.expiresAt > new Date() && cached.fid) {
@@ -32,57 +32,33 @@ export async function lookupNeynarByAddress(
       }
     }
   } catch {
-    // Cache lookup failed, continue to API
-  }
-  
-  const apiKey = process.env.NEYNAR_API_KEY;
-  if (!apiKey) {
-    return null;
+    // Cache lookup failed, continue to the directory
   }
 
   try {
-    const url = `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${address}`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-key": apiKey,
-        "x-neynar-experimental": "false",
-      },
-      next: { revalidate: 3600 },
-    });
+    const account = await fetchFarcasterAccountByAddress(
+      address,
+      fetch,
+      process.env.HYPERSNAP_BASE_URL || HYPERSNAP_FARCASTER_URL,
+    );
+    if (!account) return null;
+    const name = account.username || account.displayName;
+    if (!name) return null;
 
-    if (!response.ok) {
-      return null;
+    try {
+      await cacheUserInfo(address, {
+        fid: account.fid,
+        username: account.username,
+        displayName: account.displayName,
+        pfpUrl: account.pfpUrl,
+        verifiedWallets: account.verifiedAddresses,
+        source: 'hypersnap',
+      });
+    } catch {
+      // Ignore cache errors
     }
 
-    const data = await response.json();
-    const addressLower = address.toLowerCase();
-    const users = data[addressLower];
-
-    if (users && Array.isArray(users) && users.length > 0) {
-      const user = users[0];
-      if (user && user.fid) {
-        const name = user.username || user.display_name || `@${user.username}`;
-        
-        // Cache the result
-        try {
-          await cacheUserInfo(address, {
-            fid: user.fid,
-            username: user.username,
-            displayName: user.display_name,
-            pfpUrl: user.pfp_url,
-            verifiedWallets: user.verified_addresses?.eth_addresses || [],
-            source: 'neynar',
-          });
-        } catch {
-          // Ignore cache errors
-        }
-        
-        return { name, fid: user.fid };
-      }
-    }
-
-    return null;
+    return { name, fid: account.fid };
   } catch {
     return null;
   }
@@ -221,97 +197,25 @@ export async function lookupNeynarByUsername(
 }
 
 /**
- * Lookup all Farcaster handles associated with a verified ETH address
- * Uses the bulk-by-address endpoint which returns an array of all users with that address
- * Returns array of all Farcaster handles, not just the first one
+ * Every Farcaster handle that lists this ETH address.
+ * A listing is not permission to post.
  */
 export async function lookupAllFarcasterHandlesByAddress(
   address: string
 ): Promise<Array<{ fid: number; username: string; displayName: string | null; pfpUrl: string | null }>> {
-  console.log("[lookupAllFarcasterHandlesByAddress] Starting lookup for address:", address);
-  const apiKey = process.env.NEYNAR_API_KEY;
-  if (!apiKey) {
-    console.warn(
-      "[lookupAllFarcasterHandlesByAddress] NEYNAR_API_KEY not configured, skipping Neynar lookup"
-    );
-    return [];
-  }
-
   try {
-    const url = `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${address}`;
-    console.log("[lookupAllFarcasterHandlesByAddress] Fetching from URL:", url);
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-key": apiKey,
-        "x-neynar-experimental": "false",
-      },
-      next: { revalidate: 3600 }, // Cache for 1 hour
-    });
-
-    console.log(
-      "[lookupAllFarcasterHandlesByAddress] Response status:",
-      response.status,
-      response.statusText
+    const accounts = await fetchFarcasterAccountsByAddress(
+      address,
+      fetch,
+      process.env.HYPERSNAP_BASE_URL || HYPERSNAP_FARCASTER_URL,
     );
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log(
-          "[lookupAllFarcasterHandlesByAddress] No users found with this verified address (404)"
-        );
-        return [];
-      }
-      const errorText = await response.text();
-      console.error(
-        "[lookupAllFarcasterHandlesByAddress] Neynar API error:",
-        response.status,
-        errorText
-      );
-      return [];
-    }
-
-    const data = await response.json();
-    const addressLower = address.toLowerCase();
-    console.log(
-      "[lookupAllFarcasterHandlesByAddress] Looking for address (lowercase):",
-      addressLower
-    );
-
-    // Get users array for this address
-    const users = data[addressLower];
-    console.log(
-      "[lookupAllFarcasterHandlesByAddress] Users found:",
-      users ? `Array with ${users.length} users` : "null/undefined"
-    );
-
-    if (users && Array.isArray(users) && users.length > 0) {
-      // Return all users, not just the first one
-      const handles = users
-        .filter((user: any) => user && user.fid && user.username)
-        .map((user: any) => ({
-          fid: user.fid,
-          username: user.username,
-          displayName: user.display_name || null,
-          pfpUrl: user.pfp_url || null,
-        }));
-
-      console.log(
-        "[lookupAllFarcasterHandlesByAddress] Returning",
-        handles.length,
-        "handles"
-      );
-      return handles;
-    }
-
-    console.log("[lookupAllFarcasterHandlesByAddress] No valid users found, returning empty array");
-    return [];
-  } catch (error) {
-    console.error(
-      "[lookupAllFarcasterHandlesByAddress] Error looking up Neynar users by address:",
-      error
-    );
+    return accounts.flatMap(account => account.username ? [{
+      fid: account.fid,
+      username: account.username,
+      displayName: account.displayName,
+      pfpUrl: account.pfpUrl,
+    }] : []);
+  } catch {
     return [];
   }
 }

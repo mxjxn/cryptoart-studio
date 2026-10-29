@@ -16,7 +16,7 @@ export function CryptoartHeader({ active }: { active: 'feed' | 'market' | 'admin
         <a href="/" aria-label="Cryptoart Social home"><img src="/cryptoart-logo-wgmeets.png" alt="Cryptoart" className="w-full max-w-[650px]" /></a>
         <div className="border-l-2 border-white pl-4 md:mb-2">
           <p className="text-[clamp(2rem,7vw,4.5rem)] font-medium leading-[0.78] tracking-[-0.06em]">SOCIAL</p>
-          <p className="cryptoart-mono mt-4 text-xs leading-5 text-[#aaa]">Farcaster as an exhibition, marketplace and public conversation.</p>
+          <p className="cryptoart-mono mt-4 text-xs leading-5 text-[#aaa]">An exhibition, a marketplace, and the conversation on the work.</p>
         </div>
       </div>
       <div className="grid grid-cols-2 border-x border-t border-[#444] sm:grid-cols-4">
