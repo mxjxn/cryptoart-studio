@@ -1,5 +1,7 @@
 # Cryptoart Platform Roadmap
 
+> Product update October 29, 2026: [Cryptoart Social product and implementation plan](./plans/2026-10-29-social-product-and-implementation.md) supersedes conflicting navigation, composer, and feed direction below. Social has Featured, Market, and Feed tabs; text-only posts are allowed; existing channels are omitted. Studio remains the minting portal. Compatible engineering and durability requirements still apply.
+
 **Status:** Active product and architecture direction  
 **Updated:** 2026-09-08
 

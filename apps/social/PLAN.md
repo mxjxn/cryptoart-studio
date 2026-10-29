@@ -1,5 +1,7 @@
 # Cryptoart Social — implementation brief
 
+> Product update October 29, 2026: follow [Cryptoart Social product and implementation plan](../../docs/plans/2026-10-29-social-product-and-implementation.md) where this brief conflicts. Text-only posts are allowed; existing channels remain omitted. The public app has Featured, Market, and Feed tabs. Older subject-only composer and feed assumptions below are superseded.
+
 ## Decisions as of 2026-10-28
 
 Hypersnap is the only network. Existing Farcaster channels stay on the Farcaster side and are not a Cryptoart surface. The channel filter and channel browser come out. The app is channel-less until it has its own channel keys.
