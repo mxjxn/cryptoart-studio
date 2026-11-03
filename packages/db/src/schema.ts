@@ -1079,6 +1079,29 @@ export interface IPFSImageCacheData {
 }
 
 // ============================================
+// COLLECTION DRAFTS
+// ============================================
+
+export const collectionDrafts = pgTable('collection_drafts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  ownerAddress: text('owner_address').notNull(),
+  payload: jsonb('payload').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  ownerIdx: index('collection_drafts_owner_address_idx').on(table.ownerAddress),
+  updatedAtIdx: index('collection_drafts_updated_at_idx').on(table.updatedAt),
+}));
+
+export interface CollectionDraftData {
+  id: string;
+  ownerAddress: string;
+  payload: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================
 // COLLECTION MANAGEMENT
 // ============================================
 

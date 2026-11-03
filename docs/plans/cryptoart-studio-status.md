@@ -22,6 +22,7 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 - **Royalties:** 10% default, opt-out only.
 - **Chains:** Base + Ethereum.
 - **API home:** `apps/studio` (move from mvp).
+- **Collection type (Nov 2):** never offer a contract intended for a single artwork. Deploy choice is **1/1s → ERC-721** or **multi-supply → ERC-1155**. A 721 collection may hold many unique 1/1 tokens. 1155 tokens have a supply (limited or open) — not numbered editions. Open/limited supply is a mint setting on the 1155 path, not a third deploy type.
 
 ---
 

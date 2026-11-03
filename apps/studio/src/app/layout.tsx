@@ -3,11 +3,10 @@ import { Inter } from 'next/font/google';
 import '~/app/globals.css';
 import { Providers } from '~/app/providers';
 import { APP_DESCRIPTION, APP_NAME } from '~/lib/constants';
-import { StudioHeader } from '~/components/StudioHeader';
 
 const inter = Inter({
   subsets: ['latin'],
-  weight: ['400', '600', '700'],
+  weight: ['400', '600', '700', '800'],
   variable: '--font-sans',
   display: 'swap',
 });
@@ -25,10 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="flex min-h-screen flex-col">
-        <Providers>
-          <StudioHeader />
-          <main className="flex-1">{children}</main>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

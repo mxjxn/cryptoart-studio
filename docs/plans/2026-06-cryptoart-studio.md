@@ -104,14 +104,13 @@ Paged walkthrough with back navigation; auto-save draft on step advance.
 | Step | Content |
 |------|---------|
 | 1 | **Chain** — Base or Ethereum |
-| 2 | **Edition type** — One vs Multiple (informational; does not branch into series upload) |
+| 2 | **Collection type** — **1/1s (ERC-721)** or **multi-supply (ERC-1155)**. Never a single-artwork-only contract. 1155 = limited or open supply per token, not numbered editions. (Nov 2 lock.) |
 | 3 | **Name + symbol** |
 | 4 | **Royalties** — 10% default; toggle to opt out |
 | 5 | **Branding** — optional description, image, banner |
-| 6 | **Metadata / best practices** — OpenSea schema context; thumb guidance (sizes, GIF/still for animation, ≤5MB thumbs for large files) |
-| 7 | **Review + deploy** — API prepares tx → wallet signs → poll deployment status |
+| 6 | **Review + deploy** — API prepares tx → wallet signs → poll deployment status |
 
-Deploy creates the contract only; minting is a separate flow afterward.
+Deploy creates the contract only; minting is a separate flow afterward. Metadata is formatted to the OpenSea schema by Studio during mint — no best-practices lecture in the deploy wizard.
 
 ### Single mint (`/collections/[id]/mint`)
 
@@ -262,7 +261,7 @@ Future options (revisit when needed):
 - **Lazy mint extension** via existing `registerExtension` machinery
 - **Base URI + sequential IDs** for homogeneous metadata
 
-Likely a second factory version or edition-type branch at deploy (“standard” vs “bulk”). Wizard step 2 (edition type) is the future hook.
+Deploy branches on token standard: ERC-721 factory for 1/1 collections; ERC-1155 factory for multi-supply tokens (limited or open). Not numbered editions. Supply mode is chosen at mint on 1155, not as a third deploy type. Wizard step 2 is that standard choice (Nov 2).
 
 ---
 

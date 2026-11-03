@@ -195,6 +195,7 @@ export {
   listingThemeOverride,
   marketLayoutSnapshots,
   // Collection tables
+  collectionDrafts,
   collections,
   collectionTokens,
   collectionDeployments,

@@ -5,9 +5,14 @@
 :root {
   --background: #ffffff;
   --foreground: #0a0a0a;
-  --muted: #737373;
+  --muted: #666666;
+  --muted-foreground: #999999;
   --border: #e5e5e5;
   --radius: 12px;
+  --input-bg: #fafafa;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
 }
 
 html {
@@ -29,10 +34,22 @@ body {
   }
 
   .studio-btn {
-    @apply inline-flex items-center justify-center rounded-lg border border-foreground bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90;
+    @apply inline-flex items-center justify-center rounded-lg border border-foreground bg-foreground px-6 py-3.5 text-[15px] font-semibold text-background transition-opacity hover:opacity-90;
   }
 
   .studio-btn-outline {
-    @apply inline-flex items-center justify-center rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-foreground;
+    @apply inline-flex items-center justify-center rounded-lg border border-border bg-background px-6 py-3.5 text-[15px] font-semibold text-foreground transition-colors hover:border-foreground;
+  }
+
+  .studio-btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg px-6 py-3.5 text-[15px] font-semibold text-muted transition-colors hover:text-foreground;
+  }
+
+  .studio-input {
+    @apply w-full rounded-lg border border-border bg-background px-4 py-3.5 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-foreground;
+  }
+
+  .studio-textarea {
+    @apply w-full rounded-lg border border-border bg-background px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-foreground resize-none;
   }
 }
