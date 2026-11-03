@@ -2,6 +2,10 @@
 
 Updated October 29, 2026. Implementation handoff for Cursor, based on product decisions made with the owner.
 
+**Layout update (Nov 2):** social-first desk (feed home, market rail, Market as browse) supersedes the three peer-tab IA below where they conflict. See `docs/plans/2026-11-02-social-first-layout.md`.
+
+**Feed scope update (Nov 2):** do not limit Hypersnap to art channels. Guests see curated (trending); logged-in FIDs see following mixed with curated. Marketplace features attach to posts — Objkt-style. Details in the layout plan.
+
 Cryptoart Social combines looking at art, collecting, curating, selling, and conversation. Cryptoart Studio is the dedicated portal for minting and artist operations. The immediate goal is to connect existing marketplace, exhibition, and social foundations into one coherent public experience while completing Studio separately.
 
 ## Decision precedence

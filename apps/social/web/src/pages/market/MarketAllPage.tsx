@@ -41,8 +41,8 @@ export function MarketAllPage() {
   return <main className="cryptoart-shell min-h-screen overflow-hidden bg-white text-black">
     <div className="bg-black text-white"><CryptoartHeader active="market" /></div>
     <header className="border-b border-black px-4 py-12 sm:px-8 lg:px-12 lg:py-20">
-      <p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em] text-neutral-500">Complete inventory</p>
-      <h1 className="mt-2 text-[clamp(4rem,13vw,11rem)] font-medium leading-[0.72] tracking-[-0.07em]">All works</h1>
+      <p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em] text-neutral-500">Listings and exhibitions, newest first</p>
+      <h1 className="mt-2 text-[clamp(4rem,13vw,11rem)] font-medium leading-[0.72] tracking-[-0.07em]">Market</h1>
     </header>
     <div className="cryptoart-mono grid border-b border-black text-[11px] uppercase sm:grid-cols-3">
       <label className="border-b border-black p-4 sm:border-b-0 sm:border-r">Chain <select value={chain} onChange={event => update('chain', event.target.value)} className="ml-3 bg-transparent font-bold"><option value="all">All</option><option value="1">Ethereum</option><option value="8453">Base</option></select></label>

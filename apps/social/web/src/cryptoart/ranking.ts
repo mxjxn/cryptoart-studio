@@ -1,4 +1,4 @@
-import { FEED_POLICY, isApprovedChannel } from './policy';
+import { FEED_POLICY } from './policy';
 
 export interface Candidate {
   hash: string;
@@ -24,11 +24,12 @@ export function scoreCast(cast: Candidate) {
   return { total: engagement + curation + listing, engagement, curation, listing };
 }
 
-/** Rank one frozen snapshot. Page this result, never independently re-rank each page. */
+/** Rank one frozen snapshot. Page this result, never independently re-rank each page.
+ *  Hypersnap scope is network-wide — channel is metadata, not an admission gate. */
 export function rankFeed<T extends Candidate>(input: T[], now: number) {
   const unique = new Map<string, T>();
   for (const cast of input) {
-    if (isApprovedChannel(cast.channel) && !cast.hidden && Number.isFinite(cast.timestamp) && cast.timestamp <= now) {
+    if (!cast.hidden && Number.isFinite(cast.timestamp) && cast.timestamp <= now && cast.hash) {
       unique.set(cast.hash, cast);
     }
   }

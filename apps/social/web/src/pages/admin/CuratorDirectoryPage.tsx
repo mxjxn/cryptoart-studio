@@ -52,7 +52,7 @@ export function CuratorDirectoryPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cryptoart-curators'] }),
   });
   return <main className="cryptoart-shell min-h-screen bg-black text-white">
-    <CryptoartHeader active="market" />
+    <CryptoartHeader active="admin" />
     <section className="px-4 py-12 sm:px-8 lg:px-12">
       <p className="cryptoart-mono text-[11px] uppercase">Admin · curator directory</p>
       <h1 className="mt-3 text-5xl font-medium tracking-[-0.05em]">Curators</h1>

@@ -1,11 +1,16 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { Heart, MessageCircle, Repeat2 } from 'lucide-react';
 import { useMemo } from 'react';
-import { AuctionCard } from './AuctionCard';
+import { useAccount } from 'wagmi';
+import { ActivityRail } from './ActivityRail';
 import { CryptoartHeader } from './CryptoartHeader';
 import { composeExhibition, type RankedSocialItem } from './exhibition';
-import { MarketplaceGrid } from './MarketplaceGrid';
+import { CreatorRail } from './CreatorRail';
 import type { AuctionCardData, MarketplaceListingData } from './marketplace';
+import { useSiweSession } from './useSiweSession';
+
 interface FeedPage {
+  mode: 'curated' | 'mixed';
   items: RankedSocialItem[];
   auctions: AuctionCardData[];
   latestListings: MarketplaceListingData[];
@@ -14,79 +19,87 @@ interface FeedPage {
   nextCursor: string | null;
 }
 
+function useViewerFid() {
+  const { address, isConnected } = useAccount();
+  const { session } = useSiweSession();
+  const listed = useQuery({
+    queryKey: ['cryptoart-account-fid', address],
+    enabled: Boolean(isConnected && address),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`/api/cryptoart/account?address=${address}`, { signal });
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('Directory lookup failed.');
+      const body = await response.json() as { fid?: number };
+      return typeof body.fid === 'number' ? body.fid : null;
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+  return session.data?.fid ?? listed.data ?? null;
+}
+
 const name = (item: RankedSocialItem) => item.candidate.cast.author.displayName || item.candidate.cast.author.username || `FID ${item.candidate.cast.author.fid}`;
 const username = (item: RankedSocialItem) => item.candidate.cast.author.username ? `@${item.candidate.cast.author.username}` : `FID ${item.candidate.cast.author.fid}`;
 
-function SectionTitle({ eyebrow, children }: { eyebrow: string; children: string }) {
-  return <header className="px-4 pb-6 pt-10 sm:px-8 lg:px-12">
-    <p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em] text-muted">{eyebrow}</p>
-    <h2 className="mt-1 text-[clamp(2.6rem,8vw,5.5rem)] font-medium leading-[0.88] tracking-[-0.04em]">{children}</h2>
-  </header>;
+function formatCount(n: number) {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '')}k`;
+  return String(n);
 }
 
-function SelectedCast({ item }: { item: RankedSocialItem }) {
+function PostCard({ item }: { item: RankedSocialItem }) {
   const cast = item.candidate.cast;
   const image = cast.embeds?.images?.[0];
-  return <article className="min-w-0">
-    <div className="group block">
-      {image && <div className="flex aspect-[4/5] items-center bg-black">
-        <img src={image.url} alt={image.alt || cast.text || `Work shared by ${name(item)}`} className="max-h-full w-full object-contain" />
-      </div>}
-      <div className="pt-4">
-        <p className="cryptoart-mono text-[10px] uppercase tracking-[0.1em]">{item.score.curation > 0 ? 'Selected by @mxjxn' : `Community response · ${item.candidate.likes} appreciations`}</p>
-        <h3 className="mt-2 text-xl font-medium leading-snug">{name(item)}</h3>
-        <p className="cryptoart-mono mt-1 text-xs opacity-60">{username(item)}</p>
-        {cast.text && <p className="mt-3 line-clamp-3 text-sm leading-6">{cast.text}</p>}
-        <p className="cryptoart-mono mt-3 text-xs opacity-60">{item.candidate.likes} appreciations · {item.candidate.replies} replies</p>
-      </div>
-    </div>
-  </article>;
-}
-
-function ArrivalCast({ item }: { item: RankedSocialItem }) {
-  const cast = item.candidate.cast;
-  const image = cast.embeds?.images?.[0];
-  return <article className="min-w-0">
-    <div className="group block">
-      {image && <div className="flex aspect-square items-center bg-black">
-        <img src={image.url} alt={image.alt || cast.text || `Work shared by ${name(item)}`} className="max-h-full w-full object-contain transition-opacity group-hover:opacity-90" />
-      </div>}
-      <p className="mt-2 truncate text-xs font-semibold">{name(item)}</p>
-      <p className="mt-0.5 truncate text-[11px] text-muted">{item.lane === 'latest' ? 'new' : `${item.candidate.likes} appreciations`}</p>
-    </div>
-  </article>;
-}
-
-function NoteCast({ item }: { item: RankedSocialItem }) {
-  const cast = item.candidate.cast;
-  return <article className="overflow-hidden border border-default bg-elevated p-4">
-    <p className="text-xs font-semibold">{name(item)}</p>
-    <p className="cryptoart-mono mt-1 text-[11px] text-muted">{username(item)}</p>
-    {cast.text && <p className="mt-3 text-sm leading-6">{cast.text}</p>}
-  </article>;
-}
-
-function ArchiveCast({ item }: { item: RankedSocialItem }) {
-  const cast = item.candidate.cast;
-  const image = cast.embeds?.images?.[0];
-  return <article className="border-t border-default py-4 first:border-t-0">
-    <div className="group grid grid-cols-[1fr_auto] gap-4">
+  const pfp = cast.author.pfp?.url;
+  return <article className="border-b border-[#2a2a2a] px-3 py-3 sm:px-4">
+    <div className="grid grid-cols-[36px_minmax(0,1fr)] gap-2.5">
+      {pfp
+        ? <img src={pfp} alt="" className="h-9 w-9 rounded-full bg-[#222] object-cover" />
+        : <span className="h-9 w-9 rounded-full bg-[#222]" />}
       <div className="min-w-0">
-        <p className="text-xs font-semibold">{name(item)}</p>
-        <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted group-hover:text-default">{cast.text || 'Shared a work'}</p>
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[13px] leading-tight">
+          <span className="font-medium">{name(item)}</span>
+          <span className="text-[#888]">{username(item)}</span>
+          {item.score.curation > 0 && <span className="cryptoart-mono text-[10px] uppercase tracking-[0.08em] text-[#dcf54c]">Selected</span>}
+        </div>
+        {cast.text && <p className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#e8e8e8]">{cast.text}</p>}
+        {image && <div className="mt-2 inline-block max-w-full overflow-hidden rounded-md border border-[#2a2a2a]">
+          <img
+            src={image.url}
+            alt={image.alt || cast.text || `Work shared by ${name(item)}`}
+            className="block max-h-[280px] max-w-full h-auto w-auto"
+          />
+        </div>}
+        <div className="mt-2 flex items-center gap-5 text-[#888]">
+          <span className="inline-flex items-center gap-1.5 text-[12px]" title="Replies">
+            <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={1.75} />
+            <span className="sr-only">Replies</span>
+            {formatCount(item.candidate.replies)}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[12px]" title="Recasts">
+            <Repeat2 className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={1.75} />
+            <span className="sr-only">Recasts</span>
+            {formatCount(item.candidate.recasts)}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[12px]" title="Likes">
+            <Heart className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={1.75} />
+            <span className="sr-only">Likes</span>
+            {formatCount(item.candidate.likes)}
+          </span>
+        </div>
       </div>
-      {image && <img src={image.url} alt="" className="h-14 w-14 bg-black object-cover" />}
     </div>
   </article>;
 }
 
 export function CryptoartFeed() {
+  const viewerFid = useViewerFid();
   const feed = useInfiniteQuery({
-    queryKey: ['cryptoart-feed'],
+    queryKey: ['cryptoart-feed', viewerFid],
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam, signal }): Promise<FeedPage> => {
       const params = new URLSearchParams();
       if (pageParam) params.set('cursor', pageParam);
+      if (viewerFid) params.set('fid', String(viewerFid));
       const response = await fetch(`/api/cryptoart/feed?${params}`, { signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'The feed could not be loaded.');
@@ -97,8 +110,16 @@ export function CryptoartFeed() {
     staleTime: 60000,
     refetchOnWindowFocus: false,
   });
+  const mode = feed.data?.pages[0]?.mode ?? (viewerFid ? 'mixed' : 'curated');
   const items = useMemo(() => feed.data?.pages.flatMap(page => page.items) ?? [], [feed.data]);
   const exhibition = useMemo(() => composeExhibition(items), [items]);
+  const posts = useMemo(() => [
+    ...exhibition.selected,
+    ...exhibition.conversations,
+    ...exhibition.miniApps,
+    ...exhibition.arrivals,
+    ...exhibition.remainder,
+  ], [exhibition]);
   const warnings = [...new Set(feed.data?.pages.flatMap(page => page.warnings) ?? [])];
   const auctions = feed.data?.pages[0]?.auctions ?? [];
   const featured = auctions.filter(auction => auction.kind === 'featured-auction');
@@ -106,66 +127,70 @@ export function CryptoartFeed() {
   const latestListings = (feed.data?.pages[0]?.latestListings ?? []).filter(
     listing => !featured.some(auction => auction.chainId === listing.chainId && auction.listingId === listing.listingId),
   );
+  const liveLots: MarketplaceListingData[] = [
+    ...featured.map(auction => ({
+      chainId: auction.chainId,
+      listingId: auction.listingId,
+      listingType: 'INDIVIDUAL_AUCTION' as const,
+      title: auction.title,
+      imageUrl: auction.imageUrl,
+      href: auction.href,
+      amount: auction.amount,
+      currency: auction.currency,
+      available: 1,
+      bidCount: auction.bidCount,
+      createdAt: auction.timestamp,
+    })),
+    ...latestListings,
+  ];
 
-  return <main className="cryptoart-shell overflow-hidden bg-black text-white">
+  return <main className="cryptoart-shell min-h-screen bg-black text-white">
     <CryptoartHeader active="feed" />
-    <div className="bg-[#dcf54c] px-4 py-3 text-black sm:px-8 lg:px-12">
-      <div className="flex items-center justify-between gap-4">
-        <p className="cryptoart-mono shrink-0 text-[11px] uppercase tracking-[0.1em]">Exhibition</p>
-        <button type="button" className="cryptoart-mono shrink-0 text-[11px] uppercase underline" disabled={feed.isFetching} onClick={() => void feed.refetch()}>Refresh</button>
+    <div className="cryptoart-desk mx-auto grid max-w-[1280px] lg:grid-cols-[220px_minmax(0,1fr)_240px]">
+      <ActivityRail liveLots={liveLots} recentSales={sales} />
+
+      <section className="min-w-0 border-[#2a2a2a] lg:border-x" aria-label="Conversation">
+        <div className="flex items-center justify-between gap-3 border-b border-[#2a2a2a] px-3 py-2 sm:px-4">
+          <div className="flex items-baseline gap-2">
+            <p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em]">Conversation</p>
+            <p className="cryptoart-mono text-[10px] uppercase tracking-[0.1em] text-[#666]">
+              {mode === 'mixed' ? 'Following · curated' : 'Curated'}
+            </p>
+          </div>
+          <button type="button" className="cryptoart-mono text-[10px] uppercase underline disabled:opacity-40" disabled={feed.isFetching} onClick={() => void feed.refetch()}>
+            Refresh
+          </button>
+        </div>
+
+        {feed.isPending && <p role="status" className="px-4 py-6 text-sm text-[#aaa]">Loading the feed…</p>}
+        {feed.error && <p role="alert" className="px-4 py-6 text-sm">{feed.error.message}</p>}
+        {warnings.length > 0 && <details className="border-b border-[#2a2a2a] px-4 py-2 text-xs text-[#888]"><summary>Some sources are incomplete</summary>
+          <ul>{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
+        </details>}
+
+        {!feed.isPending && !feed.error && posts.length === 0 && (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-[#ccc]">No posts in this stream right now.</p>
+            <a href="/market" className="cryptoart-mono mt-3 inline-block text-[10px] uppercase tracking-[0.12em] text-[#888] underline hover:text-white">Market →</a>
+          </div>
+        )}
+
+        {posts.map(item => <PostCard key={item.candidate.hash} item={item} />)}
+
+        {feed.hasNextPage && <div className="border-t border-[#2a2a2a] py-3 text-center">
+          <button type="button" className="cryptoart-mono text-[10px] uppercase tracking-[0.12em] underline disabled:opacity-40"
+            disabled={feed.isFetchingNextPage} onClick={() => void feed.fetchNextPage()}>
+            {feed.isFetchingNextPage ? 'Loading…' : 'Show more'}
+          </button>
+        </div>}
+      </section>
+
+      <div className="lg:contents">
+        <div className="border-t border-[#2a2a2a] px-3 py-2 lg:hidden">
+          <p className="cryptoart-mono text-[10px] uppercase tracking-[0.14em] text-[#888]">Create</p>
+        </div>
+        <CreatorRail />
       </div>
     </div>
-
-    {feed.isPending && <p role="status" className="p-8">Preparing the exhibition…</p>}
-    {feed.error && <p role="alert" className="p-8">{feed.error.message}</p>}
-    {warnings.length > 0 && <details className="px-8 py-3 text-xs text-muted"><summary>Some sources are incomplete</summary>
-      <ul>{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></details>}
-    {!feed.isPending && !feed.error && !items.length && <p className="p-8">No work is available yet.</p>}
-
-    {featured.map(auction => <AuctionCard key={`${auction.kind}:${auction.chainId}:${auction.listingId}`} auction={auction} />)}
-
-    {exhibition.selected.length > 0 && <section aria-labelledby="community-selections" className="bg-[#f5b0d3] text-black">
-      <SectionTitle eyebrow="Curator signal">Community selections</SectionTitle>
-      <div id="community-selections" className="grid grid-cols-1 gap-x-5 gap-y-12 px-4 pb-16 sm:grid-cols-2 sm:px-8 lg:px-12">
-        {exhibition.selected.map(item => <SelectedCast key={item.candidate.hash} item={item} />)}
-      </div>
-    </section>}
-
-    {sales.map(auction => <AuctionCard key={`${auction.kind}:${auction.chainId}:${auction.listingId}`} auction={auction} />)}
-
-    <MarketplaceGrid listings={latestListings} />
-
-    {exhibition.miniApps.length > 0 && <section aria-labelledby="interactive-works">
-      <SectionTitle eyebrow="Participatory works">Interactive</SectionTitle>
-      <div id="interactive-works" className="grid gap-4 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:px-12">
-        {exhibition.miniApps.map(item => <NoteCast key={item.candidate.hash} item={item} />)}
-      </div>
-    </section>}
-
-    {exhibition.arrivals.length > 0 && <section aria-labelledby="new-arrivals">
-      <SectionTitle eyebrow="Discovery room">New arrivals</SectionTitle>
-      <div id="new-arrivals" className="grid grid-cols-2 gap-x-3 gap-y-7 px-4 pb-14 sm:grid-cols-3 sm:gap-x-4 sm:px-8 lg:grid-cols-4 lg:px-12">
-        {exhibition.arrivals.map(item => <ArrivalCast key={item.candidate.hash} item={item} />)}
-      </div>
-    </section>}
-
-    {exhibition.conversations.length > 0 && <section aria-labelledby="conversations">
-      <SectionTitle eyebrow="The reading room">Conversations</SectionTitle>
-      <div id="conversations" className="mx-auto max-w-[720px] space-y-4 px-4 pb-16 sm:px-8">
-        {exhibition.conversations.map(item => <NoteCast key={item.candidate.hash} item={item} />)}
-      </div>
-    </section>}
-
-    {exhibition.remainder.length > 0 && <section aria-labelledby="more-from-the-exhibition">
-      <SectionTitle eyebrow="Archive">More from the exhibition</SectionTitle>
-      <div id="more-from-the-exhibition" className="grid px-4 pb-12 sm:grid-cols-2 sm:gap-x-8 sm:px-8 lg:px-12">
-        {exhibition.remainder.map(item => <ArchiveCast key={item.candidate.hash} item={item} />)}
-      </div>
-    </section>}
-
-    {feed.hasNextPage && <div className="px-4 pb-20 text-center sm:px-8"><button type="button" className="border border-default px-7 py-3 text-xs font-semibold uppercase tracking-[0.14em]"
-      disabled={feed.isFetchingNextPage} onClick={() => void feed.fetchNextPage()}>
-      {feed.isFetchingNextPage ? 'Preparing more…' : 'Show more'}
-    </button></div>}
   </main>;
 }

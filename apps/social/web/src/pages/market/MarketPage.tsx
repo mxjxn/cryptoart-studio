@@ -86,7 +86,7 @@ export function MarketPage() {
   });
   const exhibition = published.data ?? editorialExhibition;
   return <main className="cryptoart-shell min-h-screen overflow-hidden bg-black text-white">
-    <CryptoartHeader active="market" />
+    <CryptoartHeader active="feed" />
     <section id="exhibitions" aria-labelledby="current-exhibition" className="bg-[#dcf54c] px-4 py-12 text-black sm:px-8 md:py-20 lg:px-12">
       <div>
         <header className="grid gap-6 border-b border-black pb-10 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
@@ -118,7 +118,7 @@ export function MarketPage() {
     <section aria-labelledby="market-selections" className="bg-white px-4 py-14 text-black sm:px-8 lg:px-12 lg:py-20">
       <header className="mb-10 flex items-end justify-between gap-5">
         <div><p className="cryptoart-mono text-[11px] uppercase tracking-[0.12em] text-neutral-500">Live auctionhouse read</p><h2 id="market-selections" className="mt-1 text-[clamp(3rem,9vw,7rem)] font-medium leading-[0.8] tracking-[-0.06em]">Marketplace selections</h2></div>
-        <a href="/market/all" className="cryptoart-mono shrink-0 text-xs uppercase underline">View all</a>
+        <a href="/market" className="cryptoart-mono shrink-0 text-xs uppercase underline">View market</a>
       </header>
       {market.isPending && <p role="status" className="cryptoart-mono py-16 text-center text-xs uppercase">Resolving current listings…</p>}
       {market.error && <p role="alert" className="border border-black p-6">{market.error.message}</p>}

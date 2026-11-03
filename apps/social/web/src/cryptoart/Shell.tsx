@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { WagmiProvider } from 'wagmi';
 import { CuratorDirectoryPage } from '~/pages/admin/CuratorDirectoryPage';
 import { ExhibitionAdminPage } from '~/pages/admin/ExhibitionAdminPage';
@@ -7,7 +7,6 @@ import { ExhibitionPage } from '~/pages/exhibitions/ExhibitionPage';
 import { CreateListingPage } from '~/pages/listing/CreateListingPage';
 import { ListingPage } from '~/pages/listing/ListingPage';
 import { MarketAllPage } from '~/pages/market/MarketAllPage';
-import { MarketPage } from '~/pages/market/MarketPage';
 import { CryptoartFeed } from './Feed';
 import { CryptoartHeader } from './CryptoartHeader';
 import { wagmiConfig } from './wagmi';
@@ -29,8 +28,9 @@ export function Shell() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<CryptoartFeed />} />
-          <Route path="/market" element={<MarketPage />} />
-          <Route path="/market/all" element={<MarketAllPage />} />
+          <Route path="/feed" element={<Navigate to="/" replace />} />
+          <Route path="/market" element={<MarketAllPage />} />
+          <Route path="/market/all" element={<Navigate to="/market" replace />} />
           <Route path="/listing/eth/:listingId" element={<ListingPage chainHint="eth" />} />
           <Route path="/listing/base/:listingId" element={<ListingPage chainHint="base" />} />
           <Route path="/listing/:listingId" element={<ListingPage chainHint="base" />} />

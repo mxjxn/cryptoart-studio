@@ -9,8 +9,10 @@ const cast = (hash: string, changes: Partial<Candidate> = {}): Candidate => ({ h
   likes: 0, recasts: 0, replies: 0, weightedLikerFids: [], ...changes });
 
 describe('Cryptoart feed policy', () => {
-  it('never admits an outside-channel cast even with a curator like', () => {
-    expect(rankFeed([cast('a', { channel: 'outside', weightedLikerFids: [4905] })], now)).toEqual([]);
+  it('admits casts from any channel; channel is not an admission gate', () => {
+    const result = rankFeed([cast('a', { channel: 'outside', weightedLikerFids: [4905] })], now);
+    expect(result).toHaveLength(1);
+    expect(result[0].candidate.hash).toBe('a');
   });
   it('interlaces popular with latest and never repeats a cast', () => {
     const result = rankFeed([cast('old-popular', { likes: 100, timestamp: now - 10000 }),

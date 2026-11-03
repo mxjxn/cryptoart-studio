@@ -13,6 +13,40 @@ export const FEATURED_AUCTIONS = [
 export const RECENT_SALE_EXAMPLES = [
   { chainId: 1 as const, listingId: '6' },
 ] as const;
+
+/** Left-rail cherry picks when live market signal is thin. Explicit, reviewable. */
+export const CURATED_RAIL_PICKS = [
+  {
+    id: 'respiration',
+    title: 'Respiration',
+    artist: '@mxjxn',
+    note: 'On view · auction',
+    href: '/listing/eth/5',
+    imageUrl: 'https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/2e4643bd5e404271.webp',
+    amount: '0.05',
+    currency: 'ETH',
+  },
+  {
+    id: 'nearcaster',
+    title: 'NEARCASTER',
+    artist: '@push-',
+    note: 'Recent sale',
+    href: '/listing/eth/6',
+    imageUrl: 'https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/710855c3883a0a9a.webp',
+    amount: '0.02',
+    currency: 'ETH',
+  },
+  {
+    id: 'works-in-public',
+    title: 'Works in Public',
+    artist: 'curated by @mxjxn',
+    note: 'Exhibition',
+    href: '/exhibitions/works-in-public',
+    imageUrl: 'https://hfrlgecdfjtzypfk.public.blob.vercel-storage.com/thumbnails/2e4643bd5e404271.webp',
+    amount: null,
+    currency: null,
+  },
+] as const;
 export const FEED_POLICY = {
   popularWindowMs: 24 * 60 * 60 * 1000,
   // Initial tuning values, deliberately separate from eligibility.

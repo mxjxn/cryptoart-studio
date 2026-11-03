@@ -36,7 +36,7 @@ export function ExhibitionPage() {
   });
   const exhibition = query.data;
   return <main className="cryptoart-shell min-h-screen bg-[#dcf54c] text-black">
-    <CryptoartHeader active="market" />
+    <CryptoartHeader active="feed" />
     <section className="px-4 py-12 sm:px-8 lg:px-12">
       {query.isPending && <p className="cryptoart-mono text-xs uppercase">Loading exhibition…</p>}
       {query.error && <p role="alert" className="border border-black p-4">{query.error.message}</p>}
