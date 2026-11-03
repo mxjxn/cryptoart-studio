@@ -149,13 +149,15 @@ export class FactoryWatcher {
         fromAddress: log.transactionHash!,
         royaltyReceiver,
         royaltyBPS,
+        tokenStandard: this.chainConfig.tokenStandard,
       });
 
       await upsertIndexedContract(this.db, {
         contractAddress: collection,
         chainId: this.chainConfig.chainId,
         lastIndexedBlock: Number(log.blockNumber),
-        contractType: 'such_collection',
+        contractType:
+          this.chainConfig.tokenStandard === 'erc1155' ? 'such_collection_1155' : 'such_collection',
       });
 
       console.log(

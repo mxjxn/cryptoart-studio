@@ -1,0 +1,63 @@
+{
+  "generatedAt": "2026-11-03T01:17:04.400Z",
+  "gitCommit": "72bf4cb56c9d31b135e86a7ba30509c610d4d27e",
+  "solc": "0.8.27",
+  "optimizer": {
+    "enabled": true,
+    "runs": 1000
+  },
+  "chains": [
+    {
+      "chainId": 8453,
+      "name": "base",
+      "startBlock": 0,
+      "factories": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "deployTxHashes": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "verified": {
+        "erc721": false,
+        "erc1155": false
+      }
+    },
+    {
+      "chainId": 1,
+      "name": "ethereum",
+      "startBlock": 0,
+      "factories": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "deployTxHashes": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "verified": {
+        "erc721": false,
+        "erc1155": false
+      }
+    },
+    {
+      "chainId": 31337,
+      "name": "anvil",
+      "startBlock": 0,
+      "factories": {
+        "erc721": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "erc1155": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      },
+      "deployTxHashes": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "verified": {
+        "erc721": false,
+        "erc1155": false
+      },
+      "notes": "Filled by script/e2e-local.sh; addresses are deterministic for a fresh anvil."
+    }
+  ]
+}

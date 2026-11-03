@@ -12,6 +12,7 @@ interface Collection {
   ownerAddress: string;
   totalSupply: number;
   status: string;
+  tokenStandard?: 'erc721' | 'erc1155' | string | null;
   description?: string | null;
   imageUrl?: string | null;
   bannerUrl?: string | null;

@@ -5,7 +5,11 @@ import { CollectionScanner } from './collection-scanner.js';
 import { MetadataResolver } from './metadata.js';
 
 const config = getConfig();
-console.log(`[Indexer] configuring ${config.chains.length} chain(s): ${config.chains.map((c) => c.chainId).join(', ')}`);
+console.log(
+  `[Indexer] configuring ${config.chains.length} factory watcher(s): ${config.chains
+    .map((c) => `${c.chainId}/${c.tokenStandard}@${c.factoryAddress.slice(0, 10)}`)
+    .join(', ')}`,
+);
 
 const clients = createClients(config.chains);
 

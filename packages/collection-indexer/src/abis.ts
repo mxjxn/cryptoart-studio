@@ -23,6 +23,28 @@ export const COLLECTION_EVENTS = [
   },
   {
     type: 'event',
+    name: 'TransferSingle',
+    inputs: [
+      { name: 'operator', type: 'address', indexed: true },
+      { name: 'from', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'id', type: 'uint256', indexed: false },
+      { name: 'value', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'TransferBatch',
+    inputs: [
+      { name: 'operator', type: 'address', indexed: true },
+      { name: 'from', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'ids', type: 'uint256[]', indexed: false },
+      { name: 'values', type: 'uint256[]', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
     name: 'Minted',
     inputs: [
       { name: 'to', type: 'address', indexed: true },

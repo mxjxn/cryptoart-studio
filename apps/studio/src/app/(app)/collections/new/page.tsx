@@ -36,6 +36,27 @@ export default function DeployWizardPage() {
     branding: {},
   });
   const tokenStandard = resolveTokenStandard(formData);
+  const [factoryAvailability, setFactoryAvailability] = useState<{
+    erc721: boolean;
+    erc1155: boolean;
+  }>({ erc721: true, erc1155: false });
+
+  useEffect(() => {
+    const selectedChain = formData.chainId ?? 8453;
+    fetch(`/api/factories?chainId=${selectedChain}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const standards = data.standards ?? {};
+        setFactoryAvailability({
+          erc721: Boolean(standards.erc721),
+          erc1155: Boolean(standards.erc1155),
+        });
+        if (!standards.erc1155 && resolveTokenStandard(formData) === 'erc1155') {
+          setFormData((d) => ({ ...d, tokenStandard: 'erc721' }));
+        }
+      })
+      .catch(() => {});
+  }, [formData.chainId]);
 
   useEffect(() => {
     if (!draftId) return;
@@ -82,8 +103,13 @@ export default function DeployWizardPage() {
 
   const handleDeploy = useCallback(async () => {
     if (!address) return;
-    if (resolveTokenStandard(formData) === 'erc1155') {
-      console.error('ERC-1155 deploy is not available yet.');
+    const standard = resolveTokenStandard(formData);
+    if (standard === 'erc1155' && !factoryAvailability.erc1155) {
+      console.error('ERC-1155 factory is not configured for this chain.');
+      return;
+    }
+    if (standard === 'erc721' && !factoryAvailability.erc721) {
+      console.error('ERC-721 factory is not configured for this chain.');
       return;
     }
     setDeploying(true);
@@ -98,7 +124,7 @@ export default function DeployWizardPage() {
           ownerAddress: address,
           royaltyReceiver: address,
           royaltyBPS: formData.royaltiesOptOut ? 0 : 1000,
-          tokenStandard: 'erc721',
+          tokenStandard: standard,
         }),
       });
       const data = await res.json();
@@ -120,7 +146,7 @@ export default function DeployWizardPage() {
       console.error('Deploy error:', err);
       setDeploying(false);
     }
-  }, [address, formData, sendTransactionAsync]);
+  }, [address, formData, factoryAvailability, sendTransactionAsync]);
 
   useEffect(() => {
     if (receipt && deploymentId) {
@@ -218,28 +244,40 @@ export default function DeployWizardPage() {
                     id: 'erc721' as const,
                     label: '1/1s · ERC-721',
                     desc: 'Unique works. One contract can hold many distinct 1/1 tokens.',
+                    available: factoryAvailability.erc721,
                   },
                   {
                     id: 'erc1155' as const,
                     label: 'Multi-supply · ERC-1155',
                     desc: 'Each token has a supply — limited or open. Not numbered editions.',
+                    available: factoryAvailability.erc1155,
                   },
                 ].map((option) => (
                   <button
                     key={option.id}
                     type="button"
-                    onClick={() => setFormData((d) => ({ ...d, tokenStandard: option.id, editionType: undefined }))}
+                    disabled={!option.available}
+                    onClick={() => {
+                      if (!option.available) return;
+                      setFormData((d) => ({ ...d, tokenStandard: option.id, editionType: undefined }));
+                    }}
                     className={`flex items-center justify-between rounded-lg border p-4 text-left transition-colors ${
-                      tokenStandard === option.id
-                        ? 'border-foreground bg-neutral-50'
-                        : 'border-border hover:border-foreground'
+                      !option.available
+                        ? 'cursor-not-allowed border-border opacity-40'
+                        : tokenStandard === option.id
+                          ? 'border-foreground bg-neutral-50'
+                          : 'border-border hover:border-foreground'
                     }`}
                   >
                     <div>
                       <p className="font-medium">{option.label}</p>
-                      <p className="text-sm text-muted">{option.desc}</p>
+                      <p className="text-sm text-muted">
+                        {option.available
+                          ? option.desc
+                          : 'Factory not configured for this chain yet.'}
+                      </p>
                     </div>
-                    {tokenStandard === option.id && (
+                    {tokenStandard === option.id && option.available && (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
@@ -247,11 +285,6 @@ export default function DeployWizardPage() {
                   </button>
                 ))}
               </div>
-              {tokenStandard === 'erc1155' && (
-                <p className="mt-4 text-sm text-muted">
-                  ERC-1155 factory and minting are not live yet. You can save this draft; deploy stays on ERC-721 until that path ships.
-                </p>
-              )}
             </StepContent>
           )}
 
@@ -361,7 +394,7 @@ export default function DeployWizardPage() {
                 <ReviewRow label="Chain" value={formData.chainId === 1 ? 'Ethereum' : 'Base'} />
                 <ReviewRow
                   label="Standard"
-                  value={tokenStandard === 'erc721' ? '1/1s · ERC-721' : 'Multi-supply · ERC-1155 (not deployable yet)'}
+                  value={tokenStandard === 'erc721' ? '1/1s · ERC-721' : 'Multi-supply · ERC-1155'}
                 />
                 <ReviewRow label="Royalties" value={formData.royaltiesOptOut ? 'None (opted out)' : '10%'} />
                 {formData.branding?.description && (
@@ -397,10 +430,16 @@ export default function DeployWizardPage() {
               <button
                 type="button"
                 onClick={handleDeploy}
-                disabled={deploying || !formData.name || !formData.symbol || tokenStandard === 'erc1155'}
+                disabled={
+                  deploying ||
+                  !formData.name ||
+                  !formData.symbol ||
+                  (tokenStandard === 'erc721' && !factoryAvailability.erc721) ||
+                  (tokenStandard === 'erc1155' && !factoryAvailability.erc1155)
+                }
                 className="studio-btn disabled:opacity-40"
               >
-                {deploying ? 'Deploying…' : tokenStandard === 'erc1155' ? 'ERC-1155 coming soon' : 'Deploy Collection'}
+                {deploying ? 'Deploying…' : 'Deploy Collection'}
               </button>
             )}
           </div>

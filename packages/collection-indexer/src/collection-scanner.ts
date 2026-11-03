@@ -185,6 +185,26 @@ export class CollectionScanner {
         await processTransfer(ctx, args.from, args.to, Number(args.tokenId));
         break;
       }
+      case 'TransferSingle': {
+        const args = decoded.args as {
+          from: `0x${string}`;
+          to: `0x${string}`;
+          id: bigint;
+        };
+        await processTransfer(ctx, args.from, args.to, Number(args.id));
+        break;
+      }
+      case 'TransferBatch': {
+        const args = decoded.args as {
+          from: `0x${string}`;
+          to: `0x${string}`;
+          ids: readonly bigint[];
+        };
+        for (const id of args.ids) {
+          await processTransfer(ctx, args.from, args.to, Number(id));
+        }
+        break;
+      }
       case 'Minted': {
         const args = decoded.args as { to: `0x${string}`; tokenId: bigint; tokenURI: string };
         await processMinted(ctx, args.to, Number(args.tokenId), args.tokenURI);

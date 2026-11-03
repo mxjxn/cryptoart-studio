@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { encodeFunctionData } from 'viem';
+import { encodeFunctionData, isAddress } from 'viem';
 import { getDatabase, collectionDeployments } from '@cryptoart/db';
-import { isAddress } from 'viem';
 
 const FACTORY_ABI = [
   {
@@ -18,10 +17,19 @@ const FACTORY_ABI = [
   },
 ] as const;
 
+function resolveFactoryAddress(chainId: number, tokenStandard: 'erc721' | 'erc1155') {
+  if (tokenStandard === 'erc1155') {
+    return process.env[`CHAIN_${chainId}_ERC1155_FACTORY_ADDRESS`] ?? null;
+  }
+  return process.env[`CHAIN_${chainId}_FACTORY_ADDRESS`] ?? null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, symbol, chainId, royaltyReceiver, royaltyBPS, ownerAddress } = body;
+    const tokenStandard: 'erc721' | 'erc1155' =
+      body.tokenStandard === 'erc1155' ? 'erc1155' : 'erc721';
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -34,11 +42,14 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedChainId = chainId ?? 8453;
-
-    const factoryAddress = process.env[`CHAIN_${resolvedChainId}_FACTORY_ADDRESS`];
+    const factoryAddress = resolveFactoryAddress(resolvedChainId, tokenStandard);
     if (!factoryAddress) {
+      const envKey =
+        tokenStandard === 'erc1155'
+          ? `CHAIN_${resolvedChainId}_ERC1155_FACTORY_ADDRESS`
+          : `CHAIN_${resolvedChainId}_FACTORY_ADDRESS`;
       return NextResponse.json(
-        { error: `No factory address configured for chain ${resolvedChainId}` },
+        { error: `No ${tokenStandard} factory configured (${envKey})` },
         { status: 400 },
       );
     }
@@ -80,11 +91,13 @@ export async function POST(req: NextRequest) {
       data,
       from: ownerAddress,
       chainId: resolvedChainId,
+      tokenStandard,
     };
 
     return NextResponse.json({
       txRequest,
       deploymentId: deployment!.id,
+      tokenStandard,
     });
   } catch (error) {
     console.error('[POST /api/collections/deploy] Error:', error);

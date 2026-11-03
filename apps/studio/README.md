@@ -27,9 +27,13 @@ Runs at [http://localhost:3001](http://localhost:3001) (mvp uses 3000).
    - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — WalletConnect project ID (optional; default exists for dev)
    - `NEXT_PUBLIC_BASE_RPC_URL` / `NEXT_PUBLIC_MAINNET_RPC_URL` — optional RPC overrides
    - `NEXT_PUBLIC_APP_URL` — `https://cryptoart.studio`
-   - `CHAIN_{chainId}_FACTORY_ADDRESS` — per-chain factory (e.g. `CHAIN_11155111_FACTORY_ADDRESS` for Sepolia dev)
-   - `CHAIN_8453_FACTORY_ADDRESS` — Base mainnet factory (when deployed)
-   - `CHAIN_1_FACTORY_ADDRESS` — Ethereum mainnet factory (when deployed)
+   - `CHAIN_{chainId}_FACTORY_ADDRESS` — per-chain ERC-721 factory
+   - `CHAIN_{chainId}_ERC1155_FACTORY_ADDRESS` — per-chain ERC-1155 factory
+   - `TURBO_PRIVATE_KEY` — required in production for Arweave uploads
+   - `X402_FACILITATOR_URL` — required in production when mock payment is off
+   - `CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT=false` — required for production
+   - `CRYPTOART_MEDIA_NETWORK` / `CRYPTOART_MEDIA_ASSET` / `CRYPTOART_MEDIA_PAY_TO` — x402 quote defaults
+
 
 Build command: `pnpm build` (with filter) or default Next.js build from app root.
 

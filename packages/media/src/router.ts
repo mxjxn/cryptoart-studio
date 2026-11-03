@@ -74,7 +74,7 @@ export function createMediaRouter(options: {
         const paymentHeader = String(req.headers['x-payment'] ?? body.paymentHeader ?? '');
         const requirement = requirementFromQuote(quote);
         if (!options.allowMockPayment && paymentHeader.startsWith('mock:')) {
-          return json(402, { error: 'Mock payment is disabled', ...x402PaymentRequired(quote) });
+          return json(402, { ...x402PaymentRequired(quote), error: 'Mock payment is disabled' });
         }
         const verified = await facilitator.verify({ paymentHeader, requirement });
         if (!verified.valid) return json(402, { error: verified.error ?? 'Payment invalid', ...x402PaymentRequired(quote) });
@@ -84,6 +84,7 @@ export function createMediaRouter(options: {
           await store.save(job);
           return json(402, { error: job.errorMessage, job });
         }
+        const usedMock = paymentHeader.startsWith('mock:');
         const job = markPaid(newJob(quote, payer), {
           network: quote.network,
           asset: quote.asset,
@@ -91,8 +92,8 @@ export function createMediaRouter(options: {
           payer,
           payTo: quote.payTo,
           settlementTx: settled.txHash,
-          facilitator: options.allowMockPayment ? 'mock' : 'http',
-          status: options.allowMockPayment ? 'mock' : 'settled',
+          facilitator: usedMock ? 'mock' : 'http',
+          status: usedMock ? 'mock' : 'settled',
         });
         await store.save(job);
         return json(201, { job });
@@ -140,12 +141,19 @@ export function createMediaRouter(options: {
         if ('error' in job) return job;
         if (!job.media) return json(400, { error: 'Upload media before metadata' });
         const body = record(req.body);
+        const attributes = Array.isArray(body.attributes)
+          ? (body.attributes as Array<{ trait_type?: string; value?: string | number }>)
+              .filter((a) => a && a.trait_type && a.value !== undefined && a.value !== '')
+              .map((a) => ({ trait_type: String(a.trait_type), value: a.value as string | number }))
+          : undefined;
         const metadata = metadataObject({
           name: String(body.name ?? job.quote.files[0]?.name ?? 'Artwork'),
           description: body.description ? String(body.description) : undefined,
           mimeType: job.media.mimeType,
           mediaId: job.media.id,
           sha256: job.media.sha256,
+          animationUrl: body.animation_url || body.animationUrl ? String(body.animation_url ?? body.animationUrl) : undefined,
+          attributes,
         });
         const bytes = new TextEncoder().encode(JSON.stringify(metadata));
         try {

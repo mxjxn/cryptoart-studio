@@ -9,7 +9,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cryptoart/db": "file:../db",
@@ -20,6 +21,7 @@
     "@cryptoart/typescript-config": "file:../typescript-config",
     "@types/node": "^22.15.3",
     "tsx": "^4.7.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.1.1"
   }
 }

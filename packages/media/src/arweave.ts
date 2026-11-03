@@ -69,14 +69,20 @@ export function metadataObject(input: {
   sha256: string;
   width?: number;
   height?: number;
+  animationUrl?: string;
+  attributes?: Array<{ trait_type: string; value: string | number }>;
 }) {
+  const mediaUri = `ar://${input.mediaId}`;
+  const isImage = input.mimeType.startsWith('image/');
+  const animation_url = input.animationUrl || (isImage ? undefined : mediaUri);
   return {
     name: input.name,
     description: input.description ?? '',
-    image: `ar://${input.mediaId}`,
-    animation_url: input.mimeType.startsWith('image/') ? undefined : `ar://${input.mediaId}`,
+    image: mediaUri,
+    ...(animation_url ? { animation_url } : {}),
+    ...(input.attributes && input.attributes.length > 0 ? { attributes: input.attributes } : {}),
     content: {
-      uri: `ar://${input.mediaId}`,
+      uri: mediaUri,
       mime: input.mimeType,
       hash: `sha256:${input.sha256}`,
       width: input.width,

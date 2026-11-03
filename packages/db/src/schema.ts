@@ -1122,6 +1122,9 @@ export const collections = pgTable('collections', {
   royaltyReceiver: text('royalty_receiver'),
   royaltyBPS: integer('royalty_bps').default(0),
 
+  /** erc721 = 1/1s collection; erc1155 = multi-supply (limited or open) */
+  tokenStandard: text('token_standard').notNull().default('erc721'),
+
   description: text('description'),
   imageUrl: text('image_url'),
   bannerUrl: text('banner_url'),
@@ -1446,5 +1449,22 @@ export const paymentReceipts = pgTable('payment_receipts', {
 }, (table) => ({
   idempotencyIdx: uniqueIndex('payment_receipts_idempotency_key_idx').on(table.idempotencyKey),
   jobIdx: index('payment_receipts_job_id_idx').on(table.jobId),
+}));
+
+export const arweaveRecords = pgTable('arweave_records', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  jobId: uuid('job_id').notNull().references(() => uploadJobs.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  txId: text('tx_id').notNull(),
+  sha256: text('sha256').notNull(),
+  mimeType: text('mime_type').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  gateways: jsonb('gateways').$type<string[]>().notNull().default([]),
+  simulated: boolean('simulated').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  jobRoleIdx: uniqueIndex('arweave_records_job_role_idx').on(table.jobId, table.role),
+  txIdx: index('arweave_records_tx_id_idx').on(table.txId),
 }));
 

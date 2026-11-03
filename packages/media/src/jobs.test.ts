@@ -89,4 +89,24 @@ describe('paid upload job machine', () => {
     });
     expect(Number(quote.usdcAmount)).toBeGreaterThan(0);
   });
+
+  it('rejects mock payment headers when mock payment is disabled', async () => {
+    const bytes = new Uint8Array([1]);
+    const router = createMediaRouter({
+      payTo: '0x1111111111111111111111111111111111111111',
+      allowMockPayment: false,
+    });
+    const quoted = await router.handle({
+      method: 'POST', pathname: '/quote', headers: {},
+      body: { files: [{ name: 'a.png', mimeType: 'image/png', size: 1, sha256: contentHash(bytes) }] },
+    });
+    const idempotencyKey = (quoted.body as { quote: { idempotencyKey: string } }).quote.idempotencyKey;
+    const paid = await router.handle({
+      method: 'POST', pathname: '/jobs', headers: { 'x-payment': 'mock:allow' },
+      payer: '0x2222222222222222222222222222222222222222',
+      body: { idempotencyKey },
+    });
+    expect(paid.status).toBe(402);
+    expect((paid.body as { error: string }).error).toMatch(/mock payment/i);
+  });
 });

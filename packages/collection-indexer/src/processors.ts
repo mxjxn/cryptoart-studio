@@ -54,8 +54,10 @@ export async function processCollectionCreated(
     fromAddress: string;
     royaltyReceiver: string | null;
     royaltyBPS: number | null;
+    tokenStandard?: 'erc721' | 'erc1155';
   },
 ): Promise<string> {
+  const tokenStandard = params.tokenStandard ?? 'erc721';
   const result = await db
     .insert(collections)
     .values({
@@ -69,6 +71,7 @@ export async function processCollectionCreated(
       ownerAddress: params.ownerAddress,
       royaltyReceiver: params.royaltyReceiver,
       royaltyBPS: params.royaltyBPS,
+      tokenStandard,
       status: 'active',
       confirmedAt: params.blockTimestamp,
     })
@@ -76,6 +79,7 @@ export async function processCollectionCreated(
       target: [collections.contractAddress, collections.chainId],
       set: {
         ownerAddress: params.ownerAddress,
+        tokenStandard,
         status: 'active',
         confirmedAt: params.blockTimestamp,
         updatedAt: new Date(),

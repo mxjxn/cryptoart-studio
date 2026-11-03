@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SuchCollection factory deployment manifest",
+  "type": "object",
+  "required": ["generatedAt", "gitCommit", "solc", "optimizer", "chains"],
+  "properties": {
+    "generatedAt": { "type": "string" },
+    "gitCommit": { "type": "string" },
+    "solc": { "type": "string" },
+    "optimizer": {
+      "type": "object",
+      "required": ["enabled", "runs"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "runs": { "type": "integer" }
+      }
+    },
+    "chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["chainId", "name", "factories", "startBlock"],
+        "properties": {
+          "chainId": { "type": "integer" },
+          "name": { "type": "string" },
+          "startBlock": { "type": "integer" },
+          "factories": {
+            "type": "object",
+            "required": ["erc721", "erc1155"],
+            "properties": {
+              "erc721": { "type": ["string", "null"] },
+              "erc1155": { "type": ["string", "null"] }
+            }
+          },
+          "deployTxHashes": {
+            "type": "object",
+            "properties": {
+              "erc721": { "type": ["string", "null"] },
+              "erc1155": { "type": ["string", "null"] }
+            }
+          },
+          "verified": {
+            "type": "object",
+            "properties": {
+              "erc721": { "type": "boolean" },
+              "erc1155": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,18 +8,30 @@ import {
   toPlatformRequest,
 } from '@cryptoart/identity';
 import {
+  BASE_NETWORK,
+  BASE_USDC,
+  createHttpFacilitator,
   createMediaRouter,
   createMemoryMediaStore,
+  createMockFacilitator,
   createPostgresMediaStore,
   createSimulatedArweave,
   createTurboArweave,
 } from '@cryptoart/media';
 
 const postgresUrl = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
+const isProd = process.env.NODE_ENV === 'production';
+
+function resolveAllowMockPayment(): boolean {
+  if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'true') return true;
+  if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'false') return false;
+  return !isProd;
+}
+
 const identity = createIdentityRouter({
   store: postgresUrl ? createPostgresIdentityStore(postgresUrl) : createMemoryIdentityStore(),
   ownerAddress: process.env.CRYPTOART_OWNER_ADDRESS,
-  secureCookies: process.env.NODE_ENV === 'production',
+  secureCookies: isProd,
 });
 
 let mediaPromise: ReturnType<typeof createMediaRouter> | Promise<ReturnType<typeof createMediaRouter>> | null = null;
@@ -27,16 +39,34 @@ let mediaPromise: ReturnType<typeof createMediaRouter> | Promise<ReturnType<type
 async function mediaRouter() {
   if (mediaPromise) return mediaPromise;
   mediaPromise = (async () => {
+    const allowMockPayment = resolveAllowMockPayment();
+
+    if (isProd && !process.env.TURBO_PRIVATE_KEY) {
+      throw new Error('TURBO_PRIVATE_KEY is required in production for Arweave uploads');
+    }
+    if (isProd && !allowMockPayment && !process.env.X402_FACILITATOR_URL) {
+      throw new Error('X402_FACILITATOR_URL is required in production when mock payment is disabled');
+    }
+
     const arweave = process.env.TURBO_PRIVATE_KEY
       ? await createTurboArweave(process.env.TURBO_PRIVATE_KEY)
       : createSimulatedArweave();
+
+    const facilitator = process.env.X402_FACILITATOR_URL
+      ? await createHttpFacilitator(process.env.X402_FACILITATOR_URL)
+      : createMockFacilitator();
+
     return createMediaRouter({
       store: postgresUrl ? createPostgresMediaStore(postgresUrl) : createMemoryMediaStore(),
       arweave,
-      payTo: process.env.CRYPTOART_MEDIA_PAY_TO || process.env.CRYPTOART_OWNER_ADDRESS || '0x0000000000000000000000000000000000000000',
-      allowMockPayment: process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT !== 'false',
-      network: process.env.CRYPTOART_MEDIA_NETWORK,
-      asset: process.env.CRYPTOART_MEDIA_ASSET,
+      facilitator,
+      payTo:
+        process.env.CRYPTOART_MEDIA_PAY_TO ||
+        process.env.CRYPTOART_OWNER_ADDRESS ||
+        '0x0000000000000000000000000000000000000000',
+      allowMockPayment,
+      network: process.env.CRYPTOART_MEDIA_NETWORK || (isProd ? BASE_NETWORK : undefined),
+      asset: process.env.CRYPTOART_MEDIA_ASSET || (isProd ? BASE_USDC : undefined),
     });
   })();
   return mediaPromise;
