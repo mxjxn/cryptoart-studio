@@ -28,6 +28,7 @@ interface CollectionsResponse {
 
 const CHAIN_NAMES: Record<number, string> = {
   8453: 'Base',
+  84532: 'Base Sepolia',
   1: 'Ethereum',
   11155111: 'Sepolia',
 };

@@ -205,6 +205,7 @@ export default function DeployWizardPage() {
             >
               <div className="flex flex-col gap-3">
                 {[
+                  { id: 84532, label: 'Base Sepolia', desc: 'Preview / test deployments' },
                   { id: 8453, label: 'Base', desc: 'Low gas fees, fast transactions' },
                   { id: 1, label: 'Ethereum', desc: 'The original chain for NFTs' },
                 ].map((chain) => (
@@ -391,7 +392,16 @@ export default function DeployWizardPage() {
               <div className="flex flex-col gap-4">
                 <ReviewRow label="Name" value={formData.name ?? ''} />
                 <ReviewRow label="Symbol" value={formData.symbol ?? ''} />
-                <ReviewRow label="Chain" value={formData.chainId === 1 ? 'Ethereum' : 'Base'} />
+                <ReviewRow
+                  label="Chain"
+                  value={
+                    formData.chainId === 1
+                      ? 'Ethereum'
+                      : formData.chainId === 84532
+                        ? 'Base Sepolia'
+                        : 'Base'
+                  }
+                />
                 <ReviewRow
                   label="Standard"
                   value={tokenStandard === 'erc721' ? '1/1s · ERC-721' : 'Multi-supply · ERC-1155'}

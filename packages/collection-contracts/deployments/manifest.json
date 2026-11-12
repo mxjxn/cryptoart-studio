@@ -1,12 +1,30 @@
 {
-  "generatedAt": "2026-11-03T01:17:04.400Z",
-  "gitCommit": "72bf4cb56c9d31b135e86a7ba30509c610d4d27e",
+  "generatedAt": "2026-11-12T21:00:00.000Z",
+  "gitCommit": "pending",
   "solc": "0.8.27",
   "optimizer": {
     "enabled": true,
     "runs": 1000
   },
   "chains": [
+    {
+      "chainId": 84532,
+      "name": "base-sepolia",
+      "startBlock": 0,
+      "factories": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "deployTxHashes": {
+        "erc721": null,
+        "erc1155": null
+      },
+      "verified": {
+        "erc721": false,
+        "erc1155": false
+      },
+      "notes": "Preview/test chain for branch deploys before Base/Eth mainnet."
+    },
     {
       "chainId": 8453,
       "name": "base",

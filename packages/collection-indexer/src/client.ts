@@ -1,10 +1,11 @@
 import { createPublicClient, http, type PublicClient, type Chain } from 'viem';
-import { base, mainnet, sepolia } from 'viem/chains';
+import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import type { ChainConfig } from './config.js';
 
 const KNOWN_CHAINS: Record<number, Chain> = {
   1: mainnet,
   8453: base,
+  84532: baseSepolia,
   11155111: sepolia,
 };
 

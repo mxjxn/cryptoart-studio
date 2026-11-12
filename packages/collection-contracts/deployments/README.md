@@ -2,7 +2,9 @@
 
 Checked-in recovery input for Studio + the collection indexer.
 
-**Status (2026-11-12):** Base (`8453`) and Ethereum (`1`) factory addresses in [`manifest.json`](./manifest.json) are still `null`. No operator broadcast has been recorded. Only the anvil local proof addresses are filled. Full catch-up: [`docs/plans/2026-11-12-branch-catchup-and-factory-status.md`](../../../docs/plans/2026-11-12-branch-catchup-and-factory-status.md).
+**Status (2026-11-12):** Base Sepolia (`84532`), Base (`8453`), and Ethereum (`1`) factory addresses in [`manifest.json`](./manifest.json) are still `null` for live networks. Only the anvil local proof addresses are filled. Full catch-up: [`docs/plans/2026-11-12-branch-catchup-and-factory-status.md`](../../../docs/plans/2026-11-12-branch-catchup-and-factory-status.md).
+
+**Note:** An imgnAI / Hypersnap validator is for **Farcaster message submit** (Social compose). It does **not** deploy NFT factories. Factories need a chain RPC + funded deployer key.
 
 ## Local proof
 
@@ -12,6 +14,28 @@ cd packages/collection-contracts
 ```
 
 Writes `deployments/anvil.json` and updates smoke addresses.
+
+## Preview / test — Base Sepolia (branch deploys)
+
+```bash
+export PLATFORM_OWNER_ADDRESS=0x...   # factory Ownable
+export DEPLOYER_PRIVATE_KEY=0x...     # funded on Base Sepolia
+# optional:
+# export BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+
+cd packages/collection-contracts
+./script/deploy-preview-base-sepolia.sh
+```
+
+Then set on the Studio **preview** host (do this yourself in Vercel; agents do not write `.env*`):
+
+```
+CHAIN_84532_FACTORY_ADDRESS=…
+CHAIN_84532_ERC1155_FACTORY_ADDRESS=…
+CHAIN_84532_START_BLOCK=…
+```
+
+Wizard includes **Base Sepolia** as the preview chain option.
 
 ## Mainnet / Base broadcast (operator)
 
