@@ -2,6 +2,8 @@
 
 Checked-in recovery input for Studio + the collection indexer.
 
+**Status (2026-11-12):** Base (`8453`) and Ethereum (`1`) factory addresses in [`manifest.json`](./manifest.json) are still `null`. No operator broadcast has been recorded. Only the anvil local proof addresses are filled. Full catch-up: [`docs/plans/2026-11-12-branch-catchup-and-factory-status.md`](../../../docs/plans/2026-11-12-branch-catchup-and-factory-status.md).
+
 ## Local proof
 
 ```bash

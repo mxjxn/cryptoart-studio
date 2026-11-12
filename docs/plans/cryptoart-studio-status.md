@@ -1,7 +1,9 @@
 # cryptoart.studio — compact status
 
-**Updated:** 2026-09-08
+**Updated:** 2026-11-12  
 **Full spec:** [2026-06-cryptoart-studio.md](./2026-06-cryptoart-studio.md)  
+**Branch catch-up:** [2026-11-12-branch-catchup-and-factory-status.md](./2026-11-12-branch-catchup-and-factory-status.md)  
+**Factory runbook:** [2026-11-03-all-in-factory-launch-runbook.md](./2026-11-03-all-in-factory-launch-runbook.md)  
 **Project board:** [cryptoart.studio](https://github.com/users/mxjxn/projects/2) · issues `#159`–`#168`
 
 ---
@@ -20,51 +22,71 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 - **Volume column:** `—` until listings.
 - **Public pages:** yes (`/c/[chainId]/[address]/…`).
 - **Royalties:** 10% default, opt-out only.
-- **Chains:** Base + Ethereum.
-- **API home:** `apps/studio` (move from mvp).
-- **Collection type (Nov 2):** never offer a contract intended for a single artwork. Deploy choice is **1/1s → ERC-721** or **multi-supply → ERC-1155**. A 721 collection may hold many unique 1/1 tokens. 1155 tokens have a supply (limited or open) — not numbered editions. Open/limited supply is a mint setting on the 1155 path, not a third deploy type.
+- **Chains:** Base + Ethereum (all-in; no Base-only soft launch).
+- **API home:** `apps/studio` (moved from mvp).
+- **Collection type (Nov 2):** never a single-artwork-only contract. Deploy choice is **1/1s → ERC-721** or **multi-supply → ERC-1155**. 1155 = limited or open supply — not numbered editions.
+- **Launch bar (Nov 3):** no production main until 721+1155 factories live on Base+Eth, Turbo Arweave + real x402, Studio mint/deploy E2E, indexer clean-room green.
 
 ---
 
-## Done
+## Branch reality (Nov 12)
+
+| Layer | Ref | On `main`? |
+|-------|-----|------------|
+| Social-first desk | `feat/social-web-foundation` = `feat/social-studio-integration` @ `853ca747` | No |
+| Studio wizard/UI + drafts | `72bf4cb5` on cloud tip | No |
+| 721/1155 factories + media/indexer wiring | `7dd47a9a` (PR [#198](https://github.com/mxjxn/cryptoart-studio/pull/198)) | No — PR conflicts with `main` |
+| Market/auction fixes | `main` @ `ed976125` (#194, #195) | Yes |
+
+`main` does **not** have Social desk or the factory work. Operator has **not** deployed Base/Eth factories.
+
+---
+
+## Done (code — on cloud tip, not main)
 
 | Layer | Status |
 |-------|--------|
 | Spec + issues + project | ✅ |
-| `packages/collection-contracts` | ✅ Sepolia factory |
-| `packages/collection-indexer` + DB `0023` | ✅ |
-| `/api/collections/*` in **apps/studio** | ✅ (moved from mvp) |
-| `apps/studio` scaffold (#159) | ✅ main |
-| Dev ASCII banner (#171) | ✅ main |
-| Auth (#160) | ✅ main |
+| ERC-721 `SuchCollection` + factory | ✅ (Sepolia historically; mainnet addresses unset) |
+| ERC-1155 `SuchCollection1155` + factory | ✅ code + anvil E2E |
+| Indexer multi-factory + 1155 transfer events | ✅ |
+| DB `0023` collections + `0027` drafts + `0028` token_standard + `0029` arweave_records | ✅ migrations on tip |
+| Collections API in `apps/studio` | ✅ |
+| Deploy wizard + mint wizard (paid pin → mint) | ✅ on tip |
+| Prod media defaults (Turbo / mock-off / facilitator) | ✅ code path |
+| Base + Ethereum factory broadcast + verify | ❌ not done |
+| Manifest Base/Eth addresses | ❌ still `null` |
+| Hosted indexer + clean-room against real Postgres | ❌ |
 
 ---
 
 ## Next (in order)
 
-1. Specify and test the x402-funded Arweave job state machine, including retries, payment reconciliation, confirmation, and recovery. Scaffold: Studio `/media/upload` (`@cryptoart/media`).
-2. Add `collection_drafts`, upload jobs, payment receipts, and canonical Arweave transaction records.
-3. Complete the deploy wizard and collection dashboard/public pages.
-4. Complete single and series mint flows using the proven paid-upload pipeline.
-5. Share auction creation and management with Social.
-6. Deploy mainnet factories, finish indexer operations, and pass the clean-room reconstruction drill.
+1. **Unstack PRs** — land Social (+ Studio UI) separately from factory, or rebase factory-only onto an agreed base; do not merge mega-PR #198 into `main` as-is.
+2. Reconcile with current `origin/main` (include #194/#195).
+3. Operator: deploy+verify 721/1155 factories on Base and Ethereum; record via `scripts/record-factory-deployment.mjs`.
+4. Set Studio + indexer env; run `scripts/clean-room-reconstruction.sh`.
+5. Production media secrets (`TURBO_PRIVATE_KEY`, `X402_FACILITATOR_URL`, mock pay false).
+6. Series mint polish + shared auction management with Social (Stage B edge).
 
-See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md). Existing issue numbers remain useful, but their implementation order now follows the paid media proof rather than building mint UI on an unsettled storage boundary.
+See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md).
 
 ---
 
 ## Key paths
 
 ```
-apps/studio/          UI (port 3001, pnpm dev:studio)
-apps/studio/src/app/api/collections/   Collections API
+apps/studio/                 UI (port 3001)
+apps/studio/src/app/api/     Collections + drafts + media + factories
 packages/collection-contracts/
+packages/collection-contracts/deployments/manifest.json
 packages/collection-indexer/
-archive/studio-app-archived/    Arweave UX reference only
+packages/media/
+archive/studio-app-archived/   Arweave UX reference only
 ```
 
 ---
 
 ## Paste for new chat
 
-> Building **cryptoart.studio** (`apps/studio`). Stage A = mint/manage only. Backend done (contracts, indexer). Main has scaffold, auth, dev banner; collections API in studio. **Next: #162 (drafts).** Read `docs/plans/cryptoart-studio-status.md` + `2026-06-cryptoart-studio.md`.
+> Catch-up: tip `cursor/cloud-agent-1793668111647-jftwu` stacks Social (`853ca747`) + Studio UI + factory launch (`7dd47a9a`). **Not on main.** PR #198 conflicts. **No Base/Eth factories deployed.** Read `docs/plans/2026-11-12-branch-catchup-and-factory-status.md` + `cryptoart-studio-status.md`.
