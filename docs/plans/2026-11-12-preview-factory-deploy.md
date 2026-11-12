@@ -38,12 +38,14 @@ If you must share, provide:
 - That `DEPLOYER_PRIVATE_KEY` is available in the agent shell env (you set it)
 - Optional custom `BASE_SEPOLIA_RPC_URL`
 
-## Hypersnap / imgnAI (for later compose)
+## Hypersnap / imgnAI (parallel Social compose track)
 
-When ready for Social writes, share:
+Compose scaffold is on this branch (`/compose`, `/api/cryptoart/compose*`, `SNAPCHAIN_SUBMIT_URL`). It does **not** block factory deploy.
 
-- Submit base URL (HTTP `POST /v1/submitMessage` and/or gRPC host:port)
-- Auth requirements (none / basic / bearer)
+When the validator is ready, share and set:
+
+- Submit base URL → `SNAPCHAIN_SUBMIT_URL` (HTTP `POST /v1/submitMessage`)
+- Auth → optional `SNAPCHAIN_SUBMIT_AUTH`
 - Whether it is validator-direct or read-node relay
 
-That path is documented in [2026-11-12-hypersnap-write-path.md](./2026-11-12-hypersnap-write-path.md).
+Details: [2026-11-12-hypersnap-write-path.md](./2026-11-12-hypersnap-write-path.md).

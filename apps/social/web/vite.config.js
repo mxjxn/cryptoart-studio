@@ -6,6 +6,7 @@ import {
   HYPERSNAP_BASE_URL,
   marketMiddleware,
 } from './src/cryptoart/server';
+import { composeMiddleware } from './src/cryptoart/compose';
 import { platformMiddleware } from './src/cryptoart/platform';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -15,45 +16,36 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 
 const httpsEnabled = process.env.HTTPS === 'true';
 
+function attachCryptoartMiddlewares(server, env) {
+  server.middlewares.use(platformMiddleware(env));
+  server.middlewares.use(
+    assetDiscoveryMiddleware(
+      env.ALCHEMY_API_KEY ||
+        env.NEXT_PUBLIC_ALCHEMY_API_KEY ||
+        process.env.ALCHEMY_API_KEY,
+    ),
+  );
+  server.middlewares.use(marketMiddleware());
+  server.middlewares.use(
+    farcasterAccountMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
+  );
+  server.middlewares.use(
+    feedMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
+  );
+  server.middlewares.use(composeMiddleware(env));
+}
+
 export default defineConfig({
   plugins: [
     {
       name: 'cryptoart-feed',
       configureServer(server) {
         const env = loadEnv(server.config.mode, process.cwd(), '');
-        server.middlewares.use(platformMiddleware(env));
-        server.middlewares.use(
-          assetDiscoveryMiddleware(
-            env.ALCHEMY_API_KEY ||
-              env.NEXT_PUBLIC_ALCHEMY_API_KEY ||
-              process.env.ALCHEMY_API_KEY,
-          ),
-        );
-        server.middlewares.use(marketMiddleware());
-        server.middlewares.use(
-          farcasterAccountMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
-        );
-        server.middlewares.use(
-          feedMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
-        );
+        attachCryptoartMiddlewares(server, env);
       },
       configurePreviewServer(server) {
         const env = loadEnv(server.config.mode, process.cwd(), '');
-        server.middlewares.use(platformMiddleware(env));
-        server.middlewares.use(
-          assetDiscoveryMiddleware(
-            env.ALCHEMY_API_KEY ||
-              env.NEXT_PUBLIC_ALCHEMY_API_KEY ||
-              process.env.ALCHEMY_API_KEY,
-          ),
-        );
-        server.middlewares.use(marketMiddleware());
-        server.middlewares.use(
-          farcasterAccountMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
-        );
-        server.middlewares.use(
-          feedMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
-        );
+        attachCryptoartMiddlewares(server, env);
       },
     },
     react(),

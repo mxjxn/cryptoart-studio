@@ -1,7 +1,7 @@
 import { WalletIdentityButton } from './WalletIdentityButton';
 
-export function CryptoartHeader({ active }: { active?: 'feed' | 'market' | 'admin' }) {
-  const tab = (name: 'feed' | 'market') =>
+export function CryptoartHeader({ active }: { active?: 'feed' | 'market' | 'compose' | 'admin' }) {
+  const tab = (name: 'feed' | 'market' | 'compose') =>
     active === name ? 'text-white border-b-2 border-white' : 'text-[#aaa] hover:text-white border-b-2 border-transparent';
   return <>
     <a href="https://cryptoart.social/membership" className="cryptoart-mono block bg-[#f5b0d3] px-4 py-2 text-center text-[11px] font-medium text-black sm:text-xs">
@@ -15,6 +15,7 @@ export function CryptoartHeader({ active }: { active?: 'feed' | 'market' | 'admi
         <nav className="flex items-center gap-5 text-sm font-medium" aria-label="Primary">
           <a href="/" className={`pb-0.5 ${tab('feed')}`}>Feed</a>
           <a href="/market" className={`pb-0.5 ${tab('market')}`}>Market</a>
+          <a href="/compose" className={`pb-0.5 ${tab('compose')}`}>Compose</a>
           <a href="https://cryptoart.studio" className="pb-0.5 text-[#aaa] hover:text-white">Studio ↗</a>
           {active === 'admin' && <a href="/admin/curators" className="pb-0.5 text-white border-b-2 border-white">Admin</a>}
         </nav>

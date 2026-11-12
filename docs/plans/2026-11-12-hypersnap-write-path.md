@@ -68,15 +68,36 @@ The guide assumes **write access to a Snapchain/Hub node**. Public Hypersnap HTT
 
 ## Mapping onto cryptoart.social
 
-Current code (`apps/social/web/src/cryptoart/server.ts`) only **reads** Hypersnap feeds. Compose is blocked on write verification — that was correct.
+**Scaffold (this branch):** Social desk now has a gated write path that runs **in parallel** with factory preview deploy work.
 
-### Minimal product slice
+| Piece | Path / env | Status |
+|-------|------------|--------|
+| Read client | `HYPERSNAP_BASE_URL` → feed/account middleware | Live |
+| Submit client | `SNAPCHAIN_SUBMIT_URL` (+ optional `SNAPCHAIN_SUBMIT_AUTH`) → `snapchainSubmit.ts` | Scaffolded |
+| Compose API | `GET/POST /api/cryptoart/compose`, `GET /api/cryptoart/compose/status` | Scaffolded; publish gated |
+| Compose UI | `/compose` in desk `Shell` + header tab | Scaffolded; shows blockers |
+| Signer gate | `CRYPTOART_SIGNER_READY=true` after KEY_ADD; optional `CRYPTOART_APP_FID` | Not wired yet |
 
-1. **Session** — know FID + custody address (wallet SIWE / verified address → FID directory; already partly there).
-2. **App identity** — Cryptoart app FID + custody key (server secret) for `SignedKeyRequest` metadata.
-3. **Authorize signer** — UI: “Allow Cryptoart to post” → custody signs gasless `KEY_ADD` → store encrypted app signer material server-side (or device-held if we refuse custody of keys).
-4. **Compose** — server or client builds `CastAdd` (text + optional artwork embed URL) → `submitMessage` to writable node.
-5. **Read-back** — poll/list via Hypersnap HTTP until the cast appears in feed/profile.
+`POST /api/cryptoart/compose` without `SNAPCHAIN_SUBMIT_URL` returns **202** (draft acknowledged, not submitted). With submit URL but no `signedMessageHex` (and no ready gasless signer path) it returns **501**. When both submit URL and hex-encoded signed `Message` protobuf are present, bytes are forwarded as `application/octet-stream` to `{SNAPCHAIN_SUBMIT_URL}/v1/submitMessage`.
+
+### imgnAI plug-in
+
+When the imgnAI Hypersnap validator (or any writable relay) is shared:
+
+1. Set `SNAPCHAIN_SUBMIT_URL` to that base (no trailing slash required).
+2. Set `SNAPCHAIN_SUBMIT_AUTH` if the node needs `Authorization`.
+3. Keep `HYPERSNAP_BASE_URL` on the public read API — do **not** point reads at the validator unless it also serves `/v2/farcaster`.
+4. After gasless `KEY_ADD` for the app signer, set `CRYPTOART_SIGNER_READY=true` and wire `makeCastAdd` so compose can mint signed bytes server-side (today: pass `signedMessageHex` for bring-your-own).
+
+Factories / Base Sepolia deploys are **independent** of this track.
+
+### Minimal product slice (remaining)
+
+1. **Session** — FID + custody (SIWE / directory; partly there).
+2. **App identity** — Cryptoart app FID + custody key for `SignedKeyRequest` metadata (`CRYPTOART_APP_FID`).
+3. **Authorize signer** — UI: “Allow Cryptoart to post” → custody signs gasless `KEY_ADD` → store encrypted app signer material.
+4. **Compose** — build `CastAdd` (text + optional artwork embed) → submit (scaffold accepts pre-signed hex today).
+5. **Read-back** — Hypersnap HTTP until the cast appears in feed/profile.
 
 ### Explicit non-goals from this guide alone
 
@@ -86,11 +107,11 @@ Current code (`apps/social/web/src/cryptoart/server.ts`) only **reads** Hypersna
 
 ---
 
-## Decisions still needed before coding compose
+## Decisions still open (do not block scaffold)
 
-1. **Writable node provider** — self-hosted Snapchain, third-party Hub with submit, or managed API.
-2. **Signer custody model** — app-held gasless signer (simpler UX) vs user-device signer (harder, less trust).
-3. **App FID** — dedicated Cryptoart FID for request metadata (required for proper gasless `SignedKeyRequest`).
+1. **Writable node provider** — imgnAI validator vs self-hosted Snapchain vs managed API.
+2. **Signer custody model** — app-held gasless signer (simpler UX) vs user-device signer.
+3. **App FID** — dedicated Cryptoart FID for request metadata.
 4. **Scopes + TTL** — start with cast/reaction only; 30-day sliding TTL as in the guide example.
 
-Until those are chosen, keep `/compose` gated and keep reading from Hypersnap as today.
+`/compose` stays gated until submit URL + signer are ready; Hypersnap reads continue as today.

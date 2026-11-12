@@ -7,6 +7,7 @@ import { ExhibitionPage } from '~/pages/exhibitions/ExhibitionPage';
 import { CreateListingPage } from '~/pages/listing/CreateListingPage';
 import { ListingPage } from '~/pages/listing/ListingPage';
 import { MarketAllPage } from '~/pages/market/MarketAllPage';
+import { ComposePage } from './ComposePage';
 import { CryptoartFeed } from './Feed';
 import { CryptoartHeader } from './CryptoartHeader';
 import { wagmiConfig } from './wagmi';
@@ -35,6 +36,7 @@ export function Shell() {
           <Route path="/listing/base/:listingId" element={<ListingPage chainHint="base" />} />
           <Route path="/listing/:listingId" element={<ListingPage chainHint="base" />} />
           <Route path="/create" element={<CreateListingPage />} />
+          <Route path="/compose" element={<ComposePage />} />
           <Route path="/exhibitions/:slug" element={<ExhibitionPage />} />
           <Route path="/admin" element={<CuratorDirectoryPage />} />
           <Route path="/admin/curators" element={<CuratorDirectoryPage />} />
