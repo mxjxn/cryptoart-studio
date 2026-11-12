@@ -77,16 +77,23 @@ Canonical operator steps: [2026-11-03-all-in-factory-launch-runbook.md](./2026-1
 
 ---
 
-## Recommended sequencing (catch-up)
+## Release policy (locked Nov 12)
 
-1. **Decide PR shape** — do not merge #198 into `main` as one mega-PR.
-   - Prefer: open/land Social (`feat/social-web-foundation` or `feat/social-studio-integration`) → then a **factory-only** PR off that tip (or rebase factory commits onto updated main after Social lands).
-2. **Reconcile with `main`** — rebase or merge `origin/main` into the chosen tip so #194/#195 are included before any cutover.
-3. **Operator broadcast** (when ready) — Base then Ethereum, both factories, verify, `node scripts/record-factory-deployment.mjs …`, set env, run clean-room script.
-4. **Only then** point production Studio at live factory addresses with mock payment disabled.
+**Do not merge incrementally into `main`.** Relaunch is all-at-once: Social + Studio minting + factories + write path must work on the branch (preview / test deploys) before anything lands on `main`.
+
+- Work and test-deploy from this stacked tip (and child branches if needed).
+- PR #198 may stay open as a tracking PR; treat conflicts with `main` as expected until cutover.
+- Periodically **rebase or merge `origin/main` into the tip** so market/auction fixes stay available — that is integration hygiene, not a partial launch.
+
+## Recommended sequencing (on-branch)
+
+1. Keep building on `cursor/cloud-agent-1793668111647-jftwu` (or a branch off it).
+2. Studio path: operator broadcast Base+Eth factories when ready; wire env on preview; finish Arweave prod + mint E2E on the branch.
+3. Social path: choose cast write model (app-held gasless signer vs user-signed); wire compose against a writable Snapchain submit; keep Hypersnap HTTP for reads.
+4. Full relaunch gate: minting + new Social both working on branch previews → then single cutover to `main` / production.
 
 ---
 
 ## Paste for a new session
 
-> Catch-up: tip is `cursor/cloud-agent-1793668111647-jftwu` (`7dd47a9a`), stacked on `feat/social-studio-integration` / `feat/social-web-foundation` (`853ca747`). Social+Studio UI are **not** on `main`. PR #198 → main is CONFLICTING and oversized. **No Base/Eth factories deployed.** Read `docs/plans/2026-11-12-branch-catchup-and-factory-status.md` + factory runbook.
+> Catch-up: tip `cursor/cloud-agent-1793668111647-jftwu` stacks Social + Studio + factory launch. **No incremental merges to `main`** — all-at-once relaunch when minting + Social work on branch. PR #198 tracks the tip; conflicts with main are expected. **No Base/Eth factories deployed.** Read `docs/plans/2026-11-12-branch-catchup-and-factory-status.md`.

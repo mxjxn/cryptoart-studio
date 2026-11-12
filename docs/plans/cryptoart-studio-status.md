@@ -60,16 +60,19 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 
 ---
 
-## Next (in order)
+## Release policy (locked Nov 12)
 
-1. **Unstack PRs** — land Social (+ Studio UI) separately from factory, or rebase factory-only onto an agreed base; do not merge mega-PR #198 into `main` as-is.
-2. Reconcile with current `origin/main` (include #194/#195).
-3. Operator: deploy+verify 721/1155 factories on Base and Ethereum; record via `scripts/record-factory-deployment.mjs`.
-4. Set Studio + indexer env; run `scripts/clean-room-reconstruction.sh`.
-5. Production media secrets (`TURBO_PRIVATE_KEY`, `X402_FACILITATOR_URL`, mock pay false).
-6. Series mint polish + shared auction management with Social (Stage B edge).
+**No incremental merges to `main`.** Ship Social + Studio minting + factories together at relaunch. Until then: develop and test-deploy from the stacked branch tip. Periodically merge/rebase `origin/main` into the tip for hygiene only.
 
-See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md).
+## Next (on-branch, in order)
+
+1. Operator: deploy+verify 721/1155 factories on Base and Ethereum when ready; record via `scripts/record-factory-deployment.mjs` (preview/test env first).
+2. Set Studio + indexer env on branch deploys; run `scripts/clean-room-reconstruction.sh`.
+3. Production-shaped media secrets on preview (`TURBO_PRIVATE_KEY`, `X402_FACILITATOR_URL`, mock pay false).
+4. Social compose: pick write model + writable Snapchain submit ([write-path note](./2026-11-12-hypersnap-write-path.md)).
+5. When minting **and** new Social both work on branch → single cutover to `main` / production.
+
+See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md) and [branch catch-up](./2026-11-12-branch-catchup-and-factory-status.md).
 
 ---
 
@@ -89,4 +92,4 @@ archive/studio-app-archived/   Arweave UX reference only
 
 ## Paste for new chat
 
-> Catch-up: tip `cursor/cloud-agent-1793668111647-jftwu` stacks Social (`853ca747`) + Studio UI + factory launch (`7dd47a9a`). **Not on main.** PR #198 conflicts. **No Base/Eth factories deployed.** Read `docs/plans/2026-11-12-branch-catchup-and-factory-status.md` + `cryptoart-studio-status.md`.
+> Catch-up: tip `cursor/cloud-agent-1793668111647-jftwu` stacks Social + Studio + factory launch. **No incremental `main` merges** — all-at-once relaunch when minting + Social work on branch. PR #198 tracks tip (conflicts expected). **No Base/Eth factories deployed.** Read `docs/plans/2026-11-12-branch-catchup-and-factory-status.md` + `cryptoart-studio-status.md`.
