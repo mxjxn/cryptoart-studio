@@ -152,6 +152,9 @@ export function getDatabase() {
   return globalForDb.db;
 }
 
+// Export singleton instance for convenience
+export const db = getDatabase();
+
 // Export schema for use in other packages
 export { 
   userCache, 
