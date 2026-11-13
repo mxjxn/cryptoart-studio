@@ -34,8 +34,10 @@ export const MARKETPLACE_CONTRACTS: ContractConfig[] = [
   },
   {
     chainId: 84532, // Base Sepolia
+    // Proxy address from docs/CONTRACT_ADDRESSES.md
     address: '0xfd35bF63448595377d5bc2fCB435239Ba2AFB3ea' as Address,
-    startBlock: 18179940n, // Base Sepolia marketplace proxy deploy block
+    // Deploy block is env-driven — docs don't list it; require CHAIN_84532_START_BLOCK
+    startBlock: 0n,
     abi: [...MarketplaceLibABI, ...SettlementLibABI],
     events: [
       'CreateListing',
@@ -118,13 +120,50 @@ export const MARKETPLACE_CONTRACTS: ContractConfig[] = [
 // ];
 
 /**
- * All contracts to index (marketplace includes settlement events)
+ * All known marketplace configs (may include chains without RPC/start block yet).
+ * Prefer getConfiguredContracts() for runtime indexing.
  */
 export const ALL_CONTRACTS: ContractConfig[] = [
   ...MARKETPLACE_CONTRACTS,
   // ...STP_V2_CONTRACTS, // Uncomment when ready
   // ...LSSVM_CONTRACTS, // Uncomment when ready
 ];
+
+/**
+ * Resolve start block from CHAIN_<id>_START_BLOCK, falling back to config.startBlock.
+ * Returns null when neither yields a positive block (skip indexing that chain).
+ */
+export function resolveStartBlock(chainId: number, fallback: bigint): bigint | null {
+  const envKey = `CHAIN_${chainId}_START_BLOCK`;
+  const envValue = process.env[envKey];
+  if (envValue !== undefined && envValue !== '') {
+    const parsed = BigInt(envValue);
+    if (parsed > 0n) return parsed;
+    return null;
+  }
+  if (fallback > 0n) return fallback;
+  return null;
+}
+
+/**
+ * Contracts ready to index this run: RPC configured and a sane start block.
+ */
+export function getConfiguredContracts(): ContractConfig[] {
+  return ALL_CONTRACTS.flatMap((config) => {
+    const rpcUrl = process.env[`CHAIN_${config.chainId}_RPC_URL`];
+    if (!rpcUrl) {
+      return [];
+    }
+    const startBlock = resolveStartBlock(config.chainId, config.startBlock);
+    if (startBlock === null) {
+      console.warn(
+        `[Contracts] Skipping ${config.label || config.address} on chain ${config.chainId}: set CHAIN_${config.chainId}_START_BLOCK to a positive deploy block`
+      );
+      return [];
+    }
+    return [{ ...config, startBlock }];
+  });
+}
 
 /**
  * Get contract config by chain ID and address

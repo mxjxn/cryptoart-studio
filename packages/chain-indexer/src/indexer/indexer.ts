@@ -37,12 +37,20 @@ export async function indexContract(
     fromBlock?: bigint;
     toBlock?: bigint;
     maxBlockRange?: number;
+    /** Stop before this wall-clock timestamp (ms since epoch) to leave budget for other work */
+    deadlineMs?: number;
   }
 ): Promise<IndexingResult> {
   const startTime = Date.now();
   const errors: string[] = [];
 
   try {
+    if (config.startBlock <= 0n) {
+      throw new Error(
+        `Contract ${config.label || config.address} on chain ${config.chainId} requires a positive startBlock`
+      );
+    }
+
     const client = getPublicClient(config.chainId);
 
     // Get checkpoint (last indexed block)
@@ -70,9 +78,17 @@ export async function indexContract(
     const maxRange = options?.maxBlockRange ?? MAX_BLOCK_RANGE;
     let currentBlock = fromBlock;
     let totalEventsIndexed = 0;
+    let lastCompletedBlock = fromBlock > 0n ? fromBlock - 1n : 0n;
 
     // Process in chunks
     while (currentBlock <= toBlock) {
+      if (options?.deadlineMs !== undefined && Date.now() >= options.deadlineMs) {
+        console.warn(
+          `[Indexer] Time budget reached for ${config.label || config.address}; stopping at block ${lastCompletedBlock}`
+        );
+        break;
+      }
+
       const chunkEnd = currentBlock + BigInt(maxRange) - 1n;
       const endBlock = chunkEnd < toBlock ? chunkEnd : toBlock;
 
@@ -112,6 +128,7 @@ export async function indexContract(
         );
 
         totalEventsIndexed += result.eventsInserted;
+        lastCompletedBlock = endBlock;
 
         console.log(
           `[Indexer] ${config.label || config.address} | Blocks ${currentBlock}-${endBlock} | ${events.length} events | ${result.eventsInserted} new`
@@ -122,6 +139,7 @@ export async function indexContract(
         errors.push(errorMsg);
         
         // Don't continue if a chunk fails - we need sequential processing
+        // Checkpoint was not advanced for this chunk (transaction rolled back)
         throw new Error(errorMsg);
       }
 
@@ -132,7 +150,7 @@ export async function indexContract(
       contract: config.address,
       chainId: config.chainId,
       startBlock: fromBlock,
-      endBlock: toBlock,
+      endBlock: lastCompletedBlock,
       eventsIndexed: totalEventsIndexed,
       timeTaken: Date.now() - startTime,
       errors: errors.length > 0 ? errors : undefined,
@@ -359,10 +377,11 @@ export async function indexAllContracts(
   options?: {
     maxBlockRange?: number;
     parallel?: boolean;
+    deadlineMs?: number;
   }
 ): Promise<IndexingResult[]> {
   if (options?.parallel) {
-    // Index contracts in parallel
+    // Index contracts in parallel (deadline still checked per contract)
     return await Promise.all(
       configs.map((config) => indexContract(config, options))
     );
@@ -370,6 +389,10 @@ export async function indexAllContracts(
     // Index contracts sequentially
     const results: IndexingResult[] = [];
     for (const config of configs) {
+      if (options?.deadlineMs !== undefined && Date.now() >= options.deadlineMs) {
+        console.warn(`[Indexer] Time budget reached before ${config.label || config.address}; skipping remaining contracts`);
+        break;
+      }
       const result = await indexContract(config, options);
       results.push(result);
     }

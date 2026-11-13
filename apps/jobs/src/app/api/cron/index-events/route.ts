@@ -1,20 +1,22 @@
 import { NextResponse } from 'next/server';
 import {
   indexAllContracts,
-  ALL_CONTRACTS,
+  getConfiguredContracts,
   watchFactory,
   getDiscoveredCollections,
-  indexContract,
-  type ContractConfig,
 } from '@cryptoart/chain-indexer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Max 60s on Vercel Pro
 
+/** Leave headroom for factory watches + response within the 60s limit */
+const MARKETPLACE_BUDGET_MS = 45_000;
+const FACTORY_BUDGET_MS = 55_000;
+
 /**
  * Vercel Cron route for chain event indexing
  * Runs every minute to poll for new events
- * 
+ *
  * Authentication: Vercel automatically sets Authorization header with CRON_SECRET
  */
 export async function GET(request: Request) {
@@ -30,7 +32,7 @@ export async function GET(request: Request) {
   // Verify cron secret
   const authHeader = request.headers.get('authorization');
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
-  
+
   if (authHeader !== expectedAuth) {
     return NextResponse.json(
       { error: 'Unauthorized' },
@@ -39,14 +41,18 @@ export async function GET(request: Request) {
   }
 
   const startTime = Date.now();
+  const marketplaceDeadline = startTime + MARKETPLACE_BUDGET_MS;
+  const factoryDeadline = startTime + FACTORY_BUDGET_MS;
   const results: any[] = [];
 
   try {
-    // Step 1: Index configured marketplace contracts
-    console.log('[Cron] Indexing marketplace contracts...');
-    const marketplaceResults = await indexAllContracts(ALL_CONTRACTS, {
+    // Step 1: Index configured marketplace contracts (RPC + start block required)
+    const contracts = getConfiguredContracts();
+    console.log(`[Cron] Indexing ${contracts.length} marketplace contract(s)...`);
+    const marketplaceResults = await indexAllContracts(contracts, {
       maxBlockRange: 2000,
-      parallel: false, // Sequential to avoid rate limits
+      parallel: false,
+      deadlineMs: marketplaceDeadline,
     });
     results.push(...marketplaceResults);
 
@@ -57,19 +63,29 @@ export async function GET(request: Request) {
     const collectionsPerChain: Record<number, number> = {};
 
     for (const chainId of supportedChains) {
+      if (Date.now() >= factoryDeadline) {
+        console.warn('[Cron] Time budget reached before factory watches; stopping early');
+        break;
+      }
+
       const factoryAddress = process.env[`CHAIN_${chainId}_FACTORY_ADDRESS`];
       const factory1155Address = process.env[`CHAIN_${chainId}_ERC1155_FACTORY_ADDRESS`];
       const startBlockStr = process.env[`CHAIN_${chainId}_START_BLOCK`];
       const rpcUrl = process.env[`CHAIN_${chainId}_RPC_URL`];
 
       // Skip chain if not configured
-      if (!rpcUrl) {
+      if (!rpcUrl || !startBlockStr) {
+        continue;
+      }
+
+      const startBlock = BigInt(startBlockStr);
+      if (startBlock <= 0n) {
+        console.warn(`[Cron] Skipping chain ${chainId}: CHAIN_${chainId}_START_BLOCK must be > 0`);
         continue;
       }
 
       // Watch ERC721 factory if configured
-      if (factoryAddress && startBlockStr) {
-        const startBlock = BigInt(startBlockStr);
+      if (factoryAddress) {
         console.log(`[Cron] Watching ERC721 factory on chain ${chainId}...`);
         try {
           const newCollections = await watchFactory(
@@ -84,9 +100,13 @@ export async function GET(request: Request) {
         }
       }
 
+      if (Date.now() >= factoryDeadline) {
+        console.warn('[Cron] Time budget reached mid factory watches; stopping early');
+        break;
+      }
+
       // Watch ERC1155 factory if configured
-      if (factory1155Address && startBlockStr) {
-        const startBlock = BigInt(startBlockStr);
+      if (factory1155Address) {
         console.log(`[Cron] Watching ERC1155 factory on chain ${chainId}...`);
         try {
           const newCollections = await watchFactory(
