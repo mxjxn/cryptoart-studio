@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   indexAllContracts,
   getConfiguredContracts,
+  resolveFactoryStartBlock,
   watchFactory,
   getDiscoveredCollections,
 } from '@cryptoart/chain-indexer';
@@ -70,17 +71,17 @@ export async function GET(request: Request) {
 
       const factoryAddress = process.env[`CHAIN_${chainId}_FACTORY_ADDRESS`];
       const factory1155Address = process.env[`CHAIN_${chainId}_ERC1155_FACTORY_ADDRESS`];
-      const startBlockStr = process.env[`CHAIN_${chainId}_START_BLOCK`];
       const rpcUrl = process.env[`CHAIN_${chainId}_RPC_URL`];
 
-      // Skip chain if not configured
-      if (!rpcUrl || !startBlockStr) {
+      // Skip chain if no RPC or no factory configured
+      if (!rpcUrl || (!factoryAddress && !factory1155Address)) {
         continue;
       }
 
-      const startBlock = BigInt(startBlockStr);
-      if (startBlock <= 0n) {
-        console.warn(`[Cron] Skipping chain ${chainId}: CHAIN_${chainId}_START_BLOCK must be > 0`);
+      // Factories have their own start block, independent of the marketplace's
+      const startBlock = resolveFactoryStartBlock(chainId);
+      if (startBlock === null) {
+        console.warn(`[Cron] Skipping factories on chain ${chainId}: set CHAIN_${chainId}_FACTORY_START_BLOCK to a positive deploy block`);
         continue;
       }
 

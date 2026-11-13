@@ -130,19 +130,61 @@ export const ALL_CONTRACTS: ContractConfig[] = [
 ];
 
 /**
- * Resolve start block from CHAIN_<id>_START_BLOCK, falling back to config.startBlock.
- * Returns null when neither yields a positive block (skip indexing that chain).
+ * Parse a block-number env var.
+ * - unset or empty  -> { kind: 'unset' }
+ * - positive integer -> { kind: 'ok', value }
+ * - anything else (0, negative, non-integer, garbage) -> { kind: 'invalid' }, with an error logged
+ */
+export type BlockEnv = { kind: 'unset' } | { kind: 'ok'; value: bigint } | { kind: 'invalid' };
+
+export function parseBlockEnv(envKey: string): BlockEnv {
+  const raw = process.env[envKey];
+  if (raw === undefined || raw.trim() === '') return { kind: 'unset' };
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    console.error(`[Contracts] Invalid ${envKey}=${JSON.stringify(raw)}: must be a positive integer block number`);
+    return { kind: 'invalid' };
+  }
+  const value = BigInt(trimmed);
+  if (value <= 0n) {
+    console.error(`[Contracts] Invalid ${envKey}=${JSON.stringify(raw)}: must be > 0`);
+    return { kind: 'invalid' };
+  }
+  return { kind: 'ok', value };
+}
+
+/**
+ * Marketplace start block for a chain.
+ *
+ * CHAIN_<id>_START_BLOCK applies to the marketplace only. It supplies the block when the config has
+ * none (e.g. Base Sepolia) and may move the start EARLIER than a hard-coded deploy block, but
+ * never later. A later value is ignored with a warning so history is not skipped.
+ * Returns null (skip the chain) when no positive block is available or the env value is invalid.
  */
 export function resolveStartBlock(chainId: number, fallback: bigint): bigint | null {
   const envKey = `CHAIN_${chainId}_START_BLOCK`;
-  const envValue = process.env[envKey];
-  if (envValue !== undefined && envValue !== '') {
-    const parsed = BigInt(envValue);
-    if (parsed > 0n) return parsed;
-    return null;
+  const env = parseBlockEnv(envKey);
+  if (env.kind === 'invalid') return null;
+  if (env.kind === 'ok') {
+    if (fallback > 0n && env.value > fallback) {
+      console.warn(
+        `[Contracts] Ignoring ${envKey}=${env.value} on chain ${chainId}: later than the marketplace deploy block ${fallback}; using ${fallback}`
+      );
+      return fallback;
+    }
+    return env.value;
   }
-  if (fallback > 0n) return fallback;
-  return null;
+  return fallback > 0n ? fallback : null;
+}
+
+/**
+ * Factory start block for a chain, from CHAIN_<id>_FACTORY_START_BLOCK.
+ * Independent of the marketplace's CHAIN_<id>_START_BLOCK.
+ * Returns null (skip the chain's factories) when unset or invalid.
+ */
+export function resolveFactoryStartBlock(chainId: number): bigint | null {
+  const env = parseBlockEnv(`CHAIN_${chainId}_FACTORY_START_BLOCK`);
+  return env.kind === 'ok' ? env.value : null;
 }
 
 /**
