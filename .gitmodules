@@ -10,3 +10,9 @@
 [submodule "apps/such-gallery"]
 	path = apps/such-gallery
 	url = https://github.com/mxjxn/such-gallery.git
+[submodule "packages/collection-contracts/lib/openzeppelin-contracts"]
+	path = packages/collection-contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts.git
+[submodule "packages/collection-contracts/lib/forge-std"]
+	path = packages/collection-contracts/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std.git
