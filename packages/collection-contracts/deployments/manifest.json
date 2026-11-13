@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-12T21:00:00.000Z",
-  "gitCommit": "pending",
+  "generatedAt": "2026-11-13T07:20:32.716Z",
+  "gitCommit": "8e989d8247264bddc82da2fc8d07e8ceae11249b",
   "solc": "0.8.27",
   "optimizer": {
     "enabled": true,
@@ -10,14 +10,14 @@
     {
       "chainId": 84532,
       "name": "base-sepolia",
-      "startBlock": 0,
+      "startBlock": 58162104,
       "factories": {
-        "erc721": null,
-        "erc1155": null
+        "erc721": "0xB25A4fcad3DbC9713116A84F975E90dE37416155",
+        "erc1155": "0xAe92d913c1eEdD548b5afa508B6369F0FEf5aF2d"
       },
       "deployTxHashes": {
-        "erc721": null,
-        "erc1155": null
+        "erc721": "0x5f19824dd6386a58fd0164353f6c09f29b7ca6f6590a99784a66d94ae849795b",
+        "erc1155": "0x25836a5c996b033a55fe18d659d548f34956dccb3693cddbf5246ced7ed915ba"
       },
       "verified": {
         "erc721": false,
