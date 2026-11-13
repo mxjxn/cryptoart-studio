@@ -40,11 +40,13 @@ Related:
 
 ### Preview rehearsal (Base Sepolia)
 
-- [ ] **operator** Fund deployer on Base Sepolia; set `PLATFORM_OWNER_ADDRESS`
-- [ ] **operator** Run `packages/collection-contracts/script/deploy-preview-base-sepolia.sh` (or equivalent)
-- [ ] **operator** Set Studio preview env: `CHAIN_84532_*` factory addresses + start blocks + RPCs
-- [ ] **operator** Smoke: Studio preview → New collection on Base Sepolia → deploy
-- [ ] **agent** Assist mint E2E on preview once env is live (paid pin → mint; no `.env` R/W in agent)
+- [x] **operator** Fund deployer on Base Sepolia; set `PLATFORM_OWNER_ADDRESS`
+- [x] **operator** Run `packages/collection-contracts/script/deploy-preview-base-sepolia.sh` (or equivalent)
+- [x] **operator/agent** Set Studio Vercel env `CHAIN_84532_*` on project `cryptoart-studio` (see [preview env](./2026-11-13-base-sepolia-preview-env.md))
+- [x] **agent** Smoke: `/api/factories?chainId=84532` on Vercel deployment returns erc721+erc1155 true
+- [ ] **operator** Point DNS for `cryptoart.studio` (A → `76.76.21.21` or Vercel NS) if apex not resolving yet
+- [ ] **operator** Browser smoke: Collections → New → Base Sepolia → deploy a test collection (wallet)
+- [ ] **agent** Assist mint E2E on preview once media secrets are live (paid pin → mint; no `.env` R/W in agent)
 
 ### Production factories (when ready — not required for Sepolia rehearsal)
 

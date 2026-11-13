@@ -51,3 +51,4 @@ broadcast/
 package-lock.json
 .vercel
 .env*.local
+.env*

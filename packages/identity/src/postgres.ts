@@ -1,6 +1,15 @@
 import postgres from 'postgres';
 import type { IdentityStore } from './store';
-import type { AuditEvent, ExhibitionRecord, ExhibitionSlot, RoleGrant } from './types';
+import type {
+  AuditEvent,
+  ExhibitionItemInput,
+  ExhibitionRecord,
+  ExhibitionSlot,
+  RoleGrant,
+  SessionRecord,
+  SiweNonce,
+} from './types';
+import type { JSONValue } from 'postgres';
 
 type Sql = ReturnType<typeof postgres>;
 
@@ -118,7 +127,7 @@ export function createPostgresIdentityStore(connectionString: string): IdentityS
         wallet_address: grant.walletAddress,
         role: grant.role,
         capability: grant.capability,
-        scope: grant.scope ? db.json(grant.scope) : null,
+        scope: grant.scope ? db.json(grant.scope as JSONValue) : null,
         granted_by: grant.grantedBy,
         created_at: grant.createdAt,
         expires_at: grant.expiresAt,
@@ -142,7 +151,7 @@ export function createPostgresIdentityStore(connectionString: string): IdentityS
         action: event.action,
         entity_type: event.entityType,
         entity_id: event.entityId,
-        payload: event.payload ? db.json(event.payload) : null,
+        payload: event.payload ? db.json(event.payload as JSONValue) : null,
       })}`;
     },
     async listAudit(limit = 100) {
