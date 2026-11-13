@@ -9,7 +9,19 @@
  */
 
 export * from './types/events';
-export * from './schema';
+export { 
+  chainEvents, 
+  listings, 
+  bids, 
+  purchases, 
+  offers, 
+  escrows,
+  type Listing,
+  type Bid,
+  type Purchase,
+  type Offer,
+  type Escrow 
+} from './schema';
 export * from './config/contracts';
 export * from './indexer/client';
 export * from './indexer/database';
