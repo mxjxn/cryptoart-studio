@@ -48,9 +48,9 @@ export async function lookupNeynarByAddress(
     try {
       await cacheUserInfo(address, {
         fid: account.fid,
-        username: account.username,
-        displayName: account.displayName,
-        pfpUrl: account.pfpUrl,
+        username: account.username ?? undefined,
+        displayName: account.displayName ?? undefined,
+        pfpUrl: account.pfpUrl ?? undefined,
         verifiedWallets: account.verifiedAddresses,
         source: 'hypersnap',
       });
