@@ -271,33 +271,34 @@ async function processAndStoreEvents(
       const timestamp = blockTimestamps.get(event.blockNumber) || BigInt(Math.floor(Date.now() / 1000));
 
       try {
+        const marketplace = event.contract;
         switch (event.eventName) {
           case 'CreateListing':
-            await processCreateListing(tx, chainId, event.args as any, event.blockNumber, timestamp, event.contract);
+            await processCreateListing(tx, chainId, event.args as any, event.blockNumber, timestamp, marketplace);
             break;
           case 'CreateListingTokenDetails':
-            await processCreateListingTokenDetails(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            await processCreateListingTokenDetails(tx, chainId, event.args as any, event.blockNumber, timestamp, marketplace);
             break;
           case 'CreateListingFees':
-            await processCreateListingFees(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            await processCreateListingFees(tx, chainId, event.args as any, event.blockNumber, timestamp, marketplace);
             break;
           case 'BidEvent':
-            await processBidEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+            await processBidEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex, marketplace);
             break;
           case 'PurchaseEvent':
-            await processPurchaseEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+            await processPurchaseEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex, marketplace);
             break;
           case 'OfferEvent':
             await processOfferEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
             break;
           case 'ModifyListing':
-            await processModifyListing(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            await processModifyListing(tx, chainId, event.args as any, event.blockNumber, timestamp, marketplace);
             break;
           case 'CancelListing':
-            await processCancelListing(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            await processCancelListing(tx, chainId, event.args as any, event.blockNumber, timestamp, marketplace);
             break;
           case 'FinalizeListing':
-            await processFinalizeListing(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            await processFinalizeListing(tx, chainId, event.args as any, event.blockNumber, timestamp, marketplace);
             break;
           case 'Escrow':
             await processEscrowEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);

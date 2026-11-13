@@ -100,9 +100,11 @@ export async function processCreateListingTokenDetails(
   chainId: number,
   args: ListingTokenDetailsArgs,
   blockNumber: bigint,
-  timestamp: bigint
+  timestamp: bigint,
+  marketplace: string
 ): Promise<void> {
   const normalizedAddress = (args.address_ as string).toLowerCase();
+  const normalizedMarketplace = marketplace.toLowerCase();
 
   await tx.execute(sql`
     UPDATE chain_indexer_listings
@@ -113,7 +115,9 @@ export async function processCreateListingTokenDetails(
       lazy = ${args.lazy ? 1 : 0},
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
@@ -122,8 +126,11 @@ export async function processCreateListingFees(
   chainId: number,
   args: ListingFeesArgs,
   blockNumber: bigint,
-  timestamp: bigint
+  timestamp: bigint,
+  marketplace: string
 ): Promise<void> {
+  const normalizedMarketplace = marketplace.toLowerCase();
+
   await tx.execute(sql`
     UPDATE chain_indexer_listings
     SET 
@@ -131,7 +138,9 @@ export async function processCreateListingFees(
       deliver_fixed = ${args.deliverFixed.toString()},
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
@@ -142,25 +151,39 @@ export async function processBidEvent(
   blockNumber: bigint,
   timestamp: bigint,
   transactionHash: string,
-  logIndex: number
+  logIndex: number,
+  marketplace: string
 ): Promise<void> {
   const normalizedBidder = (args.bidder as string).toLowerCase();
   const normalizedReferrer = args.referrer ? (args.referrer as string).toLowerCase() : null;
+  const normalizedMarketplace = marketplace.toLowerCase();
 
-  await tx
-    .insert(bids)
-    .values({
-      chainId,
-      listingId: args.listingId.toString(),
-      referrer: normalizedReferrer,
-      bidder: normalizedBidder,
-      amount: args.amount.toString(),
-      timestamp,
-      blockNumber,
-      transactionHash,
-      logIndex,
-    })
-    .onConflictDoNothing();
+  // Dedupe on (chain_id, tx_hash, log_index) — skip listing mutation if already seen
+  const existing = await tx
+    .select({ logIndex: bids.logIndex })
+    .from(bids)
+    .where(
+      sql`${bids.chainId} = ${chainId}
+        AND ${bids.transactionHash} = ${transactionHash}
+        AND ${bids.logIndex} = ${logIndex}`
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    return;
+  }
+
+  await tx.insert(bids).values({
+    chainId,
+    listingId: args.listingId.toString(),
+    referrer: normalizedReferrer,
+    bidder: normalizedBidder,
+    amount: args.amount.toString(),
+    timestamp,
+    blockNumber,
+    transactionHash,
+    logIndex,
+  });
 
   await tx.execute(sql`
     UPDATE chain_indexer_listings
@@ -176,7 +199,9 @@ export async function processBidEvent(
       END,
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
@@ -187,26 +212,40 @@ export async function processPurchaseEvent(
   blockNumber: bigint,
   timestamp: bigint,
   transactionHash: string,
-  logIndex: number
+  logIndex: number,
+  marketplace: string
 ): Promise<void> {
   const normalizedBuyer = (args.buyer as string).toLowerCase();
   const normalizedReferrer = args.referrer ? (args.referrer as string).toLowerCase() : null;
+  const normalizedMarketplace = marketplace.toLowerCase();
 
-  await tx
-    .insert(purchases)
-    .values({
-      chainId,
-      listingId: args.listingId.toString(),
-      referrer: normalizedReferrer,
-      buyer: normalizedBuyer,
-      count: args.count,
-      amount: args.amount.toString(),
-      timestamp,
-      blockNumber,
-      transactionHash,
-      logIndex,
-    })
-    .onConflictDoNothing();
+  // Dedupe: only bump total_sold when this purchase log is new
+  const existing = await tx
+    .select({ logIndex: purchases.logIndex })
+    .from(purchases)
+    .where(
+      sql`${purchases.chainId} = ${chainId}
+        AND ${purchases.transactionHash} = ${transactionHash}
+        AND ${purchases.logIndex} = ${logIndex}`
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    return;
+  }
+
+  await tx.insert(purchases).values({
+    chainId,
+    listingId: args.listingId.toString(),
+    referrer: normalizedReferrer,
+    buyer: normalizedBuyer,
+    count: args.count,
+    amount: args.amount.toString(),
+    timestamp,
+    blockNumber,
+    transactionHash,
+    logIndex,
+  });
 
   await tx.execute(sql`
     UPDATE chain_indexer_listings
@@ -214,7 +253,9 @@ export async function processPurchaseEvent(
       total_sold = total_sold + (${args.count} * total_per_sale),
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
@@ -254,8 +295,11 @@ export async function processModifyListing(
   chainId: number,
   args: ModifyListingArgs,
   blockNumber: bigint,
-  timestamp: bigint
+  timestamp: bigint,
+  marketplace: string
 ): Promise<void> {
+  const normalizedMarketplace = marketplace.toLowerCase();
+
   await tx.execute(sql`
     UPDATE chain_indexer_listings
     SET 
@@ -264,7 +308,9 @@ export async function processModifyListing(
       end_time = ${args.endTime},
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
@@ -273,15 +319,20 @@ export async function processCancelListing(
   chainId: number,
   args: CancelListingArgs,
   blockNumber: bigint,
-  timestamp: bigint
+  timestamp: bigint,
+  marketplace: string
 ): Promise<void> {
+  const normalizedMarketplace = marketplace.toLowerCase();
+
   await tx.execute(sql`
     UPDATE chain_indexer_listings
     SET 
       status = 'CANCELLED',
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
@@ -290,8 +341,11 @@ export async function processFinalizeListing(
   chainId: number,
   args: FinalizeListingArgs,
   blockNumber: bigint,
-  timestamp: bigint
+  timestamp: bigint,
+  marketplace: string
 ): Promise<void> {
+  const normalizedMarketplace = marketplace.toLowerCase();
+
   await tx.execute(sql`
     UPDATE chain_indexer_listings
     SET 
@@ -299,7 +353,9 @@ export async function processFinalizeListing(
       finalized = 1,
       updated_at = ${new Date(Number(timestamp) * 1000)},
       updated_at_block = ${blockNumber}
-    WHERE chain_id = ${chainId} AND listing_id = ${args.listingId.toString()}
+    WHERE chain_id = ${chainId}
+      AND listing_id = ${args.listingId.toString()}
+      AND marketplace = ${normalizedMarketplace}
   `);
 }
 
