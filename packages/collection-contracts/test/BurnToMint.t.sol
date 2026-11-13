@@ -13,7 +13,12 @@ contract MockBurnableERC721 {
     mapping(uint256 => bool) public burned;
     uint256 public nextTokenId = 1;
     
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x80ac58cd; // ERC721 interface ID
+    }
+    
     function ownerOf(uint256 tokenId) external view returns (address) {
+        require(_owners[tokenId] != address(0) && !burned[tokenId], "Token does not exist");
         return _owners[tokenId];
     }
     
@@ -31,6 +36,7 @@ contract MockBurnableERC721 {
     
     function transferFrom(address from, address to, uint256 tokenId) external {
         require(_owners[tokenId] == from, "Not owner");
+        require(!burned[tokenId], "Token is burned");
         _owners[tokenId] = to;
     }
 }
@@ -39,6 +45,10 @@ contract MockBurnableERC721 {
 contract MockNonBurnableERC721 {
     mapping(uint256 => address) private _owners;
     uint256 public nextTokenId = 1;
+    
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x80ac58cd; // ERC721 interface ID
+    }
     
     function ownerOf(uint256 tokenId) external view returns (address) {
         return _owners[tokenId];
@@ -60,6 +70,10 @@ contract MockNonBurnableERC721 {
 contract MockERC1155 {
     mapping(address => mapping(uint256 => uint256)) public balanceOf;
     uint256 public nextTokenId = 1;
+    
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0xd9b67a26; // ERC1155 interface ID
+    }
     
     function mint(address to, uint256 tokenId, uint256 amount) external {
         balanceOf[to][tokenId] += amount;
@@ -146,7 +160,11 @@ contract BurnToMintTest is Test {
             0, // Not used for ERC721 target
             1, // 1:1 ratio
             1,
-            true // Has burn function
+            true, // Has burn function
+            0,    // totalRedemptionCap (0 = unlimited)
+            0,    // perWalletCap (0 = unlimited)
+            0,    // startTime (0 = immediate)
+            0     // endTime (0 = never)
         );
         
         assertEq(configId, 0);
@@ -167,7 +185,8 @@ contract BurnToMintTest is Test {
             1, // Target token ID
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         assertEq(configId, 0);
@@ -183,7 +202,8 @@ contract BurnToMintTest is Test {
             0,
             2, // Burn 2 source for 1 target
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
     }
 
@@ -198,7 +218,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
     }
 
@@ -213,7 +234,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
     }
 
@@ -229,7 +251,8 @@ contract BurnToMintTest is Test {
             0,
             0, // Invalid
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         vm.expectRevert("Mint ratio must be > 0");
@@ -241,7 +264,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             0, // Invalid
-            true
+            true,
+            0, 0, 0, 0
         );
         
         vm.stopPrank();
@@ -257,7 +281,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         extension.setBurnConfigActive(configId, false);
@@ -280,7 +305,8 @@ contract BurnToMintTest is Test {
             0,
             1, // 1:1 ratio
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         // Alice burns token 1 to mint
@@ -311,7 +337,8 @@ contract BurnToMintTest is Test {
             0,
             2, // Burn 2 to mint 1
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](2);
@@ -341,7 +368,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            false // No burn function
+            false, // No burn function
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -369,7 +397,8 @@ contract BurnToMintTest is Test {
             0,
             10, // Burn 10 1155 to mint 1 721
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](0); // Not used for 1155
@@ -394,7 +423,8 @@ contract BurnToMintTest is Test {
             1, // Target token ID
             5, // Burn 5 to mint
             2, // Get 2 per burn set
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](0);
@@ -419,7 +449,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -443,7 +474,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         extension.setBurnConfigActive(configId, false);
@@ -469,7 +501,8 @@ contract BurnToMintTest is Test {
             0,
             5, // Need to burn 5
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](3); // Only burning 3
@@ -495,7 +528,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             2, // Will mint 2 tokens
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -521,7 +555,8 @@ contract BurnToMintTest is Test {
             0,
             1,
             1,
-            true
+            true,
+            0, 0, 0, 0
         );
         
         assertEq(extension.getUserBurnCount(configId, alice), 0);
@@ -549,7 +584,8 @@ contract BurnToMintTest is Test {
             0,
             2, // Burn 2
             3, // Get 3
-            true
+            true,
+            0, 0, 0, 0
         );
         
         uint256[] memory tokenIds = new uint256[](2);
@@ -565,6 +601,434 @@ contract BurnToMintTest is Test {
         uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0, uris);
         
         assertEq(mintedIds.length, 3);
-        assertEq(extension.getUserBurnCount(configId, alice), 2);
+        assertEq(extension.getUserBurnCount(configId, alice), 3);
+    }
+
+    // === New Tests for Supply Caps, Time Windows, and Security Guards ===
+
+    function test_burnToMint_total_redemption_cap() public {
+        // Create config with total cap of 2
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(burnableSource721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,
+            2,  // totalRedemptionCap: max 2 mints total
+            0, 0, 0
+        );
+        
+        // Alice mints 1 (burns token 1)
+        uint256[] memory tokenIds1 = new uint256[](1);
+        tokenIds1[0] = 1;
+        string[] memory uris1 = new string[](1);
+        uris1[0] = "ipfs://1";
+        vm.prank(alice);
+        extension.burnToMint(configId, tokenIds1, 0, 0, uris1);
+        
+        // Bob mints 1 (total = 2, at cap)
+        uint256 bobToken = burnableSource721.mint(bob);
+        uint256[] memory tokenIds2 = new uint256[](1);
+        tokenIds2[0] = bobToken;
+        string[] memory uris2 = new string[](1);
+        uris2[0] = "ipfs://2";
+        
+        vm.prank(bob);
+        extension.burnToMint(configId, tokenIds2, 0, 0, uris2);
+        
+        // Alice tries to mint again - should fail (cap reached)
+        uint256[] memory tokenIds3 = new uint256[](1);
+        tokenIds3[0] = 2; // Alice's token 2 (still owns 2, 3)
+        string[] memory uris3 = new string[](1);
+        uris3[0] = "ipfs://3";
+        
+        vm.prank(alice);
+        vm.expectRevert("Exceeds total redemption cap");
+        extension.burnToMint(configId, tokenIds3, 0, 0, uris3);
+    }
+
+    function test_burnToMint_per_wallet_cap() public {
+        // Create config with per-wallet cap of 2
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(burnableSource721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,
+            0,  // totalRedemptionCap: unlimited
+            2,  // perWalletCap: max 2 per wallet
+            0, 0
+        );
+        
+        // Alice mints 2 (burns tokens 1 and 2, at cap)
+        uint256[] memory tokenIds1 = new uint256[](2);
+        tokenIds1[0] = 1;
+        tokenIds1[1] = 2;
+        string[] memory uris1 = new string[](2);
+        uris1[0] = "ipfs://1";
+        uris1[1] = "ipfs://2";
+        vm.prank(alice);
+        extension.burnToMint(configId, tokenIds1, 0, 0, uris1);
+        
+        // Alice tries to mint more - should fail
+        uint256[] memory tokenIds2 = new uint256[](1);
+        tokenIds2[0] = 3; // Alice still owns token 3
+        string[] memory uris2 = new string[](1);
+        uris2[0] = "ipfs://3";
+        
+        vm.prank(alice);
+        vm.expectRevert("Exceeds per-wallet cap");
+        extension.burnToMint(configId, tokenIds2, 0, 0, uris2);
+        
+        // Bob can still mint (different wallet)
+        uint256 bobToken = burnableSource721.mint(bob);
+        uint256[] memory tokenIds3 = new uint256[](1);
+        tokenIds3[0] = bobToken;
+        string[] memory uris3 = new string[](1);
+        uris3[0] = "ipfs://4";
+        
+        vm.prank(bob);
+        extension.burnToMint(configId, tokenIds3, 0, 0, uris3);
+    }
+
+    function test_burnToMint_time_window_not_started() public {
+        uint48 futureTime = uint48(block.timestamp + 1000);
+        
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(burnableSource721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,
+            0, 0,
+            futureTime,  // startTime: in the future
+            0
+        );
+        
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+        string[] memory uris = new string[](1);
+        uris[0] = "ipfs://1";
+        
+        vm.prank(alice);
+        vm.expectRevert("Redemption not started");
+        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        
+        // Warp time forward
+        vm.warp(futureTime);
+        
+        // Now it should work
+        vm.prank(alice);
+        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+    }
+
+    function test_burnToMint_time_window_ended() public {
+        uint48 endTime = uint48(block.timestamp + 1000);
+        
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(burnableSource721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,
+            0, 0,
+            0,  // startTime: immediate
+            endTime  // endTime: in 1000 seconds
+        );
+        
+        // Should work before end time
+        uint256[] memory tokenIds1 = new uint256[](1);
+        tokenIds1[0] = 1;
+        string[] memory uris1 = new string[](1);
+        uris1[0] = "ipfs://1";
+        
+        vm.prank(alice);
+        extension.burnToMint(configId, tokenIds1, 0, 0, uris1);
+        
+        // Warp past end time
+        vm.warp(endTime + 1);
+        
+        // Should fail now
+        uint256[] memory tokenIds2 = new uint256[](1);
+        tokenIds2[0] = 2;
+        string[] memory uris2 = new string[](1);
+        uris2[0] = "ipfs://2";
+        
+        vm.prank(alice);
+        vm.expectRevert("Redemption ended");
+        extension.burnToMint(configId, tokenIds2, 0, 0, uris2);
+    }
+
+    function test_createBurnConfig_reverts_invalid_time_window() public {
+        uint48 startTime = uint48(block.timestamp + 1000);
+        uint48 endTime = uint48(block.timestamp + 500); // Before start
+        
+        vm.prank(owner);
+        vm.expectRevert("End time must be after start time");
+        extension.createBurnConfig(
+            address(burnableSource721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,
+            0, 0,
+            startTime,
+            endTime
+        );
+    }
+
+    function test_createBurnConfig_reverts_not_erc721() public {
+        // Deploy a contract that doesn't support ERC721
+        MockNonERC721 fakeContract = new MockNonERC721();
+        
+        vm.prank(owner);
+        vm.expectRevert("Source must support ERC721");
+        extension.createBurnConfig(
+            address(fakeContract),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,
+            0, 0, 0, 0
+        );
+    }
+
+    function test_createBurnConfig_reverts_not_erc1155() public {
+        // Deploy a contract that doesn't support ERC1155
+        MockNonERC721 fakeContract = new MockNonERC721();
+        
+        vm.prank(owner);
+        vm.expectRevert("Source must support ERC1155");
+        extension.createBurnConfig(
+            address(fakeContract),
+            BurnToMintExtension.TokenSpec.ERC1155,
+            address(targetCollection1155),
+            BurnToMintExtension.TokenSpec.ERC1155,
+            1,
+            1, 1,
+            true,
+            0, 0, 0, 0
+        );
+    }
+
+    function test_burnToMint_guards_against_fake_burn() public {
+        // Deploy a malicious ERC721 that doesn't actually burn
+        MaliciousFakeBurnERC721 malicious = new MaliciousFakeBurnERC721();
+        malicious.mint(alice);
+        
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(malicious),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            true,  // requiresBurn = true
+            0, 0, 0, 0
+        );
+        
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+        string[] memory uris = new string[](1);
+        uris[0] = "ipfs://new";
+        
+        // Should revert because the malicious contract's burn() doesn't actually burn
+        vm.prank(alice);
+        vm.expectRevert("Burn verification failed");
+        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+    }
+
+    function test_burnToMint_guards_against_fake_transfer() public {
+        // Deploy a malicious ERC721 that pretends to transfer but doesn't
+        MaliciousFakeTransferERC721 malicious = new MaliciousFakeTransferERC721();
+        malicious.mint(alice);
+        
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(malicious),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1, 1,
+            false,  // requiresBurn = false, should transfer to dead address
+            0, 0, 0, 0
+        );
+        
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+        string[] memory uris = new string[](1);
+        uris[0] = "ipfs://new";
+        
+        // Should revert because transfer verification fails
+        vm.prank(alice);
+        vm.expectRevert("Transfer failed");
+        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+    }
+
+    function test_burnToMint_1155_guards_against_fake_burn() public {
+        // Deploy malicious ERC1155 that doesn't actually burn
+        MaliciousFakeBurnERC1155 malicious = new MaliciousFakeBurnERC1155();
+        malicious.mint(alice, 1, 100);
+        
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(malicious),
+            BurnToMintExtension.TokenSpec.ERC1155,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            10, 1,
+            true,  // requiresBurn = true
+            0, 0, 0, 0
+        );
+        
+        uint256[] memory tokenIds = new uint256[](0);
+        string[] memory uris = new string[](1);
+        uris[0] = "ipfs://new";
+        
+        // Should revert because balance doesn't actually decrease
+        vm.prank(alice);
+        vm.expectRevert("Burn verification failed");
+        extension.burnToMint(configId, tokenIds, 1, 10, uris);
+    }
+
+    function test_burnToMint_1155_guards_against_fake_transfer() public {
+        // Deploy malicious ERC1155 that doesn't actually transfer
+        MaliciousFakeTransferERC1155 malicious = new MaliciousFakeTransferERC1155();
+        malicious.mint(alice, 1, 100);
+        
+        vm.prank(owner);
+        uint256 configId = extension.createBurnConfig(
+            address(malicious),
+            BurnToMintExtension.TokenSpec.ERC1155,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            10, 1,
+            false,  // requiresBurn = false
+            0, 0, 0, 0
+        );
+        
+        uint256[] memory tokenIds = new uint256[](0);
+        string[] memory uris = new string[](1);
+        uris[0] = "ipfs://new";
+        
+        // Should revert because transfer verification fails
+        vm.prank(alice);
+        vm.expectRevert("Transfer failed: sender balance");
+        extension.burnToMint(configId, tokenIds, 1, 10, uris);
+    }
+}
+
+// === Malicious Test Contracts ===
+
+contract MockNonERC721 {
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return false;
+    }
+}
+
+contract MaliciousFakeBurnERC721 {
+    mapping(uint256 => address) private _owners;
+    uint256 public nextTokenId = 1;
+    
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x80ac58cd;
+    }
+    
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        return _owners[tokenId];
+    }
+    
+    function mint(address to) external returns (uint256) {
+        uint256 tokenId = nextTokenId++;
+        _owners[tokenId] = to;
+        return tokenId;
+    }
+    
+    // Fake burn: returns success but doesn't actually burn
+    function burn(uint256) external pure {
+        // Does nothing!
+    }
+    
+    function transferFrom(address from, address to, uint256 tokenId) external {
+        require(_owners[tokenId] == from, "Not owner");
+        _owners[tokenId] = to;
+    }
+}
+
+contract MaliciousFakeTransferERC721 {
+    mapping(uint256 => address) private _owners;
+    uint256 public nextTokenId = 1;
+    
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x80ac58cd;
+    }
+    
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        return _owners[tokenId];
+    }
+    
+    function mint(address to) external returns (uint256) {
+        uint256 tokenId = nextTokenId++;
+        _owners[tokenId] = to;
+        return tokenId;
+    }
+    
+    // Fake transfer: doesn't change ownership
+    function transferFrom(address, address, uint256) external pure {
+        // Does nothing!
+    }
+}
+
+contract MaliciousFakeBurnERC1155 {
+    mapping(address => mapping(uint256 => uint256)) public balanceOf;
+    
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0xd9b67a26;
+    }
+    
+    function mint(address to, uint256 tokenId, uint256 amount) external {
+        balanceOf[to][tokenId] += amount;
+    }
+    
+    // Fake burn: doesn't actually reduce balance
+    function burn(address, uint256, uint256) external pure {
+        // Does nothing!
+    }
+}
+
+contract MaliciousFakeTransferERC1155 {
+    mapping(address => mapping(uint256 => uint256)) public balanceOf;
+    
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0xd9b67a26;
+    }
+    
+    function mint(address to, uint256 tokenId, uint256 amount) external {
+        balanceOf[to][tokenId] += amount;
+    }
+    
+    // Fake transfer: doesn't actually change balances
+    function safeTransferFrom(address, address, uint256, uint256, bytes calldata) external pure {
+        // Does nothing!
     }
 }

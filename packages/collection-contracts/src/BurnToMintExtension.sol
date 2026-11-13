@@ -40,6 +40,10 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         uint256 mintRatio;            // How many target tokens per burn set (e.g., 1:1)
         bool requiresBurn;            // True if source has burn(), false to transfer to dead address
         bool isActive;                // Can be paused by owner
+        uint256 totalRedemptionCap;   // Max total redemptions (0 = unlimited)
+        uint256 perWalletCap;         // Max redemptions per wallet (0 = unlimited)
+        uint48 startTime;             // Unix timestamp when redemptions can start (0 = immediate)
+        uint48 endTime;               // Unix timestamp when redemptions end (0 = never)
     }
 
     // Dead address for tokens that can't be burned
@@ -49,8 +53,11 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
     mapping(uint256 => BurnConfig) public burnConfigs;
     uint256 public configCount;
 
-    // Track burns per user per config (to prevent abuse)
+    // Track burns per user per config
     mapping(uint256 => mapping(address => uint256)) public userBurns;
+    
+    // Track total mints per config (for redemption cap)
+    mapping(uint256 => uint256) public totalMinted;
 
     event BurnConfigCreated(
         uint256 indexed configId,
@@ -80,6 +87,10 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
      * @param burnRatio How many source tokens needed per mint set (numerator)
      * @param mintRatio How many target tokens to mint per burn set (denominator)
      * @param requiresBurn True if source implements burn(), false to transfer to dead address
+     * @param totalRedemptionCap Max total redemptions (0 = unlimited)
+     * @param perWalletCap Max redemptions per wallet (0 = unlimited)
+     * @param startTime Unix timestamp when redemptions start (0 = immediate)
+     * @param endTime Unix timestamp when redemptions end (0 = never)
      */
     function createBurnConfig(
         address sourceContract,
@@ -89,7 +100,11 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         uint256 targetTokenId,
         uint256 burnRatio,
         uint256 mintRatio,
-        bool requiresBurn
+        bool requiresBurn,
+        uint256 totalRedemptionCap,
+        uint256 perWalletCap,
+        uint48 startTime,
+        uint48 endTime
     ) external onlyOwner returns (uint256 configId) {
         require(sourceContract != address(0), "Invalid source");
         require(targetCollection != address(0), "Invalid target");
@@ -99,6 +114,24 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         // If target is ERC1155, token ID is required
         if (targetSpec == TokenSpec.ERC1155) {
             require(targetTokenId > 0, "Target token ID required for ERC1155");
+        }
+        
+        // Time window validation
+        if (startTime > 0 && endTime > 0) {
+            require(endTime > startTime, "End time must be after start time");
+        }
+        
+        // Verify source contract supports expected interface (protection against fake contracts)
+        if (sourceSpec == TokenSpec.ERC721) {
+            require(
+                IERC165(sourceContract).supportsInterface(type(IERC721).interfaceId),
+                "Source must support ERC721"
+            );
+        } else {
+            require(
+                IERC165(sourceContract).supportsInterface(type(IERC1155).interfaceId),
+                "Source must support ERC1155"
+            );
         }
 
         configId = configCount++;
@@ -112,7 +145,11 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
             burnRatio: burnRatio,
             mintRatio: mintRatio,
             requiresBurn: requiresBurn,
-            isActive: true
+            isActive: true,
+            totalRedemptionCap: totalRedemptionCap,
+            perWalletCap: perWalletCap,
+            startTime: startTime,
+            endTime: endTime
         });
 
         emit BurnConfigCreated(configId, sourceContract, targetCollection, sourceSpec, targetSpec);
@@ -145,6 +182,14 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         require(configId < configCount, "Invalid config");
         BurnConfig memory config = burnConfigs[configId];
         require(config.isActive, "Config not active");
+        
+        // Check time windows
+        if (config.startTime > 0) {
+            require(block.timestamp >= config.startTime, "Redemption not started");
+        }
+        if (config.endTime > 0) {
+            require(block.timestamp <= config.endTime, "Redemption ended");
+        }
 
         uint256 burnedCount;
 
@@ -163,6 +208,22 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         require(burnedCount >= config.burnRatio, "Insufficient burn amount");
         uint256 sets = burnedCount / config.burnRatio;
         uint256 mintAmount = sets * config.mintRatio;
+        
+        // Check per-wallet cap
+        if (config.perWalletCap > 0) {
+            require(
+                userBurns[configId][msg.sender] + mintAmount <= config.perWalletCap,
+                "Exceeds per-wallet cap"
+            );
+        }
+        
+        // Check total redemption cap
+        if (config.totalRedemptionCap > 0) {
+            require(
+                totalMinted[configId] + mintAmount <= config.totalRedemptionCap,
+                "Exceeds total redemption cap"
+            );
+        }
 
         // Mint target tokens
         if (config.targetSpec == TokenSpec.ERC721) {
@@ -174,7 +235,8 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
             _mintERC1155(config, mintAmount);
         }
 
-        userBurns[configId][msg.sender] += burnedCount;
+        userBurns[configId][msg.sender] += mintAmount;
+        totalMinted[configId] += mintAmount;
 
         emit BurnedToMint(configId, msg.sender, burnedCount, mintAmount, mintedTokenIds);
     }
@@ -183,10 +245,15 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         IERC721 source = IERC721(config.sourceContract);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            require(source.ownerOf(tokenIds[i]) == msg.sender, "Not token owner");
+            // Verify ownership BEFORE any state changes (guard against fake contracts)
+            address originalOwner = source.ownerOf(tokenIds[i]);
+            require(originalOwner == msg.sender, "Not token owner");
             
             // First transfer to this contract so we can burn/dispose
             source.transferFrom(msg.sender, address(this), tokenIds[i]);
+            
+            // Verify transfer actually happened (guard against malicious contracts)
+            require(source.ownerOf(tokenIds[i]) == address(this), "Transfer failed");
             
             if (config.requiresBurn) {
                 // Try to call burn function from this contract
@@ -194,16 +261,30 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
                     abi.encodeWithSignature("burn(uint256)", tokenIds[i])
                 );
                 require(success, "Burn failed");
+                
+                // Verify burn actually happened (token should not exist or be owned by zero address)
+                // Note: Not all contracts revert on ownerOf for burned tokens, some return address(0)
+                try source.ownerOf(tokenIds[i]) returns (address currentOwner) {
+                    require(currentOwner == address(0), "Burn verification failed");
+                } catch {
+                    // Expected for properly burned tokens that revert on ownerOf
+                }
             } else {
                 // Transfer to dead address
                 source.transferFrom(address(this), DEAD_ADDRESS, tokenIds[i]);
+                
+                // Verify transfer to dead address succeeded
+                require(source.ownerOf(tokenIds[i]) == DEAD_ADDRESS, "Dead address transfer failed");
             }
         }
     }
 
     function _burnERC1155(BurnConfig memory config, uint256 tokenId, uint256 amount) internal {
         IERC1155 source = IERC1155(config.sourceContract);
-        require(source.balanceOf(msg.sender, tokenId) >= amount, "Insufficient balance");
+        
+        // Verify balance BEFORE any state changes (guard against fake contracts)
+        uint256 balanceBefore = source.balanceOf(msg.sender, tokenId);
+        require(balanceBefore >= amount, "Insufficient balance");
         
         if (config.requiresBurn) {
             // Try to call burn function
@@ -211,9 +292,20 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
                 abi.encodeWithSignature("burn(address,uint256,uint256)", msg.sender, tokenId, amount)
             );
             require(success, "Burn failed");
+            
+            // Verify burn actually reduced balance (guard against malicious contracts)
+            uint256 balanceAfter = source.balanceOf(msg.sender, tokenId);
+            require(balanceAfter == balanceBefore - amount, "Burn verification failed");
         } else {
             // Transfer to dead address
+            uint256 deadBalanceBefore = source.balanceOf(DEAD_ADDRESS, tokenId);
             source.safeTransferFrom(msg.sender, DEAD_ADDRESS, tokenId, amount, "");
+            
+            // Verify transfer actually happened (guard against malicious contracts)
+            uint256 balanceAfter = source.balanceOf(msg.sender, tokenId);
+            uint256 deadBalanceAfter = source.balanceOf(DEAD_ADDRESS, tokenId);
+            require(balanceAfter == balanceBefore - amount, "Transfer failed: sender balance");
+            require(deadBalanceAfter == deadBalanceBefore + amount, "Transfer failed: dead address balance");
         }
     }
 
