@@ -73,11 +73,54 @@ export const SETTLEMENT_CONTRACTS: ContractConfig[] = [
 ];
 
 /**
- * All contracts to index
+ * Future: STP v2 subscription contracts (commented until contracts are deployed)
+ * Uncomment and configure when ready
+ */
+// export const STP_V2_CONTRACTS: ContractConfig[] = [
+//   {
+//     chainId: 8453, // Base
+//     address: '0x...' as Address, // TODO: Add deployed STP v2 contract address
+//     startBlock: 0n, // TODO: Add deploy block
+//     abi: [], // TODO: Import STP v2 ABI
+//     events: [
+//       'SubscriptionCreated',
+//       'SubscriptionPurchased',
+//       'SubscriptionRenewed',
+//       'SubscriptionCancelled',
+//     ],
+//     label: 'STP v2 Subscriptions (Base)',
+//   },
+// ];
+
+/**
+ * Future: LSSVM pool contracts (commented until pools are chosen)
+ * Uncomment and configure when ready
+ */
+// export const LSSVM_CONTRACTS: ContractConfig[] = [
+//   {
+//     chainId: 1, // Ethereum (LSSVM is primarily on mainnet)
+//     address: '0x...' as Address, // TODO: Add LSSVM factory or pool address
+//     startBlock: 0n, // TODO: Add deploy block
+//     abi: [], // TODO: Import LSSVM ABI
+//     events: [
+//       'SwapNFTInPool',
+//       'SwapNFTOutPool',
+//       'NFTDeposit',
+//       'NFTWithdrawal',
+//       'PoolCreated',
+//     ],
+//     label: 'LSSVM Pools (Ethereum)',
+//   },
+// ];
+
+/**
+ * All contracts to index (marketplace + settlement + future contracts)
  */
 export const ALL_CONTRACTS: ContractConfig[] = [
   ...MARKETPLACE_CONTRACTS,
   ...SETTLEMENT_CONTRACTS,
+  // ...STP_V2_CONTRACTS, // Uncomment when ready
+  // ...LSSVM_CONTRACTS, // Uncomment when ready
 ];
 
 /**

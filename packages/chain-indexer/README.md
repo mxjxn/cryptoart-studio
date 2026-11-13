@@ -8,10 +8,19 @@ This package provides:
 
 - **Polling-based indexing**: Fetches events from EVM chains using viem's `getLogs`
 - **Chunked block ranges**: Processes blocks in configurable chunks to respect RPC limits
-- **Checkpoint tracking**: Maintains indexing progress per contract/chain
+- **Checkpoint tracking**: Reuses shared `indexed_contracts` table from @cryptoart/db
+- **Factory discovery**: Watches factory contracts for new collections and auto-indexes them
 - **Idempotent storage**: Unique constraints prevent duplicate events on reindexes
 - **Reorg safety**: Stays a few blocks behind chain head to avoid reorg issues
 - **Domain models**: Transforms raw events into listings, bids, purchases, etc.
+
+## Integration with collection-indexer
+
+This package works alongside `@cryptoart/collection-indexer`:
+- **collection-indexer**: Indexes NFT events (Transfer, metadata) from factory-discovered collections
+- **chain-indexer**: Indexes marketplace events (listings, bids, purchases) from marketplace contracts
+- Both share the `indexed_contracts` table for checkpoint tracking
+- Both watch factory contracts to discover new collections
 
 ## Architecture
 
@@ -28,7 +37,10 @@ Chain (Base/Ethereum)
 
 ### Tables
 
-- `indexer_checkpoints` - Track last indexed block per contract/chain
+**Shared with collection-indexer:**
+- `indexed_contracts` - Checkpoint tracking for all contracts (marketplace, factory, collections)
+
+**Marketplace-specific:**
 - `chain_events` - Raw event storage (all events as JSONB)
 - `listings` - Marketplace listings (CreateListing events)
 - `bids` - All bids on listings
@@ -74,15 +86,26 @@ ALCHEMY_API_KEY="YOUR_KEY"
 CRON_SECRET="your-secret-here"
 ```
 
-### 3. Run Database Migration
+### 3. Run Database Migrations
+
+The chain-indexer uses migrations in `packages/db/migrations/`:
+- `0030_chain_events.sql` - Raw event storage
+- `0031_marketplace_listings.sql` - Listings domain table
+- `0032_marketplace_events.sql` - Bids, purchases, offers, escrows
 
 ```bash
 # From repo root
 cd packages/db
-psql $STORAGE_POSTGRES_URL < ../chain-indexer/migrations/001-create-indexer-tables.sql
+
+# Run migrations in order
+psql $STORAGE_POSTGRES_URL < migrations/0030_chain_events.sql
+psql $STORAGE_POSTGRES_URL < migrations/0031_marketplace_listings.sql
+psql $STORAGE_POSTGRES_URL < migrations/0032_marketplace_events.sql
 
 # Or use your preferred migration tool
 ```
+
+**Note:** The `indexed_contracts` table already exists from migration `0023_add_collection_tables.sql`. Chain-indexer reuses this table for marketplace contract checkpoints.
 
 ### 4. Initial Backfill (Optional)
 
@@ -106,64 +129,19 @@ for (const config of MARKETPLACE_CONTRACTS) {
 
 ### Vercel Cron Route
 
-Create a Vercel Cron route to poll for new events every minute:
+**The cron route now lives in `apps/jobs`**, a dedicated Next.js app for background jobs.
 
-```typescript
-// app/api/cron/index-events/route.ts
-import { NextResponse } from 'next/server';
-import { indexAllContracts, ALL_CONTRACTS } from '@cryptoart/chain-indexer';
+See [`apps/jobs/README.md`](../../apps/jobs/README.md) for:
+- Full cron route implementation
+- Vercel configuration
+- Environment variables
+- Deployment instructions
+- Monitoring guidance
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Max 60s on Vercel Pro
-
-export async function GET(request: Request) {
-  // Verify cron secret
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const results = await indexAllContracts(ALL_CONTRACTS, {
-      maxBlockRange: 2000,
-      parallel: false, // Sequential to avoid rate limits
-    });
-
-    return NextResponse.json({
-      success: true,
-      results: results.map((r) => ({
-        contract: r.contract,
-        chainId: r.chainId,
-        blocks: `${r.startBlock}-${r.endBlock}`,
-        eventsIndexed: r.eventsIndexed,
-        timeTaken: r.timeTaken,
-        errors: r.errors,
-      })),
-    });
-  } catch (error) {
-    console.error('[Cron] Indexing error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
-}
-```
-
-### Vercel Configuration
-
-Add to `vercel.json`:
-
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/index-events",
-      "schedule": "* * * * *"
-    }
-  ]
-}
-```
+The jobs app handles:
+1. Indexing marketplace contracts
+2. Watching factory contracts for new collections
+3. Auto-indexing marketplace events on discovered collections
 
 **Note**: Vercel Pro allows cron jobs as frequent as once per minute. Free tier is limited to daily.
 

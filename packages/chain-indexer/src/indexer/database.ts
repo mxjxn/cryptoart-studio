@@ -1,8 +1,8 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { db } from '@cryptoart/db/client';
+import { indexedContracts } from '@cryptoart/db';
 import type { Address } from 'viem';
 import {
-  indexerCheckpoints,
   chainEvents,
   listings,
   bids,
@@ -14,22 +14,29 @@ import {
 
 /**
  * Get or initialize checkpoint for a contract
+ * Uses the shared indexed_contracts table
  */
 export async function getCheckpoint(
   chainId: number,
-  contract: Address
+  contract: Address,
+  contractType: 'marketplace' | 'factory' = 'marketplace'
 ): Promise<bigint> {
   const normalizedContract = contract.toLowerCase();
   
   const result = await db
     .select()
-    .from(indexerCheckpoints)
+    .from(indexedContracts)
     .where(
-      sql`${indexerCheckpoints.chainId} = ${chainId} AND ${indexerCheckpoints.contract} = ${normalizedContract}`
+      sql`${indexedContracts.contractAddress} = ${normalizedContract} AND ${indexedContracts.chainId} = ${chainId}`
     )
     .limit(1);
 
-  return result[0]?.lastBlock ?? 0n;
+  // If no checkpoint exists, initialize it
+  if (!result[0]) {
+    return 0n;
+  }
+
+  return BigInt(result[0].lastIndexedBlock);
 }
 
 /**
@@ -39,23 +46,25 @@ export async function getCheckpoint(
 export async function updateCheckpoint(
   chainId: number,
   contract: Address,
-  lastBlock: bigint
+  lastBlock: bigint,
+  contractType: 'marketplace' | 'factory' = 'marketplace'
 ): Promise<void> {
   const normalizedContract = contract.toLowerCase();
 
   await db
-    .insert(indexerCheckpoints)
+    .insert(indexedContracts)
     .values({
+      contractAddress: normalizedContract,
       chainId,
-      contract: normalizedContract,
-      lastBlock,
-      updatedAt: new Date(),
+      lastIndexedBlock: Number(lastBlock),
+      status: 'active',
+      contractType,
+      discoveredAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: [indexerCheckpoints.chainId, indexerCheckpoints.contract],
+      target: [indexedContracts.contractAddress, indexedContracts.chainId],
       set: {
-        lastBlock,
-        updatedAt: new Date(),
+        lastIndexedBlock: Number(lastBlock),
       },
     });
 }
@@ -94,7 +103,8 @@ export async function indexEventsTransaction(
   chainId: number,
   contract: Address,
   events: ChainEvent[],
-  newCheckpoint: bigint
+  newCheckpoint: bigint,
+  contractType: 'marketplace' | 'factory' = 'marketplace'
 ): Promise<{ eventsInserted: number }> {
   // Use a transaction to ensure atomicity
   return await db.transaction(async (tx) => {
@@ -121,21 +131,22 @@ export async function indexEventsTransaction(
       eventsInserted = Array.isArray(result) ? result.length : 0;
     }
 
-    // Update checkpoint
+    // Update checkpoint using indexed_contracts table
     const normalizedContract = contract.toLowerCase();
     await tx
-      .insert(indexerCheckpoints)
+      .insert(indexedContracts)
       .values({
+        contractAddress: normalizedContract,
         chainId,
-        contract: normalizedContract,
-        lastBlock: newCheckpoint,
-        updatedAt: new Date(),
+        lastIndexedBlock: Number(newCheckpoint),
+        status: 'active',
+        contractType,
+        discoveredAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [indexerCheckpoints.chainId, indexerCheckpoints.contract],
+        target: [indexedContracts.contractAddress, indexedContracts.chainId],
         set: {
-          lastBlock: newCheckpoint,
-          updatedAt: new Date(),
+          lastIndexedBlock: Number(newCheckpoint),
         },
       });
 

@@ -1,22 +1,13 @@
 import { pgTable, integer, text, timestamp, jsonb, index, bigint, primaryKey, unique } from 'drizzle-orm/pg-core';
 
 /**
- * Indexer checkpoints - track indexing progress per contract/chain
- * Primary key: (chain_id, contract)
+ * NOTE: This package reuses the existing `indexed_contracts` table from @cryptoart/db
+ * for checkpoint tracking. That table is defined in packages/db/src/schema.ts and
+ * is shared with the collection-indexer package.
+ * 
+ * Marketplace contracts use contract_type = 'marketplace'
+ * Factory contracts use contract_type = 'factory'
  */
-export const indexerCheckpoints = pgTable(
-  'indexer_checkpoints',
-  {
-    chainId: integer('chain_id').notNull(),
-    contract: text('contract').notNull(), // lowercase hex address
-    lastBlock: bigint('last_block', { mode: 'bigint' }).notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.chainId, table.contract] }),
-    updatedAtIdx: index('indexer_checkpoints_updated_at_idx').on(table.updatedAt),
-  })
-);
 
 /**
  * Generic chain events - raw event storage
@@ -218,7 +209,6 @@ export const escrows = pgTable(
 );
 
 // Type exports for use in application code
-export type IndexerCheckpoint = typeof indexerCheckpoints.$inferSelect;
 export type ChainEvent = typeof chainEvents.$inferSelect;
 export type Listing = typeof listings.$inferSelect;
 export type Bid = typeof bids.$inferSelect;
