@@ -69,7 +69,7 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 1. Operator: deploy+verify 721/1155 factories on Base and Ethereum when ready; record via `scripts/record-factory-deployment.mjs` (preview/test env first).
 2. Set Studio + indexer env on branch deploys; run `scripts/clean-room-reconstruction.sh`.
 3. Production-shaped media secrets on preview (`TURBO_PRIVATE_KEY`, `X402_FACILITATOR_URL`, mock pay false).
-4. Social compose: scaffold lives on-branch (`/compose` + submit client). Next: plug `SNAPCHAIN_SUBMIT_URL` (imgnAI) + gasless signer / `makeCastAdd` ([write-path note](./2026-11-12-hypersnap-write-path.md)). Runs parallel to factory preview.
+4. Social compose: scaffold on-branch; next is web Phase A signer vault + `makeCastAdd` ([signer plan](./2026-11-13-hypersnap-signer-and-clients.md), [write-path](./2026-11-12-hypersnap-write-path.md)). Native iOS/Android tagged future only. Parallel to factory preview.
 5. When minting **and** new Social both work on branch → single cutover to `main` / production.
 
 See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md) and [branch catch-up](./2026-11-12-branch-catchup-and-factory-status.md).

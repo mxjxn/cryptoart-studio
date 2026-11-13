@@ -1,7 +1,8 @@
 # Hypersnap / Snapchain write path for casts
 
-**Updated:** 2026-11-12  
-**Source:** [Hypersnap writing-messages guide](https://github.com/farcasterorg/hypersnap/blob/main/site/docs/pages/guides/writing-messages.mdx) (same content as Snapchain “Writing to snapchain”), plus [hypersnap.org](https://hypersnap.org/llms-full.txt) HTTP API notes.
+**Updated:** 2026-11-13  
+**Source:** [Hypersnap writing-messages guide](https://github.com/farcasterorg/hypersnap/blob/main/site/docs/pages/guides/writing-messages.mdx) (same content as Snapchain “Writing to snapchain”), plus [hypersnap.org](https://hypersnap.org/llms-full.txt) HTTP API notes.  
+**Implementation plan:** [Signer + clients (web first, native later)](./2026-11-13-hypersnap-signer-and-clients.md)
 
 This answers the open item in the Social plans: *verify Hypersnap auth/signing/publishing before connecting compose*.
 
@@ -109,9 +110,10 @@ Factories / Base Sepolia deploys are **independent** of this track.
 
 ## Decisions still open (do not block scaffold)
 
+Planning defaults (web first, native tagged later) are recorded in [2026-11-13-hypersnap-signer-and-clients.md](./2026-11-13-hypersnap-signer-and-clients.md). Remaining provider/TTL choices:
+
 1. **Writable node provider** — imgnAI validator vs self-hosted Snapchain vs managed API.
-2. **Signer custody model** — app-held gasless signer (simpler UX) vs user-device signer.
-3. **App FID** — dedicated Cryptoart FID for request metadata.
-4. **Scopes + TTL** — start with cast/reaction only; 30-day sliding TTL as in the guide example.
+2. **App FID** — dedicated Cryptoart FID for request metadata (required before authorize UI).
+3. **Scopes + TTL** — start with cast/reaction only; 30-day sliding TTL as in the guide example.
 
 `/compose` stays gated until submit URL + signer are ready; Hypersnap reads continue as today.

@@ -48,4 +48,4 @@ When the validator is ready, share and set:
 - Auth → optional `SNAPCHAIN_SUBMIT_AUTH`
 - Whether it is validator-direct or read-node relay
 
-Details: [2026-11-12-hypersnap-write-path.md](./2026-11-12-hypersnap-write-path.md).
+Details: [write-path](./2026-11-12-hypersnap-write-path.md) · [signer + clients plan](./2026-11-13-hypersnap-signer-and-clients.md) (web first; native later).

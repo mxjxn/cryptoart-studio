@@ -105,3 +105,5 @@ Until app-owned posts exist, `/` shows an empty conversation column and a popula
 ## Out of scope for this sketch
 
 Hypersnap write verification, composer UI, exhibition service choice, curator fees, deleting the imported Farcaster tree, production deploy.
+
+**Follow-on:** cast signing / compose for **web**, with native iOS/Android tagged later — [2026-11-13-hypersnap-signer-and-clients.md](./2026-11-13-hypersnap-signer-and-clients.md).
