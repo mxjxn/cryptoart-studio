@@ -204,11 +204,12 @@ function parseLogToEvent(config: ContractConfig, log: Log): ChainEvent {
     chainId: config.chainId,
     contract: config.address,
     eventName: decoded.eventName,
-    blockNumber: log.blockNumber,
-    blockHash: log.blockHash!,
-    transactionHash: log.transactionHash!,
+    blockNumber: log.blockNumber!,
+    blockHash: log.blockHash || '0x',
+    transactionHash: log.transactionHash || '0x',
     logIndex: Number(log.logIndex),
-    args: decoded.args as Record<string, unknown>,
+    args: (decoded.args || {}) as Record<string, unknown>,
+    indexedAt: new Date(),
   };
 }
 

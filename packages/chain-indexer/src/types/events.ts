@@ -13,6 +13,7 @@ export interface ChainEvent {
   transactionHash: Hex;
   logIndex: number;
   args: Record<string, unknown>;
+  indexedAt: Date;
 }
 
 /**
