@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ardrive/turbo-sdk": "^2.2.0",
+    "@vercel/blob": "^2.0.0",
     "postgres": "^3.4.4"
   },
   "devDependencies": {
