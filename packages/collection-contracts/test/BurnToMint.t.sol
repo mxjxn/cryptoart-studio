@@ -150,6 +150,23 @@ contract BurnToMintTest is Test {
 
     // === Configuration Tests ===
 
+    function test_createBurnConfig_reverts_base_uri_no_trailing_slash() public {
+        vm.prank(owner);
+        vm.expectRevert("Base URI must end with /");
+        extension.createBurnConfig(
+            address(burnableSource721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            address(targetCollection721),
+            BurnToMintExtension.TokenSpec.ERC721,
+            0,
+            1,
+            1,
+            true,
+            0, 0, 0, 0,
+            "ipfs://redeemed" // missing trailing slash
+        );
+    }
+
     function test_createBurnConfig_721_to_721() public {
         vm.prank(owner);
         uint256 configId = extension.createBurnConfig(

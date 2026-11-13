@@ -5,28 +5,43 @@ pragma solidity ^0.8.27;
 import {Ownable} from "openzeppelin/access/Ownable.sol";
 import {IERC721Enumerable} from "openzeppelin/token/ERC721/extensions/IERC721Enumerable.sol";
 import {IERC165} from "openzeppelin/utils/introspection/IERC165.sol";
+import {Strings} from "openzeppelin/utils/Strings.sol";
 import {ERC721Base} from "./token/ERC721/ERC721Base.sol";
 import {ERC721Enumerable} from "./token/ERC721/ERC721Enumerable.sol";
 import {ERC721CreatorCore} from "./core/ERC721CreatorCore.sol";
 import {ILazyDelivery} from "./interfaces/ILazyDelivery.sol";
+import {IMarketplaceCore} from "./interfaces/IMarketplaceCore.sol";
 
 contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDelivery {
+    using Strings for uint256;
+
     event Minted(address indexed to, uint256 indexed tokenId, string tokenURI);
     event RoyaltyUpdated(address receiver, uint16 bps);
     event BaseURIUpdated(string baseURI);
     event MarketplaceApproved(address indexed marketplace, bool approved);
-    event ListingIdApproved(uint40 indexed listingId, bool approved);
+    event ListingBaseURIUpdated(address indexed marketplace, uint40 indexed listingId, string baseURI);
     event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId);
     event Revealed(string revealedBaseURI, bytes32 metadataHash);
+
+    struct LazyListingOrigin {
+        address marketplace;
+        uint40 listingId;
+        uint24 index; // 0-based index within the listing
+        bool set;
+    }
 
     address payable private _royaltyReceiver;
     uint16 private _royaltyBPS;
     
     // Authorized marketplace/auction house addresses that can call deliver()
     mapping(address => bool) private _approvedMarketplaces;
-    
-    // Approved listing IDs that can be delivered (prevents unauthorized lazy listings)
-    mapping(uint40 => bool) private _approvedListingIds;
+
+    // Per-listing metadata: marketplace => listingId => base URI (must end with '/')
+    mapping(address => mapping(uint40 => string)) private _listingBaseURIs;
+    // Tokens delivered so far per marketplace listing (assigns 0-based indices)
+    mapping(address => mapping(uint40 => uint24)) private _listingDeliveredCount;
+    // Token => listing origin for URI resolution
+    mapping(uint256 => LazyListingOrigin) private _lazyListingOrigins;
     
     // Blind mint / reveal state
     bool private _isRevealed;
@@ -166,9 +181,17 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         _requireMinted(tokenId);
         
         // If blind mint is configured and not revealed, return placeholder
-        // This prevents per-token URIs from leaking before reveal
+        // This prevents per-token URIs / listing URIs from leaking before reveal
         if (bytes(_placeholderURI).length > 0 && !_isRevealed) {
             return _placeholderURI;
+        }
+
+        LazyListingOrigin memory origin = _lazyListingOrigins[tokenId];
+        if (origin.set) {
+            string memory listingBase = _listingBaseURIs[origin.marketplace][origin.listingId];
+            if (bytes(listingBase).length > 0) {
+                return string(abi.encodePacked(listingBase, uint256(origin.index).toString()));
+            }
         }
         
         return _tokenURI(tokenId);
@@ -204,47 +227,53 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
     }
 
     /**
-     * @notice Approve or revoke a listing ID for lazy delivery
-     * @dev This prevents unauthorized users from creating lazy listings and collecting payment.
-     *      The owner must pre-register listing IDs before creating lazy listings on the marketplace.
+     * @notice Set the metadata base URI for a lazy listing
+     * @dev Studio calls this after creating the marketplace listing. Tokens minted via
+     *      deliver() for this listing resolve to `baseURI + index` (0-based within listing).
+     * @param marketplace The marketplace that owns the listing ID namespace
      * @param listingId The marketplace listing ID
-     * @param approved True to approve, false to revoke
+     * @param baseURI Base URI ending with '/'
      */
-    function setListingIdApproval(uint40 listingId, bool approved) external onlyOwner {
-        _approvedListingIds[listingId] = approved;
-        emit ListingIdApproved(listingId, approved);
+    function setListingBaseURI(address marketplace, uint40 listingId, string calldata baseURI)
+        external
+        onlyOwner
+    {
+        require(marketplace != address(0), "Invalid marketplace");
+        _requireTrailingSlash(baseURI);
+        _listingBaseURIs[marketplace][listingId] = baseURI;
+        emit ListingBaseURIUpdated(marketplace, listingId, baseURI);
     }
 
     /**
-     * @notice Batch approve multiple listing IDs
-     * @param listingIds Array of listing IDs to approve
+     * @notice Get the base URI configured for a marketplace listing
      */
-    function setListingIdApprovalBatch(uint40[] calldata listingIds) external onlyOwner {
-        for (uint256 i = 0; i < listingIds.length; i++) {
-            _approvedListingIds[listingIds[i]] = true;
-            emit ListingIdApproved(listingIds[i], true);
-        }
+    function listingBaseURI(address marketplace, uint40 listingId) external view returns (string memory) {
+        return _listingBaseURIs[marketplace][listingId];
     }
 
     /**
-     * @notice Check if a listing ID is approved for delivery
-     * @param listingId The marketplace listing ID
-     * @return True if approved, false otherwise
+     * @notice Get the lazy-listing origin recorded for a token (if any)
      */
-    function isListingIdApproved(uint40 listingId) external view returns (bool) {
-        return _approvedListingIds[listingId];
+    function lazyListingOrigin(uint256 tokenId)
+        external
+        view
+        returns (address marketplace, uint40 listingId, uint24 index, bool set)
+    {
+        LazyListingOrigin memory origin = _lazyListingOrigins[tokenId];
+        return (origin.marketplace, origin.listingId, origin.index, origin.set);
     }
 
     // === Lazy Delivery ===
 
     /**
-     * @notice Deliver (lazy mint) a token to a buyer through an approved marketplace
-     * @dev This function is called by the marketplace/auction house during settlement.
-     *      The token is minted directly to the buyer's address.
+     * @notice Deliver (lazy mint) tokens to a buyer through an approved marketplace
+     * @dev Called by the marketplace during settlement. Mints `payableCount` sequential
+     *      token IDs. Verifies via getListing that the seller is this collection's owner
+     *      and the listing token address is this contract (prevents unauthorized / front-run listings).
      * @param listingId The marketplace listing ID
      * @param to The buyer's address
-     * @param assetId The token ID to mint
-     * @param payableCount Must be 1 for ERC721
+     * @param assetId Unused — collection assigns sequential IDs
+     * @param payableCount Number of tokens to mint to the buyer
      * @param payableAmount The sale price (unused in this implementation)
      * @param payableERC20 The payment token address (unused in this implementation)
      * @param index Optional index (unused in this implementation)
@@ -259,24 +288,41 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         uint256 index
     ) external override nonReentrant {
         require(_approvedMarketplaces[msg.sender], "Caller not approved marketplace");
-        require(_approvedListingIds[listingId], "Listing ID not approved");
-        require(payableCount == 1, "ERC721 can only deliver 1 token");
+        require(payableCount > 0, "Amount must be > 0");
         require(to != address(0), "Cannot deliver to zero address");
 
-        // For lazy delivery, mint the next sequential token ID
-        // The marketplace may pass assetId for reference, but we use our own counter
-        // to prevent collision with regular mints and ensure sequential IDs
-        ++_tokenCount;
-        uint256 tokenId = _tokenCount;
+        // Look up listing on the calling marketplace — seller must be collection owner
+        IMarketplaceCore.Listing memory listing = IMarketplaceCore(msg.sender).getListing(listingId);
+        require(listing.seller == owner(), "Listing seller is not collection owner");
+        require(listing.token.address_ == address(this), "Listing token is not this collection");
 
-        // Mint the token to the buyer
-        // Note: For lazy listings, the artist can optionally preset URIs for specific token IDs
-        // using setTokenURIForLazyMint, otherwise tokens will use baseURI + tokenId
-        _preMintBase(to, tokenId);
-        _safeMint(to, tokenId, 0);
+        _lockBlindMintIfConfigured();
 
-        emit LazyDelivered(listingId, to, tokenId);
-        emit Minted(to, tokenId, _tokenURIs[tokenId]);
+        uint24 startIndex = _listingDeliveredCount[msg.sender][listingId];
+        _listingDeliveredCount[msg.sender][listingId] = startIndex + payableCount;
+
+        for (uint24 i = 0; i < payableCount;) {
+            ++_tokenCount;
+            uint256 tokenId = _tokenCount;
+            uint24 listingIndex = startIndex + i;
+
+            _lazyListingOrigins[tokenId] = LazyListingOrigin({
+                marketplace: msg.sender,
+                listingId: listingId,
+                index: listingIndex,
+                set: true
+            });
+
+            _preMintBase(to, tokenId);
+            _safeMint(to, tokenId, 0);
+
+            emit LazyDelivered(listingId, to, tokenId);
+            emit Minted(to, tokenId, _tokenURIs[tokenId]);
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     // === Multi-Recipient Airdrop ===
@@ -303,9 +349,14 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         require(recipients.length == uris.length, "Length mismatch");
         require(recipients.length <= 500, "Batch too large"); // Safety limit
 
+        _lockBlindMintIfConfigured();
+
         tokenIds = new uint256[](recipients.length);
         uint256 firstTokenId = _tokenCount + 1;
         _tokenCount += recipients.length;
+
+        // During blind mint, suppress per-token URIs so they cannot leak before reveal
+        bool storeUris = bytes(_placeholderURI).length == 0 || _isRevealed;
 
         for (uint256 i; i < recipients.length;) {
             require(recipients[i] != address(0), "Invalid recipient");
@@ -315,7 +366,7 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
             _preMintBase(recipients[i], tokenId);
             _safeMint(recipients[i], tokenId, 0);
             
-            if (bytes(uris[i]).length > 0) {
+            if (storeUris && bytes(uris[i]).length > 0) {
                 _tokenURIs[tokenId] = uris[i];
             }
             
@@ -433,8 +484,9 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
 
         _safeMint(to, tokenId, uint96(_extensionToIndex[msg.sender]));
 
-        // Don't set per-token URI during blind mint period - it would leak before reveal
-        if (bytes(uri).length > 0 && (bytes(_placeholderURI).length == 0 || _isRevealed)) {
+        // Always store extension-provided URIs (e.g. burn-to-mint). The blind placeholder
+        // still hides them until reveal, then they resolve correctly.
+        if (bytes(uri).length > 0) {
             _tokenURIs[tokenId] = uri;
         }
 
@@ -442,9 +494,23 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         return tokenId;
     }
 
+    function _lockBlindMintIfConfigured() internal {
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+    }
+
+    function _requireTrailingSlash(string memory uri) internal pure {
+        bytes memory b = bytes(uri);
+        require(b.length > 0 && b[b.length - 1] == "/", "Base URI must end with /");
+    }
+
     function _postBurn(address, uint256 tokenId) internal {
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
+        }
+        if (_lazyListingOrigins[tokenId].set) {
+            delete _lazyListingOrigins[tokenId];
         }
     }
 

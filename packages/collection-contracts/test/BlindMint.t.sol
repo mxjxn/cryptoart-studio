@@ -5,6 +5,7 @@ pragma solidity ^0.8.27;
 import "forge-std/Test.sol";
 import {SuchCollection} from "../src/SuchCollection.sol";
 import {SuchCollection1155} from "../src/SuchCollection1155.sol";
+import {MockMarketplace} from "./mocks/MockMarketplace.sol";
 
 /**
  * @title BlindMintTest
@@ -310,29 +311,26 @@ contract BlindMintTest is Test {
 
     function test_blind_mint_with_lazy_delivery() public {
         bytes32 commitment = keccak256(abi.encodePacked(REVEALED_BASE_URI, SALT));
-        address marketplace = address(0x99);
+        MockMarketplace marketplace = new MockMarketplace();
         
         vm.startPrank(owner);
         collection721.setBlindMintConfig(PLACEHOLDER, commitment);
-        collection721.setMarketplaceApproval(marketplace, true);
-        collection721.setListingIdApproval(1, true);
-        // Don't preset URI for blind mints - they should use base URI after reveal
+        collection721.setMarketplaceApproval(address(marketplace), true);
+        uint40 listingId = marketplace.createLazyListing(address(collection721));
+        collection721.setListingBaseURI(address(marketplace), listingId, "ipfs://listing-blind/");
         vm.stopPrank();
         
-        // Lazy deliver - will mint next sequential ID (token 1)
-        vm.prank(marketplace);
-        collection721.deliver(1, alice, 0, 1, 1 ether, address(0), 0);
+        vm.prank(address(marketplace));
+        collection721.deliver(listingId, alice, 0, 1, 1 ether, address(0), 0);
         
-        // Should return placeholder
+        // Should return placeholder (listing URI hidden until reveal)
         assertEq(collection721.tokenURI(1), PLACEHOLDER);
         
-        // Reveal
         vm.prank(owner);
         collection721.reveal(REVEALED_BASE_URI, SALT);
         
-        // After reveal, uses revealed base URI
-        // Note: preset URI from setTokenURIForLazyMint was suppressed during blind period
-        assertEq(collection721.tokenURI(1), string(abi.encodePacked(REVEALED_BASE_URI, "1")));
+        // After reveal, listing base URI + 0-based index
+        assertEq(collection721.tokenURI(1), "ipfs://listing-blind/0");
     }
 
     function test_blind_mint_with_airdrop() public {
@@ -362,10 +360,48 @@ contract BlindMintTest is Test {
         vm.prank(owner);
         collection721.reveal(REVEALED_BASE_URI, SALT);
         
-        // Now should use specified URIs
-        assertEq(collection721.tokenURI(tokenIds[0]), "uri1");
-        assertEq(collection721.tokenURI(tokenIds[1]), "uri2");
-        assertEq(collection721.tokenURI(tokenIds[2]), "uri3");
+        // Per-token URIs were suppressed during blind airdrop — resolve via base URI
+        assertEq(collection721.tokenURI(tokenIds[0]), string(abi.encodePacked(REVEALED_BASE_URI, "1")));
+        assertEq(collection721.tokenURI(tokenIds[1]), string(abi.encodePacked(REVEALED_BASE_URI, "2")));
+        assertEq(collection721.tokenURI(tokenIds[2]), string(abi.encodePacked(REVEALED_BASE_URI, "3")));
+    }
+
+    function test_blind_config_locks_after_airdrop() public {
+        bytes32 commitment = keccak256(abi.encodePacked(REVEALED_BASE_URI, SALT));
+        
+        address[] memory recipients = new address[](1);
+        recipients[0] = alice;
+        string[] memory uris = new string[](1);
+        uris[0] = "uri1";
+        
+        vm.startPrank(owner);
+        collection721.setBlindMintConfig(PLACEHOLDER, commitment);
+        collection721.airdrop(recipients, uris);
+        
+        // Airdrop must lock the commitment — swapping after airdrop reverts
+        bytes32 newCommitment = keccak256(abi.encodePacked("ipfs://evil/", SALT));
+        vm.expectRevert("Blind config locked after first mint");
+        collection721.setBlindMintConfig("ipfs://evil-placeholder", newCommitment);
+        vm.stopPrank();
+    }
+
+    function test_blind_config_locks_after_1155_airdrop() public {
+        bytes32 commitment = keccak256(abi.encodePacked(REVEALED_BASE_URI, SALT));
+        
+        vm.startPrank(owner);
+        collection1155.setBlindMintConfig(PLACEHOLDER, commitment);
+        uint256 tokenId = collection1155.mint(alice, 10, 100, "ipfs://edition");
+        
+        address[] memory recipients = new address[](1);
+        recipients[0] = bob;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 5;
+        collection1155.airdrop(recipients, tokenId, amounts);
+        
+        bytes32 newCommitment = keccak256(abi.encodePacked("ipfs://evil/", SALT));
+        vm.expectRevert("Blind config locked after first mint");
+        collection1155.setBlindMintConfig("ipfs://evil-placeholder", newCommitment);
+        vm.stopPrank();
     }
 
     function test_blind_config_locks_after_first_mint() public {

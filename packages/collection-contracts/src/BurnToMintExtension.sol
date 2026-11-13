@@ -92,7 +92,8 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
      * @param perWalletCap Max redemptions per wallet (0 = unlimited)
      * @param startTime Unix timestamp when redemptions start (0 = immediate)
      * @param endTime Unix timestamp when redemptions end (0 = never)
-     * @param targetBaseURI For ERC721 targets, base URI for minted tokens (appends token count)
+     * @param targetBaseURI For ERC721 targets, base URI ending with '/' for minted tokens.
+     *                      Tokens are numbered 0-based within the config: `targetBaseURI + "0"`, `"1"`, ...
      */
     function createBurnConfig(
         address sourceContract,
@@ -122,8 +123,10 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         if (targetSpec == TokenSpec.ERC1155) {
             require(targetTokenId > 0, "Target token ID required for ERC1155");
         } else {
-            // For ERC721, require base URI
-            require(bytes(targetBaseURI).length > 0, "Target base URI required for ERC721");
+            // For ERC721, require base URI ending with '/'
+            bytes memory baseURIBytes = bytes(targetBaseURI);
+            require(baseURIBytes.length > 0, "Target base URI required for ERC721");
+            require(baseURIBytes[baseURIBytes.length - 1] == "/", "Base URI must end with /");
         }
         
         // Time window validation

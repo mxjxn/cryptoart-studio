@@ -8,6 +8,7 @@ import {ReentrancyGuard} from "openzeppelin/utils/ReentrancyGuard.sol";
 import {IERC2981} from "openzeppelin/interfaces/IERC2981.sol";
 import {IERC165} from "openzeppelin/utils/introspection/IERC165.sol";
 import {ILazyDelivery} from "./interfaces/ILazyDelivery.sol";
+import {IMarketplaceCore} from "./interfaces/IMarketplaceCore.sol";
 
 /// @notice Multi-supply collection. Each token id has a supply that is limited (maxSupply > 0)
 ///         or open (maxSupply == 0). Not numbered editions.
@@ -17,7 +18,6 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
     event RoyaltyUpdated(address receiver, uint16 bps);
     event BaseURIUpdated(string baseURI);
     event MarketplaceApproved(address indexed marketplace, bool approved);
-    event ListingIdApproved(uint40 indexed listingId, bool approved);
     event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId, uint256 amount);
     event Revealed(string revealedBaseURI, bytes32 metadataHash);
 
@@ -38,9 +38,6 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
     
     // Authorized marketplace/auction house addresses that can call deliver()
     mapping(address => bool) private _approvedMarketplaces;
-    
-    // Approved listing IDs that can be delivered (prevents unauthorized lazy listings)
-    mapping(uint40 => bool) private _approvedListingIds;
     
     // Blind mint / reveal state
     bool private _isRevealed;
@@ -95,10 +92,7 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
             require(amount <= maxSupply_, "Exceeds max supply");
         }
 
-        // Lock blind mint config on first mint to prevent commitment swap
-        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
-            _blindMintLocked = true;
-        }
+        _lockBlindMintIfConfigured();
 
         ++_tokenCount;
         tokenId = _tokenCount;
@@ -136,10 +130,7 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         require(amount > 0, "Amount zero");
         require(tokenId > 0 && tokenId <= _tokenCount, "Unknown token");
         
-        // Lock blind mint config on first mint to prevent commitment swap
-        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked && totalMinted[tokenId] == 0) {
-            _blindMintLocked = true;
-        }
+        _lockBlindMintIfConfigured();
         
         uint256 cap = maxSupply[tokenId];
         if (cap > 0) {
@@ -149,6 +140,12 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         _mint(to, tokenId, amount, "");
         emit SupplyMinted(to, tokenId, amount, cap);
         emit Minted(to, tokenId, _tokenURIs[tokenId]);
+    }
+
+    function _lockBlindMintIfConfigured() internal {
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
     }
 
     function setTokenURI(uint256 tokenId, string calldata tokenURI_) external onlyOwner {
@@ -211,38 +208,6 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         return _approvedMarketplaces[marketplace];
     }
 
-    /**
-     * @notice Approve or revoke a listing ID for lazy delivery
-     * @dev This prevents unauthorized users from creating lazy listings and collecting payment.
-     *      The owner must pre-register listing IDs before creating lazy listings on the marketplace.
-     * @param listingId The marketplace listing ID
-     * @param approved True to approve, false to revoke
-     */
-    function setListingIdApproval(uint40 listingId, bool approved) external onlyOwner {
-        _approvedListingIds[listingId] = approved;
-        emit ListingIdApproved(listingId, approved);
-    }
-
-    /**
-     * @notice Batch approve multiple listing IDs
-     * @param listingIds Array of listing IDs to approve
-     */
-    function setListingIdApprovalBatch(uint40[] calldata listingIds) external onlyOwner {
-        for (uint256 i = 0; i < listingIds.length; i++) {
-            _approvedListingIds[listingIds[i]] = true;
-            emit ListingIdApproved(listingIds[i], true);
-        }
-    }
-
-    /**
-     * @notice Check if a listing ID is approved for delivery
-     * @param listingId The marketplace listing ID
-     * @return True if approved, false otherwise
-     */
-    function isListingIdApproved(uint40 listingId) external view returns (bool) {
-        return _approvedListingIds[listingId];
-    }
-
     // === Lazy Delivery ===
 
     /**
@@ -267,9 +232,15 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         uint256 index
     ) external override nonReentrant {
         require(_approvedMarketplaces[msg.sender], "Caller not approved marketplace");
-        require(_approvedListingIds[listingId], "Listing ID not approved");
         require(payableCount > 0, "Amount must be > 0");
         require(to != address(0), "Cannot deliver to zero address");
+
+        // Look up listing on the calling marketplace — seller must be collection owner
+        IMarketplaceCore.Listing memory listing = IMarketplaceCore(msg.sender).getListing(listingId);
+        require(listing.seller == owner(), "Listing seller is not collection owner");
+        require(listing.token.address_ == address(this), "Listing token is not this collection");
+
+        _lockBlindMintIfConfigured();
 
         // For lazy delivery, if the token doesn't exist yet, verify it was prepared
         // If it exists and has capacity, we mint additional supply
@@ -335,6 +306,8 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         require(recipients.length == amounts.length, "Length mismatch");
         require(recipients.length <= 500, "Batch too large"); // Safety limit
         require(tokenId > 0 && tokenId <= _tokenCount, "Unknown token");
+
+        _lockBlindMintIfConfigured();
 
         uint256 totalAmount;
         for (uint256 i; i < amounts.length;) {
