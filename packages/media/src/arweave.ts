@@ -92,8 +92,18 @@ export async function createDirectArweave(jwk: string): Promise<ArweaveAdapter> 
     throw new Error('Invalid JWK format. Expected RSA key with n and e fields.');
   }
   
-  // TODO: Implement actual arweave-js upload when needed
-  // For now, fall back to simulated uploader with a warning
+  // Direct Arweave L1 uploader is not yet implemented
+  // Throw an error in production to prevent silent failures
+  const isVercelProduction = process.env.VERCEL_ENV === 'production';
+  if (isVercelProduction) {
+    throw new Error(
+      'Direct Arweave L1 uploader is not implemented. ' +
+      'Install arweave-js and complete createDirectArweave() to enable direct uploads, ' +
+      'or use ARWEAVE_UPLOADER=turbo instead.'
+    );
+  }
+  
+  // In non-production, fall back to simulated uploader with a warning
   console.warn(
     'Direct Arweave L1 uploader is not implemented. ' +
     'Install arweave-js and complete createDirectArweave() to enable direct uploads. ' +

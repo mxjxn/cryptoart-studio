@@ -1,12 +1,13 @@
-import type { UploadJob, UploadQuote, FileQuoteInput, ArweaveRecord } from './types';
-
-export interface TempUploadResult {
-  url: string;
-  pathname: string;
-  size: number;
-  contentType: string;
-  expiresAt?: string;
-}
+import type { 
+  UploadJob, 
+  UploadQuote, 
+  FileQuoteInput, 
+  ArweaveRecord,
+  TempUploadResult,
+  MetadataInput,
+  ConfirmResult,
+  JobStatusResult,
+} from './types';
 
 export interface MediaConfig {
   allowMockPayment: boolean;
@@ -17,24 +18,6 @@ export interface MediaConfig {
   maxFileSize: number;
   maxFileSizeMB: number;
   tempUploadTtlSeconds: number;
-}
-
-export interface MetadataInput {
-  name: string;
-  description?: string;
-  attributes?: Array<{ trait_type: string; value: string | number }>;
-  animation_url?: string;
-  animationUrl?: string;
-}
-
-export interface ConfirmResult {
-  job: UploadJob;
-  mintEnabled: boolean;
-}
-
-export interface JobStatusResult {
-  job: UploadJob;
-  mintEnabled: boolean;
 }
 
 export class MediaClient {

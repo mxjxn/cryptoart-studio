@@ -15,19 +15,18 @@ const MAX_FILE_SIZE = process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE
   ? parseInt(process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE, 10)
   : 100 * 1024 * 1024;
 
-// Temp uploads expire after this duration (default 1 hour)
+// Temp uploads expire after this duration (default 7 days)
 const TEMP_UPLOAD_TTL_SECONDS = process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS
   ? parseInt(process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS, 10)
-  : 3600;
+  : 604800;
 
 const ALLOWED_MIME_TYPES = [
-  // Images
+  // Images (no SVG or HTML for security)
   'image/jpeg',
   'image/jpg',
   'image/png',
   'image/gif',
   'image/webp',
-  'image/svg+xml',
   // Video
   'video/mp4',
   'video/webm',
@@ -40,7 +39,6 @@ const ALLOWED_MIME_TYPES = [
   'audio/webm',
   'audio/ogg',
   // 3D/Interactive
-  'text/html',
   'model/gltf-binary',
   'model/gltf+json',
   // Generic fallbacks
@@ -101,8 +99,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Sanitize filename: use random ID + safe extension
+    const randomId = crypto.randomUUID();
+    const safeExtension = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+    const pathname = `temp/${payer}/${Date.now()}-${randomId}.${safeExtension}`;
+
     // Upload to Vercel Blob with expiration
-    const blob = await put(`temp/${payer}/${Date.now()}-${file.name}`, file, {
+    const blob = await put(pathname, file, {
       access: 'public',
       addRandomSuffix: true,
       cacheControlMaxAge: TEMP_UPLOAD_TTL_SECONDS,
@@ -111,7 +114,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       url: blob.url,
       pathname: blob.pathname,
-      size: blob.size,
+      size: file.size,
       contentType: blob.contentType,
       expiresAt: new Date(Date.now() + TEMP_UPLOAD_TTL_SECONDS * 1000).toISOString(),
     });

@@ -93,6 +93,7 @@ export interface TempUploadResult {
   pathname: string;
   size: number;
   contentType: string;
+  expiresAt?: string;
 }
 
 export interface MetadataInput {

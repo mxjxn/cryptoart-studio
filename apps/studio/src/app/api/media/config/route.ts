@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
-import { quoteUpload } from '@cryptoart/media';
 
 export async function GET() {
-  const isProd = process.env.NODE_ENV === 'production';
-  const allowMock =
-    process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'true'
-      ? true
-      : process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'false'
-        ? false
-        : !isProd;
+  const isVercelProduction = process.env.VERCEL_ENV === 'production';
+  
+  // Never allow mock payment in Vercel production
+  let allowMock = false;
+  if (!isVercelProduction) {
+    if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'true') {
+      allowMock = true;
+    } else if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'false') {
+      allowMock = false;
+    }
+    // else: default to false
+  }
 
   const maxFileSize = process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE
     ? parseInt(process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE, 10)
@@ -16,7 +20,7 @@ export async function GET() {
 
   const tempTtlSeconds = process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS
     ? parseInt(process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS, 10)
-    : 3600;
+    : 604800; // 7 days default
 
   return NextResponse.json({
     allowMockPayment: allowMock,
