@@ -16,12 +16,18 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
     event BaseURIUpdated(string baseURI);
     event MarketplaceApproved(address indexed marketplace, bool approved);
     event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId);
+    event Revealed(string revealedBaseURI, bytes32 metadataHash);
 
     address payable private _royaltyReceiver;
     uint16 private _royaltyBPS;
     
     // Authorized marketplace/auction house addresses that can call deliver()
     mapping(address => bool) private _approvedMarketplaces;
+    
+    // Blind mint / reveal state
+    bool private _isRevealed;
+    string private _placeholderURI;
+    bytes32 private _metadataCommitment; // Hash of final metadata for verification
 
     constructor(
         string memory name_,
@@ -153,6 +159,12 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
 
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         _requireMinted(tokenId);
+        
+        // If blind mint is configured and not revealed, return placeholder
+        if (bytes(_placeholderURI).length > 0 && !_isRevealed) {
+            return _placeholderURI;
+        }
+        
         return _tokenURI(tokenId);
     }
 
@@ -274,6 +286,64 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
                 ++i;
             }
         }
+    }
+
+    // === Blind Mint / Reveal ===
+
+    /**
+     * @notice Set up blind minting with a placeholder URI and metadata commitment
+     * @dev Must be called before any minting if blind reveal is desired.
+     *      The metadata commitment is a hash of the final metadata to prove fairness.
+     * @param placeholder The URI to use for all tokens until reveal
+     * @param metadataHash keccak256 hash of the final metadata (e.g., hash of base URI + salt)
+     */
+    function setBlindMintConfig(string calldata placeholder, bytes32 metadataHash) external onlyOwner {
+        require(!_isRevealed, "Already revealed");
+        require(bytes(placeholder).length > 0, "Placeholder required");
+        require(metadataHash != bytes32(0), "Metadata hash required");
+        _placeholderURI = placeholder;
+        _metadataCommitment = metadataHash;
+    }
+
+    /**
+     * @notice Reveal the collection by setting the real base URI
+     * @dev Can only be called once. The revealed base URI should hash to the commitment.
+     * @param revealedBaseURI The actual base URI for all tokens
+     * @param verificationSalt Optional salt used in the commitment hash for verification
+     */
+    function reveal(string calldata revealedBaseURI, bytes32 verificationSalt) external onlyOwner {
+        require(!_isRevealed, "Already revealed");
+        require(bytes(_placeholderURI).length > 0, "Blind mint not configured");
+        
+        // Verify the revealed URI matches the commitment
+        bytes32 computedHash = keccak256(abi.encodePacked(revealedBaseURI, verificationSalt));
+        require(computedHash == _metadataCommitment, "Metadata does not match commitment");
+        
+        _isRevealed = true;
+        _setBaseTokenURI(revealedBaseURI);
+        
+        emit Revealed(revealedBaseURI, _metadataCommitment);
+    }
+
+    /**
+     * @notice Check if the collection has been revealed
+     */
+    function isRevealed() external view returns (bool) {
+        return _isRevealed;
+    }
+
+    /**
+     * @notice Get the placeholder URI used for unrevealed tokens
+     */
+    function placeholderURI() external view returns (string memory) {
+        return _placeholderURI;
+    }
+
+    /**
+     * @notice Get the metadata commitment hash
+     */
+    function metadataCommitment() external view returns (bytes32) {
+        return _metadataCommitment;
     }
 
     function _mintBase(address to, string memory uri) internal returns (uint256) {

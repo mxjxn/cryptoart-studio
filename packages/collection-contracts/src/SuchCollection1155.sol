@@ -18,6 +18,7 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
     event BaseURIUpdated(string baseURI);
     event MarketplaceApproved(address indexed marketplace, bool approved);
     event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId, uint256 amount);
+    event Revealed(string revealedBaseURI, bytes32 metadataHash);
 
     string public name;
     string public symbol;
@@ -36,6 +37,11 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
     
     // Authorized marketplace/auction house addresses that can call deliver()
     mapping(address => bool) private _approvedMarketplaces;
+    
+    // Blind mint / reveal state
+    bool private _isRevealed;
+    string private _placeholderURI;
+    bytes32 private _metadataCommitment;
 
     constructor(
         string memory name_,
@@ -57,6 +63,12 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
 
     function uri(uint256 tokenId) public view override returns (string memory) {
         require(bytes(_tokenURIs[tokenId]).length != 0 || totalMinted[tokenId] > 0, "Unknown token");
+        
+        // If blind mint is configured and not revealed, return placeholder
+        if (bytes(_placeholderURI).length > 0 && !_isRevealed) {
+            return _placeholderURI;
+        }
+        
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             return _tokenURIs[tokenId];
         }
@@ -88,8 +100,23 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         emit SupplyMinted(to, tokenId, amount, maxSupply_);
     }
 
+    // Authorized minters (for extensions like burn-to-mint)
+    mapping(address => bool) private _authorizedMinters;
+    
+    /// @notice Authorize an address to mint (e.g., burn-to-mint extension)
+    function setAuthorizedMinter(address minter, bool authorized) external onlyOwner {
+        _authorizedMinters[minter] = authorized;
+    }
+    
+    /// @notice Check if an address is authorized to mint
+    function isAuthorizedMinter(address minter) external view returns (bool) {
+        return _authorizedMinters[minter];
+    }
+    
     /// @notice Mint additional supply of an existing token id (open or under cap).
-    function mintExisting(address to, uint256 tokenId, uint256 amount) external onlyOwner nonReentrant {
+    /// @dev Can be called by owner or authorized minters
+    function mintExisting(address to, uint256 tokenId, uint256 amount) external nonReentrant {
+        require(msg.sender == owner() || _authorizedMinters[msg.sender], "Not authorized");
         require(amount > 0, "Amount zero");
         require(tokenId > 0 && tokenId <= _tokenCount, "Unknown token");
         uint256 cap = maxSupply[tokenId];
@@ -278,6 +305,51 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
                 ++i;
             }
         }
+    }
+
+    // === Blind Mint / Reveal ===
+
+    /**
+     * @notice Set up blind minting with a placeholder URI and metadata commitment
+     * @param placeholder The URI to use for all tokens until reveal
+     * @param metadataHash keccak256 hash of the final metadata
+     */
+    function setBlindMintConfig(string calldata placeholder, bytes32 metadataHash) external onlyOwner {
+        require(!_isRevealed, "Already revealed");
+        require(bytes(placeholder).length > 0, "Placeholder required");
+        require(metadataHash != bytes32(0), "Metadata hash required");
+        _placeholderURI = placeholder;
+        _metadataCommitment = metadataHash;
+    }
+
+    /**
+     * @notice Reveal the collection by setting the real base URI
+     * @param revealedBaseURI The actual base URI for all tokens
+     * @param verificationSalt Salt used in the commitment hash
+     */
+    function reveal(string calldata revealedBaseURI, bytes32 verificationSalt) external onlyOwner {
+        require(!_isRevealed, "Already revealed");
+        require(bytes(_placeholderURI).length > 0, "Blind mint not configured");
+        
+        bytes32 computedHash = keccak256(abi.encodePacked(revealedBaseURI, verificationSalt));
+        require(computedHash == _metadataCommitment, "Metadata does not match commitment");
+        
+        _isRevealed = true;
+        _baseURI = revealedBaseURI;
+        
+        emit Revealed(revealedBaseURI, _metadataCommitment);
+    }
+
+    function isRevealed() external view returns (bool) {
+        return _isRevealed;
+    }
+
+    function placeholderURI() external view returns (string memory) {
+        return _placeholderURI;
+    }
+
+    function metadataCommitment() external view returns (bytes32) {
+        return _metadataCommitment;
     }
 
     function supportsInterface(bytes4 interfaceId)
