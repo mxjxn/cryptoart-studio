@@ -51,11 +51,12 @@ cat > deployments/base-sepolia.json <<EOF
 }
 EOF
 
-node ../../scripts/record-factory-deployment.mjs \
+# record script resolves manifest from repo root (script lives in scripts/)
+(cd "$ROOT/../.." && node scripts/record-factory-deployment.mjs \
   --chain-id 84532 \
   --erc721 "$FACTORY_721" \
   --erc1155 "$FACTORY_1155" \
-  --start-block "$BLOCK" || true
+  --start-block "$BLOCK") || true
 
 echo
 echo "[preview] ok"

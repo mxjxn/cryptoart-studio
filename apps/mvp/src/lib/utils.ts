@@ -101,7 +101,7 @@ export function getBaseScanUrl(hash: string, chainId?: number): string {
  * True when a listing has a token id to show, including `"0"`.
  * `if (tokenId)` hides token 0 and was dropping the id row on some pages.
  */
-export function isPresentTokenId(tokenId: unknown): boolean {
+export function isPresentTokenId(tokenId: unknown): tokenId is string | number | bigint {
   if (tokenId == null) return false;
   return String(tokenId).trim() !== "";
 }
