@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb, index, bigint, primaryKey, unique } from 'drizzle-orm/pg-core';
+import { pgTable, integer, text, timestamp, jsonb, index, bigint, primaryKey, unique, numeric } from 'drizzle-orm/pg-core';
 
 /**
  * NOTE: This package reuses the existing `indexed_contracts` table from @cryptoart/db
@@ -45,19 +45,19 @@ export const listings = pgTable(
   'chain_indexer_listings',
   {
     chainId: integer('chain_id').notNull(),
-    listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
+    listingId: numeric('listing_id', { precision: 78, scale: 0 }).notNull(),
     marketplace: text('marketplace').notNull(), // lowercase hex address
     seller: text('seller').notNull(), // lowercase hex address
     
     // Token details
     tokenAddress: text('token_address').notNull(),
-    tokenId: bigint('token_id', { mode: 'bigint' }),
+    tokenId: numeric('token_id', { precision: 78, scale: 0 }),
     tokenSpec: integer('token_spec').notNull(), // 0=NONE, 1=ERC721, 2=ERC1155
     lazy: integer('lazy').notNull().default(0), // 0=false, 1=true (boolean as int)
     
     // Listing details
     listingType: integer('listing_type').notNull(), // 1=AUCTION, 2=FIXED_PRICE, etc.
-    initialAmount: bigint('initial_amount', { mode: 'bigint' }).notNull(),
+    initialAmount: numeric('initial_amount', { precision: 78, scale: 0 }).notNull(),
     totalAvailable: integer('total_available').notNull(),
     totalPerSale: integer('total_per_sale').notNull(),
     totalSold: integer('total_sold').notNull().default(0),
@@ -78,7 +78,7 @@ export const listings = pgTable(
     marketplaceBPS: integer('marketplace_bps').notNull(),
     referrerBPS: integer('referrer_bps').notNull(),
     deliverBPS: integer('deliver_bps').notNull(),
-    deliverFixed: bigint('deliver_fixed', { mode: 'bigint' }).notNull(),
+    deliverFixed: numeric('deliver_fixed', { precision: 78, scale: 0 }).notNull(),
     
     // Status
     status: text('status').notNull().default('ACTIVE'), // ACTIVE, CANCELLED, FINALIZED
@@ -110,10 +110,10 @@ export const bids = pgTable(
   'chain_indexer_bids',
   {
     chainId: integer('chain_id').notNull(),
-    listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
+    listingId: numeric('listing_id', { precision: 78, scale: 0 }).notNull(),
     referrer: text('referrer'),
     bidder: text('bidder').notNull(),
-    amount: bigint('amount', { mode: 'bigint' }).notNull(),
+    amount: numeric('amount', { precision: 78, scale: 0 }).notNull(),
     timestamp: bigint('timestamp', { mode: 'bigint' }).notNull(),
     blockNumber: bigint('block_number', { mode: 'bigint' }).notNull(),
     transactionHash: text('transaction_hash').notNull(),
@@ -136,11 +136,11 @@ export const purchases = pgTable(
   'chain_indexer_purchases',
   {
     chainId: integer('chain_id').notNull(),
-    listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
+    listingId: numeric('listing_id', { precision: 78, scale: 0 }).notNull(),
     referrer: text('referrer'),
     buyer: text('buyer').notNull(),
     count: integer('count').notNull(),
-    amount: bigint('amount', { mode: 'bigint' }).notNull(),
+    amount: numeric('amount', { precision: 78, scale: 0 }).notNull(),
     timestamp: bigint('timestamp', { mode: 'bigint' }).notNull(),
     blockNumber: bigint('block_number', { mode: 'bigint' }).notNull(),
     transactionHash: text('transaction_hash').notNull(),
@@ -163,10 +163,10 @@ export const offers = pgTable(
   'chain_indexer_offers',
   {
     chainId: integer('chain_id').notNull(),
-    listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
+    listingId: numeric('listing_id', { precision: 78, scale: 0 }).notNull(),
     referrer: text('referrer'),
     offerer: text('offerer').notNull(),
-    amount: bigint('amount', { mode: 'bigint' }).notNull(),
+    amount: numeric('amount', { precision: 78, scale: 0 }).notNull(),
     status: text('status').notNull().default('PENDING'), // PENDING, ACCEPTED, RESCINDED
     timestamp: bigint('timestamp', { mode: 'bigint' }).notNull(),
     blockNumber: bigint('block_number', { mode: 'bigint' }).notNull(),
@@ -195,7 +195,7 @@ export const escrows = pgTable(
     chainId: integer('chain_id').notNull(),
     receiver: text('receiver').notNull(),
     erc20: text('erc20').notNull(), // payment token address
-    amount: bigint('amount', { mode: 'bigint' }).notNull(),
+    amount: numeric('amount', { precision: 78, scale: 0 }).notNull(),
     timestamp: bigint('timestamp', { mode: 'bigint' }).notNull(),
     blockNumber: bigint('block_number', { mode: 'bigint' }).notNull(),
     transactionHash: text('transaction_hash').notNull(),

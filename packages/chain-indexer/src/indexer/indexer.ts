@@ -88,18 +88,30 @@ export async function indexContract(
         // Parse events
         const events = logs.map((log) => parseLogToEvent(config, log));
 
-        // Store events and update checkpoint in transaction
-        const result = await indexEventsTransaction(
+        // Fetch block timestamps for events
+        const blockTimestamps = new Map<bigint, bigint>();
+        for (const event of events) {
+          if (!blockTimestamps.has(event.blockNumber)) {
+            try {
+              const block = await client.getBlock({ blockNumber: event.blockNumber });
+              blockTimestamps.set(event.blockNumber, block.timestamp);
+            } catch (error) {
+              console.error(`[Indexer] Failed to fetch block ${event.blockNumber}:`, error);
+              blockTimestamps.set(event.blockNumber, BigInt(Math.floor(Date.now() / 1000)));
+            }
+          }
+        }
+
+        // Process events into domain tables and store with checkpoint in single transaction
+        const result = await processAndStoreEvents(
           config.chainId,
           config.address,
           events,
-          endBlock
+          endBlock,
+          blockTimestamps
         );
 
         totalEventsIndexed += result.eventsInserted;
-
-        // Process events into domain tables (listings, bids, etc.)
-        await processEvents(config.chainId, events);
 
         console.log(
           `[Indexer] ${config.label || config.address} | Blocks ${currentBlock}-${endBlock} | ${events.length} events | ${result.eventsInserted} new`
@@ -214,50 +226,110 @@ function parseLogToEvent(config: ContractConfig, log: Log): ChainEvent {
 }
 
 /**
- * Process raw chain events into domain tables
+ * Process events and store in a single transaction with checkpoint
+ * This ensures atomicity and idempotency
  */
-async function processEvents(chainId: number, events: ChainEvent[]): Promise<void> {
-  for (const event of events) {
-    try {
-      const timestamp = BigInt(Date.now() / 1000); // Approximate - should get from block if available
+async function processAndStoreEvents(
+  chainId: number,
+  contract: Address,
+  events: ChainEvent[],
+  newCheckpoint: bigint,
+  blockTimestamps: Map<bigint, bigint>
+): Promise<{ eventsInserted: number }> {
+  const { db: dbInstance } = await import('@cryptoart/db/client');
+  const { indexedContracts } = await import('@cryptoart/db');
+  
+  return await dbInstance.transaction(async (tx) => {
+    // Insert raw events
+    let eventsInserted = 0;
+    if (events.length > 0) {
+      const { chainEvents } = await import('../schema');
+      const { serializeBigInt } = await import('./database');
+      
+      const values = events.map((event) => ({
+        chainId: event.chainId,
+        contract: event.contract.toLowerCase(),
+        eventName: event.eventName,
+        blockNumber: event.blockNumber,
+        blockHash: event.blockHash,
+        transactionHash: event.transactionHash,
+        logIndex: event.logIndex,
+        args: serializeBigInt(event.args),
+        indexedAt: new Date(),
+      }));
 
-      switch (event.eventName) {
-        case 'CreateListing':
-          await processCreateListing(chainId, event.args as any, event.blockNumber, timestamp, event.contract);
-          break;
-        case 'CreateListingTokenDetails':
-          await processCreateListingTokenDetails(chainId, event.args as any, event.blockNumber, timestamp);
-          break;
-        case 'CreateListingFees':
-          await processCreateListingFees(chainId, event.args as any, event.blockNumber, timestamp);
-          break;
-        case 'BidEvent':
-          await processBidEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
-          break;
-        case 'PurchaseEvent':
-          await processPurchaseEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
-          break;
-        case 'OfferEvent':
-          await processOfferEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
-          break;
-        case 'ModifyListing':
-          await processModifyListing(chainId, event.args as any, event.blockNumber, timestamp);
-          break;
-        case 'CancelListing':
-          await processCancelListing(chainId, event.args as any, event.blockNumber, timestamp);
-          break;
-        case 'FinalizeListing':
-          await processFinalizeListing(chainId, event.args as any, event.blockNumber, timestamp);
-          break;
-        case 'Escrow':
-          await processEscrowEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
-          break;
-        // Skip other events (RescindOfferEvent, AcceptOfferEvent handled separately if needed)
-      }
-    } catch (error) {
-      console.error(`[Indexer] Error processing event ${event.eventName} at ${event.transactionHash}:${event.logIndex}:`, error);
+      const result = await tx
+        .insert(chainEvents)
+        .values(values)
+        .onConflictDoNothing();
+
+      eventsInserted = Array.isArray(result) ? result.length : 0;
     }
-  }
+
+    // Process domain events within the same transaction
+    for (const event of events) {
+      const timestamp = blockTimestamps.get(event.blockNumber) || BigInt(Math.floor(Date.now() / 1000));
+
+      try {
+        switch (event.eventName) {
+          case 'CreateListing':
+            await processCreateListing(tx, chainId, event.args as any, event.blockNumber, timestamp, event.contract);
+            break;
+          case 'CreateListingTokenDetails':
+            await processCreateListingTokenDetails(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            break;
+          case 'CreateListingFees':
+            await processCreateListingFees(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            break;
+          case 'BidEvent':
+            await processBidEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+            break;
+          case 'PurchaseEvent':
+            await processPurchaseEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+            break;
+          case 'OfferEvent':
+            await processOfferEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+            break;
+          case 'ModifyListing':
+            await processModifyListing(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            break;
+          case 'CancelListing':
+            await processCancelListing(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            break;
+          case 'FinalizeListing':
+            await processFinalizeListing(tx, chainId, event.args as any, event.blockNumber, timestamp);
+            break;
+          case 'Escrow':
+            await processEscrowEvent(tx, chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+            break;
+        }
+      } catch (error) {
+        console.error(`[Indexer] Error processing event ${event.eventName} at ${event.transactionHash}:${event.logIndex}:`, error);
+        throw error; // Rollback transaction on processing error
+      }
+    }
+
+    // Update checkpoint
+    const normalizedContract = contract.toLowerCase();
+    await tx
+      .insert(indexedContracts)
+      .values({
+        contractAddress: normalizedContract,
+        chainId,
+        lastIndexedBlock: Number(newCheckpoint),
+        status: 'active',
+        contractType: 'marketplace',
+        discoveredAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [indexedContracts.contractAddress, indexedContracts.chainId],
+        set: {
+          lastIndexedBlock: Number(newCheckpoint),
+        },
+      });
+
+    return { eventsInserted };
+  });
 }
 
 /**

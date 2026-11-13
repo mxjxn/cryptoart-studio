@@ -1,8 +1,66 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Address } from 'viem';
 import type { ContractConfig } from '../types/events';
+import { processCreateListing } from './processors';
 
 describe('Indexer', () => {
+  describe('Processor with BigInt Args', () => {
+    it('should process CreateListing event with BigInt amounts correctly', async () => {
+      // Mock transaction object
+      const mockTx = {
+        insert: vi.fn().mockReturnValue({
+          values: vi.fn().mockReturnValue({
+            onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+          }),
+        }),
+      };
+
+      // Create listing args with BigInt values (simulating viem decoded event)
+      const args = {
+        listingId: 1n,
+        seller: '0x1234567890123456789012345678901234567890' as Address,
+        listingType: 2,
+        initialAmount: 10000000000000000000n, // 10 ETH in wei
+        totalAvailable: 100,
+        totalPerSale: 1,
+        startTime: 1700000000n,
+        endTime: 1700086400n,
+        extensionInterval: 900,
+        minIncrementBPS: 500,
+        erc20: '0x0000000000000000000000000000000000000000' as Address,
+        identityVerifier: '0x0000000000000000000000000000000000000000' as Address,
+        marketplaceBPS: 250,
+        referrerBPS: 100,
+      };
+
+      await processCreateListing(
+        mockTx as any,
+        8453,
+        args,
+        100000n,
+        1700000000n,
+        '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9'
+      );
+
+      // Verify insert was called
+      expect(mockTx.insert).toHaveBeenCalled();
+      
+      // Verify values method was called with serialized BigInts
+      const valuesCall = mockTx.insert().values;
+      expect(valuesCall).toHaveBeenCalled();
+      
+      // Get the values that were passed
+      const insertedValues = valuesCall.mock.calls[0][0];
+      
+      // Verify BigInt values were converted to strings
+      expect(typeof insertedValues.listingId).toBe('string');
+      expect(insertedValues.listingId).toBe('1');
+      expect(typeof insertedValues.initialAmount).toBe('string');
+      expect(insertedValues.initialAmount).toBe('10000000000000000000');
+      expect(insertedValues.marketplace).toBe('0x1cb0c1f72ba7547fc99c4b5333d8aba1ed6b31a9'); // lowercase
+    });
+  });
+
   describe('Block Range Chunking', () => {
     it('should calculate correct chunk ranges for small ranges', () => {
       const MAX_BLOCK_RANGE = 2000;

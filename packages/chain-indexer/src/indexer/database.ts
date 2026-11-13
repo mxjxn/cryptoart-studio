@@ -16,7 +16,7 @@ import {
  * Serialize BigInt values as strings for JSONB storage
  * Recursively walks objects and arrays
  */
-function serializeBigInt(obj: any): any {
+export function serializeBigInt(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'bigint') return obj.toString();
   if (Array.isArray(obj)) return obj.map(serializeBigInt);

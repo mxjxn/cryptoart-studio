@@ -24,7 +24,7 @@ export function getPublicClient(chainId: number): PublicClient {
       retryCount: 3,
       retryDelay: 1000,
     }),
-  });
+  }) as unknown as PublicClient;
 
   clients.set(chainId, client);
   return client;

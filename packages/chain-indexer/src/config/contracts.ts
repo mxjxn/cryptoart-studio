@@ -34,8 +34,8 @@ export const MARKETPLACE_CONTRACTS: ContractConfig[] = [
   },
   {
     chainId: 84532, // Base Sepolia
-    address: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9' as Address,
-    startBlock: 0n, // TODO: Set actual deploy block for Base Sepolia
+    address: '0xfd35bF63448595377d5bc2fCB435239Ba2AFB3ea' as Address,
+    startBlock: 18179940n, // Base Sepolia marketplace proxy deploy block
     abi: [...MarketplaceLibABI, ...SettlementLibABI],
     events: [
       'CreateListing',
