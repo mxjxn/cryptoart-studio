@@ -152,8 +152,8 @@ export function getDatabase() {
   return globalForDb.db;
 }
 
-// Lazy singleton that doesn't throw at import time
-// Use a getter so it only initializes when actually accessed
+// Lazy singleton that doesn't throw at import time.
+// Bind methods so `db.transaction(...)` / `db.insert(...)` keep the real client as `this`.
 let _dbCache: ReturnType<typeof drizzle> | null = null;
 
 export const db = new Proxy({} as ReturnType<typeof drizzle>, {
@@ -161,7 +161,8 @@ export const db = new Proxy({} as ReturnType<typeof drizzle>, {
     if (!_dbCache) {
       _dbCache = getDatabase();
     }
-    return (_dbCache as any)[prop];
+    const value = (_dbCache as any)[prop];
+    return typeof value === 'function' ? value.bind(_dbCache) : value;
   },
 });
 
