@@ -1,3 +1,3 @@
 import SettlementLibJSON from './SettlementLib.json' assert { type: 'json' };
 
-export const SettlementLibABI = SettlementLibJSON as const;
+export const SettlementLibABI = SettlementLibJSON;
