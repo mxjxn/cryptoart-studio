@@ -203,10 +203,10 @@ function parseLogToEvent(config: ContractConfig, log: Log): ChainEvent {
   return {
     chainId: config.chainId,
     contract: config.address,
-    eventName: decoded.eventName,
+    eventName: String(decoded.eventName || 'Unknown'),
     blockNumber: log.blockNumber!,
-    blockHash: log.blockHash || '0x',
-    transactionHash: log.transactionHash || '0x',
+    blockHash: (log.blockHash || '0x') as `0x${string}`,
+    transactionHash: (log.transactionHash || '0x') as `0x${string}`,
     logIndex: Number(log.logIndex),
     args: (decoded.args || {}) as Record<string, unknown>,
     indexedAt: new Date(),

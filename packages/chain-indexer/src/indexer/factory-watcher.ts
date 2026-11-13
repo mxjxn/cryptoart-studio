@@ -86,9 +86,9 @@ export async function watchFactory(
           chainId,
           contract: factoryAddress,
           eventName: 'CollectionCreated',
-          blockNumber: log.blockNumber,
-          blockHash: log.blockHash!,
-          transactionHash: log.transactionHash!,
+          blockNumber: log.blockNumber!,
+          blockHash: log.blockHash || '0x',
+          transactionHash: log.transactionHash || '0x',
           logIndex: Number(log.logIndex),
           args: {
             collection: collectionAddress,
@@ -96,6 +96,7 @@ export async function watchFactory(
             name,
             symbol,
           },
+          indexedAt: new Date(),
         });
 
         // Add to discovered list
