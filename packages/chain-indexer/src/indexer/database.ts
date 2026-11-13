@@ -13,6 +13,24 @@ import {
 } from '../schema.js';
 
 /**
+ * Serialize BigInt values as strings for JSONB storage
+ * Recursively walks objects and arrays
+ */
+function serializeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeBigInt);
+  if (typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = serializeBigInt(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+/**
  * Get or initialize checkpoint for a contract
  * Uses the shared indexed_contracts table
  */
@@ -83,7 +101,7 @@ export async function insertChainEvents(events: ChainEvent[]): Promise<number> {
     blockHash: event.blockHash,
     transactionHash: event.transactionHash,
     logIndex: event.logIndex,
-    args: event.args,
+    args: serializeBigInt(event.args),
     indexedAt: new Date(),
   }));
 
@@ -119,7 +137,7 @@ export async function indexEventsTransaction(
         blockHash: event.blockHash,
         transactionHash: event.transactionHash,
         logIndex: event.logIndex,
-        args: event.args,
+        args: serializeBigInt(event.args),
         indexedAt: new Date(),
       }));
 

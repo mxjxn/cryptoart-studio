@@ -25,6 +25,10 @@ export async function watchFactory(
     maxBlockRange?: number;
   }
 ): Promise<Address[]> {
+  if (startBlock === 0n) {
+    throw new Error(`[FactoryWatcher] Factory on chain ${chainId} requires a valid start block, not 0`);
+  }
+
   const client = getPublicClient(chainId);
   const maxRange = options?.maxBlockRange ?? 2000;
 
@@ -42,7 +46,6 @@ export async function watchFactory(
 
   const toBlock = safeHead;
   const discovered: Address[] = [];
-  const events: ChainEvent[] = [];
 
   // Fetch CollectionCreated events in chunks
   let currentBlock = fromBlock;
@@ -51,9 +54,9 @@ export async function watchFactory(
     const endBlock = chunkEnd < toBlock ? chunkEnd : toBlock;
 
     try {
-      // Look for CollectionCreated events (from collection-indexer pattern)
+      // Look for CollectionCreated events with full signature: (address, address, string, string)
       const collectionCreatedEvent = parseAbiItem(
-        'event CollectionCreated(address indexed collection, address indexed creator)'
+        'event CollectionCreated(address indexed collection, address indexed owner, string name, string symbol)'
       );
 
       const logs = await client.getLogs({
@@ -62,6 +65,8 @@ export async function watchFactory(
         fromBlock: currentBlock,
         toBlock: endBlock,
       });
+
+      const chunkEvents: ChainEvent[] = [];
 
       // Process each discovered collection
       for (const log of logs) {
@@ -72,10 +77,12 @@ export async function watchFactory(
         });
 
         const collectionAddress = (decoded.args as any).collection as Address;
-        const creatorAddress = (decoded.args as any).creator as Address;
+        const ownerAddress = (decoded.args as any).owner as Address;
+        const name = (decoded.args as any).name as string;
+        const symbol = (decoded.args as any).symbol as string;
 
         // Store raw event
-        events.push({
+        chunkEvents.push({
           chainId,
           contract: factoryAddress,
           eventName: 'CollectionCreated',
@@ -85,7 +92,9 @@ export async function watchFactory(
           logIndex: Number(log.logIndex),
           args: {
             collection: collectionAddress,
-            creator: creatorAddress,
+            owner: ownerAddress,
+            name,
+            symbol,
           },
         });
 
@@ -106,9 +115,12 @@ export async function watchFactory(
           .onConflictDoNothing();
 
         console.log(
-          `[FactoryWatcher] Discovered collection ${collectionAddress} on chain ${chainId} at block ${log.blockNumber}`
+          `[FactoryWatcher] Discovered collection ${name} (${collectionAddress}) on chain ${chainId} at block ${log.blockNumber}`
         );
       }
+
+      // Save checkpoint incrementally per chunk
+      await indexEventsTransaction(chainId, factoryAddress, chunkEvents, endBlock, 'factory');
 
       currentBlock = endBlock + 1n;
     } catch (error) {
@@ -118,11 +130,6 @@ export async function watchFactory(
       );
       throw error;
     }
-  }
-
-  // Update factory checkpoint
-  if (events.length > 0 || toBlock > checkpoint) {
-    await indexEventsTransaction(chainId, factoryAddress, events, toBlock, 'factory');
   }
 
   return discovered;

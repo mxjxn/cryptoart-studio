@@ -7,7 +7,6 @@ import {
   indexContract,
   type ContractConfig,
 } from '@cryptoart/chain-indexer';
-import { MarketplaceLibABI } from '@cryptoart/chain-indexer/config/abis/MarketplaceLib';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Max 60s on Vercel Pro
@@ -19,6 +18,15 @@ export const maxDuration = 60; // Max 60s on Vercel Pro
  * Authentication: Vercel automatically sets Authorization header with CRON_SECRET
  */
 export async function GET(request: Request) {
+  // Verify cron secret is configured
+  if (!process.env.CRON_SECRET) {
+    console.error('[Cron] CRON_SECRET is not set');
+    return NextResponse.json(
+      { error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 }
+    );
+  }
+
   // Verify cron secret
   const authHeader = request.headers.get('authorization');
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
@@ -42,47 +50,62 @@ export async function GET(request: Request) {
     });
     results.push(...marketplaceResults);
 
-    // Step 2: Watch factories for new collections (if configured)
-    const factoryAddressBase = process.env.CHAIN_8453_FACTORY_ADDRESS;
-    const factory1155AddressBase = process.env.CHAIN_8453_ERC1155_FACTORY_ADDRESS;
-    const baseStartBlock = BigInt(process.env.CHAIN_8453_START_BLOCK || '0');
-
+    // Step 2: Watch factories for new collections (multi-chain)
+    // Supported chains: Base (8453), Base Sepolia (84532), Ethereum (1)
+    const supportedChains = [8453, 84532, 1];
     const discovered: string[] = [];
+    const collectionsPerChain: Record<number, number> = {};
 
-    if (factoryAddressBase) {
-      console.log('[Cron] Watching ERC721 factory...');
-      const newCollections = await watchFactory(
-        factoryAddressBase as `0x${string}`,
-        8453,
-        [], // Factory ABI not needed for CollectionCreated event
-        baseStartBlock
-      );
-      discovered.push(...newCollections);
+    for (const chainId of supportedChains) {
+      const factoryAddress = process.env[`CHAIN_${chainId}_FACTORY_ADDRESS`];
+      const factory1155Address = process.env[`CHAIN_${chainId}_ERC1155_FACTORY_ADDRESS`];
+      const startBlockStr = process.env[`CHAIN_${chainId}_START_BLOCK`];
+      const rpcUrl = process.env[`CHAIN_${chainId}_RPC_URL`];
+
+      // Skip chain if not configured
+      if (!rpcUrl) {
+        continue;
+      }
+
+      // Watch ERC721 factory if configured
+      if (factoryAddress && startBlockStr) {
+        const startBlock = BigInt(startBlockStr);
+        console.log(`[Cron] Watching ERC721 factory on chain ${chainId}...`);
+        try {
+          const newCollections = await watchFactory(
+            factoryAddress as `0x${string}`,
+            chainId,
+            [],
+            startBlock
+          );
+          discovered.push(...newCollections);
+        } catch (error) {
+          console.error(`[Cron] Error watching ERC721 factory on chain ${chainId}:`, error);
+        }
+      }
+
+      // Watch ERC1155 factory if configured
+      if (factory1155Address && startBlockStr) {
+        const startBlock = BigInt(startBlockStr);
+        console.log(`[Cron] Watching ERC1155 factory on chain ${chainId}...`);
+        try {
+          const newCollections = await watchFactory(
+            factory1155Address as `0x${string}`,
+            chainId,
+            [],
+            startBlock
+          );
+          discovered.push(...newCollections);
+        } catch (error) {
+          console.error(`[Cron] Error watching ERC1155 factory on chain ${chainId}:`, error);
+        }
+      }
+
+      // Track collections per chain
+      const collections = await getDiscoveredCollections(chainId);
+      collectionsPerChain[chainId] = collections.length;
+      console.log(`[Cron] Tracking ${collections.length} collections on chain ${chainId}`);
     }
-
-    if (factory1155AddressBase) {
-      console.log('[Cron] Watching ERC1155 factory...');
-      const newCollections = await watchFactory(
-        factory1155AddressBase as `0x${string}`,
-        8453,
-        [],
-        baseStartBlock
-      );
-      discovered.push(...newCollections);
-    }
-
-    // Step 3: Index marketplace events on factory-discovered collections
-    // (Collections that were created via factories and might have marketplace listings)
-    if (discovered.length > 0) {
-      console.log(`[Cron] Found ${discovered.length} new collections, indexing marketplace events...`);
-    }
-
-    // Get all discovered collections for this chain
-    const collections = await getDiscoveredCollections(8453);
-    
-    // For now, only index the main marketplace contracts
-    // In the future, could index per-collection marketplace events if they have their own listing contracts
-    console.log(`[Cron] Tracking ${collections.length} collections on Base`);
 
     const timeTaken = Date.now() - startTime;
 
@@ -98,7 +121,7 @@ export async function GET(request: Request) {
         errors: r.errors,
       })),
       discovered,
-      collectionsTracked: collections.length,
+      collectionsPerChain,
     });
   } catch (error) {
     console.error('[Cron] Indexing error:', error);

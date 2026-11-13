@@ -3,6 +3,18 @@ import { parseAbiItem, decodeEventLog } from 'viem';
 import { getPublicClient, getSafeBlockNumber } from './client.js';
 import { getCheckpoint, indexEventsTransaction } from './database.js';
 import type { ContractConfig, ChainEvent, IndexingResult } from '../types/events.js';
+import {
+  processCreateListing,
+  processCreateListingTokenDetails,
+  processCreateListingFees,
+  processBidEvent,
+  processPurchaseEvent,
+  processOfferEvent,
+  processModifyListing,
+  processCancelListing,
+  processFinalizeListing,
+  processEscrowEvent,
+} from './processors.js';
 
 /**
  * Maximum block range to fetch in a single getLogs call
@@ -85,6 +97,9 @@ export async function indexContract(
         );
 
         totalEventsIndexed += result.eventsInserted;
+
+        // Process events into domain tables (listings, bids, etc.)
+        await processEvents(config.chainId, events);
 
         console.log(
           `[Indexer] ${config.label || config.address} | Blocks ${currentBlock}-${endBlock} | ${events.length} events | ${result.eventsInserted} new`
@@ -195,6 +210,53 @@ function parseLogToEvent(config: ContractConfig, log: Log): ChainEvent {
     logIndex: Number(log.logIndex),
     args: decoded.args as Record<string, unknown>,
   };
+}
+
+/**
+ * Process raw chain events into domain tables
+ */
+async function processEvents(chainId: number, events: ChainEvent[]): Promise<void> {
+  for (const event of events) {
+    try {
+      const timestamp = BigInt(Date.now() / 1000); // Approximate - should get from block if available
+
+      switch (event.eventName) {
+        case 'CreateListing':
+          await processCreateListing(chainId, event.args as any, event.blockNumber, timestamp, event.contract);
+          break;
+        case 'CreateListingTokenDetails':
+          await processCreateListingTokenDetails(chainId, event.args as any, event.blockNumber, timestamp);
+          break;
+        case 'CreateListingFees':
+          await processCreateListingFees(chainId, event.args as any, event.blockNumber, timestamp);
+          break;
+        case 'BidEvent':
+          await processBidEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+          break;
+        case 'PurchaseEvent':
+          await processPurchaseEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+          break;
+        case 'OfferEvent':
+          await processOfferEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+          break;
+        case 'ModifyListing':
+          await processModifyListing(chainId, event.args as any, event.blockNumber, timestamp);
+          break;
+        case 'CancelListing':
+          await processCancelListing(chainId, event.args as any, event.blockNumber, timestamp);
+          break;
+        case 'FinalizeListing':
+          await processFinalizeListing(chainId, event.args as any, event.blockNumber, timestamp);
+          break;
+        case 'Escrow':
+          await processEscrowEvent(chainId, event.args as any, event.blockNumber, timestamp, event.transactionHash, event.logIndex);
+          break;
+        // Skip other events (RescindOfferEvent, AcceptOfferEvent handled separately if needed)
+      }
+    } catch (error) {
+      console.error(`[Indexer] Error processing event ${event.eventName} at ${event.transactionHash}:${event.logIndex}:`, error);
+    }
+  }
 }
 
 /**

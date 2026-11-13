@@ -28,7 +28,8 @@ export async function processCreateListing(
   chainId: number,
   args: ListingCreatedArgs,
   blockNumber: bigint,
-  timestamp: bigint
+  timestamp: bigint,
+  marketplace?: string
 ): Promise<void> {
   const normalizedSeller = (args.seller as string).toLowerCase();
   const normalizedErc20 = args.erc20 ? (args.erc20 as string).toLowerCase() : null;
@@ -41,7 +42,7 @@ export async function processCreateListing(
     .values({
       chainId,
       listingId: args.listingId,
-      marketplace: '0x0000000000000000000000000000000000000000', // Will be updated by event processor
+      marketplace: marketplace || '0x0000000000000000000000000000000000000000',
       seller: normalizedSeller,
       tokenAddress: '0x0000000000000000000000000000000000000000', // Will be set by CreateListingTokenDetails
       tokenId: null,
@@ -71,7 +72,7 @@ export async function processCreateListing(
       updatedAtBlock: blockNumber,
     })
     .onConflictDoUpdate({
-      target: [listings.chainId, listings.listingId],
+      target: [listings.chainId, listings.listingId, listings.marketplace],
       set: {
         seller: normalizedSeller,
         listingType: args.listingType,
@@ -172,7 +173,7 @@ export async function processBidEvent(
 
   // Update listing hasBid flag and potentially adjust start/end time for first bid
   await db.execute(sql`
-    UPDATE listings
+    UPDATE chain_indexer_listings
     SET 
       has_bid = 1,
       start_time = CASE 
@@ -223,7 +224,7 @@ export async function processPurchaseEvent(
   // Update listing totalSold
   // Note: totalSold += count * totalPerSale (as per contract logic)
   await db.execute(sql`
-    UPDATE listings
+    UPDATE chain_indexer_listings
     SET 
       total_sold = total_sold + (${args.count} * total_per_sale),
       updated_at = ${new Date(Number(timestamp) * 1000)},

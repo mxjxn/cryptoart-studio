@@ -2,9 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@cryptoart/chain-indexer', '@cryptoart/db'],
-  experimental: {
-    serverComponentsExternalPackages: ['postgres', 'drizzle-orm'],
-  },
+  serverExternalPackages: ['postgres', 'drizzle-orm'],
 };
 
 export default nextConfig;

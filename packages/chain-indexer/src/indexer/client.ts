@@ -1,5 +1,5 @@
 import { createPublicClient, http, type PublicClient, type Address } from 'viem';
-import { base, mainnet } from 'viem/chains';
+import { base, baseSepolia, mainnet } from 'viem/chains';
 
 /**
  * RPC client cache to avoid recreating clients
@@ -32,16 +32,17 @@ export function getPublicClient(chainId: number): PublicClient {
 
 /**
  * Get RPC URL from environment variables
+ * Uses CHAIN_<id>_RPC_URL pattern
  */
 function getRpcUrl(chainId: number): string {
-  switch (chainId) {
-    case 8453: // Base
-      return process.env.BASE_RPC_URL || process.env.RPC_URL_BASE || 'https://mainnet.base.org';
-    case 1: // Ethereum
-      return process.env.ETH_RPC_URL || process.env.RPC_URL_MAINNET || `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
-    default:
-      throw new Error(`No RPC URL configured for chain ${chainId}`);
+  const envKey = `CHAIN_${chainId}_RPC_URL`;
+  const rpcUrl = process.env[envKey];
+  
+  if (!rpcUrl) {
+    throw new Error(`No RPC URL configured for chain ${chainId}. Set ${envKey} environment variable.`);
   }
+  
+  return rpcUrl;
 }
 
 /**
@@ -49,9 +50,11 @@ function getRpcUrl(chainId: number): string {
  */
 function getChain(chainId: number) {
   switch (chainId) {
-    case 8453:
+    case 8453: // Base
       return base;
-    case 1:
+    case 84532: // Base Sepolia
+      return baseSepolia;
+    case 1: // Ethereum Mainnet
       return mainnet;
     default:
       throw new Error(`Unsupported chain ID: ${chainId}`);

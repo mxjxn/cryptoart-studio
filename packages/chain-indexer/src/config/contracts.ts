@@ -6,13 +6,16 @@ import { SettlementLibABI } from './abis/SettlementLib.js';
 /**
  * Marketplace contract configurations
  * Based on networks.json from auctionhouse-subgraph
+ * 
+ * Note: Marketplace and Settlement are the same contract on Base and Ethereum
+ * We merge their events here to avoid duplicate checkpoint rows
  */
 export const MARKETPLACE_CONTRACTS: ContractConfig[] = [
   {
     chainId: 8453, // Base
     address: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9' as Address,
     startBlock: 38886000n,
-    abi: MarketplaceLibABI,
+    abi: [...MarketplaceLibABI, ...SettlementLibABI],
     events: [
       'CreateListing',
       'CreateListingTokenDetails',
@@ -25,50 +28,51 @@ export const MARKETPLACE_CONTRACTS: ContractConfig[] = [
       'ModifyListing',
       'CancelListing',
       'FinalizeListing',
+      'Escrow', // Settlement event
     ],
-    label: 'Marketplace (Base)',
+    label: 'Marketplace + Settlement (Base)',
   },
   {
-    chainId: 1, // Ethereum Mainnet
-    address: '0x3CEE515879FFe4620a1F8aC9bf09B97e858815Ef' as Address,
-    startBlock: 25068447n,
-    abi: MarketplaceLibABI,
-    events: [
-      'CreateListing',
-      'CreateListingTokenDetails',
-      'CreateListingFees',
-      'PurchaseEvent',
-      'BidEvent',
-      'OfferEvent',
-      'RescindOfferEvent',
-      'AcceptOfferEvent',
-      'ModifyListing',
-      'CancelListing',
-      'FinalizeListing',
-    ],
-    label: 'Marketplace (Ethereum)',
-  },
-];
-
-/**
- * Settlement contract configurations
- */
-export const SETTLEMENT_CONTRACTS: ContractConfig[] = [
-  {
-    chainId: 8453, // Base
+    chainId: 84532, // Base Sepolia
     address: '0x1Cb0c1F72Ba7547fC99c4b5333d8aBA1eD6b31A9' as Address,
-    startBlock: 38886000n,
-    abi: SettlementLibABI,
-    events: ['Escrow'],
-    label: 'Settlement (Base)',
+    startBlock: 0n, // TODO: Set actual deploy block for Base Sepolia
+    abi: [...MarketplaceLibABI, ...SettlementLibABI],
+    events: [
+      'CreateListing',
+      'CreateListingTokenDetails',
+      'CreateListingFees',
+      'PurchaseEvent',
+      'BidEvent',
+      'OfferEvent',
+      'RescindOfferEvent',
+      'AcceptOfferEvent',
+      'ModifyListing',
+      'CancelListing',
+      'FinalizeListing',
+      'Escrow', // Settlement event
+    ],
+    label: 'Marketplace + Settlement (Base Sepolia)',
   },
   {
     chainId: 1, // Ethereum Mainnet
     address: '0x3CEE515879FFe4620a1F8aC9bf09B97e858815Ef' as Address,
     startBlock: 25068447n,
-    abi: SettlementLibABI,
-    events: ['Escrow'],
-    label: 'Settlement (Ethereum)',
+    abi: [...MarketplaceLibABI, ...SettlementLibABI],
+    events: [
+      'CreateListing',
+      'CreateListingTokenDetails',
+      'CreateListingFees',
+      'PurchaseEvent',
+      'BidEvent',
+      'OfferEvent',
+      'RescindOfferEvent',
+      'AcceptOfferEvent',
+      'ModifyListing',
+      'CancelListing',
+      'FinalizeListing',
+      'Escrow', // Settlement event
+    ],
+    label: 'Marketplace + Settlement (Ethereum)',
   },
 ];
 
@@ -114,11 +118,10 @@ export const SETTLEMENT_CONTRACTS: ContractConfig[] = [
 // ];
 
 /**
- * All contracts to index (marketplace + settlement + future contracts)
+ * All contracts to index (marketplace includes settlement events)
  */
 export const ALL_CONTRACTS: ContractConfig[] = [
   ...MARKETPLACE_CONTRACTS,
-  ...SETTLEMENT_CONTRACTS,
   // ...STP_V2_CONTRACTS, // Uncomment when ready
   // ...LSSVM_CONTRACTS, // Uncomment when ready
 ];

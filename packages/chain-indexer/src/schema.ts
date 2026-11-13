@@ -39,10 +39,10 @@ export const chainEvents = pgTable(
 /**
  * Listings - domain model for marketplace listings
  * Derived from CreateListing, CreateListingTokenDetails, CreateListingFees events
- * Primary key: (chain_id, listing_id)
+ * Primary key: (chain_id, listing_id, marketplace)
  */
 export const listings = pgTable(
-  'listings',
+  'chain_indexer_listings',
   {
     chainId: integer('chain_id').notNull(),
     listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
@@ -92,12 +92,12 @@ export const listings = pgTable(
     updatedAtBlock: bigint('updated_at_block', { mode: 'bigint' }).notNull(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.chainId, table.listingId] }),
-    sellerIdx: index('listings_seller_idx').on(table.seller),
-    statusIdx: index('listings_status_idx').on(table.status),
-    tokenIdx: index('listings_token_idx').on(table.chainId, table.tokenAddress, table.tokenId),
-    createdAtIdx: index('listings_created_at_idx').on(table.createdAt),
-    endTimeIdx: index('listings_end_time_idx').on(table.endTime),
+    pk: primaryKey({ columns: [table.chainId, table.listingId, table.marketplace] }),
+    sellerIdx: index('chain_indexer_listings_seller_idx').on(table.seller),
+    statusIdx: index('chain_indexer_listings_status_idx').on(table.status),
+    tokenIdx: index('chain_indexer_listings_token_idx').on(table.chainId, table.tokenAddress, table.tokenId),
+    createdAtIdx: index('chain_indexer_listings_created_at_idx').on(table.createdAt),
+    endTimeIdx: index('chain_indexer_listings_end_time_idx').on(table.endTime),
   })
 );
 
@@ -107,7 +107,7 @@ export const listings = pgTable(
  * Primary key: (chain_id, transaction_hash, log_index)
  */
 export const bids = pgTable(
-  'bids',
+  'chain_indexer_bids',
   {
     chainId: integer('chain_id').notNull(),
     listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
@@ -121,9 +121,9 @@ export const bids = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.chainId, table.transactionHash, table.logIndex] }),
-    listingIdx: index('bids_listing_idx').on(table.chainId, table.listingId),
-    bidderIdx: index('bids_bidder_idx').on(table.bidder),
-    timestampIdx: index('bids_timestamp_idx').on(table.timestamp),
+    listingIdx: index('chain_indexer_bids_listing_idx').on(table.chainId, table.listingId),
+    bidderIdx: index('chain_indexer_bids_bidder_idx').on(table.bidder),
+    timestampIdx: index('chain_indexer_bids_timestamp_idx').on(table.timestamp),
   })
 );
 
@@ -133,7 +133,7 @@ export const bids = pgTable(
  * Primary key: (chain_id, transaction_hash, log_index)
  */
 export const purchases = pgTable(
-  'purchases',
+  'chain_indexer_purchases',
   {
     chainId: integer('chain_id').notNull(),
     listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
@@ -148,9 +148,9 @@ export const purchases = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.chainId, table.transactionHash, table.logIndex] }),
-    listingIdx: index('purchases_listing_idx').on(table.chainId, table.listingId),
-    buyerIdx: index('purchases_buyer_idx').on(table.buyer),
-    timestampIdx: index('purchases_timestamp_idx').on(table.timestamp),
+    listingIdx: index('chain_indexer_purchases_listing_idx').on(table.chainId, table.listingId),
+    buyerIdx: index('chain_indexer_purchases_buyer_idx').on(table.buyer),
+    timestampIdx: index('chain_indexer_purchases_timestamp_idx').on(table.timestamp),
   })
 );
 
@@ -160,7 +160,7 @@ export const purchases = pgTable(
  * Primary key: (chain_id, transaction_hash, log_index)
  */
 export const offers = pgTable(
-  'offers',
+  'chain_indexer_offers',
   {
     chainId: integer('chain_id').notNull(),
     listingId: bigint('listing_id', { mode: 'bigint' }).notNull(),
@@ -177,10 +177,10 @@ export const offers = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.chainId, table.transactionHash, table.logIndex] }),
-    listingIdx: index('offers_listing_idx').on(table.chainId, table.listingId),
-    offererIdx: index('offers_offerer_idx').on(table.offerer),
-    statusIdx: index('offers_status_idx').on(table.status),
-    timestampIdx: index('offers_timestamp_idx').on(table.timestamp),
+    listingIdx: index('chain_indexer_offers_listing_idx').on(table.chainId, table.listingId),
+    offererIdx: index('chain_indexer_offers_offerer_idx').on(table.offerer),
+    statusIdx: index('chain_indexer_offers_status_idx').on(table.status),
+    timestampIdx: index('chain_indexer_offers_timestamp_idx').on(table.timestamp),
   })
 );
 
@@ -190,7 +190,7 @@ export const offers = pgTable(
  * Primary key: (chain_id, transaction_hash, log_index)
  */
 export const escrows = pgTable(
-  'escrows',
+  'chain_indexer_escrows',
   {
     chainId: integer('chain_id').notNull(),
     receiver: text('receiver').notNull(),
@@ -203,8 +203,8 @@ export const escrows = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.chainId, table.transactionHash, table.logIndex] }),
-    receiverIdx: index('escrows_receiver_idx').on(table.receiver),
-    timestampIdx: index('escrows_timestamp_idx').on(table.timestamp),
+    receiverIdx: index('chain_indexer_escrows_receiver_idx').on(table.receiver),
+    timestampIdx: index('chain_indexer_escrows_timestamp_idx').on(table.timestamp),
   })
 );
 
