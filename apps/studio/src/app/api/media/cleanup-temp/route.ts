@@ -3,14 +3,11 @@ import { list, del } from '@vercel/blob';
 
 /**
  * Cleanup expired temporary uploads.
- * This cron job deletes Blob files that:
- * 1. Are in the temp/ prefix
- * 2. Are older than the configured TTL
- * 3. Were never promoted to Arweave (not tracked in the media database)
+ * This cron job deletes all Blob files in the temp/ prefix that are older than the configured TTL.
  * 
  * Protected by CRON_SECRET.
  */
-export async function POST(req: NextRequest) {
+async function cleanupTempBlobs(req: NextRequest) {
   try {
     // Verify CRON_SECRET
     const cronSecret = process.env.CRON_SECRET;
@@ -35,28 +32,39 @@ export async function POST(req: NextRequest) {
 
     const expirationTime = Date.now() - ttlSeconds * 1000;
     
-    // List all temp uploads
-    const blobs = await list({
-      prefix: 'temp/',
-    });
+    let totalDeleted = 0;
+    let totalChecked = 0;
+    let cursor: string | undefined;
 
-    const toDelete: string[] = [];
-    for (const blob of blobs.blobs) {
-      const uploadedAt = new Date(blob.uploadedAt).getTime();
-      if (uploadedAt < expirationTime) {
-        toDelete.push(blob.url);
+    // Paginate through all temp uploads
+    do {
+      const result = await list({
+        prefix: 'temp/',
+        cursor,
+      });
+
+      const toDelete: string[] = [];
+      for (const blob of result.blobs) {
+        totalChecked++;
+        const uploadedAt = new Date(blob.uploadedAt).getTime();
+        if (uploadedAt < expirationTime) {
+          toDelete.push(blob.url);
+        }
       }
-    }
 
-    // Delete expired blobs
-    if (toDelete.length > 0) {
-      await del(toDelete);
-    }
+      // Delete expired blobs
+      if (toDelete.length > 0) {
+        await del(toDelete);
+        totalDeleted += toDelete.length;
+      }
+
+      cursor = result.cursor;
+    } while (cursor);
 
     return NextResponse.json({
       success: true,
-      deletedCount: toDelete.length,
-      checkedCount: blobs.blobs.length,
+      deletedCount: totalDeleted,
+      checkedCount: totalChecked,
       ttlSeconds,
     });
   } catch (error) {
@@ -66,6 +74,14 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+export async function GET(req: NextRequest) {
+  return cleanupTempBlobs(req);
+}
+
+export async function POST(req: NextRequest) {
+  return cleanupTempBlobs(req);
 }
 
 export const dynamic = 'force-dynamic';

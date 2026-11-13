@@ -74,27 +74,34 @@ export class MediaClient {
   }
 
   /**
-   * Upload a file to temporary storage (Vercel Blob).
+   * Upload a file to temporary storage (Vercel Blob) using client-side upload.
    * Returns a signed URL with expiration time.
    * Check config.maxFileSize before calling to avoid rejection.
    */
   async uploadTemp(file: File): Promise<TempUploadResult> {
-    const formData = new FormData();
-    formData.append('file', file);
+    // Import @vercel/blob/client dynamically to support both browser and Node.js
+    const { upload } = await import('@vercel/blob/client');
 
-    const url = `${this.options.baseUrl}/temp-upload`;
-    const response = await this.fetch(url, {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
+    const blob = await upload(file.name, file, {
+      access: 'public',
+      handleUploadUrl: `${this.options.baseUrl}/temp-upload/token`,
+      clientPayload: JSON.stringify({
+        type: file.type,
+        name: file.name,
+      }),
     });
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ error: 'Upload failed' }));
-      throw new Error(body.error || `Upload failed with status ${response.status}`);
-    }
+    // Calculate expiration from config
+    const config = await this.getConfig();
+    const expiresAt = new Date(Date.now() + config.tempUploadTtlSeconds * 1000).toISOString();
 
-    return response.json();
+    return {
+      url: blob.url,
+      pathname: blob.pathname,
+      size: file.size,
+      contentType: blob.contentType || file.type,
+      expiresAt,
+    };
   }
 
   /**

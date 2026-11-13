@@ -65,9 +65,20 @@ async function mediaRouter() {
 
     // Select Arweave uploader: Turbo (paid service), Direct L1, or Simulated (dev/test)
     const arweave = await (async () => {
-      // On preview deployments, use simulated uploader unless explicitly configured
+      // Explicit 'simulated' always simulates, regardless of keys
+      if (uploaderType === 'simulated') {
+        return createSimulatedArweave();
+      }
+
       const isPreview = process.env.VERCEL_ENV === 'preview';
-      if (isPreview && uploaderType !== 'simulated' && !process.env.TURBO_PRIVATE_KEY && !process.env.ARWEAVE_JWK) {
+      
+      // On preview, mock payment must never pair with real Turbo
+      if (isPreview && allowMockPayment) {
+        return createSimulatedArweave();
+      }
+
+      // On preview without keys, use simulated
+      if (isPreview && !process.env.TURBO_PRIVATE_KEY && !process.env.ARWEAVE_JWK) {
         return createSimulatedArweave();
       }
 

@@ -58,9 +58,9 @@ function headerRecord(req: NextRequest) {
  * This uses handleUpload to process uploads initiated by the client.
  */
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-
   try {
+    const body = await req.json();
+
     const jsonResponse = await handleUpload({
       body,
       request: req,
@@ -85,24 +85,35 @@ export async function POST(req: NextRequest) {
           throw new Error('No wallet address in session');
         }
 
-        // Validate content type from client payload
-        const contentType = (clientPayload as any)?.type;
+        // Parse client payload (it's a JSON string)
+        const payload = typeof clientPayload === 'string' ? JSON.parse(clientPayload) : clientPayload;
+        const contentType = payload?.type;
+        const fileName = payload?.name || 'file';
+
+        // Validate content type
         if (!contentType || (!ALLOWED_MIME_TYPES.includes(contentType) && contentType !== '')) {
           throw new Error(`Content type not supported: ${contentType}`);
         }
 
-        // Generate a sanitized pathname
+        // Generate a sanitized pathname with required prefix
         const randomId = crypto.randomUUID();
-        const fileName = (clientPayload as any)?.name || 'file';
         const safeExtension = fileName.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+        const sanitizedPathname = `temp/${payer}/${Date.now()}-${randomId}.${safeExtension}`;
         
+        // Require pathname to start with temp/<payer>/
+        const expectedPrefix = `temp/${payer}/`;
+        if (!sanitizedPathname.startsWith(expectedPrefix)) {
+          throw new Error('Invalid pathname');
+        }
+
         return {
           allowedContentTypes: [contentType],
-          maximumSizeInBytes: MAX_FILE_SIZE,
           tokenPayload: JSON.stringify({
             payer,
             uploadedAt: Date.now(),
           }),
+          maximumSizeInBytes: MAX_FILE_SIZE,
+          addRandomSuffix: true,
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {

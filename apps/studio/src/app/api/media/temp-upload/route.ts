@@ -10,10 +10,9 @@ const identity = createIdentityRouter({
   secureCookies: process.env.NODE_ENV === 'production',
 });
 
-// Configurable max file size (default 100 MB, can be overridden via env var)
-const MAX_FILE_SIZE = process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE
-  ? parseInt(process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE, 10)
-  : 100 * 1024 * 1024;
+// Legacy route: restricted to 4 MB to stay under Vercel function body limit
+// For larger files, use /api/media/temp-upload/token with client-side upload
+const MAX_FILE_SIZE_LEGACY = 4 * 1024 * 1024; // 4 MB
 
 // Temp uploads expire after this duration (default 7 days)
 const TEMP_UPLOAD_TTL_SECONDS = process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS
@@ -83,10 +82,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
+    // Validate file size (legacy route has lower limit)
+    if (file.size > MAX_FILE_SIZE_LEGACY) {
       return NextResponse.json(
-        { error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024} MB` },
+        { error: `File too large for legacy upload. Maximum size is ${MAX_FILE_SIZE_LEGACY / 1024 / 1024} MB. Use client-side upload for larger files.` },
         { status: 400 },
       );
     }
