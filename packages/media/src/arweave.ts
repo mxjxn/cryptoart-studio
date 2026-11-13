@@ -2,6 +2,10 @@ import type { ArweaveAdapter } from './types';
 
 const GATEWAYS = ['https://arweave.net', 'https://ar-io.net'];
 
+/**
+ * Simulated Arweave uploader for local development and testing.
+ * Does not hit the real Arweave network.
+ */
 export function createSimulatedArweave(): ArweaveAdapter {
   const stored = new Map<string, Uint8Array>();
   return {
@@ -17,6 +21,9 @@ export function createSimulatedArweave(): ArweaveAdapter {
   };
 }
 
+/**
+ * Gateway-aware wrapper that adds retrieval verification to any upload implementation.
+ */
 export function createGatewayArweave(upload: ArweaveAdapter['upload']): ArweaveAdapter {
   return {
     upload,
@@ -35,6 +42,10 @@ export function createGatewayArweave(upload: ArweaveAdapter['upload']): ArweaveA
   };
 }
 
+/**
+ * ArDrive Turbo uploader (paid service, credit-based).
+ * Uses the same JWK format as arweave-js for wallet compatibility.
+ */
 export async function createTurboArweave(privateKey: string): Promise<ArweaveAdapter> {
   const loaded = await import('@ardrive/turbo-sdk').catch(() => null) as {
     TurboFactory?: { authenticated: (input: { privateKey: string }) => {
@@ -59,6 +70,58 @@ export async function createTurboArweave(privateKey: string): Promise<ArweaveAda
     });
     return { id: result.id };
   });
+}
+
+/**
+ * Direct Arweave L1 uploader using arweave-js.
+ * Uses the same JWK format as Turbo for wallet compatibility.
+ * 
+ * NOTE: This is a stub implementation. To complete:
+ * 1. Add arweave-js to dependencies
+ * 2. Initialize: Arweave.init({ host: 'arweave.net', port: 443, protocol: 'https' })
+ * 3. Create transaction: await arweave.createTransaction({ data: bytes }, jwk)
+ * 4. Add tags: transaction.addTag(key, value)
+ * 5. Sign: await arweave.transactions.sign(transaction, jwk)
+ * 6. Post: await arweave.transactions.post(transaction)
+ * 7. Return: { id: transaction.id }
+ */
+export async function createDirectArweave(jwk: string): Promise<ArweaveAdapter> {
+  // Stub: parse JWK and validate format
+  const key = JSON.parse(jwk);
+  if (!key.n || !key.e) {
+    throw new Error('Invalid JWK format. Expected RSA key with n and e fields.');
+  }
+  
+  // TODO: Implement actual arweave-js upload when needed
+  // For now, fall back to simulated uploader with a warning
+  console.warn(
+    'Direct Arweave L1 uploader is not implemented. ' +
+    'Install arweave-js and complete createDirectArweave() to enable direct uploads. ' +
+    'Falling back to simulated uploader.'
+  );
+  return createSimulatedArweave();
+  
+  /* Full implementation outline:
+  const Arweave = await import('arweave');
+  const arweave = Arweave.default.init({
+    host: 'arweave.net',
+    port: 443,
+    protocol: 'https'
+  });
+  
+  return createGatewayArweave(async ({ bytes, mimeType, tags }) => {
+    const transaction = await arweave.createTransaction({ data: bytes }, key);
+    transaction.addTag('Content-Type', mimeType);
+    if (tags) {
+      for (const [k, v] of Object.entries(tags)) {
+        transaction.addTag(k, v);
+      }
+    }
+    await arweave.transactions.sign(transaction, key);
+    await arweave.transactions.post(transaction);
+    return { id: transaction.id };
+  });
+  */
 }
 
 export function metadataObject(input: {

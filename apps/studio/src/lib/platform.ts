@@ -17,6 +17,7 @@ import {
   createPostgresMediaStore,
   createSimulatedArweave,
   createTurboArweave,
+  createDirectArweave,
 } from '@cryptoart/media';
 
 const postgresUrl = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
@@ -48,9 +49,20 @@ async function mediaRouter() {
       throw new Error('X402_FACILITATOR_URL is required in production when mock payment is disabled');
     }
 
-    const arweave = process.env.TURBO_PRIVATE_KEY
-      ? await createTurboArweave(process.env.TURBO_PRIVATE_KEY)
-      : createSimulatedArweave();
+    // Select Arweave uploader: Turbo (paid service), Direct L1 (stub), or Simulated (dev/test)
+    const uploaderType = process.env.ARWEAVE_UPLOADER || 'turbo';
+    const arweave = await (async () => {
+      if (!process.env.TURBO_PRIVATE_KEY && !process.env.ARWEAVE_JWK) {
+        return createSimulatedArweave();
+      }
+      const key = process.env.TURBO_PRIVATE_KEY || process.env.ARWEAVE_JWK;
+      if (!key) return createSimulatedArweave();
+      
+      if (uploaderType === 'direct') {
+        return createDirectArweave(key);
+      }
+      return createTurboArweave(key);
+    })();
 
     const facilitator = process.env.X402_FACILITATOR_URL
       ? await createHttpFacilitator(process.env.X402_FACILITATOR_URL)

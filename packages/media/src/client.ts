@@ -5,6 +5,18 @@ export interface TempUploadResult {
   pathname: string;
   size: number;
   contentType: string;
+  expiresAt?: string;
+}
+
+export interface MediaConfig {
+  allowMockPayment: boolean;
+  hasTurbo: boolean;
+  hasFacilitator: boolean;
+  network: string | null;
+  uploaderType: string;
+  maxFileSize: number;
+  maxFileSizeMB: number;
+  tempUploadTtlSeconds: number;
 }
 
 export interface MetadataInput {
@@ -56,8 +68,32 @@ export class MediaClient {
   }
 
   /**
+   * Get media backend configuration (max file size, uploader type, etc.)
+   */
+  async getConfig(): Promise<MediaConfig> {
+    return this.request<MediaConfig>('/config', { method: 'GET' });
+  }
+
+  /**
+   * Calculate estimated Arweave cost for a file size.
+   * @param sizeBytes - File size in bytes
+   * @returns Estimated cost in USDC (approximate, for preview only)
+   */
+  estimateCost(sizeBytes: number): string {
+    const WINSTON_PER_BYTE = 100000n;
+    const safetyMarginBps = 500;
+    const winston = BigInt(sizeBytes) * WINSTON_PER_BYTE;
+    const withMargin = winston + (winston * BigInt(safetyMarginBps)) / 10000n;
+    const ar = Number(withMargin) / 1e12;
+    const usd = Math.max(ar * 8, 0.01);
+    const usdc = BigInt(Math.ceil(usd * 1e6));
+    return (Number(usdc) / 1e6).toFixed(2);
+  }
+
+  /**
    * Upload a file to temporary storage (Vercel Blob).
-   * Returns a signed URL valid for 1 hour.
+   * Returns a signed URL with expiration time.
+   * Check config.maxFileSize before calling to avoid rejection.
    */
   async uploadTemp(file: File): Promise<TempUploadResult> {
     const formData = new FormData();

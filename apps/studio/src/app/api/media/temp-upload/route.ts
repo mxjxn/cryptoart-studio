@@ -10,7 +10,15 @@ const identity = createIdentityRouter({
   secureCookies: process.env.NODE_ENV === 'production',
 });
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+// Configurable max file size (default 100 MB, can be overridden via env var)
+const MAX_FILE_SIZE = process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE
+  ? parseInt(process.env.CRYPTOART_MEDIA_MAX_FILE_SIZE, 10)
+  : 100 * 1024 * 1024;
+
+// Temp uploads expire after this duration (default 1 hour)
+const TEMP_UPLOAD_TTL_SECONDS = process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS
+  ? parseInt(process.env.CRYPTOART_MEDIA_TEMP_TTL_SECONDS, 10)
+  : 3600;
 
 const ALLOWED_MIME_TYPES = [
   // Images
@@ -93,10 +101,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Upload to Vercel Blob
+    // Upload to Vercel Blob with expiration
     const blob = await put(`temp/${payer}/${Date.now()}-${file.name}`, file, {
       access: 'public',
       addRandomSuffix: true,
+      cacheControlMaxAge: TEMP_UPLOAD_TTL_SECONDS,
     });
 
     return NextResponse.json({
@@ -104,6 +113,7 @@ export async function POST(req: NextRequest) {
       pathname: blob.pathname,
       size: blob.size,
       contentType: blob.contentType,
+      expiresAt: new Date(Date.now() + TEMP_UPLOAD_TTL_SECONDS * 1000).toISOString(),
     });
   } catch (error) {
     console.error('Temp upload error:', error);

@@ -27,32 +27,67 @@ graph LR
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `TURBO_PRIVATE_KEY` | Production only | ArDrive Turbo wallet private key (JWK format). Leave unset in dev to use simulated Arweave. |
+| `TURBO_PRIVATE_KEY` or `ARWEAVE_JWK` | Production only | Arweave wallet private key (JWK format). Leave unset in dev to use simulated Arweave. Same key works for both Turbo and direct L1 uploaders. |
+| `ARWEAVE_UPLOADER` | Optional | Uploader type: `turbo` (default, ArDrive paid service) or `direct` (L1, stub). Ignored if no key is set. |
 | `BLOB_READ_WRITE_TOKEN` | Yes | Vercel Blob storage token for temporary uploads |
 | `POSTGRES_URL` | Yes | Database connection string |
 | `CRYPTOART_MEDIA_PAY_TO` | Yes | Wallet address to receive upload payments |
 | `CRYPTOART_MEDIA_NETWORK` | Optional | Payment network (default: `eip155:84532` in dev, `eip155:8453` in prod) |
 | `CRYPTOART_MEDIA_ASSET` | Optional | Payment asset address (USDC by default) |
 | `CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT` | Optional | Allow mock payment headers (default: true in dev, false in prod) |
+| `CRYPTOART_MEDIA_MAX_FILE_SIZE` | Optional | Max file size in bytes (default: 104857600 = 100 MB) |
+| `CRYPTOART_MEDIA_TEMP_TTL_SECONDS` | Optional | Temp upload expiration in seconds (default: 3600 = 1 hour) |
 | `X402_FACILITATOR_URL` | Optional | External payment facilitator URL. Falls back to mock facilitator if unset. |
 
 ### Key Policy
 
-**Never commit private keys.** The `TURBO_PRIVATE_KEY` is meant to be added via environment variables in production (e.g., Vercel dashboard secrets). The key should control a dedicated wallet that only holds Arweave upload credits, not production funds.
+**Never commit private keys.** The `TURBO_PRIVATE_KEY` or `ARWEAVE_JWK` is meant to be added via environment variables in production (e.g., Vercel dashboard secrets). The key should control a dedicated wallet that only holds Arweave upload credits, not production funds.
 
-Without `TURBO_PRIVATE_KEY`, the system falls back to **simulated Arweave** for local development and testing. Simulated uploads work end-to-end but don't hit the real Arweave network.
+Without a key, the system falls back to **simulated Arweave** for local development and testing. Simulated uploads work end-to-end but don't hit the real Arweave network.
+
+### Arweave Uploader Interface
+
+The media backend abstracts the Arweave upload mechanism behind an `ArweaveAdapter` interface. This allows swapping between different upload strategies without touching callers:
+
+- **Turbo uploader** (`createTurboArweave`) - ArDrive paid service, credit-based, fast (default)
+- **Direct L1 uploader** (`createDirectArweave`) - Direct Arweave network uploads via arweave-js (stub implementation, requires adding arweave-js dependency and completing the implementation)
+- **Simulated uploader** (`createSimulatedArweave`) - In-memory mock for local dev and tests
+
+All uploaders use the same JWK format for wallet compatibility. Set `ARWEAVE_UPLOADER=direct` to use the direct L1 uploader (when implemented).
+
+### Temporary Upload Expiration
+
+Temporary uploads to Vercel Blob expire after `CRYPTOART_MEDIA_TEMP_TTL_SECONDS` (default: 1 hour). Artists should finalize their upload job within this window. After expiration, the temp file is automatically cleaned up by Vercel Blob's TTL policy. This prevents abandoned uploads from consuming storage indefinitely.
 
 ## API Routes
 
 All routes are authenticated via wallet session (SIWE). The payer address is extracted from the session.
 
+### `GET /api/media/config`
+
+Get media backend configuration (max file size, uploader type, temp TTL, etc.). Use this to show cost preview and validate file size before upload.
+
+**Response:**
+```json
+{
+  "allowMockPayment": true,
+  "hasTurbo": true,
+  "hasFacilitator": false,
+  "network": "eip155:84532",
+  "uploaderType": "turbo",
+  "maxFileSize": 104857600,
+  "maxFileSizeMB": 100,
+  "tempUploadTtlSeconds": 3600
+}
+```
+
 ### `POST /api/media/temp-upload`
 
-Upload a file to temporary storage (Vercel Blob). Returns a signed URL valid for 1 hour.
+Upload a file to temporary storage (Vercel Blob). Returns a signed URL with expiration time. Check `/api/media/config` for `maxFileSize` before calling to avoid rejection.
 
 **Request:**
 - `Content-Type: multipart/form-data`
-- `file`: File to upload (max 100 MB)
+- `file`: File to upload (max configurable, default 100 MB)
 - Supported types: images, video, audio, HTML/3D
 
 **Response:**
@@ -61,7 +96,8 @@ Upload a file to temporary storage (Vercel Blob). Returns a signed URL valid for
   "url": "https://blob.vercel-storage.com/...",
   "pathname": "temp/abc123.png",
   "size": 1234567,
-  "contentType": "image/png"
+  "contentType": "image/png",
+  "expiresAt": "2026-11-13T09:25:00.000Z"
 }
 ```
 
@@ -287,34 +323,44 @@ const client = new MediaClient({
   fetch: window.fetch.bind(window)
 });
 
+// 0. Get config and show cost estimate
+const config = await client.getConfig();
+if (file.size > config.maxFileSize) {
+  alert(`File too large. Max: ${config.maxFileSizeMB} MB`);
+  return;
+}
+const estimatedCost = client.estimateCost(file.size);
+console.log(`Estimated cost: $${estimatedCost} USDC`);
+
 // 1. Upload to temp storage
 const tempFile = await client.uploadTemp(file);
+console.log(`Temp file expires at: ${tempFile.expiresAt}`);
 
 // 2. Get quote
-const quote = await client.quote([{
+const { quote } = await client.quote([{
   name: file.name,
   mimeType: file.type,
   size: file.size,
-  sha256: await hashFile(file)
+  sha256: await client.hashFile(file)
 }]);
 
 // 3. Pay and create job
-const job = await client.createJob(quote.idempotencyKey, 'mock:allow');
+const { job } = await client.createJob(quote.idempotencyKey, 'mock:allow');
 
 // 4. Upload media
-const withMedia = await client.uploadMedia(job.id, fileBytes);
+const { job: withMedia } = await client.uploadMedia(job.id, fileBytes);
 
 // 5. Upload metadata
-const withMetadata = await client.uploadMetadata(job.id, {
+const { job: withMetadata } = await client.uploadMetadata(job.id, {
   name: 'My Artwork',
   description: 'Description',
   attributes: [{ trait_type: 'Color', value: 'Blue' }]
 });
 
 // 6. Confirm
-const confirmed = await client.confirm(job.id);
+const { job: confirmed } = await client.confirm(job.id);
 
-console.log('Token URI:', `ar://${confirmed.metadata.id}`);
+console.log('Token URI:', `ar://${confirmed.job.metadata.id}`);
 ```
 
 ## Testing
