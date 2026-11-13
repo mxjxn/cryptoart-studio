@@ -104,17 +104,12 @@ export async function indexContract(
         // Parse events
         const events = logs.map((log) => parseLogToEvent(config, log));
 
-        // Fetch block timestamps for events
+        // Fetch block timestamps for events (required — do not fall back to wall clock)
         const blockTimestamps = new Map<bigint, bigint>();
         for (const event of events) {
           if (!blockTimestamps.has(event.blockNumber)) {
-            try {
-              const block = await client.getBlock({ blockNumber: event.blockNumber });
-              blockTimestamps.set(event.blockNumber, block.timestamp);
-            } catch (error) {
-              console.error(`[Indexer] Failed to fetch block ${event.blockNumber}:`, error);
-              blockTimestamps.set(event.blockNumber, BigInt(Math.floor(Date.now() / 1000)));
-            }
+            const block = await client.getBlock({ blockNumber: event.blockNumber });
+            blockTimestamps.set(event.blockNumber, block.timestamp);
           }
         }
 
@@ -286,7 +281,10 @@ async function processAndStoreEvents(
 
     // Process domain events within the same transaction
     for (const event of events) {
-      const timestamp = blockTimestamps.get(event.blockNumber) || BigInt(Math.floor(Date.now() / 1000));
+      const timestamp = blockTimestamps.get(event.blockNumber);
+      if (timestamp === undefined) {
+        throw new Error(`Missing block timestamp for block ${event.blockNumber}`);
+      }
 
       try {
         const marketplace = event.contract;
