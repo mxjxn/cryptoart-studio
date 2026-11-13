@@ -4,17 +4,24 @@ pragma solidity ^0.8.27;
 
 import {Ownable} from "openzeppelin/access/Ownable.sol";
 import {IERC721Enumerable} from "openzeppelin/token/ERC721/extensions/IERC721Enumerable.sol";
+import {IERC165} from "openzeppelin/utils/introspection/IERC165.sol";
 import {ERC721Base} from "./token/ERC721/ERC721Base.sol";
 import {ERC721Enumerable} from "./token/ERC721/ERC721Enumerable.sol";
 import {ERC721CreatorCore} from "./core/ERC721CreatorCore.sol";
+import {ILazyDelivery} from "./interfaces/ILazyDelivery.sol";
 
-contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
+contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDelivery {
     event Minted(address indexed to, uint256 indexed tokenId, string tokenURI);
     event RoyaltyUpdated(address receiver, uint16 bps);
     event BaseURIUpdated(string baseURI);
+    event MarketplaceApproved(address indexed marketplace, bool approved);
+    event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId);
 
     address payable private _royaltyReceiver;
     uint16 private _royaltyBPS;
+    
+    // Authorized marketplace/auction house addresses that can call deliver()
+    mapping(address => bool) private _approvedMarketplaces;
 
     constructor(
         string memory name_,
@@ -34,8 +41,10 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Enumerable) returns (bool) {
-        return interfaceId == type(IERC721Enumerable).interfaceId || interfaceId == _ROYALTY_INTERFACE_ID()
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Enumerable, IERC165) returns (bool) {
+        return interfaceId == type(IERC721Enumerable).interfaceId 
+            || interfaceId == type(ILazyDelivery).interfaceId
+            || interfaceId == _ROYALTY_INTERFACE_ID()
             || super.supportsInterface(interfaceId);
     }
 
@@ -105,6 +114,19 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         _setTokenURI(tokenId, uri);
     }
 
+    /**
+     * @notice Preset token URI for a future lazy mint
+     * @dev This allows setting the URI for a token before it exists, which is necessary for lazy listings.
+     *      The token will be minted with this URI when deliver() is called by the marketplace.
+     * @param tokenId The token ID to preset the URI for
+     * @param uri The token metadata URI
+     */
+    function setTokenURIForLazyMint(uint256 tokenId, string calldata uri) external onlyOwner {
+        require(bytes(uri).length > 0, "URI required");
+        require(!_exists(tokenId), "Token already minted");
+        _tokenURIs[tokenId] = uri;
+    }
+
     function setTokenURIPrefix(string calldata prefix) external onlyOwner {
         _setTokenURIPrefix(prefix);
     }
@@ -139,6 +161,119 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         address extension = _tokenExtension(tokenId);
         require(extension != address(0), "No extension for token");
         return extension;
+    }
+
+    // === Marketplace Management ===
+
+    /**
+     * @notice Approve or revoke a marketplace/auction house address to call deliver()
+     * @param marketplace The marketplace contract address
+     * @param approved True to approve, false to revoke
+     */
+    function setMarketplaceApproval(address marketplace, bool approved) external onlyOwner {
+        require(marketplace != address(0), "Invalid marketplace");
+        _approvedMarketplaces[marketplace] = approved;
+        emit MarketplaceApproved(marketplace, approved);
+    }
+
+    /**
+     * @notice Check if a marketplace is approved to call deliver()
+     * @param marketplace The marketplace contract address
+     * @return True if approved, false otherwise
+     */
+    function isMarketplaceApproved(address marketplace) external view returns (bool) {
+        return _approvedMarketplaces[marketplace];
+    }
+
+    // === Lazy Delivery ===
+
+    /**
+     * @notice Deliver (lazy mint) a token to a buyer through an approved marketplace
+     * @dev This function is called by the marketplace/auction house during settlement.
+     *      The token is minted directly to the buyer's address.
+     * @param listingId The marketplace listing ID
+     * @param to The buyer's address
+     * @param assetId The token ID to mint
+     * @param payableCount Must be 1 for ERC721
+     * @param payableAmount The sale price (unused in this implementation)
+     * @param payableERC20 The payment token address (unused in this implementation)
+     * @param index Optional index (unused in this implementation)
+     */
+    function deliver(
+        uint40 listingId,
+        address to,
+        uint256 assetId,
+        uint24 payableCount,
+        uint256 payableAmount,
+        address payableERC20,
+        uint256 index
+    ) external override nonReentrant {
+        require(_approvedMarketplaces[msg.sender], "Caller not approved marketplace");
+        require(payableCount == 1, "ERC721 can only deliver 1 token");
+        require(!_exists(assetId), "Token already minted");
+        require(to != address(0), "Cannot deliver to zero address");
+
+        // Update token count if assetId is beyond current count
+        if (assetId > _tokenCount) {
+            _tokenCount = assetId;
+        }
+
+        // Mint the token to the buyer
+        // For lazy delivery, we use the assetId as the tokenId
+        // The token URI should have been preset by the artist when creating the lazy listing
+        _preMintBase(to, assetId);
+        _safeMint(to, assetId, 0);
+
+        emit LazyDelivered(listingId, to, assetId);
+        emit Minted(to, assetId, _tokenURIs[assetId]);
+    }
+
+    // === Multi-Recipient Airdrop ===
+
+    /**
+     * @notice Airdrop tokens to multiple recipients in a single transaction
+     * @dev Mints one token per recipient. Gas-efficient for distributing to many addresses.
+     * @param recipients Array of addresses to receive tokens
+     * @param uris Array of token URIs corresponding to each recipient
+     * @return tokenIds Array of minted token IDs
+     *
+     * Gas considerations:
+     * - ~50k gas per recipient (approximation)
+     * - Recommended max batch size: 200-300 recipients per transaction
+     * - For larger airdrops, split into multiple transactions
+     */
+    function airdrop(address[] calldata recipients, string[] calldata uris)
+        external
+        onlyOwner
+        nonReentrant
+        returns (uint256[] memory tokenIds)
+    {
+        require(recipients.length > 0, "No recipients");
+        require(recipients.length == uris.length, "Length mismatch");
+        require(recipients.length <= 500, "Batch too large"); // Safety limit
+
+        tokenIds = new uint256[](recipients.length);
+        uint256 firstTokenId = _tokenCount + 1;
+        _tokenCount += recipients.length;
+
+        for (uint256 i; i < recipients.length;) {
+            require(recipients[i] != address(0), "Invalid recipient");
+            uint256 tokenId = firstTokenId + i;
+            tokenIds[i] = tokenId;
+            
+            _preMintBase(recipients[i], tokenId);
+            _safeMint(recipients[i], tokenId, 0);
+            
+            if (bytes(uris[i]).length > 0) {
+                _tokenURIs[tokenId] = uris[i];
+            }
+            
+            emit Minted(recipients[i], tokenId, uris[i]);
+            
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function _mintBase(address to, string memory uri) internal returns (uint256) {
