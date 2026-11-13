@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createUploadToken } from '@vercel/blob/client';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { toPlatformRequest, createIdentityRouter, createPostgresIdentityStore, createMemoryIdentityStore } from '@cryptoart/identity';
 
 const postgresUrl = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
@@ -54,68 +54,69 @@ function headerRecord(req: NextRequest) {
 }
 
 /**
- * Generate a client upload token for Vercel Blob uploads.
- * This allows client-side uploads without proxying through the function.
+ * Handle client-side uploads to Vercel Blob.
+ * This uses handleUpload to process uploads initiated by the client.
  */
 export async function POST(req: NextRequest) {
+  const body = await req.json();
+
   try {
-    // Check authentication
-    const url = new URL(req.url);
-    const session = await identity.handle(
-      toPlatformRequest({
-        method: 'GET',
-        url: new URL('/session', url.origin),
-        headers: headerRecord(req),
-        body: {},
-      }),
-    );
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        // Check authentication
+        const url = new URL(req.url);
+        const session = await identity.handle(
+          toPlatformRequest({
+            method: 'GET',
+            url: new URL('/session', url.origin),
+            headers: headerRecord(req),
+            body: {},
+          }),
+        );
 
-    if (session.status !== 200) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+        if (session.status !== 200) {
+          throw new Error('Authentication required');
+        }
 
-    const payer = (session.body as { address?: string }).address;
-    if (!payer) {
-      return NextResponse.json({ error: 'No wallet address in session' }, { status: 401 });
-    }
+        const payer = (session.body as { address?: string }).address;
+        if (!payer) {
+          throw new Error('No wallet address in session');
+        }
 
-    // Parse request body for validation params
-    const body = await req.json().catch(() => ({}));
-    const { contentType, fileName } = body;
+        // Validate content type from client payload
+        const contentType = (clientPayload as any)?.type;
+        if (!contentType || (!ALLOWED_MIME_TYPES.includes(contentType) && contentType !== '')) {
+          throw new Error(`Content type not supported: ${contentType}`);
+        }
 
-    // Validate content type
-    if (!contentType || (!ALLOWED_MIME_TYPES.includes(contentType) && contentType !== '')) {
-      return NextResponse.json(
-        { error: `Content type not supported: ${contentType}. Allowed types: images, video, audio, 3D models` },
-        { status: 400 },
-      );
-    }
-
-    // Generate upload token with constraints
-    const token = await createUploadToken(
-      {
-        pathname: `temp/${payer}/${Date.now()}-${fileName || 'file'}`,
-        allowedContentTypes: [contentType],
-        maximumSizeInBytes: MAX_FILE_SIZE,
-        validUntil: Date.now() + 60 * 1000, // Token valid for 1 minute
+        // Generate a sanitized pathname
+        const randomId = crypto.randomUUID();
+        const fileName = (clientPayload as any)?.name || 'file';
+        const safeExtension = fileName.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+        
+        return {
+          allowedContentTypes: [contentType],
+          maximumSizeInBytes: MAX_FILE_SIZE,
+          tokenPayload: JSON.stringify({
+            payer,
+            uploadedAt: Date.now(),
+          }),
+        };
       },
-      {
-        access: 'public',
-        cacheControlMaxAge: TEMP_UPLOAD_TTL_SECONDS,
-        addRandomSuffix: true,
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        // Optional: Log or track the upload
+        console.log('Upload completed:', blob.pathname);
       },
-    );
-
-    return NextResponse.json({
-      token,
-      maxFileSize: MAX_FILE_SIZE,
-      ttlSeconds: TEMP_UPLOAD_TTL_SECONDS,
     });
+
+    return NextResponse.json(jsonResponse);
   } catch (error) {
-    console.error('Token generation error:', error);
+    console.error('Client upload error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Token generation failed' },
-      { status: 500 },
+      { error: error instanceof Error ? error.message : 'Upload failed' },
+      { status: 400 },
     );
   }
 }
