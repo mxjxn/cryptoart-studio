@@ -38,14 +38,13 @@ If you must share, provide:
 - That `DEPLOYER_PRIVATE_KEY` is available in the agent shell env (you set it)
 - Optional custom `BASE_SEPOLIA_RPC_URL`
 
-## Hypersnap / imgnAI (parallel Social compose track)
+## Hypersnap / haatz (parallel Social compose track)
 
-Compose scaffold is on this branch (`/compose`, `/api/cryptoart/compose*`, `SNAPCHAIN_SUBMIT_URL`). It does **not** block factory deploy.
+Compose scaffold is on this branch (`/compose`, `/api/cryptoart/compose*`). It does **not** block factory deploy.
 
-When the validator is ready, share and set:
+**Submit host (researched):** public haatz already accepts Hub writes:
 
-- Submit base URL → `SNAPCHAIN_SUBMIT_URL` (HTTP `POST /v1/submitMessage`)
-- Auth → optional `SNAPCHAIN_SUBMIT_AUTH`
-- Whether it is validator-direct or read-node relay
+- `SNAPCHAIN_SUBMIT_URL=https://haatz.quilibrium.com` → `POST /v1/submitMessage` (protobuf; **no API key**)
+- Remaining gap is app signer / `makeCastAdd`, not finding a write URL
 
-Details: [write-path](./2026-11-12-hypersnap-write-path.md) · [signer + clients plan](./2026-11-13-hypersnap-signer-and-clients.md) (web first; native later).
+Details: [haatz research](./2026-11-13-haatz-submit-research.md) · [write-path](./2026-11-12-hypersnap-write-path.md) · [signer plan](./2026-11-13-hypersnap-signer-and-clients.md).

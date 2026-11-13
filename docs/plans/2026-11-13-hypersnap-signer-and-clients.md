@@ -64,8 +64,8 @@ App-held is the default because web *and* eventual native both get “Allow Cryp
 | Name | Role |
 |------|------|
 | `HYPERSNAP_BASE_URL` | Public read API (unchanged) |
-| `SNAPCHAIN_SUBMIT_URL` | Writable submit base |
-| `SNAPCHAIN_SUBMIT_AUTH` | Optional Authorization for submit |
+| `SNAPCHAIN_SUBMIT_URL` | Writable submit base — **default `https://haatz.quilibrium.com`** ([research](./2026-11-13-haatz-submit-research.md)) |
+| `SNAPCHAIN_SUBMIT_AUTH` | Optional; **unset** on public haatz |
 | `CRYPTOART_APP_FID` | App FID for SignedKeyRequest metadata |
 | App custody private key | Signs request metadata (highest sensitivity) |
 | Signer vault key / KMS | Encrypts per-user Ed25519 secrets at rest |
@@ -90,7 +90,7 @@ Compromise model: leaked **user signer** → can post as that FID until revoke/T
 
 ### Phase A — Web write path (relaunch-adjacent)
 
-1. Obtain writable submit URL (+ auth) — parallel to factory preview; does not block factories.
+1. Point Social at haatz submit (`SNAPCHAIN_SUBMIT_URL=https://haatz.quilibrium.com`) — parallel to factory preview; does not block factories.
 2. Stand up Cryptoart app FID + custody secret in server env (no `.env` commits).
 3. Implement authorize flow UI + API (`KEY_ADD` gasless).
 4. Implement signer vault + `makeCastAdd` on `POST /api/cryptoart/compose`.
@@ -129,7 +129,7 @@ Suggested native sequencing (when tagged work starts): shared API contract → i
 
 ## Open decisions (do not block Phase A design)
 
-1. Exact submit provider (imgnAI validator vs other Hub) — only URL + auth shape matter to code.
+1. Stay on public haatz vs move to own node / imgnAI for SLA — submit shape stays Hub `/v1/submitMessage`.
 2. Whether reactions/follows ship in the first authorize scope or casts-only.
 3. Vault technology (platform KMS vs app-level encryption with wrapped DEK).
 4. Native stack when Phase C starts.

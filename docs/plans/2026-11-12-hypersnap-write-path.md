@@ -59,11 +59,15 @@ Embeds can carry URLs / NFT deep links for “discuss this minted work” withou
 
 ### Node write access
 
-The guide assumes **write access to a Snapchain/Hub node**. Public Hypersnap HTTP reads (e.g. haatz) are not that. Options:
+**Update (2026-11-13):** public **haatz** accepts protocol submits over HTTPS Hub API — see [haatz research](./2026-11-13-haatz-submit-research.md).
 
-1. Run or buy a **writable** Snapchain/Hub endpoint (gRPC `SubmitMessage`, often auth’d).
-2. Use a **hosted submit API** (e.g. Neynar-style) that wraps the same protocol — still needs a user-authorized signer under the hood.
-3. Do **not** expect `HYPERSNAP_BASE_URL` alone to accept cast POSTs.
+| Path | Works on haatz? |
+|------|-----------------|
+| `POST /v2/farcaster/cast` (JSON) | No — `501` |
+| `POST /v1/submitMessage` (protobuf octet-stream) | **Yes** — no API key; live `400` on bad/empty body proves the handler |
+| gRPC `:3383` SubmitMessage | Not publicly reachable on haatz (use HTTPS `/v1/…`) |
+
+Still required: a correctly signed `Message` (authorized signer). Options if we outgrow public haatz: own read node, validator (e.g. imgnAI), or a managed submit API (Neynar-style) that still needs a signer under the hood.
 
 ---
 
@@ -81,16 +85,14 @@ The guide assumes **write access to a Snapchain/Hub node**. Public Hypersnap HTT
 
 `POST /api/cryptoart/compose` without `SNAPCHAIN_SUBMIT_URL` returns **202** (draft acknowledged, not submitted). With submit URL but no `signedMessageHex` (and no ready gasless signer path) it returns **501**. When both submit URL and hex-encoded signed `Message` protobuf are present, bytes are forwarded as `application/octet-stream` to `{SNAPCHAIN_SUBMIT_URL}/v1/submitMessage`.
 
-### imgnAI plug-in
+### Default submit plug-in (haatz)
 
-When the imgnAI Hypersnap validator (or any writable relay) is shared:
+1. Set `SNAPCHAIN_SUBMIT_URL=https://haatz.quilibrium.com` (no trailing slash).
+2. Leave `SNAPCHAIN_SUBMIT_AUTH` unset on public haatz.
+3. Keep `HYPERSNAP_BASE_URL=https://haatz.quilibrium.com/v2/farcaster` for reads (same host).
+4. After gasless `KEY_ADD` + vault, wire `makeCastAdd` (today scaffold: `signedMessageHex` BYO).
 
-1. Set `SNAPCHAIN_SUBMIT_URL` to that base (no trailing slash required).
-2. Set `SNAPCHAIN_SUBMIT_AUTH` if the node needs `Authorization`.
-3. Keep `HYPERSNAP_BASE_URL` on the public read API — do **not** point reads at the validator unless it also serves `/v2/farcaster`.
-4. After gasless `KEY_ADD` for the app signer, set `CRYPTOART_SIGNER_READY=true` and wire `makeCastAdd` so compose can mint signed bytes server-side (today: pass `signedMessageHex` for bring-your-own).
-
-Factories / Base Sepolia deploys are **independent** of this track.
+Optional later: imgnAI / self-hosted node if we need private rate limits or stronger ingest guarantees. Factories remain independent.
 
 ### Minimal product slice (remaining)
 

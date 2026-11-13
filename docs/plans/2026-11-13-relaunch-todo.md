@@ -62,8 +62,10 @@ Related:
 
 ### Social write prerequisites
 
-- [ ] **operator** Writable Snapchain/Hypersnap submit URL (+ auth) — e.g. imgnAI → `SNAPCHAIN_SUBMIT_URL`
+- [x] **research** Public submit host identified: **haatz** `POST https://haatz.quilibrium.com/v1/submitMessage` (no API key; see [haatz research](./2026-11-13-haatz-submit-research.md))
+- [ ] **agent/operator** Set `SNAPCHAIN_SUBMIT_URL=https://haatz.quilibrium.com` on Social preview (auth unset unless policy changes)
 - [ ] **operator** Cryptoart **app FID** (+ custody key in host secrets) for gasless `SignedKeyRequest`
+- [ ] **decide** Keep posting via public haatz vs own node / imgnAI for SLA (haatz fine to start)
 
 ### Branch hygiene
 
