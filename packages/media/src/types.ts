@@ -87,3 +87,28 @@ export type ArweaveAdapter = {
   upload(input: { bytes: Uint8Array; mimeType: string; tags?: Record<string, string> }): Promise<{ id: string; simulated?: boolean }>;
   retrieve(id: string): Promise<{ gateways: string[]; ok: boolean }>;
 };
+
+export interface TempUploadResult {
+  url: string;
+  pathname: string;
+  size: number;
+  contentType: string;
+}
+
+export interface MetadataInput {
+  name: string;
+  description?: string;
+  attributes?: Array<{ trait_type: string; value: string | number }>;
+  animation_url?: string;
+  animationUrl?: string;
+}
+
+export interface ConfirmResult {
+  job: UploadJob;
+  mintEnabled: boolean;
+}
+
+export interface JobStatusResult {
+  job: UploadJob;
+  mintEnabled: boolean;
+}
