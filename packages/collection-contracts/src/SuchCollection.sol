@@ -15,6 +15,7 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
     event RoyaltyUpdated(address receiver, uint16 bps);
     event BaseURIUpdated(string baseURI);
     event MarketplaceApproved(address indexed marketplace, bool approved);
+    event ListingIdApproved(uint40 indexed listingId, bool approved);
     event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId);
     event Revealed(string revealedBaseURI, bytes32 metadataHash);
 
@@ -24,10 +25,14 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
     // Authorized marketplace/auction house addresses that can call deliver()
     mapping(address => bool) private _approvedMarketplaces;
     
+    // Approved listing IDs that can be delivered (prevents unauthorized lazy listings)
+    mapping(uint40 => bool) private _approvedListingIds;
+    
     // Blind mint / reveal state
     bool private _isRevealed;
     string private _placeholderURI;
     bytes32 private _metadataCommitment; // Hash of final metadata for verification
+    bool private _blindMintLocked; // Locked after first mint to prevent commitment swap
 
     constructor(
         string memory name_,
@@ -161,6 +166,7 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         _requireMinted(tokenId);
         
         // If blind mint is configured and not revealed, return placeholder
+        // This prevents per-token URIs from leaking before reveal
         if (bytes(_placeholderURI).length > 0 && !_isRevealed) {
             return _placeholderURI;
         }
@@ -197,6 +203,38 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         return _approvedMarketplaces[marketplace];
     }
 
+    /**
+     * @notice Approve or revoke a listing ID for lazy delivery
+     * @dev This prevents unauthorized users from creating lazy listings and collecting payment.
+     *      The owner must pre-register listing IDs before creating lazy listings on the marketplace.
+     * @param listingId The marketplace listing ID
+     * @param approved True to approve, false to revoke
+     */
+    function setListingIdApproval(uint40 listingId, bool approved) external onlyOwner {
+        _approvedListingIds[listingId] = approved;
+        emit ListingIdApproved(listingId, approved);
+    }
+
+    /**
+     * @notice Batch approve multiple listing IDs
+     * @param listingIds Array of listing IDs to approve
+     */
+    function setListingIdApprovalBatch(uint40[] calldata listingIds) external onlyOwner {
+        for (uint256 i = 0; i < listingIds.length; i++) {
+            _approvedListingIds[listingIds[i]] = true;
+            emit ListingIdApproved(listingIds[i], true);
+        }
+    }
+
+    /**
+     * @notice Check if a listing ID is approved for delivery
+     * @param listingId The marketplace listing ID
+     * @return True if approved, false otherwise
+     */
+    function isListingIdApproved(uint40 listingId) external view returns (bool) {
+        return _approvedListingIds[listingId];
+    }
+
     // === Lazy Delivery ===
 
     /**
@@ -221,23 +259,24 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
         uint256 index
     ) external override nonReentrant {
         require(_approvedMarketplaces[msg.sender], "Caller not approved marketplace");
+        require(_approvedListingIds[listingId], "Listing ID not approved");
         require(payableCount == 1, "ERC721 can only deliver 1 token");
-        require(!_exists(assetId), "Token already minted");
         require(to != address(0), "Cannot deliver to zero address");
 
-        // Update token count if assetId is beyond current count
-        if (assetId > _tokenCount) {
-            _tokenCount = assetId;
-        }
+        // For lazy delivery, mint the next sequential token ID
+        // The marketplace may pass assetId for reference, but we use our own counter
+        // to prevent collision with regular mints and ensure sequential IDs
+        ++_tokenCount;
+        uint256 tokenId = _tokenCount;
 
         // Mint the token to the buyer
-        // For lazy delivery, we use the assetId as the tokenId
-        // The token URI should have been preset by the artist when creating the lazy listing
-        _preMintBase(to, assetId);
-        _safeMint(to, assetId, 0);
+        // Note: For lazy listings, the artist can optionally preset URIs for specific token IDs
+        // using setTokenURIForLazyMint, otherwise tokens will use baseURI + tokenId
+        _preMintBase(to, tokenId);
+        _safeMint(to, tokenId, 0);
 
-        emit LazyDelivered(listingId, to, assetId);
-        emit Minted(to, assetId, _tokenURIs[assetId]);
+        emit LazyDelivered(listingId, to, tokenId);
+        emit Minted(to, tokenId, _tokenURIs[tokenId]);
     }
 
     // === Multi-Recipient Airdrop ===
@@ -299,6 +338,7 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
      */
     function setBlindMintConfig(string calldata placeholder, bytes32 metadataHash) external onlyOwner {
         require(!_isRevealed, "Already revealed");
+        require(!_blindMintLocked, "Blind config locked after first mint");
         require(bytes(placeholder).length > 0, "Placeholder required");
         require(metadataHash != bytes32(0), "Metadata hash required");
         _placeholderURI = placeholder;
@@ -356,11 +396,17 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
             tokenId = _tokenCount;
         }
 
+        // Lock blind mint config on first mint to prevent commitment swap
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+
         _preMintBase(to, tokenId);
 
         _safeMint(to, tokenId, 0);
 
-        if (bytes(uri).length > 0) {
+        // Don't set per-token URI during blind mint period - it would leak before reveal
+        if (bytes(uri).length > 0 && (bytes(_placeholderURI).length == 0 || _isRevealed)) {
             _tokenURIs[tokenId] = uri;
         }
 
@@ -378,11 +424,17 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDe
             tokenId = _tokenCount;
         }
 
+        // Lock blind mint config on first mint to prevent commitment swap
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+
         _preMintExtension(to, tokenId);
 
         _safeMint(to, tokenId, uint96(_extensionToIndex[msg.sender]));
 
-        if (bytes(uri).length > 0) {
+        // Don't set per-token URI during blind mint period - it would leak before reveal
+        if (bytes(uri).length > 0 && (bytes(_placeholderURI).length == 0 || _isRevealed)) {
             _tokenURIs[tokenId] = uri;
         }
 

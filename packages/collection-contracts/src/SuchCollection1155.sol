@@ -17,6 +17,7 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
     event RoyaltyUpdated(address receiver, uint16 bps);
     event BaseURIUpdated(string baseURI);
     event MarketplaceApproved(address indexed marketplace, bool approved);
+    event ListingIdApproved(uint40 indexed listingId, bool approved);
     event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId, uint256 amount);
     event Revealed(string revealedBaseURI, bytes32 metadataHash);
 
@@ -38,10 +39,14 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
     // Authorized marketplace/auction house addresses that can call deliver()
     mapping(address => bool) private _approvedMarketplaces;
     
+    // Approved listing IDs that can be delivered (prevents unauthorized lazy listings)
+    mapping(uint40 => bool) private _approvedListingIds;
+    
     // Blind mint / reveal state
     bool private _isRevealed;
     string private _placeholderURI;
     bytes32 private _metadataCommitment;
+    bool private _blindMintLocked; // Locked after first mint to prevent commitment swap
 
     constructor(
         string memory name_,
@@ -65,6 +70,7 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         require(bytes(_tokenURIs[tokenId]).length != 0 || totalMinted[tokenId] > 0, "Unknown token");
         
         // If blind mint is configured and not revealed, return placeholder
+        // Per-token URIs must not leak before reveal
         if (bytes(_placeholderURI).length > 0 && !_isRevealed) {
             return _placeholderURI;
         }
@@ -89,10 +95,20 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
             require(amount <= maxSupply_, "Exceeds max supply");
         }
 
+        // Lock blind mint config on first mint to prevent commitment swap
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+
         ++_tokenCount;
         tokenId = _tokenCount;
         maxSupply[tokenId] = maxSupply_;
-        _tokenURIs[tokenId] = tokenURI_;
+        
+        // Don't set per-token URI during blind mint period - it would leak before reveal
+        if (bytes(_placeholderURI).length == 0 || _isRevealed) {
+            _tokenURIs[tokenId] = tokenURI_;
+        }
+        
         totalMinted[tokenId] = amount;
 
         _mint(to, tokenId, amount, "");
@@ -119,6 +135,12 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         require(msg.sender == owner() || _authorizedMinters[msg.sender], "Not authorized");
         require(amount > 0, "Amount zero");
         require(tokenId > 0 && tokenId <= _tokenCount, "Unknown token");
+        
+        // Lock blind mint config on first mint to prevent commitment swap
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked && totalMinted[tokenId] == 0) {
+            _blindMintLocked = true;
+        }
+        
         uint256 cap = maxSupply[tokenId];
         if (cap > 0) {
             require(totalMinted[tokenId] + amount <= cap, "Exceeds max supply");
@@ -189,6 +211,38 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         return _approvedMarketplaces[marketplace];
     }
 
+    /**
+     * @notice Approve or revoke a listing ID for lazy delivery
+     * @dev This prevents unauthorized users from creating lazy listings and collecting payment.
+     *      The owner must pre-register listing IDs before creating lazy listings on the marketplace.
+     * @param listingId The marketplace listing ID
+     * @param approved True to approve, false to revoke
+     */
+    function setListingIdApproval(uint40 listingId, bool approved) external onlyOwner {
+        _approvedListingIds[listingId] = approved;
+        emit ListingIdApproved(listingId, approved);
+    }
+
+    /**
+     * @notice Batch approve multiple listing IDs
+     * @param listingIds Array of listing IDs to approve
+     */
+    function setListingIdApprovalBatch(uint40[] calldata listingIds) external onlyOwner {
+        for (uint256 i = 0; i < listingIds.length; i++) {
+            _approvedListingIds[listingIds[i]] = true;
+            emit ListingIdApproved(listingIds[i], true);
+        }
+    }
+
+    /**
+     * @notice Check if a listing ID is approved for delivery
+     * @param listingId The marketplace listing ID
+     * @return True if approved, false otherwise
+     */
+    function isListingIdApproved(uint40 listingId) external view returns (bool) {
+        return _approvedListingIds[listingId];
+    }
+
     // === Lazy Delivery ===
 
     /**
@@ -213,15 +267,16 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
         uint256 index
     ) external override nonReentrant {
         require(_approvedMarketplaces[msg.sender], "Caller not approved marketplace");
+        require(_approvedListingIds[listingId], "Listing ID not approved");
         require(payableCount > 0, "Amount must be > 0");
         require(to != address(0), "Cannot deliver to zero address");
 
-        // For lazy delivery, if the token doesn't exist yet, we create it
+        // For lazy delivery, if the token doesn't exist yet, verify it was prepared
         // If it exists and has capacity, we mint additional supply
         if (totalMinted[assetId] == 0) {
-            // New token - must have been prepared with metadata
+            // New token - must have been prepared with metadata via prepareLazyToken
             require(bytes(_tokenURIs[assetId]).length > 0, "Token URI not set");
-            ++_tokenCount;
+            // Token count was already incremented in prepareLazyToken, don't increment again
         }
 
         uint256 cap = maxSupply[assetId];
@@ -316,6 +371,7 @@ contract SuchCollection1155 is ERC1155, Ownable, ReentrancyGuard, IERC2981, ILaz
      */
     function setBlindMintConfig(string calldata placeholder, bytes32 metadataHash) external onlyOwner {
         require(!_isRevealed, "Already revealed");
+        require(!_blindMintLocked, "Blind config locked after first mint");
         require(bytes(placeholder).length > 0, "Placeholder required");
         require(metadataHash != bytes32(0), "Metadata hash required");
         _placeholderURI = placeholder;

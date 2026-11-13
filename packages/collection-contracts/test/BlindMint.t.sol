@@ -256,8 +256,9 @@ contract BlindMintTest is Test {
         
         collection1155.reveal(REVEALED_BASE_URI, SALT);
         
-        // After reveal, should use explicit URI
-        assertEq(collection1155.uri(tokenId), "ipfs://explicit");
+        // After reveal, uses base URI since per-token URI was suppressed during blind period
+        // This prevents URI leaks before reveal
+        assertEq(collection1155.uri(tokenId), string(abi.encodePacked(REVEALED_BASE_URI, "1")));
         vm.stopPrank();
     }
 
@@ -314,12 +315,13 @@ contract BlindMintTest is Test {
         vm.startPrank(owner);
         collection721.setBlindMintConfig(PLACEHOLDER, commitment);
         collection721.setMarketplaceApproval(marketplace, true);
-        collection721.setTokenURIForLazyMint(1, "ipfs://lazy-metadata");
+        collection721.setListingIdApproval(1, true);
+        // Don't preset URI for blind mints - they should use base URI after reveal
         vm.stopPrank();
         
-        // Lazy deliver
+        // Lazy deliver - will mint next sequential ID (token 1)
         vm.prank(marketplace);
-        collection721.deliver(1, alice, 1, 1, 1 ether, address(0), 0);
+        collection721.deliver(1, alice, 0, 1, 1 ether, address(0), 0);
         
         // Should return placeholder
         assertEq(collection721.tokenURI(1), PLACEHOLDER);
@@ -328,8 +330,9 @@ contract BlindMintTest is Test {
         vm.prank(owner);
         collection721.reveal(REVEALED_BASE_URI, SALT);
         
-        // Now should use preset URI
-        assertEq(collection721.tokenURI(1), "ipfs://lazy-metadata");
+        // After reveal, uses revealed base URI
+        // Note: preset URI from setTokenURIForLazyMint was suppressed during blind period
+        assertEq(collection721.tokenURI(1), string(abi.encodePacked(REVEALED_BASE_URI, "1")));
     }
 
     function test_blind_mint_with_airdrop() public {
@@ -363,5 +366,63 @@ contract BlindMintTest is Test {
         assertEq(collection721.tokenURI(tokenIds[0]), "uri1");
         assertEq(collection721.tokenURI(tokenIds[1]), "uri2");
         assertEq(collection721.tokenURI(tokenIds[2]), "uri3");
+    }
+
+    function test_blind_config_locks_after_first_mint() public {
+        bytes32 commitment = keccak256(abi.encodePacked(REVEALED_BASE_URI, SALT));
+        
+        vm.startPrank(owner);
+        collection721.setBlindMintConfig(PLACEHOLDER, commitment);
+        
+        // Mint first token - this locks the config
+        collection721.mint(alice, "uri1");
+        
+        // Try to update blind config - should fail
+        bytes32 newCommitment = keccak256(abi.encodePacked("ipfs://new-base/", SALT));
+        vm.expectRevert("Blind config locked after first mint");
+        collection721.setBlindMintConfig("ipfs://new-placeholder", newCommitment);
+        vm.stopPrank();
+    }
+
+    function test_blind_mint_per_token_uris_dont_leak() public {
+        bytes32 commitment = keccak256(abi.encodePacked(REVEALED_BASE_URI, SALT));
+        
+        vm.startPrank(owner);
+        collection721.setBlindMintConfig(PLACEHOLDER, commitment);
+        
+        // Mint with URIs - they should not be visible until reveal
+        collection721.mint(alice, "ipfs://secret1");
+        collection721.mint(bob, "ipfs://secret2");
+        vm.stopPrank();
+        
+        // Both should return placeholder, not the secret URIs
+        assertEq(collection721.tokenURI(1), PLACEHOLDER);
+        assertEq(collection721.tokenURI(2), PLACEHOLDER);
+        
+        // Reveal
+        vm.prank(owner);
+        collection721.reveal(REVEALED_BASE_URI, SALT);
+        
+        // After reveal, should use base URI (not the "secret" URIs that were suppressed)
+        assertEq(collection721.tokenURI(1), string(abi.encodePacked(REVEALED_BASE_URI, "1")));
+        assertEq(collection721.tokenURI(2), string(abi.encodePacked(REVEALED_BASE_URI, "2")));
+    }
+
+    function test_setBaseURI_allowed_after_reveal() public {
+        bytes32 commitment = keccak256(abi.encodePacked(REVEALED_BASE_URI, SALT));
+        
+        vm.startPrank(owner);
+        collection721.setBlindMintConfig(PLACEHOLDER, commitment);
+        collection721.mint(alice, "");
+        
+        // Reveal
+        collection721.reveal(REVEALED_BASE_URI, SALT);
+        
+        // Artist can still update base URI after reveal (per Max's requirement)
+        string memory newBaseURI = "ipfs://updated-base/";
+        collection721.setBaseURI(newBaseURI);
+        vm.stopPrank();
+        
+        assertEq(collection721.tokenURI(1), string(abi.encodePacked(newBaseURI, "1")));
     }
 }

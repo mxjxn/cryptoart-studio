@@ -44,6 +44,7 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         uint256 perWalletCap;         // Max redemptions per wallet (0 = unlimited)
         uint48 startTime;             // Unix timestamp when redemptions can start (0 = immediate)
         uint48 endTime;               // Unix timestamp when redemptions end (0 = never)
+        string targetBaseURI;         // For ERC721 targets, base URI for minted tokens
     }
 
     // Dead address for tokens that can't be burned
@@ -81,7 +82,7 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
      * @notice Create a new burn-to-mint configuration
      * @param sourceContract The contract to burn tokens from (can be external)
      * @param sourceSpec ERC721 or ERC1155
-     * @param targetCollection The SuchCollection to mint in (must be registered as extension)
+     * @param targetCollection The SuchCollection to mint in (must be owned by extension owner)
      * @param targetSpec ERC721 or ERC1155
      * @param targetTokenId For ERC1155 targets, which token ID to mint
      * @param burnRatio How many source tokens needed per mint set (numerator)
@@ -91,6 +92,7 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
      * @param perWalletCap Max redemptions per wallet (0 = unlimited)
      * @param startTime Unix timestamp when redemptions start (0 = immediate)
      * @param endTime Unix timestamp when redemptions end (0 = never)
+     * @param targetBaseURI For ERC721 targets, base URI for minted tokens (appends token count)
      */
     function createBurnConfig(
         address sourceContract,
@@ -104,16 +106,24 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         uint256 totalRedemptionCap,
         uint256 perWalletCap,
         uint48 startTime,
-        uint48 endTime
+        uint48 endTime,
+        string calldata targetBaseURI
     ) external onlyOwner returns (uint256 configId) {
         require(sourceContract != address(0), "Invalid source");
         require(targetCollection != address(0), "Invalid target");
         require(burnRatio > 0, "Burn ratio must be > 0");
         require(mintRatio > 0, "Mint ratio must be > 0");
         
+        // Verify that the extension owner owns the target collection
+        // This prevents unauthorized users from creating burn configs for collections they don't own
+        require(Ownable(targetCollection).owner() == owner(), "Extension owner must own target collection");
+        
         // If target is ERC1155, token ID is required
         if (targetSpec == TokenSpec.ERC1155) {
             require(targetTokenId > 0, "Target token ID required for ERC1155");
+        } else {
+            // For ERC721, require base URI
+            require(bytes(targetBaseURI).length > 0, "Target base URI required for ERC721");
         }
         
         // Time window validation
@@ -149,7 +159,8 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
             totalRedemptionCap: totalRedemptionCap,
             perWalletCap: perWalletCap,
             startTime: startTime,
-            endTime: endTime
+            endTime: endTime,
+            targetBaseURI: targetBaseURI
         });
 
         emit BurnConfigCreated(configId, sourceContract, targetCollection, sourceSpec, targetSpec);
@@ -170,14 +181,12 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
      * @param sourceTokenIds For ERC721 source: array of token IDs to burn
      * @param sourceTokenId For ERC1155 source: the token ID to burn from
      * @param sourceAmount For ERC1155 source: how many to burn
-     * @param targetURIs For ERC721 target: array of URIs for minted tokens
      */
     function burnToMint(
         uint256 configId,
         uint256[] calldata sourceTokenIds,  // For ERC721 source
         uint256 sourceTokenId,              // For ERC1155 source
-        uint256 sourceAmount,               // For ERC1155 source
-        string[] calldata targetURIs        // For ERC721 target
+        uint256 sourceAmount                // For ERC1155 source
     ) external nonReentrant returns (uint256[] memory mintedTokenIds) {
         require(configId < configCount, "Invalid config");
         BurnConfig memory config = burnConfigs[configId];
@@ -204,12 +213,12 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
             _burnERC1155(config, sourceTokenId, sourceAmount);
         }
 
-        // Calculate how many to mint
-        require(burnedCount >= config.burnRatio, "Insufficient burn amount");
+        // Calculate how many to mint - must be exact multiple to prevent loss of burned tokens
+        require(burnedCount % config.burnRatio == 0, "Must burn exact multiple of ratio");
         uint256 sets = burnedCount / config.burnRatio;
         uint256 mintAmount = sets * config.mintRatio;
         
-        // Check per-wallet cap
+        // Check per-wallet cap (before external calls - CEI pattern)
         if (config.perWalletCap > 0) {
             require(
                 userBurns[configId][msg.sender] + mintAmount <= config.perWalletCap,
@@ -217,7 +226,7 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
             );
         }
         
-        // Check total redemption cap
+        // Check total redemption cap (before external calls - CEI pattern)
         if (config.totalRedemptionCap > 0) {
             require(
                 totalMinted[configId] + mintAmount <= config.totalRedemptionCap,
@@ -225,18 +234,18 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
             );
         }
 
-        // Mint target tokens
+        // Update state before external calls (CEI pattern)
+        userBurns[configId][msg.sender] += mintAmount;
+        totalMinted[configId] += mintAmount;
+
+        // Mint target tokens - URIs come from config, not user input
         if (config.targetSpec == TokenSpec.ERC721) {
-            require(targetURIs.length == mintAmount, "URI count mismatch");
-            mintedTokenIds = _mintERC721(config, mintAmount, targetURIs);
+            mintedTokenIds = _mintERC721(config, mintAmount, configId);
         } else {
             mintedTokenIds = new uint256[](1);
             mintedTokenIds[0] = config.targetTokenId;
             _mintERC1155(config, mintAmount);
         }
-
-        userBurns[configId][msg.sender] += mintAmount;
-        totalMinted[configId] += mintAmount;
 
         emit BurnedToMint(configId, msg.sender, burnedCount, mintAmount, mintedTokenIds);
     }
@@ -309,16 +318,38 @@ contract BurnToMintExtension is Ownable, ReentrancyGuard {
         }
     }
 
-    function _mintERC721(BurnConfig memory config, uint256 amount, string[] calldata uris)
+    function _mintERC721(BurnConfig memory config, uint256 amount, uint256 configId)
         internal
         returns (uint256[] memory tokenIds)
     {
         ISuchCollection target = ISuchCollection(config.targetCollection);
         tokenIds = new uint256[](amount);
         
+        // Generate URIs from base URI + mint count for this config
+        uint256 startCount = totalMinted[configId] - amount; // Already incremented above
+        
         for (uint256 i = 0; i < amount; i++) {
-            tokenIds[i] = target.mintExtension(msg.sender, uris[i]);
+            // URI = baseURI + (startCount + i)
+            string memory uri = string(abi.encodePacked(config.targetBaseURI, _toString(startCount + i)));
+            tokenIds[i] = target.mintExtension(msg.sender, uri);
         }
+    }
+
+    function _toString(uint256 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     function _mintERC1155(BurnConfig memory config, uint256 amount) internal {

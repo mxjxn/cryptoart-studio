@@ -164,7 +164,8 @@ contract BurnToMintTest is Test {
             0,    // totalRedemptionCap (0 = unlimited)
             0,    // perWalletCap (0 = unlimited)
             0,    // startTime (0 = immediate)
-            0     // endTime (0 = never)
+            0,    // endTime (0 = never)
+            "ipfs://redeemed/"  // targetBaseURI for ERC721 mints
         );
         
         assertEq(configId, 0);
@@ -186,7 +187,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         assertEq(configId, 0);
@@ -203,7 +205,8 @@ contract BurnToMintTest is Test {
             2, // Burn 2 source for 1 target
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
     }
 
@@ -219,7 +222,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
     }
 
@@ -235,7 +239,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
     }
 
@@ -252,7 +257,8 @@ contract BurnToMintTest is Test {
             0, // Invalid
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         vm.expectRevert("Mint ratio must be > 0");
@@ -265,7 +271,8 @@ contract BurnToMintTest is Test {
             1,
             0, // Invalid
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         vm.stopPrank();
@@ -282,7 +289,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         extension.setBurnConfigActive(configId, false);
@@ -306,7 +314,8 @@ contract BurnToMintTest is Test {
             1, // 1:1 ratio
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         // Alice burns token 1 to mint
@@ -317,7 +326,7 @@ contract BurnToMintTest is Test {
         uris[0] = "ipfs://new-token";
         
         vm.prank(alice);
-        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0);
         
         // Verify source was burned
         assertTrue(burnableSource721.burned(1));
@@ -338,7 +347,8 @@ contract BurnToMintTest is Test {
             2, // Burn 2 to mint 1
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](2);
@@ -349,7 +359,7 @@ contract BurnToMintTest is Test {
         uris[0] = "ipfs://new";
         
         vm.prank(alice);
-        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0);
         
         assertEq(mintedIds.length, 1);
         assertTrue(burnableSource721.burned(1));
@@ -369,7 +379,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             false, // No burn function
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -379,7 +390,7 @@ contract BurnToMintTest is Test {
         uris[0] = "ipfs://new";
         
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
         
         // Verify transferred to dead address
         assertEq(nonBurnableSource721.ownerOf(1), extension.DEAD_ADDRESS());
@@ -398,7 +409,8 @@ contract BurnToMintTest is Test {
             10, // Burn 10 1155 to mint 1 721
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](0); // Not used for 1155
@@ -406,7 +418,7 @@ contract BurnToMintTest is Test {
         uris[0] = "ipfs://new";
         
         vm.prank(alice);
-        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 1, 10, uris);
+        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 1, 10);
         
         assertEq(mintedIds.length, 1);
         assertEq(source1155.balanceOf(alice, 1), 90); // 100 - 10 = 90
@@ -424,14 +436,15 @@ contract BurnToMintTest is Test {
             5, // Burn 5 to mint
             2, // Get 2 per burn set
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](0);
         string[] memory uris = new string[](0);
         
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds, 1, 10, uris); // Burn 10 = 2 sets = mint 4
+        extension.burnToMint(configId, tokenIds, 1, 10); // Burn 10 = 2 sets = mint 4
         
         assertEq(source1155.balanceOf(alice, 1), 90);
         assertEq(targetCollection1155.balanceOf(alice, 1), 4);
@@ -450,7 +463,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -461,7 +475,7 @@ contract BurnToMintTest is Test {
         // Bob doesn't own token 1
         vm.prank(bob);
         vm.expectRevert("Not token owner");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
     }
 
     function test_burnToMint_reverts_config_not_active() public {
@@ -475,7 +489,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         extension.setBurnConfigActive(configId, false);
@@ -488,7 +503,7 @@ contract BurnToMintTest is Test {
         
         vm.prank(alice);
         vm.expectRevert("Config not active");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
     }
 
     function test_burnToMint_reverts_insufficient_burn_amount() public {
@@ -502,7 +517,8 @@ contract BurnToMintTest is Test {
             5, // Need to burn 5
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](3); // Only burning 3
@@ -514,11 +530,12 @@ contract BurnToMintTest is Test {
         uris[0] = "ipfs://new";
         
         vm.prank(alice);
-        vm.expectRevert("Insufficient burn amount");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        vm.expectRevert("Must burn exact multiple of ratio");
+        extension.burnToMint(configId, tokenIds, 0, 0);
     }
 
-    function test_burnToMint_reverts_uri_count_mismatch() public {
+    function test_burnToMint_uris_from_config() public {
+        // Test that URIs come from config, not user input
         vm.prank(owner);
         uint256 configId = extension.createBurnConfig(
             address(burnableSource721),
@@ -529,18 +546,20 @@ contract BurnToMintTest is Test {
             1,
             2, // Will mint 2 tokens
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = 1;
         
-        string[] memory uris = new string[](1); // But only 1 URI provided
-        uris[0] = "ipfs://new";
-        
         vm.prank(alice);
-        vm.expectRevert("URI count mismatch");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0);
+        
+        // Should mint 2 tokens with URIs from config (ipfs://redeemed/0 and ipfs://redeemed/1)
+        assertEq(mintedIds.length, 2);
+        assertEq(targetCollection721.tokenURI(mintedIds[0]), "ipfs://redeemed/0");
+        assertEq(targetCollection721.tokenURI(mintedIds[1]), "ipfs://redeemed/1");
     }
 
     // === User Burn Tracking Tests ===
@@ -556,7 +575,8 @@ contract BurnToMintTest is Test {
             1,
             1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         assertEq(extension.getUserBurnCount(configId, alice), 0);
@@ -567,7 +587,7 @@ contract BurnToMintTest is Test {
         uris[0] = "ipfs://new";
         
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
         
         assertEq(extension.getUserBurnCount(configId, alice), 1);
     }
@@ -585,7 +605,8 @@ contract BurnToMintTest is Test {
             2, // Burn 2
             3, // Get 3
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](2);
@@ -598,7 +619,7 @@ contract BurnToMintTest is Test {
         uris[2] = "ipfs://3";
         
         vm.prank(alice);
-        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        uint256[] memory mintedIds = extension.burnToMint(configId, tokenIds, 0, 0);
         
         assertEq(mintedIds.length, 3);
         assertEq(extension.getUserBurnCount(configId, alice), 3);
@@ -618,7 +639,8 @@ contract BurnToMintTest is Test {
             1, 1,
             true,
             2,  // totalRedemptionCap: max 2 mints total
-            0, 0, 0
+            0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         // Alice mints 1 (burns token 1)
@@ -627,7 +649,7 @@ contract BurnToMintTest is Test {
         string[] memory uris1 = new string[](1);
         uris1[0] = "ipfs://1";
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds1, 0, 0, uris1);
+        extension.burnToMint(configId, tokenIds1, 0, 0);
         
         // Bob mints 1 (total = 2, at cap)
         uint256 bobToken = burnableSource721.mint(bob);
@@ -637,7 +659,7 @@ contract BurnToMintTest is Test {
         uris2[0] = "ipfs://2";
         
         vm.prank(bob);
-        extension.burnToMint(configId, tokenIds2, 0, 0, uris2);
+        extension.burnToMint(configId, tokenIds2, 0, 0);
         
         // Alice tries to mint again - should fail (cap reached)
         uint256[] memory tokenIds3 = new uint256[](1);
@@ -647,7 +669,7 @@ contract BurnToMintTest is Test {
         
         vm.prank(alice);
         vm.expectRevert("Exceeds total redemption cap");
-        extension.burnToMint(configId, tokenIds3, 0, 0, uris3);
+        extension.burnToMint(configId, tokenIds3, 0, 0);
     }
 
     function test_burnToMint_per_wallet_cap() public {
@@ -663,7 +685,8 @@ contract BurnToMintTest is Test {
             true,
             0,  // totalRedemptionCap: unlimited
             2,  // perWalletCap: max 2 per wallet
-            0, 0
+            0, 0,
+            "ipfs://redeemed/"
         );
         
         // Alice mints 2 (burns tokens 1 and 2, at cap)
@@ -674,7 +697,7 @@ contract BurnToMintTest is Test {
         uris1[0] = "ipfs://1";
         uris1[1] = "ipfs://2";
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds1, 0, 0, uris1);
+        extension.burnToMint(configId, tokenIds1, 0, 0);
         
         // Alice tries to mint more - should fail
         uint256[] memory tokenIds2 = new uint256[](1);
@@ -684,7 +707,7 @@ contract BurnToMintTest is Test {
         
         vm.prank(alice);
         vm.expectRevert("Exceeds per-wallet cap");
-        extension.burnToMint(configId, tokenIds2, 0, 0, uris2);
+        extension.burnToMint(configId, tokenIds2, 0, 0);
         
         // Bob can still mint (different wallet)
         uint256 bobToken = burnableSource721.mint(bob);
@@ -694,7 +717,7 @@ contract BurnToMintTest is Test {
         uris3[0] = "ipfs://4";
         
         vm.prank(bob);
-        extension.burnToMint(configId, tokenIds3, 0, 0, uris3);
+        extension.burnToMint(configId, tokenIds3, 0, 0);
     }
 
     function test_burnToMint_time_window_not_started() public {
@@ -711,7 +734,8 @@ contract BurnToMintTest is Test {
             true,
             0, 0,
             futureTime,  // startTime: in the future
-            0
+            0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -721,14 +745,14 @@ contract BurnToMintTest is Test {
         
         vm.prank(alice);
         vm.expectRevert("Redemption not started");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
         
         // Warp time forward
         vm.warp(futureTime);
         
         // Now it should work
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
     }
 
     function test_burnToMint_time_window_ended() public {
@@ -745,7 +769,8 @@ contract BurnToMintTest is Test {
             true,
             0, 0,
             0,  // startTime: immediate
-            endTime  // endTime: in 1000 seconds
+            endTime,  // endTime: in 1000 seconds
+            "ipfs://redeemed/"
         );
         
         // Should work before end time
@@ -755,7 +780,7 @@ contract BurnToMintTest is Test {
         uris1[0] = "ipfs://1";
         
         vm.prank(alice);
-        extension.burnToMint(configId, tokenIds1, 0, 0, uris1);
+        extension.burnToMint(configId, tokenIds1, 0, 0);
         
         // Warp past end time
         vm.warp(endTime + 1);
@@ -768,7 +793,7 @@ contract BurnToMintTest is Test {
         
         vm.prank(alice);
         vm.expectRevert("Redemption ended");
-        extension.burnToMint(configId, tokenIds2, 0, 0, uris2);
+        extension.burnToMint(configId, tokenIds2, 0, 0);
     }
 
     function test_createBurnConfig_reverts_invalid_time_window() public {
@@ -787,7 +812,8 @@ contract BurnToMintTest is Test {
             true,
             0, 0,
             startTime,
-            endTime
+            endTime,
+            "ipfs://redeemed/"
         );
     }
 
@@ -805,7 +831,8 @@ contract BurnToMintTest is Test {
             0,
             1, 1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
     }
 
@@ -823,7 +850,8 @@ contract BurnToMintTest is Test {
             1,
             1, 1,
             true,
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
     }
 
@@ -841,7 +869,8 @@ contract BurnToMintTest is Test {
             0,
             1, 1,
             true,  // requiresBurn = true
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -852,7 +881,7 @@ contract BurnToMintTest is Test {
         // Should revert because the malicious contract's burn() doesn't actually burn
         vm.prank(alice);
         vm.expectRevert("Burn verification failed");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
     }
 
     function test_burnToMint_guards_against_fake_transfer() public {
@@ -869,7 +898,8 @@ contract BurnToMintTest is Test {
             0,
             1, 1,
             false,  // requiresBurn = false, should transfer to dead address
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](1);
@@ -880,7 +910,7 @@ contract BurnToMintTest is Test {
         // Should revert because transfer verification fails
         vm.prank(alice);
         vm.expectRevert("Transfer failed");
-        extension.burnToMint(configId, tokenIds, 0, 0, uris);
+        extension.burnToMint(configId, tokenIds, 0, 0);
     }
 
     function test_burnToMint_1155_guards_against_fake_burn() public {
@@ -897,7 +927,8 @@ contract BurnToMintTest is Test {
             0,
             10, 1,
             true,  // requiresBurn = true
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](0);
@@ -907,7 +938,7 @@ contract BurnToMintTest is Test {
         // Should revert because balance doesn't actually decrease
         vm.prank(alice);
         vm.expectRevert("Burn verification failed");
-        extension.burnToMint(configId, tokenIds, 1, 10, uris);
+        extension.burnToMint(configId, tokenIds, 1, 10);
     }
 
     function test_burnToMint_1155_guards_against_fake_transfer() public {
@@ -924,7 +955,8 @@ contract BurnToMintTest is Test {
             0,
             10, 1,
             false,  // requiresBurn = false
-            0, 0, 0, 0
+            0, 0, 0, 0,
+            "ipfs://redeemed/"
         );
         
         uint256[] memory tokenIds = new uint256[](0);
@@ -934,7 +966,7 @@ contract BurnToMintTest is Test {
         // Should revert because transfer verification fails
         vm.prank(alice);
         vm.expectRevert("Transfer failed: sender balance");
-        extension.burnToMint(configId, tokenIds, 1, 10, uris);
+        extension.burnToMint(configId, tokenIds, 1, 10);
     }
 }
 
