@@ -86,8 +86,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Require pathname under temp/<authed address>/
-        const expectedPrefix = `temp/${payer}/`;
-        if (!pathname.startsWith(expectedPrefix)) {
+        // Compare case-insensitively: clients may send a checksummed address
+        const expectedPrefix = `temp/${payer.toLowerCase()}/`;
+        if (!pathname.toLowerCase().startsWith(expectedPrefix)) {
           throw new Error(`Pathname must start with ${expectedPrefix}`);
         }
 

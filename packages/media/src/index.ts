@@ -20,6 +20,6 @@ export { createMemoryMediaStore, type MediaStore } from './store';
 export { createPostgresMediaStore } from './postgres';
 export { createMediaRouter } from './router';
 export { UPLOAD_JOB_STATUSES } from './types';
-export { MediaClient, tokenUriFromMetadata, arweaveGatewayUrls } from './client';
+export { MediaClient, tokenUriFromMetadata, arweaveGatewayUrls, buildTempUploadPathname } from './client';
 export type { ArweaveAdapter, Facilitator, FileQuoteInput, UploadJob, UploadJobStatus, UploadQuote, TempUploadResult, MetadataInput, ConfirmResult, JobStatusResult } from './types';
 export type { MediaConfig } from './client';

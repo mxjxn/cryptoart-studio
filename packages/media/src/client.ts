@@ -20,6 +20,15 @@ export interface MediaConfig {
   tempUploadTtlSeconds: number;
 }
 
+/**
+ * Blob pathname for a temp upload: temp/<lowercased address>/<timestamp>-<uuid>.<ext>.
+ * The address is lowercased to match the session address stored by @cryptoart/identity.
+ */
+export function buildTempUploadPathname(payerAddress: string, fileName: string): string {
+  const safeExtension = fileName.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+  return `temp/${payerAddress.toLowerCase()}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+}
+
 export class MediaClient {
   constructor(
     private options: {
@@ -87,8 +96,7 @@ export class MediaClient {
     // Import @vercel/blob/client dynamically to support both browser and Node.js
     const { upload } = await import('@vercel/blob/client');
 
-    const safeExtension = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
-    const pathname = `temp/${payerAddress}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+    const pathname = buildTempUploadPathname(payerAddress, file.name);
 
     const blob = await upload(pathname, file, {
       access: 'public',

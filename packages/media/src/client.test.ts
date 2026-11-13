@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MediaClient, tokenUriFromMetadata, arweaveGatewayUrls } from './client';
+import { MediaClient, tokenUriFromMetadata, arweaveGatewayUrls, buildTempUploadPathname } from './client';
 
 describe('MediaClient', () => {
   it('builds correct API URLs and includes credentials', async () => {
@@ -84,5 +84,18 @@ describe('arweaveGatewayUrls', () => {
       'https://arweave.net/abc123',
       'https://ar-io.net/abc123',
     ]);
+  });
+});
+
+describe('buildTempUploadPathname', () => {
+  it('lowercases a checksummed wallet address', () => {
+    const path = buildTempUploadPathname('0xAbCDEF0123456789abcdef0123456789ABCDEF01', 'art.PNG');
+    expect(path.startsWith('temp/0xabcdef0123456789abcdef0123456789abcdef01/')).toBe(true);
+    expect(path.endsWith('.PNG')).toBe(true);
+  });
+
+  it('strips unsafe characters from the extension', () => {
+    const path = buildTempUploadPathname('0xabc', 'evil.p/n..g?');
+    expect(path).toMatch(/^temp\/0xabc\/\d+-[0-9a-f-]+\.g$/);
   });
 });
