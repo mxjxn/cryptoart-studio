@@ -10,7 +10,7 @@ import {
   offers,
   escrows,
   type ChainEvent,
-} from '../schema.js';
+} from '../schema';
 
 /**
  * Serialize BigInt values as strings for JSONB storage

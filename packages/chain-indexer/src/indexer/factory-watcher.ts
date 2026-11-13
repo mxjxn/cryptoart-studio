@@ -1,11 +1,11 @@
 import type { Address } from 'viem';
 import { parseAbiItem, decodeEventLog } from 'viem';
-import { getPublicClient } from './client.js';
-import { getCheckpoint, indexEventsTransaction } from './database.js';
+import { getPublicClient } from './client';
+import { getCheckpoint, indexEventsTransaction } from './database';
 import { db } from '@cryptoart/db/client';
 import { indexedContracts } from '@cryptoart/db';
 import { sql } from 'drizzle-orm';
-import type { ContractConfig, ChainEvent } from '../types/events.js';
+import type { ContractConfig, ChainEvent } from '../types/events';
 
 /**
  * Factory watcher discovers new collections from factory contracts

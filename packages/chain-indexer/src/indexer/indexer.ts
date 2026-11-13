@@ -1,8 +1,8 @@
 import type { Address, Hex, Log } from 'viem';
 import { parseAbiItem, decodeEventLog } from 'viem';
-import { getPublicClient, getSafeBlockNumber } from './client.js';
-import { getCheckpoint, indexEventsTransaction } from './database.js';
-import type { ContractConfig, ChainEvent, IndexingResult } from '../types/events.js';
+import { getPublicClient, getSafeBlockNumber } from './client';
+import { getCheckpoint, indexEventsTransaction } from './database';
+import type { ContractConfig, ChainEvent, IndexingResult } from '../types/events';
 import {
   processCreateListing,
   processCreateListingTokenDetails,
@@ -14,7 +14,7 @@ import {
   processCancelListing,
   processFinalizeListing,
   processEscrowEvent,
-} from './processors.js';
+} from './processors';
 
 /**
  * Maximum block range to fetch in a single getLogs call

@@ -7,7 +7,7 @@ import {
   purchases,
   offers,
   escrows,
-} from '../schema.js';
+} from '../schema';
 import type {
   ListingCreatedArgs,
   ListingTokenDetailsArgs,
@@ -19,7 +19,7 @@ import type {
   CancelListingArgs,
   FinalizeListingArgs,
   EscrowEventArgs,
-} from '../types/events.js';
+} from '../types/events';
 
 /**
  * Process CreateListing event

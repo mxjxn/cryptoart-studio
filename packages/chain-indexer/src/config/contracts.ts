@@ -1,7 +1,7 @@
 import type { Address } from 'viem';
-import type { ContractConfig } from '../types/events.js';
-import { MarketplaceLibABI } from './abis/MarketplaceLib.js';
-import { SettlementLibABI } from './abis/SettlementLib.js';
+import type { ContractConfig } from '../types/events';
+import { MarketplaceLibABI } from './abis/MarketplaceLib';
+import { SettlementLibABI } from './abis/SettlementLib';
 
 /**
  * Marketplace contract configurations

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Address } from 'viem';
-import type { ContractConfig } from '../types/events.js';
+import type { ContractConfig } from '../types/events';
 
 describe('Indexer', () => {
   describe('Block Range Chunking', () => {
