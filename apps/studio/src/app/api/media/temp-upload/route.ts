@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     // Validate file type
     if (!ALLOWED_MIME_TYPES.includes(file.type) && file.type !== '') {
       return NextResponse.json(
-        { error: `File type not supported: ${file.type}. Allowed types: images, video, audio, HTML, 3D models` },
+        { error: `File type not supported: ${file.type}. Allowed types: images, video, audio, 3D models` },
         { status: 400 },
       );
     }

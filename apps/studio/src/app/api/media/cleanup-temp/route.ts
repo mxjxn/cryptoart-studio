@@ -35,9 +35,10 @@ async function cleanupTempBlobs(req: NextRequest) {
     let totalDeleted = 0;
     let totalChecked = 0;
     let cursor: string | undefined;
+    let hasMore = true;
 
     // Paginate through all temp uploads
-    do {
+    while (hasMore) {
       const result = await list({
         prefix: 'temp/',
         cursor,
@@ -58,8 +59,9 @@ async function cleanupTempBlobs(req: NextRequest) {
         totalDeleted += toDelete.length;
       }
 
+      hasMore = result.hasMore;
       cursor = result.cursor;
-    } while (cursor);
+    }
 
     return NextResponse.json({
       success: true,

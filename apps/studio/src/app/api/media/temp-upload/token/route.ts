@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { handleUpload } from '@vercel/blob/client';
 import { toPlatformRequest, createIdentityRouter, createPostgresIdentityStore, createMemoryIdentityStore } from '@cryptoart/identity';
 
 const postgresUrl = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
@@ -85,39 +85,40 @@ export async function POST(req: NextRequest) {
           throw new Error('No wallet address in session');
         }
 
-        // Parse client payload (it's a JSON string)
-        const payload = typeof clientPayload === 'string' ? JSON.parse(clientPayload) : clientPayload;
+        // Require pathname under temp/<authed address>/
+        const expectedPrefix = `temp/${payer}/`;
+        if (!pathname.startsWith(expectedPrefix)) {
+          throw new Error(`Pathname must start with ${expectedPrefix}`);
+        }
+
+        // Parse client payload (it's a JSON string from the client)
+        let payload: { type?: string; name?: string } = {};
+        if (clientPayload) {
+          try {
+            payload = typeof clientPayload === 'string' ? JSON.parse(clientPayload) : clientPayload;
+          } catch {
+            throw new Error('Invalid clientPayload JSON');
+          }
+        }
         const contentType = payload?.type;
-        const fileName = payload?.name || 'file';
 
         // Validate content type
         if (!contentType || (!ALLOWED_MIME_TYPES.includes(contentType) && contentType !== '')) {
           throw new Error(`Content type not supported: ${contentType}`);
         }
 
-        // Generate a sanitized pathname with required prefix
-        const randomId = crypto.randomUUID();
-        const safeExtension = fileName.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
-        const sanitizedPathname = `temp/${payer}/${Date.now()}-${randomId}.${safeExtension}`;
-        
-        // Require pathname to start with temp/<payer>/
-        const expectedPrefix = `temp/${payer}/`;
-        if (!sanitizedPathname.startsWith(expectedPrefix)) {
-          throw new Error('Invalid pathname');
-        }
-
         return {
           allowedContentTypes: [contentType],
+          maximumSizeInBytes: MAX_FILE_SIZE,
+          addRandomSuffix: true,
+          cacheControlMaxAge: TEMP_UPLOAD_TTL_SECONDS,
           tokenPayload: JSON.stringify({
             payer,
             uploadedAt: Date.now(),
           }),
-          maximumSizeInBytes: MAX_FILE_SIZE,
-          addRandomSuffix: true,
         };
       },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // Optional: Log or track the upload
+      onUploadCompleted: async ({ blob }) => {
         console.log('Upload completed:', blob.pathname);
       },
     });

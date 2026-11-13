@@ -75,14 +75,22 @@ export class MediaClient {
 
   /**
    * Upload a file to temporary storage (Vercel Blob) using client-side upload.
-   * Returns a signed URL with expiration time.
-   * Check config.maxFileSize before calling to avoid rejection.
+   * Bypasses the Vercel 4.5 MB function body limit by uploading directly to Blob.
+   * @param file - File to upload
+   * @param payerAddress - Authenticated wallet address (must match session); used in the Blob pathname
    */
-  async uploadTemp(file: File): Promise<TempUploadResult> {
+  async uploadTemp(file: File, payerAddress: string): Promise<TempUploadResult> {
+    if (!payerAddress) {
+      throw new Error('payerAddress is required for temp uploads');
+    }
+
     // Import @vercel/blob/client dynamically to support both browser and Node.js
     const { upload } = await import('@vercel/blob/client');
 
-    const blob = await upload(file.name, file, {
+    const safeExtension = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+    const pathname = `temp/${payerAddress}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+
+    const blob = await upload(pathname, file, {
       access: 'public',
       handleUploadUrl: `${this.options.baseUrl}/temp-upload/token`,
       clientPayload: JSON.stringify({

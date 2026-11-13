@@ -333,7 +333,7 @@ const estimatedCost = client.estimateCost(file.size);
 console.log(`Estimated cost: $${estimatedCost} USDC`);
 
 // 1. Upload to temp storage
-const tempFile = await client.uploadTemp(file);
+const tempFile = await client.uploadTemp(file, payerAddress);
 console.log(`Temp file expires at: ${tempFile.expiresAt}`);
 
 // 2. Get quote
