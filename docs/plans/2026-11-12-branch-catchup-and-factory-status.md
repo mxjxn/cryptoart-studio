@@ -1,7 +1,8 @@
 # Branch catch-up + factory deploy status
 
-**Updated:** 2026-11-12  
-**Operator deploy work since 2026-11-03:** none (confirmed). Base + Ethereum factory addresses remain `null`.
+**Updated:** 2026-11-13  
+**Operator deploy work since 2026-11-03:** none (confirmed). Base + Ethereum factory addresses remain `null`.  
+**Overarching to-do:** [2026-11-13-relaunch-todo.md](./2026-11-13-relaunch-todo.md)
 
 ---
 
@@ -87,9 +88,11 @@ Canonical operator steps: [2026-11-03-all-in-factory-launch-runbook.md](./2026-1
 
 ## Recommended sequencing (on-branch)
 
+Full checklist (decisions, operator gaps, soft product): [2026-11-13-relaunch-todo.md](./2026-11-13-relaunch-todo.md).
+
 1. Keep building on `cursor/cloud-agent-1793668111647-jftwu` (or a branch off it).
-2. Studio path: operator broadcast Base+Eth factories when ready; wire env on preview; finish Arweave prod + mint E2E on the branch.
-3. Social path: choose cast write model (app-held gasless signer vs user-signed); wire compose against a writable Snapchain submit; keep Hypersnap HTTP for reads.
+2. Studio path: Base Sepolia preview first; Base+Eth when ready; wire env; Arweave prod + mint E2E on the branch.
+3. Social path: app-held gasless signer (planned); wire compose against writable Snapchain submit; Hypersnap HTTP for reads.
 4. Full relaunch gate: minting + new Social both working on branch previews → then single cutover to `main` / production.
 
 ---

@@ -1,7 +1,8 @@
 # cryptoart.studio — compact status
 
-**Updated:** 2026-11-12  
+**Updated:** 2026-11-13  
 **Full spec:** [2026-06-cryptoart-studio.md](./2026-06-cryptoart-studio.md)  
+**Overarching to-do:** [2026-11-13-relaunch-todo.md](./2026-11-13-relaunch-todo.md)  
 **Branch catch-up:** [2026-11-12-branch-catchup-and-factory-status.md](./2026-11-12-branch-catchup-and-factory-status.md)  
 **Factory runbook:** [2026-11-03-all-in-factory-launch-runbook.md](./2026-11-03-all-in-factory-launch-runbook.md)  
 **Project board:** [cryptoart.studio](https://github.com/users/mxjxn/projects/2) · issues `#159`–`#168`
@@ -64,13 +65,14 @@ Artist dashboard at **cryptoart.studio** (`apps/studio`) — deploy collections,
 
 **No incremental merges to `main`.** Ship Social + Studio minting + factories together at relaunch. Until then: develop and test-deploy from the stacked branch tip. Periodically merge/rebase `origin/main` into the tip for hygiene only.
 
-## Next (on-branch, in order)
+## Next (on-branch)
 
-1. Operator: deploy+verify 721/1155 factories on Base and Ethereum when ready; record via `scripts/record-factory-deployment.mjs` (preview/test env first).
-2. Set Studio + indexer env on branch deploys; run `scripts/clean-room-reconstruction.sh`.
-3. Production-shaped media secrets on preview (`TURBO_PRIVATE_KEY`, `X402_FACILITATOR_URL`, mock pay false).
-4. Social compose: scaffold on-branch; next is web Phase A signer vault + `makeCastAdd` ([signer plan](./2026-11-13-hypersnap-signer-and-clients.md), [write-path](./2026-11-12-hypersnap-write-path.md)). Native iOS/Android tagged future only. Parallel to factory preview.
-5. When minting **and** new Social both work on branch → single cutover to `main` / production.
+Canonical checklist: **[2026-11-13-relaunch-todo.md](./2026-11-13-relaunch-todo.md)** (decisions · operator · agent · soft polish · order). Summary:
+
+1. Operator: Base Sepolia preview factories first; Base+Eth prod when ready; media/Postgres/indexer/clean-room.
+2. Social: web signer Phase A when submit URL + app FID land ([signer plan](./2026-11-13-hypersnap-signer-and-clients.md)).
+3. Soft parallel: Studio management polish, Studio↔Social links, feed ranking freeze/pass.
+4. Tip green → single cutover to `main` / production.
 
 See [Cutover and Durability Plan](../CUTOVER_AND_DURABILITY_PLAN.md) and [branch catch-up](./2026-11-12-branch-catchup-and-factory-status.md).
 

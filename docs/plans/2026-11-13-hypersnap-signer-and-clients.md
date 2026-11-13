@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-13  
 **Status:** Plan (not implemented beyond compose scaffold)  
-**Companion:** [Hypersnap write-path verification](./2026-11-12-hypersnap-write-path.md) · [Social-first layout](./2026-11-02-social-first-layout.md) · [Social product](./2026-10-29-social-product-and-implementation.md)
+**Companion:** [Relaunch to-do](./2026-11-13-relaunch-todo.md) · [Hypersnap write-path verification](./2026-11-12-hypersnap-write-path.md) · [Social-first layout](./2026-11-02-social-first-layout.md) · [Social product](./2026-10-29-social-product-and-implementation.md)
 
 ---
 
