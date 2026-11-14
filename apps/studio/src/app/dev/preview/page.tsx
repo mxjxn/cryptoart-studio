@@ -9,6 +9,7 @@ import { BurnToMintFlow } from '~/components/create/BurnToMintFlow';
 import { LazyMintFlow } from '~/components/create/LazyMintFlow';
 import { MediaPermanenceFlow } from '~/components/create/MediaPermanenceFlow';
 import type { PreviewScenario } from '~/components/flows/types';
+import { PREVIEW_ART } from '~/lib/preview-art';
 import { cn } from '~/lib/utils';
 
 const PREVIEW_ENABLED =
@@ -19,15 +20,14 @@ const MOCK_COLLECTION = {
   name: 'Chromatic Frequencies',
   address: '0xCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCc' as Address,
   chainId: 84532,
-  image: 'https://picsum.photos/seed/gallery-talks/900/1200',
 };
 
 const FLOWS = [
-  { id: 'lazy', label: 'Lazy mint' },
-  { id: 'blind', label: 'Blind drop' },
-  { id: 'burn', label: 'Burn to mint' },
-  { id: 'airdrop', label: 'Airdrop' },
-  { id: 'media', label: 'Media permanence' },
+  { id: 'lazy', label: 'Lazy mint', art: PREVIEW_ART.portrait },
+  { id: 'blind', label: 'Blind drop', art: PREVIEW_ART.square },
+  { id: 'burn', label: 'Burn to mint', art: PREVIEW_ART.landscape },
+  { id: 'airdrop', label: 'Airdrop', art: PREVIEW_ART.motion },
+  { id: 'media', label: 'Media permanence', art: PREVIEW_ART.portrait },
 ] as const;
 
 const SCENARIOS: { id: PreviewScenario; label: string }[] = [
@@ -56,6 +56,8 @@ function DevPreviewInner() {
     if (flow === 'blind') return SCENARIOS;
     return SCENARIOS.filter((s) => s.id !== 'locked' && s.id !== 'revealed');
   }, [flow]);
+
+  const art = FLOWS.find((f) => f.id === flow)?.art ?? PREVIEW_ART.portrait;
 
   return (
     <div data-theme={theme} className={cn(theme === 'dark' && 'dark', 'min-h-screen bg-background text-foreground')}>
@@ -158,7 +160,8 @@ function DevPreviewInner() {
             chainId={MOCK_COLLECTION.chainId}
             tokenStandard={standard}
             marketplaceApproved
-            previewImage={MOCK_COLLECTION.image}
+            previewImage={art.src}
+            previewAspectRatio={art.aspectRatio}
           />
         )}
         {flow === 'blind' && (
@@ -169,7 +172,8 @@ function DevPreviewInner() {
             collectionName={MOCK_COLLECTION.name}
             collectionAddress={MOCK_COLLECTION.address}
             chainId={MOCK_COLLECTION.chainId}
-            previewImage={MOCK_COLLECTION.image}
+            previewImage={art.src}
+            previewAspectRatio={art.aspectRatio}
             initiallyLocked={scenario === 'locked'}
             initiallyRevealed={scenario === 'revealed'}
           />
@@ -183,7 +187,8 @@ function DevPreviewInner() {
             collectionAddress={MOCK_COLLECTION.address}
             chainId={MOCK_COLLECTION.chainId}
             tokenStandard={standard}
-            previewImage={MOCK_COLLECTION.image}
+            previewImage={art.src}
+            previewAspectRatio={art.aspectRatio}
           />
         )}
         {flow === 'airdrop' && (
@@ -195,7 +200,9 @@ function DevPreviewInner() {
             collectionAddress={MOCK_COLLECTION.address}
             chainId={MOCK_COLLECTION.chainId}
             tokenStandard={standard}
-            previewImage={MOCK_COLLECTION.image}
+            previewImage={art.src}
+            previewAspectRatio={art.aspectRatio}
+            previewAnimated={'animated' in art && art.animated}
           />
         )}
         {flow === 'media' && (
@@ -204,6 +211,8 @@ function DevPreviewInner() {
             previewScenario={scenario}
             collectionId={MOCK_COLLECTION.id}
             collectionName={MOCK_COLLECTION.name}
+            previewImage={art.src}
+            previewAspectRatio={art.aspectRatio}
           />
         )}
       </div>

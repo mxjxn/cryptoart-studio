@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { encodePacked, keccak256, toHex, type Address, type Hex } from 'viem';
 import { useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi';
 import { ArtPreview } from '~/components/flows/ArtPreview';
-import { FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
+import { FlowDetails, FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
 import { TxStateBanner } from '~/components/flows/TxStateBanner';
 import { ValidationList } from '~/components/flows/ValidationList';
 import { WalletGate, WrongChainNotice } from '~/components/flows/WalletGate';
@@ -27,6 +27,7 @@ export type BlindDropFlowProps = {
   collectionAddress: Address;
   chainId: number;
   previewImage?: string | null;
+  previewAspectRatio?: string;
   initiallyLocked?: boolean;
   initiallyRevealed?: boolean;
 };
@@ -67,6 +68,7 @@ export function BlindDropFlow({
   collectionAddress,
   chainId: collectionChainId,
   previewImage,
+  previewAspectRatio = '1 / 1',
   initiallyLocked = false,
   initiallyRevealed = false,
 }: BlindDropFlowProps) {
@@ -78,8 +80,7 @@ export function BlindDropFlow({
     hash: txHash,
   });
 
-  const locked =
-    previewScenario === 'locked' || initiallyLocked || (isPreview && previewScenario === 'default' && false);
+  const locked = previewScenario === 'locked' || initiallyLocked;
   const revealed =
     previewScenario === 'revealed' || initiallyRevealed || (isPreview && previewScenario === 'confirmed');
 
@@ -95,9 +96,9 @@ export function BlindDropFlow({
     isPreview ? new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16) : '',
   );
   const [revealedBaseURI, setRevealedBaseURI] = useState(
-    isPreview ? 'ar://final-manifest/' : '',
+    isPreview ? 'ar://final-manifest' : '',
   );
-  const [salt, setSalt] = useState<Hex>(isPreview ? ('0x' + '11'.repeat(32)) as Hex : randomSalt());
+  const [salt, setSalt] = useState<Hex>(isPreview ? (('0x' + '11'.repeat(32)) as Hex) : randomSalt());
   const [configured, setConfigured] = useState(isPreview && previewScenario !== 'empty');
   const [isRevealed, setIsRevealed] = useState(revealed);
   const [isLocked, setIsLocked] = useState(locked);
@@ -109,35 +110,30 @@ export function BlindDropFlow({
   const commitment = useMemo(() => {
     if (!revealedBaseURI.trim()) return null;
     return keccak256(
-      encodePacked(['string', 'bytes32'], [ensureTrailingSlash(revealedBaseURI.trim()), salt]),
+      encodePacked(
+        ['string', 'bytes32'],
+        [ensureTrailingSlash(revealedBaseURI.trim()), salt],
+      ),
     );
   }, [revealedBaseURI, salt]);
 
   const validationErrors = useMemo(() => {
     const errs: string[] = [];
     if (previewScenario === 'validation_error') {
-      errs.push('Placeholder art URI is required.');
-      errs.push('Revealed base URI must end with /.');
+      errs.push('Add a placeholder image link.');
+      errs.push('Add the final artwork folder link before you commit.');
       return errs;
     }
-    if (step === 1 && !placeholderURI.trim()) errs.push('Placeholder art URI is required.');
-    if (step === 2) {
-      if (!revealedBaseURI.trim()) errs.push('Revealed base URI is required to commit.');
-      else if (!revealedBaseURI.trim().endsWith('/')) {
-        errs.push('Revealed base URI must end with a trailing slash.');
-      }
-    }
-    if (step === 3 && !isRevealed) {
-      if (!revealedBaseURI.trim().endsWith('/')) {
-        errs.push('Revealed base URI must end with a trailing slash.');
-      }
+    if (step === 1 && !placeholderURI.trim()) errs.push('Add a placeholder image link.');
+    if (step === 2 && !revealedBaseURI.trim()) {
+      errs.push('Add the final artwork folder link before you commit.');
     }
     if (step === 4) {
-      if (!fixTokenId.trim()) errs.push('Token ID is required.');
-      if (!fixURI.trim()) errs.push('Replacement metadata URI is required.');
+      if (!fixTokenId.trim()) errs.push('Enter a token number.');
+      if (!fixURI.trim()) errs.push('Add the corrected artwork link.');
     }
     return errs;
-  }, [step, placeholderURI, revealedBaseURI, fixTokenId, fixURI, previewScenario, isRevealed]);
+  }, [step, placeholderURI, revealedBaseURI, fixTokenId, fixURI, previewScenario]);
 
   const livePhase: TxPhase = (() => {
     if (!isConnected) return 'wallet_missing';
@@ -175,7 +171,7 @@ export function BlindDropFlow({
   const handleCommit = useCallback(async () => {
     if (!commitment || validationErrors.length) return;
     if (isLocked) {
-      setLocalError('Blind config is locked after the first mint, delivery, or airdrop.');
+      setLocalError('This blind drop is locked after the first mint, delivery, or airdrop.');
       return;
     }
     await runTx(encodeSetBlindMintConfig(placeholderURI, commitment), () => {
@@ -186,7 +182,7 @@ export function BlindDropFlow({
 
   const handleReveal = useCallback(async () => {
     if (validationErrors.length) return;
-    await runTx(encodeReveal(revealedBaseURI, salt), () => {
+    await runTx(encodeReveal(ensureTrailingSlash(revealedBaseURI.trim()), salt), () => {
       setIsRevealed(true);
       setStep(4);
     });
@@ -203,7 +199,7 @@ export function BlindDropFlow({
     return (
       <FlowShell
         title="Blind drop"
-        subtitle="Placeholder art now. Commit, then reveal when you’re ready."
+        subtitle="Show a shared placeholder for now. Reveal the real artwork when you’re ready — all in Studio."
         breadcrumb={{ href: `/collections/${collectionId}`, label: collectionName, current: 'Blind drop' }}
         steps={STEPS}
         currentStep={step}
@@ -216,21 +212,31 @@ export function BlindDropFlow({
   return (
     <FlowShell
       title="Blind drop"
-      subtitle="Config locks on the first mint, delivery, or airdrop. After reveal you can still fix individual token metadata."
+      subtitle="Collectors see a placeholder until you reveal. After the first mint, delivery, or airdrop, the setup locks — you can still reveal and fix individual pieces."
       breadcrumb={{ href: `/collections/${collectionId}`, label: collectionName, current: 'Blind drop' }}
       steps={STEPS}
       currentStep={step}
       aside={
         <div className="space-y-4">
           <ArtPreview
-            src={previewImage}
-            caption={isRevealed ? 'Revealed' : 'Placeholder'}
-            subtitle={isLocked ? 'Config locked' : configured ? 'Committed' : 'Not configured'}
-            aspectRatio="1 / 1"
+            src={previewScenario === 'empty' ? null : previewImage}
+            aspectRatio={previewAspectRatio}
+            caption={isRevealed ? 'Revealed' : previewScenario === 'empty' ? undefined : 'Placeholder'}
+            subtitle={
+              previewScenario === 'empty'
+                ? undefined
+                : isLocked
+                  ? 'Config locked'
+                  : configured
+                    ? 'Committed'
+                    : 'Not configured'
+            }
+            emptyTitle="No placeholder yet"
+            emptyHint="Add placeholder art and it will appear here."
           />
           {(isLocked || previewScenario === 'locked') && (
             <div className="rounded-md border border-warning/30 bg-warning-faint px-4 py-3 text-sm text-warning">
-              Blind config is locked. You can still reveal (if not already) and fix metadata after reveal.
+              This blind drop is locked. You can still reveal (if you haven’t) and fix individual pieces afterward.
             </div>
           )}
         </div>
@@ -261,7 +267,7 @@ export function BlindDropFlow({
               disabled={busy || validationErrors.length > 0 || isLocked}
               onClick={() => void handleCommit()}
             >
-              {busy ? 'Committing…' : 'Commit blind config'}
+              {busy ? 'Saving…' : 'Commit blind setup'}
             </button>
           )}
           {step === 3 && (
@@ -271,7 +277,7 @@ export function BlindDropFlow({
               disabled={busy || isRevealed || validationErrors.length > 0}
               onClick={() => void handleReveal()}
             >
-              {isRevealed ? 'Revealed' : busy ? 'Revealing…' : 'Reveal'}
+              {isRevealed ? 'Revealed' : busy ? 'Revealing…' : 'Reveal artwork'}
             </button>
           )}
           {step === 4 && (
@@ -281,7 +287,7 @@ export function BlindDropFlow({
               disabled={busy || !isRevealed || validationErrors.length > 0}
               onClick={() => void handleFix()}
             >
-              {busy ? 'Updating…' : 'Fix token metadata'}
+              {busy ? 'Updating…' : 'Fix this piece'}
             </button>
           )}
         </>
@@ -302,7 +308,7 @@ export function BlindDropFlow({
           phase === 'failed'
             ? localError || error?.message
             : phase === 'empty'
-              ? 'No blind mint configured for this collection yet.'
+              ? 'No blind drop set up for this collection yet.'
               : undefined
         }
         className="mb-6"
@@ -311,7 +317,7 @@ export function BlindDropFlow({
 
       {step === 1 && (
         <div className="space-y-6">
-          <FlowField label="Placeholder art URI" hint="Shown for every token until reveal.">
+          <FlowField label="Placeholder art" hint="Everyone sees this until you reveal.">
             <input
               className="studio-input font-mono text-sm"
               value={placeholderURI}
@@ -319,7 +325,10 @@ export function BlindDropFlow({
               placeholder="ar://…"
             />
           </FlowField>
-          <FlowField label="Planned reveal date" hint="Informational only — reveal is a manual owner transaction.">
+          <FlowField
+            label="Planned reveal date"
+            hint="Just for your notes — revealing is a button you press when you’re ready."
+          >
             <input
               type="datetime-local"
               className="studio-input"
@@ -333,17 +342,17 @@ export function BlindDropFlow({
       {step === 2 && (
         <div className="space-y-6">
           <FlowField
-            label="Final base URI"
-            hint="Hashed with a salt into the on-chain commitment. Must end with /."
+            label="Final artwork folder"
+            hint="We’ll seal a commitment to this so collectors can trust the reveal."
           >
             <input
               className="studio-input font-mono text-sm"
               value={revealedBaseURI}
               onChange={(e) => setRevealedBaseURI(e.target.value)}
-              placeholder="ar://final-manifest/"
+              placeholder="ar://final-manifest"
             />
           </FlowField>
-          <FlowField label="Salt" hint="Store this safely — you need it to reveal.">
+          <FlowField label="Secret salt" hint="Keep this safe — you’ll need it to reveal.">
             <div className="flex gap-2">
               <input className="studio-input font-mono text-xs" value={salt} readOnly />
               <button
@@ -356,28 +365,35 @@ export function BlindDropFlow({
               </button>
             </div>
           </FlowField>
-          <ReviewRow label="Commitment" value={<span className="break-all font-mono text-xs">{commitment ?? '—'}</span>} />
+          <ReviewRow
+            label="Commitment"
+            value={<span className="break-all font-mono text-xs">{commitment ?? '—'}</span>}
+          />
+          <FlowDetails>
+            <p>
+              We seal a commitment to your final folder and salt so collectors can trust the reveal. Blind setup, reveal, and fixes all happen in Studio.
+            </p>
+          </FlowDetails>
         </div>
       )}
 
       {step === 3 && (
         <div className="space-y-6">
           <p className="text-muted">
-            Reveal verifies <code className="rounded bg-background-sunken px-1.5 py-0.5 text-sm">keccak256(baseURI, salt)</code>{' '}
-            against the stored commitment, then unlocks real metadata.
+            Reveal unlocks the real artwork for everyone who holds a piece. Make sure your salt still matches.
           </p>
           <ReviewRow label="Placeholder" value={placeholderURI || '—'} />
-          <ReviewRow label="Reveal URI" value={revealedBaseURI || '—'} />
-          <ReviewRow label="Status" value={isRevealed ? 'Revealed' : 'Hidden'} />
+          <ReviewRow label="Final folder" value={revealedBaseURI || '—'} />
+          <ReviewRow label="Status" value={isRevealed ? 'Revealed' : 'Still hidden'} />
         </div>
       )}
 
       {step === 4 && (
         <div className="space-y-6">
           {!isRevealed && (
-            <p className="text-sm text-warning">Reveal the drop before fixing per-token metadata.</p>
+            <p className="text-sm text-warning">Reveal the drop before fixing individual pieces.</p>
           )}
-          <FlowField label="Token ID">
+          <FlowField label="Token number">
             <input
               className="studio-input"
               value={fixTokenId}
@@ -385,7 +401,7 @@ export function BlindDropFlow({
               inputMode="numeric"
             />
           </FlowField>
-          <FlowField label="New metadata URI">
+          <FlowField label="Corrected artwork link">
             <input
               className="studio-input font-mono text-sm"
               value={fixURI}

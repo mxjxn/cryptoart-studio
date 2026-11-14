@@ -55,14 +55,19 @@ export function FlowShell({
 
         <div
           className={cn(
-            aside ? 'grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_320px]' : 'max-w-2xl',
+            aside
+              ? 'grid grid-cols-1 items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(300px,44%)]'
+              : 'max-w-2xl',
           )}
         >
           <div className="gallery-fade-up" style={{ animationDelay: '60ms' }}>
             {children}
           </div>
           {aside && (
-            <aside className="gallery-fade-up lg:sticky lg:top-8 lg:self-start" style={{ animationDelay: '120ms' }}>
+            <aside
+              className="gallery-fade-up lg:sticky lg:top-8 lg:self-start"
+              style={{ animationDelay: '120ms' }}
+            >
               {aside}
             </aside>
           )}
@@ -123,5 +128,21 @@ export function ReviewRow({ label, value }: { label: string; value: React.ReactN
       <span className="text-muted">{label}</span>
       <span className="max-w-[60%] text-right font-medium text-foreground">{value}</span>
     </div>
+  );
+}
+
+/** Optional technical notes — collapsed by default so artists see warm copy first. */
+export function FlowDetails({
+  summary = 'Technical details',
+  children,
+}: {
+  summary?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="rounded-md border border-border bg-background-sunken px-4 py-3 text-sm text-muted">
+      <summary className="cursor-pointer select-none font-medium text-foreground">{summary}</summary>
+      <div className="mt-3 space-y-2 leading-relaxed">{children}</div>
+    </details>
   );
 }

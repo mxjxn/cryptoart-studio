@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { parseEther, type Address, type Hex } from 'viem';
 import { useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi';
 import { ArtPreview } from '~/components/flows/ArtPreview';
-import { FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
+import { FlowDetails, FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
 import { TxStateBanner } from '~/components/flows/TxStateBanner';
 import { ValidationList } from '~/components/flows/ValidationList';
 import { WalletGate, WrongChainNotice } from '~/components/flows/WalletGate';
@@ -20,10 +20,10 @@ import {
   encodePrepareLazyToken,
   encodeSetListingBaseURI,
   encodeSetMarketplaceApproval,
-  validateListingBaseURI,
+  ensureTrailingSlash,
 } from '~/lib/adapters/such-collection';
 
-const STEPS_721 = ['Approve', 'List', 'Metadata'];
+const STEPS_721 = ['Approve', 'List', 'Artwork'];
 const STEPS_1155 = ['Approve', 'Prepare', 'List'];
 
 export type LazyMintFlowProps = {
@@ -36,6 +36,7 @@ export type LazyMintFlowProps = {
   tokenStandard?: 'erc721' | 'erc1155';
   marketplaceApproved?: boolean;
   previewImage?: string | null;
+  previewAspectRatio?: string;
 };
 
 type Step = 1 | 2 | 3;
@@ -63,6 +64,10 @@ function phaseFromScenario(scenario?: PreviewScenario): TxPhase {
   }
 }
 
+function looksLikeUri(value: string) {
+  return /^(ar|ipfs|https):\/\//i.test(value.trim());
+}
+
 export function LazyMintFlow({
   mode = 'live',
   previewScenario = 'default',
@@ -73,6 +78,7 @@ export function LazyMintFlow({
   tokenStandard = 'erc721',
   marketplaceApproved = false,
   previewImage,
+  previewAspectRatio = '3 / 4',
 }: LazyMintFlowProps) {
   const isPreview = mode === 'preview';
   const { isConnected, chainId } = useActiveWallet();
@@ -84,15 +90,16 @@ export function LazyMintFlow({
 
   const is1155 = tokenStandard === 'erc1155';
   const steps = is1155 ? STEPS_1155 : STEPS_721;
+  const showEmptyArt = previewScenario === 'empty';
 
   const [step, setStep] = useState<Step>(marketplaceApproved || isPreview ? 2 : 1);
   const [approved, setApproved] = useState(marketplaceApproved);
-  const [listingId, setListingId] = useState<number | null>(isPreview ? 1042 : null);
+  const [listingId, setListingId] = useState<number | null>(isPreview && !showEmptyArt ? 1042 : null);
   const [preparedTokenId, setPreparedTokenId] = useState<string>(isPreview ? '7' : '');
   const [priceEth, setPriceEth] = useState('0.05');
   const [totalAvailable, setTotalAvailable] = useState('10');
   const [listingBaseURI, setListingBaseURI] = useState(
-    isPreview ? 'ar://QmPreviewManifest/' : '',
+    isPreview && !showEmptyArt ? 'ar://QmPreviewManifest' : '',
   );
   const [tokenURI1155, setTokenURI1155] = useState(isPreview ? 'ar://token-meta' : '');
   const [maxSupply, setMaxSupply] = useState('100');
@@ -103,26 +110,29 @@ export function LazyMintFlow({
   const validationErrors = useMemo(() => {
     const errs: string[] = [];
     if (previewScenario === 'validation_error') {
-      errs.push('Listing base URI must end with a trailing slash.');
-      errs.push('Price must be greater than zero.');
+      errs.push('Add a price greater than zero.');
+      errs.push('Add a link to your artwork folder.');
       return errs;
     }
     if (step === 2 && !is1155) {
-      if (!priceEth || Number(priceEth) <= 0) errs.push('Price must be greater than zero.');
-      if (!totalAvailable || Number(totalAvailable) < 1) errs.push('Supply must be at least 1.');
+      if (!priceEth || Number(priceEth) <= 0) errs.push('Add a price greater than zero.');
+      if (!totalAvailable || Number(totalAvailable) < 1) {
+        errs.push('Say how many pieces are available (at least 1).');
+      }
     }
     if (step === 2 && is1155) {
-      if (!tokenURI1155.trim()) errs.push('Token URI is required before prepareLazyToken.');
+      if (!tokenURI1155.trim()) errs.push('Add a link to this edition’s artwork.');
+      else if (!looksLikeUri(tokenURI1155)) errs.push('Use an ar://, ipfs://, or https:// link.');
       if (!maxSupply || Number(maxSupply) < 0) errs.push('Max supply must be 0 (open) or greater.');
     }
     if (step === 3 && !is1155) {
-      const uriErr = validateListingBaseURI(listingBaseURI);
-      if (uriErr) errs.push(uriErr);
-      if (listingId == null) errs.push('Create the listing before setting metadata.');
+      if (!listingBaseURI.trim()) errs.push('Attach a link to your artwork folder.');
+      else if (!looksLikeUri(listingBaseURI)) errs.push('Use an ar://, ipfs://, or https:// link.');
+      if (listingId == null) errs.push('Create the listing before attaching artwork.');
     }
     if (step === 3 && is1155) {
-      if (!priceEth || Number(priceEth) <= 0) errs.push('Price must be greater than zero.');
-      if (!preparedTokenId) errs.push('Prepare the lazy token first.');
+      if (!priceEth || Number(priceEth) <= 0) errs.push('Add a price greater than zero.');
+      if (!preparedTokenId) errs.push('Prepare the edition first.');
     }
     return errs;
   }, [
@@ -165,14 +175,10 @@ export function LazyMintFlow({
       setBusy(true);
       setLocalError(null);
       try {
-        const hash = await sendTransactionAsync({ to, data });
-        // For createListing we try to decode listing id from receipt later via wait hook effects;
-        // callers that need the id can set it after confirmation.
-        void hash;
+        await sendTransactionAsync({ to, data });
         onSuccess?.();
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Transaction failed';
-        setLocalError(message);
+        setLocalError(err instanceof Error ? err.message : 'Something went wrong with the transaction.');
       } finally {
         setBusy(false);
       }
@@ -187,14 +193,10 @@ export function LazyMintFlow({
       setStep(2);
       return;
     }
-    await runTx(
-      collectionAddress,
-      encodeSetMarketplaceApproval(marketplace, true),
-      () => {
-        setApproved(true);
-        setStep(2);
-      },
-    );
+    await runTx(collectionAddress, encodeSetMarketplaceApproval(marketplace, true), () => {
+      setApproved(true);
+      setStep(2);
+    });
   }, [marketplace, collectionChainId, isPreview, runTx, collectionAddress]);
 
   const handleCreateListing = useCallback(async () => {
@@ -217,11 +219,10 @@ export function LazyMintFlow({
     setLocalError(null);
     try {
       await sendTransactionAsync({ to: marketplace, data });
-      // Listing id may need to be pasted from the receipt until event decode lands with PR 200/indexer.
       if (listingId == null) setListingId(0);
       setStep(3);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Listing failed');
+      setLocalError(err instanceof Error ? err.message : 'Couldn’t create the listing.');
     } finally {
       setBusy(false);
     }
@@ -263,7 +264,7 @@ export function LazyMintFlow({
     }
     await runTx(
       collectionAddress,
-      encodeSetListingBaseURI(marketplace, listingId, listingBaseURI),
+      encodeSetListingBaseURI(marketplace, listingId, ensureTrailingSlash(listingBaseURI.trim())),
       () => setDone(true),
     );
   }, [
@@ -278,24 +279,28 @@ export function LazyMintFlow({
 
   const aside = (
     <ArtPreview
-      src={previewImage}
-      caption={collectionName}
+      src={showEmptyArt ? null : previewImage}
+      aspectRatio={previewAspectRatio}
+      caption={showEmptyArt ? undefined : collectionName}
       subtitle={
-        listingId != null
-          ? `Lazy listing #${listingId}`
-          : is1155
-            ? '1155 lazy edition'
-            : '721 sequential lazy mint'
+        showEmptyArt
+          ? undefined
+          : listingId != null
+            ? `Listing #${listingId}`
+            : is1155
+              ? 'Edition listing'
+              : 'Ready to list'
       }
-      aspectRatio="3 / 4"
+      emptyTitle="Artwork will show here"
+      emptyHint="Once you attach your piece, it appears at its natural shape — never cropped."
     />
   );
 
   if (showWalletGate) {
     return (
       <FlowShell
-        title="Lazy mint listing"
-        subtitle="Approve the marketplace, create the listing, then attach metadata."
+        title="List a lazy mint"
+        subtitle="Approve the auction house, create your listing, then attach your artwork — all in Studio."
         breadcrumb={{
           href: `/collections/${collectionId}`,
           label: collectionName,
@@ -304,18 +309,18 @@ export function LazyMintFlow({
         steps={steps}
         currentStep={step}
       >
-        <WalletGate />
+        <WalletGate description="Connect the wallet that owns this collection so you can approve and list." />
       </FlowShell>
     );
   }
 
   return (
     <FlowShell
-      title="Lazy mint listing"
+      title="List a lazy mint"
       subtitle={
         is1155
-          ? 'Approve once, prepare the token with prepareLazyToken, then create the listing.'
-          : 'Three steps: approve marketplace, create the listing, set listing base URI (trailing slash required).'
+          ? 'Approve the auction house once, prepare the edition, then create your listing here in Studio.'
+          : 'Approve the auction house, create your listing, then attach your artwork. Collectors mint when they buy.'
       }
       breadcrumb={{
         href: `/collections/${collectionId}`,
@@ -336,7 +341,7 @@ export function LazyMintFlow({
           </button>
           {step === 1 && (
             <button type="button" className="studio-btn" disabled={busy} onClick={() => void handleApprove()}>
-              {approved ? 'Approved' : busy ? 'Confirm…' : 'Approve marketplace'}
+              {approved ? 'Approved' : busy ? 'Confirm in wallet…' : 'Approve the auction house'}
             </button>
           )}
           {step === 2 && !is1155 && (
@@ -346,7 +351,7 @@ export function LazyMintFlow({
               disabled={busy || validationErrors.length > 0}
               onClick={() => void handleCreateListing()}
             >
-              {busy ? 'Creating listing…' : 'Create listing'}
+              {busy ? 'Creating listing…' : 'Create your listing'}
             </button>
           )}
           {step === 2 && is1155 && (
@@ -356,7 +361,7 @@ export function LazyMintFlow({
               disabled={busy || validationErrors.length > 0}
               onClick={() => void handlePrepare1155()}
             >
-              {busy ? 'Preparing…' : 'Prepare lazy token'}
+              {busy ? 'Preparing…' : 'Prepare edition'}
             </button>
           )}
           {step === 3 && !is1155 && (
@@ -366,7 +371,7 @@ export function LazyMintFlow({
               disabled={busy || done || validationErrors.length > 0}
               onClick={() => void handleSetMetadata()}
             >
-              {done ? 'Metadata set' : busy ? 'Setting URI…' : 'Set listing base URI'}
+              {done ? 'Artwork attached' : busy ? 'Attaching…' : 'Attach your artwork'}
             </button>
           )}
           {step === 3 && is1155 && (
@@ -376,7 +381,7 @@ export function LazyMintFlow({
               disabled={busy || done || validationErrors.length > 0}
               onClick={() => void handleCreateListing()}
             >
-              {done ? 'Listed' : busy ? 'Creating listing…' : 'Create listing'}
+              {done ? 'Listed' : busy ? 'Creating listing…' : 'Create your listing'}
             </button>
           )}
         </>
@@ -395,13 +400,13 @@ export function LazyMintFlow({
         phase={phase}
         message={
           phase === 'failed'
-            ? localError || error?.message || 'The transaction reverted or was rejected.'
+            ? localError || error?.message || 'The transaction didn’t go through.'
             : phase === 'pending'
               ? 'Waiting for confirmation. Keep this tab open.'
               : phase === 'confirmed' && done
                 ? is1155
-                  ? 'Lazy listing is live. Buyers mint on purchase via deliver().'
-                  : 'Listing metadata is attached. Purchases with count > 1 mint sequential IDs.'
+                  ? 'Your listing is live. Collectors mint when they buy.'
+                  : 'Artwork is attached. Your listing is ready for collectors.'
                 : undefined
         }
         className="mb-6"
@@ -412,18 +417,17 @@ export function LazyMintFlow({
       {step === 1 && (
         <div className="space-y-6">
           <p className="text-muted">
-            Call <code className="rounded bg-background-sunken px-1.5 py-0.5 text-sm">setMarketplaceApproval</code>{' '}
-            once per collection. After that, new lazy listings only need create + metadata.
+            One approval lets this collection sell through the auction house. You only do this once per collection.
           </p>
-          <ReviewRow label="Marketplace" value={marketplace ?? 'Unsupported chain'} />
+          <ReviewRow label="Auction house" value={marketplace ?? 'Unsupported chain'} />
           <ReviewRow label="Collection" value={collectionAddress} />
-          <ReviewRow label="Status" value={approved ? 'Approved' : 'Not approved'} />
+          <ReviewRow label="Status" value={approved ? 'Approved' : 'Not yet approved'} />
         </div>
       )}
 
       {step === 2 && !is1155 && (
         <div className="space-y-6">
-          <FlowField label="Price (ETH)" hint="Fixed-price lazy listing on the auction house.">
+          <FlowField label="Price (ETH)" hint="What collectors pay for each piece.">
             <input
               className="studio-input"
               value={priceEth}
@@ -431,7 +435,10 @@ export function LazyMintFlow({
               inputMode="decimal"
             />
           </FlowField>
-          <FlowField label="Total available" hint="A purchase with count > 1 mints sequential token IDs.">
+          <FlowField
+            label="How many available"
+            hint="Collectors can buy more than one at a time; pieces are numbered in order."
+          >
             <input
               className="studio-input"
               value={totalAvailable}
@@ -444,15 +451,15 @@ export function LazyMintFlow({
 
       {step === 2 && is1155 && (
         <div className="space-y-6">
-          <FlowField label="Token URI" hint="1155 lazy listings use prepareLazyToken for metadata.">
+          <FlowField label="Artwork link" hint="Where this edition’s metadata lives (usually after you pin in Media).">
             <input
-              className="studio-input"
+              className="studio-input font-mono text-sm"
               value={tokenURI1155}
               onChange={(e) => setTokenURI1155(e.target.value)}
               placeholder="ar://…"
             />
           </FlowField>
-          <FlowField label="Max supply" hint="0 = open supply.">
+          <FlowField label="Max supply" hint="0 means open supply.">
             <input
               className="studio-input"
               value={maxSupply}
@@ -467,7 +474,7 @@ export function LazyMintFlow({
         <div className="space-y-6">
           <FlowField
             label="Listing ID"
-            hint="Filled after createListing. You can paste it if the receipt wasn’t decoded."
+            hint="Filled after you create the listing. Paste it if it doesn’t appear automatically."
           >
             <input
               className="studio-input"
@@ -477,25 +484,27 @@ export function LazyMintFlow({
             />
           </FlowField>
           <FlowField
-            label="Listing base URI"
-            hint="Must end with /. Token N resolves to baseURI + index (0-based in sale order)."
+            label="Artwork folder link"
+            hint="Point to the folder of metadata for this listing. Studio attaches it right after the listing is created."
           >
             <input
               className="studio-input font-mono text-sm"
               value={listingBaseURI}
               onChange={(e) => setListingBaseURI(e.target.value)}
-              placeholder="ar://&lt;manifest&gt;/"
+              placeholder="ar://your-manifest"
             />
           </FlowField>
-          <p className="text-sm text-muted">
-            Send this right after the listing is created so early buyers don’t briefly see the collection base URI.
-          </p>
+          <FlowDetails>
+            <p>
+              Studio finishes attaching your artwork right after the listing is created. Collectors browse and buy on such.market — listing and metadata stay here.
+            </p>
+          </FlowDetails>
         </div>
       )}
 
       {step === 3 && is1155 && (
         <div className="space-y-6">
-          <ReviewRow label="Prepared token" value={preparedTokenId || '—'} />
+          <ReviewRow label="Prepared edition" value={preparedTokenId || '—'} />
           <FlowField label="Price (ETH)">
             <input
               className="studio-input"
@@ -504,7 +513,7 @@ export function LazyMintFlow({
               inputMode="decimal"
             />
           </FlowField>
-          <FlowField label="Total available">
+          <FlowField label="How many available">
             <input
               className="studio-input"
               value={totalAvailable}

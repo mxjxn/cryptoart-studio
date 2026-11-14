@@ -207,12 +207,12 @@ export function ensureTrailingSlash(uri: string): string {
   return uri.endsWith('/') ? uri : `${uri}/`;
 }
 
+/** Artist-facing validation — trailing slash is normalized by ensureTrailingSlash. */
 export function validateListingBaseURI(uri: string): string | null {
   const trimmed = uri.trim();
-  if (!trimmed) return 'Listing base URI is required.';
-  if (!trimmed.endsWith('/')) return 'Base URI must end with a trailing slash.';
+  if (!trimmed) return 'Attach a link to your artwork folder.';
   if (!/^(ar|ipfs|https):\/\//i.test(trimmed)) {
-    return 'Use an ar://, ipfs://, or https:// URI.';
+    return 'Use an ar://, ipfs://, or https:// link.';
   }
   return null;
 }

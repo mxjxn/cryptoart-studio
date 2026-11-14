@@ -23,7 +23,7 @@ Dev-only click-through of every create flow and edge state (no wallet required):
 
 [http://localhost:3001/dev/preview](http://localhost:3001/dev/preview)
 
-Enable on preview deployments with `NEXT_PUBLIC_STUDIO_PREVIEW=1`. Gallery design tokens live in `@cryptoart/ui/tokens` (Fraunces + Sora, paper/ink/forest — aligned with such.market).
+Enable on preview deployments with `NEXT_PUBLIC_STUDIO_PREVIEW=1`. Shared gallery tokens (fonts, color, spacing) live in `@cryptoart/ui/tokens` so they can be swapped in one place.
 
 ## Vercel deployment
 

@@ -6,7 +6,7 @@ import { cn } from '~/lib/utils';
 
 export function WalletGate({
   title = 'Connect your wallet',
-  description = 'Studio needs a connected wallet to sign create transactions.',
+  description = 'Connect the wallet that owns this collection so you can finish setup in Studio.',
   className,
 }: {
   title?: string;

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSignMessage } from 'wagmi';
 import { ArtPreview } from '~/components/flows/ArtPreview';
-import { FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
+import { FlowDetails, FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
 import { TxStateBanner } from '~/components/flows/TxStateBanner';
 import { ValidationList } from '~/components/flows/ValidationList';
 import { WalletGate } from '~/components/flows/WalletGate';
@@ -25,13 +25,15 @@ import {
   type MediaJob,
 } from '~/lib/adapters/media';
 
-const STEPS = ['Upload', 'Quote', 'Permanence', 'Confirm'];
+const STEPS = ['Upload', 'Quote', 'Make permanent', 'Confirm'];
 
 export type MediaPermanenceFlowProps = {
   mode?: FlowMode;
   previewScenario?: PreviewScenario;
   collectionId?: string;
   collectionName?: string;
+  previewImage?: string | null;
+  previewAspectRatio?: string;
 };
 
 function phaseFromScenario(scenario?: PreviewScenario): TxPhase {
@@ -60,6 +62,8 @@ export function MediaPermanenceFlow({
   previewScenario = 'default',
   collectionId,
   collectionName = 'Studio',
+  previewImage,
+  previewAspectRatio = '3 / 4',
 }: MediaPermanenceFlowProps) {
   const isPreview = mode === 'preview';
   const { address, chainId, isConnected } = useActiveWallet();
@@ -69,7 +73,7 @@ export function MediaPermanenceFlow({
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(
-    isPreview ? 'https://picsum.photos/seed/cryptoart/800/1000' : null,
+    isPreview && previewScenario !== 'empty' ? previewImage ?? null : null,
   );
   const [title, setTitle] = useState(isPreview ? 'Untitled study' : '');
   const [description, setDescription] = useState(
@@ -98,11 +102,11 @@ export function MediaPermanenceFlow({
 
   const validationErrors = useMemo(() => {
     if (previewScenario === 'validation_error') {
-      return ['File exceeds the configured max size.', 'Title is required for metadata.'];
+      return ['That file is larger than we can accept right now.', 'Add a title for the artwork.'];
     }
     const errs: string[] = [];
     if (step >= 1 && !file && !isPreview) errs.push('Choose an artwork file.');
-    if (step >= 2 && !title.trim()) errs.push('Title is required for metadata.');
+    if (step >= 2 && !title.trim()) errs.push('Add a title for the artwork.');
     return errs;
   }, [previewScenario, step, file, isPreview, title]);
 
@@ -144,7 +148,7 @@ export function MediaPermanenceFlow({
       if (isPreview) {
         setQuoteUsdc(estimate);
         setStep(3);
-        note(`Quote ${estimate} USDC (preview)`);
+        note(`Quote ${estimate} USDC`);
         return;
       }
       if (!file) return;
@@ -162,10 +166,9 @@ export function MediaPermanenceFlow({
       setQuoteUsdc(quote.usdcAmount);
       note(`Quote ${quote.usdcAmount} USDC`);
       setStep(3);
-      // stash quote key on job stub
       setJob({ id: quote.idempotencyKey, status: 'quoted' });
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Quote failed');
+      setLocalError(err instanceof Error ? err.message : 'Couldn’t get a quote.');
     } finally {
       setBusy(false);
     }
@@ -176,22 +179,25 @@ export function MediaPermanenceFlow({
     setLocalError(null);
     try {
       if (isPreview) {
-        note('Paid with mock x402');
-        note('Uploaded media to Arweave');
+        note('Paid');
+        note('Uploaded media');
         note('Uploaded metadata');
-        setJob({ id: 'job_preview', status: 'confirming', media: { id: 'mediaPreview' }, metadata: { id: 'metaPreview' } });
+        setJob({
+          id: 'job_preview',
+          status: 'confirming',
+          media: { id: 'mediaPreview' },
+          metadata: { id: 'metaPreview' },
+        });
         setStep(4);
         return;
       }
       if (!file || !job?.id) return;
       const config = await fetchMediaConfig();
       if (!config.allowMockPayment) {
-        throw new Error(
-          'Mock payment is disabled. Complete a real x402 payment, then retry permanence.',
-        );
+        throw new Error('Live payment isn’t set up in this environment yet. Ask for help if you need to pin for real.');
       }
       const paid = await createPaidMediaJob(job.id, 'mock:allow');
-      note(`Paid job ${paid.id}`);
+      note(`Paid · job ${paid.id}`);
       const bytes = await file.arrayBuffer();
       const mediaJob = await uploadJobMedia(paid.id, toBase64(bytes));
       note(`Media ${mediaJob.media?.id ?? 'uploaded'}`);
@@ -203,10 +209,7 @@ export function MediaPermanenceFlow({
       setJob(metaJob);
       setStep(4);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Permanence failed');
-      if (String(err).toLowerCase().includes('insufficient')) {
-        /* phase maps via message */
-      }
+      setLocalError(err instanceof Error ? err.message : 'Couldn’t make the file permanent.');
     } finally {
       setBusy(false);
     }
@@ -219,17 +222,17 @@ export function MediaPermanenceFlow({
       if (isPreview) {
         setMetadataUri('ar://metaPreview');
         setJob((j) => (j ? { ...j, status: 'confirmed' } : j));
-        note('Confirmed on gateways');
+        note('Confirmed');
         return;
       }
       if (!job?.id) return;
       const result = await confirmMediaJob(job.id);
       if (!result.mintEnabled) {
-        throw new Error(result.job.errorMessage || 'Gateway confirmation failed');
+        throw new Error(result.job.errorMessage || 'We couldn’t confirm the file on the network yet.');
       }
       setJob(result.job);
       setMetadataUri(metadataUriFromJob(result.job));
-      note('Confirmed. Mint URI ready.');
+      note('Confirmed. Ready to use in a mint or listing.');
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Confirm failed');
     } finally {
@@ -240,8 +243,8 @@ export function MediaPermanenceFlow({
   if (phase === 'wallet_missing') {
     return (
       <FlowShell
-        title="Media permanence"
-        subtitle="Temp upload, USDC quote, then permanent Arweave via Turbo."
+        title="Make artwork permanent"
+        subtitle="See the cost, pay once, and store the file forever — then use the link when you mint or list in Studio."
         breadcrumb={
           collectionId
             ? { href: `/collections/${collectionId}`, label: collectionName, current: 'Media' }
@@ -250,15 +253,15 @@ export function MediaPermanenceFlow({
         steps={STEPS}
         currentStep={step}
       >
-        <WalletGate description="Sign in with your wallet so media jobs can be attributed and paid." />
+        <WalletGate description="Sign in so we can quote and charge the permanence fee to your wallet." />
       </FlowShell>
     );
   }
 
   return (
     <FlowShell
-      title="Media permanence"
-      subtitle="See the Arweave cost before you pay. Mint unlocks only after gateway confirmation."
+      title="Make artwork permanent"
+      subtitle="Upload, see the Arweave cost in USDC, then pay to keep the file forever. Mint and listing tools in Studio use the link you get back."
       breadcrumb={
         collectionId
           ? { href: `/collections/${collectionId}`, label: collectionName, current: 'Media' }
@@ -269,9 +272,14 @@ export function MediaPermanenceFlow({
       aside={
         <ArtPreview
           src={preview}
-          caption={title || 'Untitled'}
-          subtitle={metadataUri ?? (file ? `${(file.size / 1024).toFixed(1)} KB` : 'No file')}
-          aspectRatio="4 / 5"
+          aspectRatio={previewAspectRatio}
+          caption={title || (preview ? 'Untitled' : undefined)}
+          subtitle={
+            metadataUri ??
+            (file ? `${(file.size / 1024).toFixed(1)} KB` : preview ? 'Sample' : undefined)
+          }
+          emptyTitle="Drop artwork to preview"
+          emptyHint="We’ll show it here at its natural shape before you pay for permanence."
         />
       }
       footer={
@@ -300,7 +308,7 @@ export function MediaPermanenceFlow({
               disabled={busy || validationErrors.length > 0}
               onClick={() => void handleQuote()}
             >
-              {busy ? 'Quoting…' : 'Get quote'}
+              {busy ? 'Getting quote…' : 'Get cost quote'}
             </button>
           )}
           {step === 3 && (
@@ -310,7 +318,7 @@ export function MediaPermanenceFlow({
               disabled={busy}
               onClick={() => void handlePermanence()}
             >
-              {busy ? 'Paying & uploading…' : `Pay ${quoteUsdc || estimate} USDC & pin`}
+              {busy ? 'Paying & uploading…' : `Pay $${quoteUsdc || estimate} USDC & keep forever`}
             </button>
           )}
           {step === 4 && (
@@ -320,7 +328,7 @@ export function MediaPermanenceFlow({
               disabled={busy || Boolean(metadataUri)}
               onClick={() => void handleConfirm()}
             >
-              {metadataUri ? 'Confirmed' : busy ? 'Confirming…' : 'Confirm gateways'}
+              {metadataUri ? 'Confirmed' : busy ? 'Confirming…' : 'Confirm it’s live'}
             </button>
           )}
         </>
@@ -336,7 +344,7 @@ export function MediaPermanenceFlow({
               : phase === 'empty'
                 ? 'No media selected yet.'
                 : phase === 'confirmed' && metadataUri
-                  ? `Ready to mint with ${metadataUri}`
+                  ? `Ready to use: ${metadataUri}`
                   : undefined
         }
         className="mb-6"
@@ -349,11 +357,11 @@ export function MediaPermanenceFlow({
           {file && (
             <ReviewRow
               label="File"
-              value={`${file.name} · ${(file.size / 1024).toFixed(1)} KB · ~$${estimate} USDC`}
+              value={`${file.name} · ${(file.size / 1024).toFixed(1)} KB · about $${estimate} USDC`}
             />
           )}
-          {isPreview && !file && (
-            <ReviewRow label="Preview file" value={`study.png · ~$${estimate} USDC`} />
+          {isPreview && !file && preview && (
+            <ReviewRow label="Sample file" value={`study · about $${estimate} USDC`} />
           )}
         </div>
       )}
@@ -371,22 +379,27 @@ export function MediaPermanenceFlow({
               onChange={(e) => setDescription(e.target.value)}
             />
           </FlowField>
-          <ReviewRow label="Estimated cost" value={`~$${estimate} USDC`} />
+          <ReviewRow label="Estimated cost" value={`about $${estimate} USDC`} />
         </div>
       )}
 
       {step === 3 && (
         <div className="space-y-6">
           <p className="text-muted">
-            Payment settles an x402 USDC quote, then media and metadata are uploaded to Arweave for permanence.
+            You’ll pay a one-time USDC fee, then we’ll upload the file and its metadata for permanent storage.
           </p>
           <ReviewRow label="Quote" value={`$${quoteUsdc || estimate} USDC`} />
           <ReviewRow label="Title" value={title || '—'} />
-          <ul className="space-y-1 font-mono text-xs text-muted">
+          <ul className="space-y-1 text-sm text-muted">
             {log.map((line, i) => (
               <li key={`${i}-${line}`}>{line}</li>
             ))}
           </ul>
+          <FlowDetails>
+            <p>
+              After payment clears and the file is confirmed, you’ll get a lasting link to use when you mint or list in Studio.
+            </p>
+          </FlowDetails>
         </div>
       )}
 
@@ -394,8 +407,8 @@ export function MediaPermanenceFlow({
         <div className="space-y-6">
           <ReviewRow label="Job" value={job?.id ?? '—'} />
           <ReviewRow label="Status" value={job?.status ?? '—'} />
-          <ReviewRow label="Metadata URI" value={metadataUri ?? 'Pending confirmation'} />
-          <ul className="space-y-1 font-mono text-xs text-muted">
+          <ReviewRow label="Artwork link" value={metadataUri ?? 'Waiting for confirmation'} />
+          <ul className="space-y-1 text-sm text-muted">
             {log.map((line, i) => (
               <li key={`${i}-${line}`}>{line}</li>
             ))}

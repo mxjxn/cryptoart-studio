@@ -153,21 +153,19 @@ export function validateBurnConfigForm(input: {
 }): string[] {
   const errors: string[] = [];
   if (!/^0x[a-fA-F0-9]{40}$/.test(input.sourceContract.trim())) {
-    errors.push('Source contract must be a valid address.');
+    errors.push('Enter a valid source collection address.');
   }
-  if (input.burnRatio < 1) errors.push('Burn ratio must be at least 1.');
-  if (input.mintRatio < 1) errors.push('Mint ratio must be at least 1.');
+  if (input.burnRatio < 1) errors.push('Burn amount must be at least 1.');
+  if (input.mintRatio < 1) errors.push('Mint amount must be at least 1.');
   if (input.targetSpec === BurnTokenSpec.ERC721) {
-    if (!input.targetBaseURI.trim()) errors.push('Target base URI is required for ERC-721.');
-    else if (!input.targetBaseURI.trim().endsWith('/')) {
-      errors.push('Target base URI must end with a trailing slash.');
-    }
+    // Trailing slash is added by encodeCreateBurnConfig — only require a non-empty link.
+    if (!input.targetBaseURI.trim()) errors.push('Add a link for the new artwork folder.');
   }
   if (input.startTime && input.endTime) {
     const start = Date.parse(input.startTime);
     const end = Date.parse(input.endTime);
     if (!Number.isNaN(start) && !Number.isNaN(end) && end <= start) {
-      errors.push('End time must be after start time.');
+      errors.push('The end must be after the start.');
     }
   }
   return errors;

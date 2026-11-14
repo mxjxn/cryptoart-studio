@@ -4,6 +4,7 @@ import '~/app/globals.css';
 import { Providers } from '~/app/providers';
 import { APP_DESCRIPTION, APP_NAME } from '~/lib/constants';
 
+/** Placeholder display + UI faces — swap by changing these loaders; tokens read --font-*. */
 const fraunces = Fraunces({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],

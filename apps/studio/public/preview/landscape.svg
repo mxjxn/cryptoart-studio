@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" width="1400" height="800">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c9d6cf"/>
+      <stop offset="100%" stop-color="#6e7f72"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="800" fill="url(#sky)"/>
+  <ellipse cx="980" cy="260" rx="160" ry="160" fill="#f7f4ef" fill-opacity="0.55"/>
+  <path d="M0 520 C280 440, 520 600, 760 520 C1000 440, 1180 560, 1400 500 L1400 800 L0 800 Z" fill="#2f4f3e"/>
+  <path d="M0 610 C300 560, 600 680, 900 600 C1100 550, 1250 640, 1400 610 L1400 800 L0 800 Z" fill="#1a1a18" fill-opacity="0.55"/>
+  <text x="64" y="72" fill="#1a1a18" font-family="Georgia, serif" font-size="40" opacity="0.8">Evening Field</text>
+  <text x="64" y="116" fill="#1a1a18" font-family="sans-serif" font-size="20" opacity="0.5">landscape — 16:9</text>
+</svg>

@@ -50,16 +50,16 @@ export function parseAirdrop721(
       return;
     }
     if (!isAddress(addrRaw)) {
-      errors.push(`Line ${lineNo}: invalid address “${addrRaw}”.`);
+      errors.push(`Line ${lineNo}: that doesn’t look like a wallet address (“${addrRaw}”).`);
       return;
     }
     const address = getAddress(addrRaw);
     if (seen.has(address.toLowerCase())) {
-      warnings.push(`Line ${lineNo}: duplicate address ${address} (kept).`);
+      warnings.push(`Line ${lineNo}: ${address} appears more than once (kept).`);
     }
     seen.add(address.toLowerCase());
     if (!uri) {
-      errors.push(`Line ${lineNo}: missing metadata URI for ${address}.`);
+      errors.push(`Line ${lineNo}: add an artwork link for ${address}, or set a default link.`);
       return;
     }
     recipients.push({ address, uri, line: lineNo });
@@ -97,23 +97,23 @@ export function parseAirdrop1155(raw: string): AirdropParseResult<AirdropRecipie
       return;
     }
     if (!isAddress(addrRaw)) {
-      errors.push(`Line ${lineNo}: invalid address “${addrRaw}”.`);
+      errors.push(`Line ${lineNo}: that doesn’t look like a wallet address (“${addrRaw}”).`);
       return;
     }
     const address = getAddress(addrRaw);
     if (seen.has(address.toLowerCase())) {
-      warnings.push(`Line ${lineNo}: duplicate address ${address} (amounts will both send).`);
+      warnings.push(`Line ${lineNo}: ${address} appears more than once (both amounts will send).`);
     }
     seen.add(address.toLowerCase());
     let amount: bigint;
     try {
       amount = BigInt(amountRaw);
     } catch {
-      errors.push(`Line ${lineNo}: invalid amount “${amountRaw}”.`);
+      errors.push(`Line ${lineNo}: amount “${amountRaw}” isn’t a whole number.`);
       return;
     }
     if (amount <= 0n) {
-      errors.push(`Line ${lineNo}: amount must be greater than 0.`);
+      errors.push(`Line ${lineNo}: amount needs to be at least 1.`);
       return;
     }
     recipients.push({ address, amount, line: lineNo });

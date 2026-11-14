@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Address } from 'viem';
 import { useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi';
 import { ArtPreview } from '~/components/flows/ArtPreview';
-import { FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
+import { FlowDetails, FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
 import { TxStateBanner } from '~/components/flows/TxStateBanner';
 import { ValidationList } from '~/components/flows/ValidationList';
 import { WalletGate, WrongChainNotice } from '~/components/flows/WalletGate';
@@ -17,7 +17,7 @@ import {
   getBurnToMintBytecode,
   validateBurnConfigForm,
 } from '~/lib/adapters/burn-to-mint';
-import { encodeRegisterExtension } from '~/lib/adapters/such-collection';
+import { encodeRegisterExtension, ensureTrailingSlash } from '~/lib/adapters/such-collection';
 
 const STEPS = ['Deploy', 'Register', 'Configure'];
 
@@ -30,6 +30,7 @@ export type BurnToMintFlowProps = {
   chainId: number;
   tokenStandard?: 'erc721' | 'erc1155';
   previewImage?: string | null;
+  previewAspectRatio?: string;
 };
 
 function phaseFromScenario(scenario?: PreviewScenario): TxPhase {
@@ -64,6 +65,7 @@ export function BurnToMintFlow({
   chainId: collectionChainId,
   tokenStandard = 'erc721',
   previewImage,
+  previewAspectRatio = '7 / 4',
 }: BurnToMintFlowProps) {
   const isPreview = mode === 'preview';
   const { address, isConnected, chainId } = useActiveWallet();
@@ -89,13 +91,13 @@ export function BurnToMintFlow({
   const [perWalletCap, setPerWalletCap] = useState('0');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [targetBaseURI, setTargetBaseURI] = useState(isPreview ? 'ar://burn-redeem/' : '');
+  const [targetBaseURI, setTargetBaseURI] = useState(isPreview ? 'ar://burn-redeem' : '');
   const [targetTokenId, setTargetTokenId] = useState('1');
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [stubReason, setStubReason] = useState<string | null>(
     !bytecodeAvailable && !isPreview
-      ? 'BurnToMintExtension bytecode is not on this branch until PR 200 merges.'
+      ? 'The burn-to-mint contract isn’t available in this environment yet. You can still walk through the screens.'
       : null,
   );
   const [done, setDone] = useState(previewScenario === 'confirmed');
@@ -105,17 +107,27 @@ export function BurnToMintFlow({
 
   const validationErrors = useMemo(() => {
     if (previewScenario === 'validation_error') {
-      return ['Source contract must be a valid address.', 'Target base URI must end with a trailing slash.'];
+      return ['Enter a valid source collection address.', 'Add a link for the new artwork folder.'];
     }
     if (step !== 3) return [];
-    return validateBurnConfigForm({
+    // Artist-facing messages — trailing slash is enforced silently at encode time.
+    const raw = validateBurnConfigForm({
       sourceContract,
-      targetBaseURI,
+      targetBaseURI: targetBaseURI.trim() ? ensureTrailingSlash(targetBaseURI.trim()) : '',
       burnRatio: Number(burnRatio),
       mintRatio: Number(mintRatio),
       targetSpec,
       startTime: startTime || undefined,
       endTime: endTime || undefined,
+    });
+    return raw.map((msg) => {
+      if (msg.includes('trailing slash')) return 'Add a link for the new artwork folder.';
+      if (msg.includes('valid address')) return 'Enter a valid source collection address.';
+      if (msg.includes('Burn ratio')) return 'Burn amount must be at least 1.';
+      if (msg.includes('Mint ratio')) return 'Mint amount must be at least 1.';
+      if (msg.includes('End time')) return 'The end must be after the start.';
+      if (msg.includes('Target base URI is required')) return 'Add a link for the new artwork folder.';
+      return msg;
     });
   }, [
     previewScenario,
@@ -167,7 +179,7 @@ export function BurnToMintFlow({
 
   const handleRegister = useCallback(async () => {
     if (!/^0x[a-fA-F0-9]{40}$/.test(extensionAddress)) {
-      setLocalError('Paste the deployed extension address first.');
+      setLocalError('Paste the extension address from the deploy step first.');
       return;
     }
     setBusy(true);
@@ -179,11 +191,14 @@ export function BurnToMintFlow({
       }
       await sendTransactionAsync({
         to: collectionAddress,
-        data: encodeRegisterExtension(extensionAddress as Address, targetBaseURI || 'ar://'),
+        data: encodeRegisterExtension(
+          extensionAddress as Address,
+          ensureTrailingSlash(targetBaseURI.trim() || 'ar://'),
+        ),
       });
       setStep(3);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Register failed');
+      setLocalError(err instanceof Error ? err.message : 'Couldn’t connect the extension.');
     } finally {
       setBusy(false);
     }
@@ -215,12 +230,12 @@ export function BurnToMintFlow({
           perWalletCap: BigInt(perWalletCap || '0'),
           startTime: start,
           endTime: end,
-          targetBaseURI,
+          targetBaseURI: ensureTrailingSlash(targetBaseURI.trim()),
         }),
       });
       setDone(true);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Config failed');
+      setLocalError(err instanceof Error ? err.message : 'Couldn’t save the burn setup.');
     } finally {
       setBusy(false);
     }
@@ -247,7 +262,7 @@ export function BurnToMintFlow({
     return (
       <FlowShell
         title="Burn to mint"
-        subtitle="Deploy your extension, register it on the collection, then set the burn window."
+        subtitle="Deploy one extension for this collection, connect it, then set what collectors burn and receive."
         breadcrumb={{ href: `/collections/${collectionId}`, label: collectionName, current: 'Burn to mint' }}
         steps={STEPS}
         currentStep={step}
@@ -260,16 +275,26 @@ export function BurnToMintFlow({
   return (
     <FlowShell
       title="Burn to mint"
-      subtitle="Each artist deploys their own BurnToMintExtension, registers it, then configures source → target."
+      subtitle="Each collection gets its own extension in Studio. Collectors burn from a source and receive new work from this collection."
       breadcrumb={{ href: `/collections/${collectionId}`, label: collectionName, current: 'Burn to mint' }}
       steps={STEPS}
       currentStep={step}
       aside={
         <ArtPreview
-          src={previewImage}
-          caption={collectionName}
-          subtitle={done ? 'Config live' : extensionAddress ? 'Extension ready' : 'Not deployed'}
-          aspectRatio="4 / 5"
+          src={previewScenario === 'empty' ? null : previewImage}
+          aspectRatio={previewAspectRatio}
+          caption={previewScenario === 'empty' ? undefined : collectionName}
+          subtitle={
+            previewScenario === 'empty'
+              ? undefined
+              : done
+                ? 'Burn setup live'
+                : extensionAddress
+                  ? 'Extension ready'
+                  : 'Not deployed'
+          }
+          emptyTitle="No artwork yet"
+          emptyHint="Your target collection’s look will show here."
         />
       }
       footer={
@@ -283,12 +308,12 @@ export function BurnToMintFlow({
           </button>
           {step === 1 && (
             <button type="button" className="studio-btn" disabled={busy} onClick={() => void handleDeploy()}>
-              {busy ? 'Deploying…' : bytecodeAvailable ? 'Deploy extension' : 'Show deploy stub'}
+              {busy ? 'Deploying…' : bytecodeAvailable ? 'Deploy extension' : 'Continue with stub'}
             </button>
           )}
           {step === 2 && (
             <button type="button" className="studio-btn" disabled={busy} onClick={() => void handleRegister()}>
-              {busy ? 'Registering…' : 'Register on collection'}
+              {busy ? 'Connecting…' : 'Connect to collection'}
             </button>
           )}
           {step === 3 && (
@@ -298,7 +323,7 @@ export function BurnToMintFlow({
               disabled={busy || done || validationErrors.length > 0}
               onClick={() => void handleConfigure()}
             >
-              {done ? 'Configured' : busy ? 'Saving…' : 'Create burn config'}
+              {done ? 'Configured' : busy ? 'Saving…' : 'Save burn setup'}
             </button>
           )}
         </>
@@ -318,14 +343,14 @@ export function BurnToMintFlow({
           phase === 'failed'
             ? localError || error?.message
             : phase === 'empty'
-              ? 'No burn-to-mint extension configured yet.'
+              ? 'No burn-to-mint extension for this collection yet.'
               : undefined
         }
         className="mb-6"
       />
       {stubReason && (
         <div className="mb-6 rounded-md border border-border bg-background-sunken px-4 py-3 text-sm text-muted">
-          <p className="font-medium text-foreground">Stub</p>
+          <p className="font-medium text-foreground">Not deployable here yet</p>
           <p className="mt-1">{stubReason}</p>
         </div>
       )}
@@ -334,13 +359,13 @@ export function BurnToMintFlow({
       {step === 1 && (
         <div className="space-y-6">
           <p className="text-muted">
-            Deploy <span className="font-medium text-foreground">BurnToMintExtension</span> with your wallet as owner.
-            The extension owner must also own the target collection.
+            Deploy one burn-to-mint extension owned by your wallet for this collection. Burn setup lives in Studio —
+            such.market only shows collectors how to redeem later.
           </p>
           <ReviewRow label="Owner" value={address ?? '—'} />
-          <ReviewRow label="Bytecode" value={bytecodeAvailable ? 'Available' : 'Pending PR 200'} />
+          <ReviewRow label="Ready to deploy" value={bytecodeAvailable ? 'Yes' : 'Pending contract release'} />
           {extensionAddress && <ReviewRow label="Extension" value={extensionAddress} />}
-          <FlowField label="Extension address" hint="Paste if you already deployed, or after the deploy confirms.">
+          <FlowField label="Extension address" hint="Paste after deploy confirms, or if you already deployed.">
             <input
               className="studio-input font-mono text-sm"
               value={extensionAddress}
@@ -354,8 +379,7 @@ export function BurnToMintFlow({
       {step === 2 && (
         <div className="space-y-6">
           <p className="text-muted">
-            Register the extension on the target collection so it can call{' '}
-            <code className="rounded bg-background-sunken px-1.5 py-0.5 text-sm">mintExtension</code>.
+            Connect the extension to this collection so it can mint the new pieces when someone burns.
           </p>
           <ReviewRow label="Collection" value={collectionAddress} />
           <ReviewRow label="Extension" value={extensionAddress || '—'} />
@@ -364,7 +388,7 @@ export function BurnToMintFlow({
 
       {step === 3 && (
         <div className="space-y-6">
-          <FlowField label="Source contract">
+          <FlowField label="Source collection" hint="What collectors burn from.">
             <input
               className="studio-input font-mono text-sm"
               value={sourceContract}
@@ -372,12 +396,12 @@ export function BurnToMintFlow({
               placeholder="0x…"
             />
           </FlowField>
-          <FlowField label="Source standard">
+          <FlowField label="Source type">
             <div className="flex gap-3">
               {(
                 [
-                  { id: BurnTokenSpec.ERC721, label: 'ERC-721' },
-                  { id: BurnTokenSpec.ERC1155, label: 'ERC-1155' },
+                  { id: BurnTokenSpec.ERC721, label: 'Unique pieces' },
+                  { id: BurnTokenSpec.ERC1155, label: 'Editions' },
                 ] as const
               ).map((opt) => (
                 <button
@@ -394,41 +418,44 @@ export function BurnToMintFlow({
             </div>
           </FlowField>
           <div className="grid grid-cols-2 gap-4">
-            <FlowField label="Burn ratio">
+            <FlowField label="Burn this many">
               <input className="studio-input" value={burnRatio} onChange={(e) => setBurnRatio(e.target.value)} />
             </FlowField>
-            <FlowField label="Mint ratio">
+            <FlowField label="Receive this many">
               <input className="studio-input" value={mintRatio} onChange={(e) => setMintRatio(e.target.value)} />
             </FlowField>
             <FlowField label="Total cap (0 = none)">
               <input className="studio-input" value={totalCap} onChange={(e) => setTotalCap(e.target.value)} />
             </FlowField>
-            <FlowField label="Per-wallet cap (0 = none)">
+            <FlowField label="Per wallet (0 = none)">
               <input className="studio-input" value={perWalletCap} onChange={(e) => setPerWalletCap(e.target.value)} />
             </FlowField>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <FlowField label="Window start">
+            <FlowField label="Opens">
               <input type="datetime-local" className="studio-input" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </FlowField>
-            <FlowField label="Window end">
+            <FlowField label="Closes">
               <input type="datetime-local" className="studio-input" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </FlowField>
           </div>
           {targetSpec === BurnTokenSpec.ERC721 ? (
-            <FlowField label="Target base URI" hint="Must end with /. Tokens resolve as base + index.">
+            <FlowField label="New artwork folder" hint="Where the minted pieces’ metadata lives.">
               <input
                 className="studio-input font-mono text-sm"
                 value={targetBaseURI}
                 onChange={(e) => setTargetBaseURI(e.target.value)}
-                placeholder="ar://burn-redeem/"
+                placeholder="ar://burn-redeem"
               />
             </FlowField>
           ) : (
-            <FlowField label="Target token ID">
+            <FlowField label="Edition token number">
               <input className="studio-input" value={targetTokenId} onChange={(e) => setTargetTokenId(e.target.value)} />
             </FlowField>
           )}
+          <FlowDetails>
+            <p>Each collection gets one burn-to-mint setup. Redeem later still happens through Studio’s extension — such.market only shows collectors how.</p>
+          </FlowDetails>
         </div>
       )}
     </FlowShell>

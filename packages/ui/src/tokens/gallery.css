@@ -1,9 +1,11 @@
 /**
- * Gallery tokens — shared across studio, social, and such.market.
+ * Gallery tokens — shared placeholder system for studio, social, and market apps.
  *
- * Typography: Fraunces (display / art titles) + Sora (UI).
- * Palette: paper, ink, forest — aligned with such.market.
- * Quiet chrome so the art carries the color.
+ * Swap display/UI fonts and the near-neutral palette here only; apps should consume
+ * the CSS variables (and the Tailwind preset) rather than hard-coding faces or colors.
+ *
+ * Placeholder defaults: display + UI sans via --font-display / --font-sans,
+ * paper / ink / forest neutrals. Quiet chrome so the art carries the color.
  */
 
 :root {
@@ -32,8 +34,8 @@
   --gallery-danger-faint: #f6e4e0;
 
   /* Typography */
-  --gallery-font-display: var(--font-display), 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', serif;
-  --gallery-font-sans: var(--font-sans), 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+  --gallery-font-display: var(--font-display), 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --gallery-font-sans: var(--font-sans), 'Avenir Next', 'Segoe UI', sans-serif;
   --gallery-font-mono: var(--font-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 
   --gallery-text-xs: 0.75rem;

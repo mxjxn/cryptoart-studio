@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Address } from 'viem';
 import { useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi';
 import { ArtPreview } from '~/components/flows/ArtPreview';
-import { FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
+import { FlowDetails, FlowField, FlowShell, ReviewRow } from '~/components/flows/FlowShell';
 import { TxStateBanner } from '~/components/flows/TxStateBanner';
 import { ValidationList } from '~/components/flows/ValidationList';
 import { WalletGate, WrongChainNotice } from '~/components/flows/WalletGate';
@@ -36,6 +36,8 @@ export type AirdropFlowProps = {
   chainId: number;
   tokenStandard?: 'erc721' | 'erc1155';
   previewImage?: string | null;
+  previewAspectRatio?: string;
+  previewAnimated?: boolean;
 };
 
 function phaseFromScenario(scenario?: PreviewScenario): TxPhase {
@@ -70,6 +72,8 @@ export function AirdropFlow({
   chainId: collectionChainId,
   tokenStandard = 'erc721',
   previewImage,
+  previewAspectRatio = '3 / 2',
+  previewAnimated = false,
 }: AirdropFlowProps) {
   const isPreview = mode === 'preview';
   const is1155 = tokenStandard === 'erc1155';
@@ -92,8 +96,8 @@ export function AirdropFlow({
     if (previewScenario === 'validation_error') {
       return {
         recipients: [],
-        errors: ['Line 2: invalid address “not-an-address”.', 'Line 4: missing metadata URI.'],
-        warnings: ['Line 3: duplicate address (kept).'],
+        errors: ['Line 2: that doesn’t look like a wallet address.', 'Line 4: missing an artwork link.'],
+        warnings: ['Line 3: this address appears twice (we’ll keep both rows).'],
       };
     }
     if (previewScenario === 'empty') {
@@ -114,14 +118,10 @@ export function AirdropFlow({
   })();
   const phase = isPreview ? phaseFromScenario(previewScenario) : livePhase;
 
-  const handleFile = useCallback(
-    async (file: File | null) => {
-      if (!file) return;
-      const text = await file.text();
-      setRaw(text);
-    },
-    [],
-  );
+  const handleFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+    setRaw(await file.text());
+  }, []);
 
   const handleSend = useCallback(async () => {
     if (parsed.errors.length || parsed.recipients.length === 0) return;
@@ -158,20 +158,13 @@ export function AirdropFlow({
     } finally {
       setBusy(false);
     }
-  }, [
-    parsed,
-    isPreview,
-    is1155,
-    sendTransactionAsync,
-    collectionAddress,
-    tokenId1155,
-  ]);
+  }, [parsed, isPreview, is1155, sendTransactionAsync, collectionAddress, tokenId1155]);
 
   if (phase === 'wallet_missing') {
     return (
       <FlowShell
         title="Airdrop"
-        subtitle="Paste addresses or upload a CSV, review, then send."
+        subtitle="Paste addresses or upload a simple CSV, review the list, then send from Studio."
         breadcrumb={{ href: `/collections/${collectionId}`, label: collectionName, current: 'Airdrop' }}
         steps={STEPS}
         currentStep={step}
@@ -184,20 +177,25 @@ export function AirdropFlow({
   return (
     <FlowShell
       title="Airdrop"
-      subtitle={`Up to ${AIRDROP_LIMITS.maxBatch} recipients per transaction. Blind config locks on airdrop if configured.`}
+      subtitle={`Send to up to ${AIRDROP_LIMITS.maxBatch} people in one go. Day one uses a simple address list — nothing fancy.`}
       breadcrumb={{ href: `/collections/${collectionId}`, label: collectionName, current: 'Airdrop' }}
       steps={STEPS}
       currentStep={step}
       aside={
         <ArtPreview
-          src={previewImage}
-          caption={collectionName}
+          src={previewScenario === 'empty' ? null : previewImage}
+          aspectRatio={previewAspectRatio}
+          animated={previewAnimated}
+          caption={previewScenario === 'empty' ? undefined : collectionName}
           subtitle={
-            parsed.recipients.length
-              ? `${parsed.recipients.length} recipient${parsed.recipients.length === 1 ? '' : 's'}`
-              : 'No recipients yet'
+            previewScenario === 'empty'
+              ? undefined
+              : parsed.recipients.length
+                ? `${parsed.recipients.length} recipient${parsed.recipients.length === 1 ? '' : 's'}`
+                : 'No recipients yet'
           }
-          aspectRatio="3 / 4"
+          emptyTitle="Nothing to send yet"
+          emptyHint="Add recipients and your collection art will sit beside the list."
         />
       }
       footer={
@@ -213,10 +211,7 @@ export function AirdropFlow({
             <button
               type="button"
               className="studio-btn disabled:opacity-40"
-              disabled={
-                step === 1 &&
-                (parsed.recipients.length === 0 || parsed.errors.length > 0)
-              }
+              disabled={step === 1 && (parsed.recipients.length === 0 || parsed.errors.length > 0)}
               onClick={() => setStep((s) => Math.min(3, s + 1))}
             >
               Continue →
@@ -228,7 +223,7 @@ export function AirdropFlow({
               disabled={busy || sent || parsed.errors.length > 0 || parsed.recipients.length === 0}
               onClick={() => void handleSend()}
             >
-              {sent ? 'Sent' : busy ? 'Sending…' : `Send airdrop (${parsed.recipients.length})`}
+              {sent ? 'Sent' : busy ? 'Sending…' : `Send to ${parsed.recipients.length}`}
             </button>
           )}
         </>
@@ -250,7 +245,7 @@ export function AirdropFlow({
             : phase === 'empty'
               ? 'Paste recipients or upload a CSV to begin.'
               : phase === 'confirmed'
-                ? 'Airdrop submitted. Tokens will appear as the indexer catches up.'
+                ? 'Airdrop submitted. Pieces will show up as the network catches up.'
                 : undefined
         }
         className="mb-6"
@@ -259,11 +254,11 @@ export function AirdropFlow({
       {step === 1 && (
         <div className="space-y-6">
           <FlowField
-            label={is1155 ? 'Recipients CSV' : 'Recipients'}
+            label="Recipients"
             hint={
               is1155
-                ? 'Format: address,amount — one per line.'
-                : 'Format: address,uri — or address alone with a default URI below.'
+                ? 'One line per person: address,amount'
+                : 'One line per person: address,artwork-link — or just an address if you set a default link below.'
             }
           >
             <textarea
@@ -273,7 +268,7 @@ export function AirdropFlow({
               placeholder={is1155 ? SAMPLE_1155 : SAMPLE_721}
             />
           </FlowField>
-          <FlowField label="Or upload CSV">
+          <FlowField label="Or upload a CSV">
             <input
               type="file"
               accept=".csv,.txt,text/csv,text/plain"
@@ -282,7 +277,7 @@ export function AirdropFlow({
             />
           </FlowField>
           {!is1155 && (
-            <FlowField label="Default URI" hint="Used when a line only has an address.">
+            <FlowField label="Default artwork link" hint="Used when a line only has an address.">
               <input
                 className="studio-input font-mono text-sm"
                 value={defaultUri}
@@ -292,7 +287,7 @@ export function AirdropFlow({
             </FlowField>
           )}
           {is1155 && (
-            <FlowField label="Token ID">
+            <FlowField label="Edition token number">
               <input
                 className="studio-input"
                 value={tokenId1155}
@@ -301,6 +296,12 @@ export function AirdropFlow({
             </FlowField>
           )}
           <ValidationList errors={parsed.errors} warnings={parsed.warnings} />
+          <FlowDetails>
+            <p>
+              Use a simple list: wallet address, and optionally an artwork link or amount. Airdrops send from Studio.
+              If a blind drop is active on this collection, sending will lock that setup.
+            </p>
+          </FlowDetails>
         </div>
       )}
 
@@ -308,15 +309,15 @@ export function AirdropFlow({
         <div className="space-y-6">
           <ValidationList errors={parsed.errors} warnings={parsed.warnings} />
           <ReviewRow label="Recipients" value={String(parsed.recipients.length)} />
-          <ReviewRow label="Standard" value={is1155 ? 'ERC-1155' : 'ERC-721'} />
-          {is1155 && <ReviewRow label="Token ID" value={tokenId1155} />}
+          <ReviewRow label="Type" value={is1155 ? 'Editions' : 'Unique pieces'} />
+          {is1155 && <ReviewRow label="Edition #" value={tokenId1155} />}
           <div className="overflow-hidden rounded-md border border-border">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-background-sunken">
                 <tr>
                   <th className="px-4 py-2 font-medium text-muted">#</th>
                   <th className="px-4 py-2 font-medium text-muted">Address</th>
-                  <th className="px-4 py-2 font-medium text-muted">{is1155 ? 'Amount' : 'URI'}</th>
+                  <th className="px-4 py-2 font-medium text-muted">{is1155 ? 'Amount' : 'Artwork'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -343,7 +344,7 @@ export function AirdropFlow({
       {step === 3 && (
         <div className="space-y-6">
           <p className="text-muted">
-            This sends one owner transaction. If a blind mint is configured and not revealed, the airdrop locks that config.
+            This sends one transaction from your collection wallet. Double-check the list — airdrops can’t be undone.
           </p>
           <ReviewRow label="Recipients" value={String(parsed.recipients.length)} />
           <ReviewRow label="Collection" value={collectionAddress} />

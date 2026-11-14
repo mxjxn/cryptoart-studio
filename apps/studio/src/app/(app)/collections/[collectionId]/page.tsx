@@ -117,7 +117,7 @@ export default function CollectionPage({
         <section className="mt-10">
           <h2 className="font-display text-2xl text-foreground">Create</h2>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            Day-one flows for lazy listings, blind drops, burn-to-mint, airdrops, and media permanence.
+            Mint, list, reveal, airdrop, and burn-to-mint live here in Studio. Collectors browse and buy on such.market.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {[

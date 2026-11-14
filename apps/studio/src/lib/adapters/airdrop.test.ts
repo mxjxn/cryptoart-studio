@@ -12,7 +12,7 @@ not-an-address,ar://b
     );
     expect(result.recipients).toHaveLength(2);
     expect(result.recipients[1]?.uri).toBe('ar://default');
-    expect(result.errors.some((e) => e.includes('invalid address'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('wallet address'))).toBe(true);
   });
 });
 
@@ -20,6 +20,6 @@ describe('parseAirdrop1155', () => {
   it('requires positive amounts', () => {
     const result = parseAirdrop1155(`0x1111111111111111111111111111111111111111,0`);
     expect(result.recipients).toHaveLength(0);
-    expect(result.errors[0]).toMatch(/greater than 0/);
+    expect(result.errors[0]).toMatch(/at least 1/);
   });
 });
