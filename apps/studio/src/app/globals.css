@@ -1,19 +1,8 @@
+@import '@cryptoart/ui/tokens/gallery.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --muted: #666666;
-  --muted-foreground: #999999;
-  --border: #e5e5e5;
-  --radius: 12px;
-  --input-bg: #fafafa;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --error: #ef4444;
-}
 
 html {
   background: var(--background);
@@ -24,32 +13,37 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--gallery-font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-faint);
+  color: var(--foreground);
 }
 
 @layer components {
   .studio-card {
-    @apply rounded-lg border border-border bg-background p-6;
+    @apply rounded-md border border-border bg-background-raised p-6;
   }
 
   .studio-btn {
-    @apply inline-flex items-center justify-center rounded-lg border border-foreground bg-foreground px-6 py-3.5 text-[15px] font-semibold text-background transition-opacity hover:opacity-90;
+    @apply inline-flex items-center justify-center rounded-md border border-foreground bg-foreground px-6 py-3 text-[15px] font-medium text-background transition-opacity duration-fast hover:opacity-90;
   }
 
   .studio-btn-outline {
-    @apply inline-flex items-center justify-center rounded-lg border border-border bg-background px-6 py-3.5 text-[15px] font-semibold text-foreground transition-colors hover:border-foreground;
+    @apply inline-flex items-center justify-center rounded-md border border-border bg-background px-6 py-3 text-[15px] font-medium text-foreground transition-colors duration-fast hover:border-foreground;
   }
 
   .studio-btn-ghost {
-    @apply inline-flex items-center justify-center rounded-lg px-6 py-3.5 text-[15px] font-semibold text-muted transition-colors hover:text-foreground;
+    @apply inline-flex items-center justify-center rounded-md px-6 py-3 text-[15px] font-medium text-muted transition-colors duration-fast hover:text-foreground;
   }
 
   .studio-input {
-    @apply w-full rounded-lg border border-border bg-background px-4 py-3.5 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-foreground;
+    @apply w-full rounded-md border border-border bg-background-raised px-4 py-3.5 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors duration-fast focus:border-foreground;
   }
 
   .studio-textarea {
-    @apply w-full rounded-lg border border-border bg-background px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-foreground resize-none;
+    @apply w-full resize-none rounded-md border border-border bg-background-raised px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors duration-fast focus:border-foreground;
   }
 }

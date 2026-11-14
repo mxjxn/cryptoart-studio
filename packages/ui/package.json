@@ -6,21 +6,15 @@
     "./*": "./src/*.tsx",
     "./theme": "./src/theme/index.ts",
     "./components": "./src/components/index.ts",
-    "./styles/terminal": "./src/styles/terminal.css"
+    "./styles/terminal": "./src/styles/terminal.css",
+    "./tokens": "./src/tokens/index.ts",
+    "./tokens/gallery.css": "./src/tokens/gallery.css",
+    "./tokens/tailwind-preset": "./src/tokens/tailwind-preset.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "generate:component": "turbo gen react-component",
     "check-types": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@cryptoart/eslint-config": "file:../eslint-config",
-    "@cryptoart/typescript-config": "file:../typescript-config",
-    "@types/node": "^22.15.3",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9.34.0",
-    "typescript": "5.9.2"
   },
   "dependencies": {
     "react": "^18",
@@ -29,5 +23,15 @@
   },
   "peerDependencies": {
     "next": "^15.0.0"
+  },
+  "devDependencies": {
+    "@cryptoart/eslint-config": "file:../eslint-config",
+    "@cryptoart/typescript-config": "file:../typescript-config",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9.34.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "5.9.2"
   }
 }

@@ -1,12 +1,20 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Fraunces, Sora } from 'next/font/google';
 import '~/app/globals.css';
 import { Providers } from '~/app/providers';
 import { APP_DESCRIPTION, APP_NAME } from '~/lib/constants';
 
-const inter = Inter({
+/** Placeholder display + UI faces — swap by changing these loaders; tokens read --font-*. */
+const fraunces = Fraunces({
   subsets: ['latin'],
-  weight: ['400', '600', '700', '800'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const sora = Sora({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-sans',
   display: 'swap',
 });
@@ -22,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="flex min-h-screen flex-col">
+    <html lang="en" className={`${fraunces.variable} ${sora.variable}`} suppressHydrationWarning>
+      <body className="flex min-h-screen flex-col font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

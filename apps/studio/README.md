@@ -17,6 +17,14 @@ pnpm --filter studio dev
 
 Runs at [http://localhost:3001](http://localhost:3001) (mvp uses 3000).
 
+### Create-flow design preview
+
+Dev-only click-through of every create flow and edge state (no wallet required):
+
+[http://localhost:3001/dev/preview](http://localhost:3001/dev/preview)
+
+Enable on preview deployments with `NEXT_PUBLIC_STUDIO_PREVIEW=1`. Shared gallery tokens (fonts, color, spacing) live in `@cryptoart/ui/tokens` so they can be swapped in one place.
+
 ## Vercel deployment
 
 1. Create a new Vercel project linked to this monorepo.
