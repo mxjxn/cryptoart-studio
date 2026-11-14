@@ -1,28 +1,12 @@
 import type { Config } from 'tailwindcss';
+import { galleryTailwindPreset } from '../../packages/ui/src/tokens/tailwind-preset';
 
 export default {
+  darkMode: ['class', '[data-theme="dark"]'],
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
+  presets: [galleryTailwindPreset as unknown as Config],
   theme: {
-    extend: {
-      colors: {
-        background: 'var(--background)',
-        foreground: 'var(--foreground)',
-        muted: 'var(--muted)',
-        'muted-foreground': 'var(--muted-foreground)',
-        border: 'var(--border)',
-        success: 'var(--success)',
-        warning: 'var(--warning)',
-        error: 'var(--error)',
-      },
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-      },
-    },
+    extend: {},
   },
   plugins: [],
 } satisfies Config;

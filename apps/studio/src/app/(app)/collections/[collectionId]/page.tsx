@@ -113,6 +113,29 @@ export default function CollectionPage({
           </div>
         </div>
 
+        {/* Create actions */}
+        <section className="mt-10">
+          <h2 className="font-display text-2xl text-foreground">Create</h2>
+          <p className="mt-2 max-w-xl text-sm text-muted">
+            Day-one flows for lazy listings, blind drops, burn-to-mint, airdrops, and media permanence.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {[
+              { href: `/collections/${collectionId}/mint`, label: 'Mint' },
+              { href: `/collections/${collectionId}/lazy`, label: 'Lazy mint' },
+              { href: `/collections/${collectionId}/blind`, label: 'Blind drop' },
+              { href: `/collections/${collectionId}/burn-to-mint`, label: 'Burn to mint' },
+              { href: `/collections/${collectionId}/airdrop`, label: 'Airdrop' },
+              { href: `/collections/${collectionId}/series`, label: 'Series' },
+              { href: '/media', label: 'Media' },
+            ].map((action) => (
+              <Link key={action.href} href={action.href} className="studio-btn-outline px-4 py-2 text-sm">
+                {action.label}
+              </Link>
+            ))}
+          </div>
+        </section>
+
         {/* Tab nav */}
         <TabNav tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} className="mt-10" />
 
@@ -128,20 +151,6 @@ export default function CollectionPage({
         ) : (
           <SettingsTab collection={collection} />
         )}
-      </div>
-
-      {/* Floating Mint button */}
-      <div className="sticky bottom-0 flex justify-end px-20 pb-6 pt-4">
-        <Link
-          href={`/collections/${collectionId}/mint`}
-          className="studio-btn gap-2 shadow-lg shadow-black/10"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Mint
-        </Link>
       </div>
     </div>
   );

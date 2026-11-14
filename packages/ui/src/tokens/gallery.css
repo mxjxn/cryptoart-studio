@@ -1,0 +1,178 @@
+/**
+ * Gallery tokens — shared across studio, social, and such.market.
+ *
+ * Typography: Fraunces (display / art titles) + Sora (UI).
+ * Palette: paper, ink, forest — aligned with such.market.
+ * Quiet chrome so the art carries the color.
+ */
+
+:root {
+  /* Surfaces */
+  --gallery-paper: #f7f4ef;
+  --gallery-paper-raised: #fffcf7;
+  --gallery-paper-sunken: #efebe3;
+  --gallery-ink: #1a1a18;
+  --gallery-ink-soft: #3a3935;
+  --gallery-ink-muted: #6b6a64;
+  --gallery-ink-faint: #9a988f;
+  --gallery-line: #e4e0d8;
+  --gallery-line-strong: #cfc9bc;
+
+  /* Accent — forest, used sparingly for actions / focus */
+  --gallery-forest: #2f4f3e;
+  --gallery-forest-soft: #3d6350;
+  --gallery-forest-faint: #dfe8e2;
+
+  /* Status */
+  --gallery-success: #2f5d3a;
+  --gallery-success-faint: #e4efe6;
+  --gallery-warning: #9a6b1f;
+  --gallery-warning-faint: #f5ecd8;
+  --gallery-danger: #a33b2c;
+  --gallery-danger-faint: #f6e4e0;
+
+  /* Typography */
+  --gallery-font-display: var(--font-display), 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --gallery-font-sans: var(--font-sans), 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+  --gallery-font-mono: var(--font-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --gallery-text-xs: 0.75rem;
+  --gallery-text-sm: 0.875rem;
+  --gallery-text-base: 1rem;
+  --gallery-text-lg: 1.125rem;
+  --gallery-text-xl: 1.375rem;
+  --gallery-text-2xl: 1.75rem;
+  --gallery-text-3xl: 2.25rem;
+  --gallery-text-4xl: 3rem;
+  --gallery-leading-tight: 1.2;
+  --gallery-leading-snug: 1.35;
+  --gallery-leading-normal: 1.55;
+
+  /* Spacing scale (4px base) */
+  --gallery-space-1: 0.25rem;
+  --gallery-space-2: 0.5rem;
+  --gallery-space-3: 0.75rem;
+  --gallery-space-4: 1rem;
+  --gallery-space-5: 1.25rem;
+  --gallery-space-6: 1.5rem;
+  --gallery-space-8: 2rem;
+  --gallery-space-10: 2.5rem;
+  --gallery-space-12: 3rem;
+  --gallery-space-16: 4rem;
+  --gallery-space-20: 5rem;
+
+  /* Radius — quiet, not bubbly */
+  --gallery-radius-sm: 0.25rem;
+  --gallery-radius-md: 0.5rem;
+  --gallery-radius-lg: 0.75rem;
+
+  /* Motion */
+  --gallery-duration-fast: 150ms;
+  --gallery-duration-base: 220ms;
+  --gallery-duration-slow: 360ms;
+  --gallery-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --gallery-ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+
+  /* Studio aliases (apps consume these) */
+  --background: var(--gallery-paper);
+  --background-raised: var(--gallery-paper-raised);
+  --background-sunken: var(--gallery-paper-sunken);
+  --foreground: var(--gallery-ink);
+  --muted: var(--gallery-ink-muted);
+  --muted-foreground: var(--gallery-ink-faint);
+  --border: var(--gallery-line);
+  --border-strong: var(--gallery-line-strong);
+  --accent: var(--gallery-forest);
+  --accent-soft: var(--gallery-forest-soft);
+  --accent-faint: var(--gallery-forest-faint);
+  --success: var(--gallery-success);
+  --success-faint: var(--gallery-success-faint);
+  --warning: var(--gallery-warning);
+  --warning-faint: var(--gallery-warning-faint);
+  --error: var(--gallery-danger);
+  --error-faint: var(--gallery-danger-faint);
+  --radius: var(--gallery-radius-md);
+  --input-bg: var(--gallery-paper-raised);
+}
+
+.dark,
+[data-theme='dark'] {
+  --gallery-paper: #12110f;
+  --gallery-paper-raised: #1a1916;
+  --gallery-paper-sunken: #0c0b0a;
+  --gallery-ink: #f2efe8;
+  --gallery-ink-soft: #ddd8ce;
+  --gallery-ink-muted: #a39e93;
+  --gallery-ink-faint: #746f65;
+  --gallery-line: #2a2824;
+  --gallery-line-strong: #3d3a34;
+
+  --gallery-forest: #7fa892;
+  --gallery-forest-soft: #5f8a72;
+  --gallery-forest-faint: #1c2a22;
+
+  --gallery-success: #7fba8c;
+  --gallery-success-faint: #1a2a1e;
+  --gallery-warning: #d4a84b;
+  --gallery-warning-faint: #2a2214;
+  --gallery-danger: #d97868;
+  --gallery-danger-faint: #2a1613;
+
+  /* Re-bind aliases so descendants resolve dark values (not :root-computed lights). */
+  --background: var(--gallery-paper);
+  --background-raised: var(--gallery-paper-raised);
+  --background-sunken: var(--gallery-paper-sunken);
+  --foreground: var(--gallery-ink);
+  --muted: var(--gallery-ink-muted);
+  --muted-foreground: var(--gallery-ink-faint);
+  --border: var(--gallery-line);
+  --border-strong: var(--gallery-line-strong);
+  --accent: var(--gallery-forest);
+  --accent-soft: var(--gallery-forest-soft);
+  --accent-faint: var(--gallery-forest-faint);
+  --success: var(--gallery-success);
+  --success-faint: var(--gallery-success-faint);
+  --warning: var(--gallery-warning);
+  --warning-faint: var(--gallery-warning-faint);
+  --error: var(--gallery-danger);
+  --error-faint: var(--gallery-danger-faint);
+  --input-bg: var(--gallery-paper-raised);
+}
+
+@keyframes gallery-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gallery-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gallery-pulse-line {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.gallery-fade-up {
+  animation: gallery-fade-up var(--gallery-duration-slow) var(--gallery-ease-out) both;
+}
+
+.gallery-fade-in {
+  animation: gallery-fade-in var(--gallery-duration-base) var(--gallery-ease-out) both;
+}
