@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useActiveWallet } from '~/hooks/useActiveWallet';
 import { resolveTokenStandard, useCreateDraft, useUpdateDraft, type DraftPayload } from '~/hooks/useDrafts';
-import { useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
+import { useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi';
 import { Stepper } from '~/components/ui/Stepper';
 
 const STEPS = ['Chain', 'Standard', 'Name', 'Royalties', 'Branding', 'Deploy'];
@@ -18,12 +18,14 @@ export default function DeployWizardPage() {
   const createDraft = useCreateDraft();
   const updateDraft = useUpdateDraft();
   const { sendTransactionAsync, data: txHash } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
   const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
 
   const [currentStep, setCurrentStep] = useState(1);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(draftId);
   const [saving, setSaving] = useState(false);
   const [deploying, setDeploying] = useState(false);
+  const [chainError, setChainError] = useState<string | null>(null);
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<DraftPayload>({
@@ -89,13 +91,39 @@ export default function DeployWizardPage() {
     [activeDraftId, createDraft, updateDraft],
   );
 
+  const ensureWalletChain = useCallback(
+    async (targetChainId: number) => {
+      if (chainId === targetChainId) {
+        setChainError(null);
+        return;
+      }
+      try {
+        await switchChainAsync({ chainId: targetChainId });
+        setChainError(null);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Wallet rejected the network switch.';
+        setChainError(message);
+        throw err;
+      }
+    },
+    [chainId, switchChainAsync],
+  );
+
   const goNext = useCallback(async () => {
+    if (currentStep === 1 && formData.chainId) {
+      try {
+        await ensureWalletChain(formData.chainId);
+      } catch {
+        return;
+      }
+    }
     const next = Math.min(currentStep + 1, STEPS.length);
     const payload = { ...formData, step: next };
     setFormData(payload);
     setCurrentStep(next);
     await saveDraft(payload);
-  }, [currentStep, formData, saveDraft]);
+  }, [currentStep, formData, saveDraft, ensureWalletChain]);
 
   const goBack = useCallback(() => {
     setCurrentStep((s) => Math.max(1, s - 1));
@@ -112,8 +140,11 @@ export default function DeployWizardPage() {
       console.error('ERC-721 factory is not configured for this chain.');
       return;
     }
+    const targetChainId = formData.chainId ?? 8453;
     setDeploying(true);
     try {
+      await ensureWalletChain(targetChainId);
+
       const res = await fetch('/api/collections/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,6 +166,7 @@ export default function DeployWizardPage() {
       const hash = await sendTransactionAsync({
         to: data.txRequest.to as `0x${string}`,
         data: data.txRequest.data as `0x${string}`,
+        chainId: data.txRequest.chainId ?? targetChainId,
       });
 
       await fetch(`/api/collections/deploy/${data.deploymentId}/submit`, {
@@ -146,12 +178,14 @@ export default function DeployWizardPage() {
       console.error('Deploy error:', err);
       setDeploying(false);
     }
-  }, [address, formData, factoryAvailability, sendTransactionAsync]);
+  }, [address, formData, factoryAvailability, sendTransactionAsync, ensureWalletChain]);
 
   useEffect(() => {
     if (receipt && deploymentId) {
+      const txHash = receipt.transactionHash;
       const poll = setInterval(async () => {
-        const res = await fetch(`/api/collections/deploy/${deploymentId}/status`);
+        const qs = txHash ? `?txHash=${encodeURIComponent(txHash)}` : '';
+        const res = await fetch(`/api/collections/deploy/${deploymentId}/status${qs}`);
         const data = await res.json();
         if (data.status === 'confirmed' && data.collectionId) {
           clearInterval(poll);
@@ -159,6 +193,11 @@ export default function DeployWizardPage() {
             fetch(`/api/drafts/${activeDraftId}`, { method: 'DELETE' }).catch(() => {});
           }
           router.push(`/collections/${data.collectionId}`);
+        }
+        if (data.status === 'failed') {
+          clearInterval(poll);
+          setDeploying(false);
+          setChainError(data.errorMessage || 'Deployment transaction failed on-chain.');
         }
       }, 3000);
       return () => clearInterval(poll);
@@ -417,6 +456,12 @@ export default function DeployWizardPage() {
                 </div>
               )}
             </StepContent>
+          )}
+
+          {chainError && (
+            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              Switch your wallet to the selected chain to continue. {chainError}
+            </div>
           )}
 
           <div className="mt-10 flex items-center justify-between pb-16">

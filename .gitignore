@@ -52,3 +52,6 @@ package-lock.json
 .vercel
 .env*.local
 .env*
+
+# Local DB dumps (never upload / commit)
+backups/

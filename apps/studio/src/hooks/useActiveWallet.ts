@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import { base, mainnet } from 'wagmi/chains';
+import { base, baseSepolia, mainnet } from 'wagmi/chains';
 import { useMiniApp } from '@neynar/react';
 import { useAuthMode } from '~/hooks/useAuthMode';
 import { usePrimaryWallet } from '~/hooks/usePrimaryWallet';
@@ -10,6 +10,7 @@ import { addressesMatch } from '~/lib/format';
 
 const CHAIN_NAMES: Record<number, string> = {
   [base.id]: 'Base',
+  [baseSepolia.id]: 'Base Sepolia',
   [mainnet.id]: 'Ethereum',
 };
 

@@ -10,9 +10,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="flex h-[87px] items-center justify-between border-b border-border px-12">
-        <Link href="/" className="text-lg font-bold tracking-tight text-foreground">
-          cryptoart.studio
-        </Link>
+        <div className="flex items-center gap-8">
+          <Link
+            href={isConnected ? '/dashboard' : '/'}
+            className="text-lg font-bold tracking-tight text-foreground"
+          >
+            cryptoart.studio
+          </Link>
+          {isConnected && (
+            <nav className="flex items-center gap-4">
+              <Link href="/dashboard" className="text-sm font-medium text-foreground hover:underline">
+                My Collections
+              </Link>
+              <Link href="/collections/new" className="studio-btn-outline px-3.5 py-1.5 text-sm">
+                New Collection
+              </Link>
+            </nav>
+          )}
+        </div>
         {isConnected && address && (
           <WalletPill address={address} chainName={chainName} />
         )}

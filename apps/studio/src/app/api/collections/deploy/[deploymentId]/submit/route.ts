@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, collectionDeployments, eq } from '@cryptoart/db';
-import { isAddress } from 'viem';
+import { isAddress, isHash } from 'viem';
 
 export async function POST(
   req: NextRequest,
@@ -11,8 +11,8 @@ export async function POST(
     const body = await req.json();
     const { txHash, ownerAddress } = body;
 
-    if (!txHash || typeof txHash !== 'string') {
-      return NextResponse.json({ error: 'txHash is required' }, { status: 400 });
+    if (!txHash || typeof txHash !== 'string' || !isHash(txHash)) {
+      return NextResponse.json({ error: 'Valid txHash is required' }, { status: 400 });
     }
     if (!ownerAddress || !isAddress(ownerAddress)) {
       return NextResponse.json({ error: 'Valid ownerAddress is required' }, { status: 400 });
@@ -37,21 +37,15 @@ export async function POST(
       return NextResponse.json({ error: 'Deployment already confirmed' }, { status: 400 });
     }
 
-    if (deployment.txHash.startsWith('pending-')) {
-      await db
-        .update(collectionDeployments)
-        .set({ status: 'submitted' })
-        .where(eq(collectionDeployments.id, deploymentId));
-    } else {
-      await db
-        .update(collectionDeployments)
-        .set({ txHash, status: 'submitted' })
-        .where(eq(collectionDeployments.id, deploymentId));
-    }
+    await db
+      .update(collectionDeployments)
+      .set({ txHash, status: 'submitted' })
+      .where(eq(collectionDeployments.id, deploymentId));
 
     return NextResponse.json({
       deploymentId,
       status: 'submitted',
+      txHash,
     });
   } catch (error) {
     console.error('[POST /api/collections/deploy/[id]/submit] Error:', error);

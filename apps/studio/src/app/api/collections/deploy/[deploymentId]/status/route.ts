@@ -1,73 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, collectionDeployments, collections, eq, and, sql } from '@cryptoart/db';
+import { isHash } from 'viem';
+import { confirmDeploymentFromChain } from '~/lib/confirmDeployment';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ deploymentId: string }> },
 ) {
   try {
     const { deploymentId } = await params;
+    const txHashParam = req.nextUrl.searchParams.get('txHash');
+    const txHash = txHashParam && isHash(txHashParam) ? txHashParam : null;
 
-    const db = getDatabase();
-    const deployments = await db
-      .select()
-      .from(collectionDeployments)
-      .where(eq(collectionDeployments.id, deploymentId))
-      .limit(1);
+    const confirmed = await confirmDeploymentFromChain({
+      deploymentId,
+      txHash,
+    });
 
-    if (deployments.length === 0) {
-      return NextResponse.json({ error: 'Deployment not found' }, { status: 404 });
-    }
-
-    const deployment = deployments[0]!;
-
-    if (deployment.txHash.startsWith('pending-') && deployment.collectionId) {
-      const collectionRows = await db
-        .select()
-        .from(collections)
-        .where(eq(collections.id, deployment.collectionId))
-        .limit(1);
-
-      return NextResponse.json({
-        deploymentId: deployment.id,
-        status: 'confirmed',
-        txHash: collectionRows[0]?.deployTxHash ?? null,
-        blockNumber: collectionRows[0]?.deployBlockNumber ?? null,
-        submittedAt: deployment.submittedAt,
-        confirmedAt: deployment.confirmedAt,
-        collectionId: collectionRows[0]?.id ?? null,
-        contractAddress: collectionRows[0]?.contractAddress ?? null,
-      });
-    }
-
-    const response: Record<string, unknown> = {
-      deploymentId: deployment.id,
-      status: deployment.status,
-      txHash: deployment.txHash,
-      blockNumber: deployment.blockNumber,
-      gasUsed: deployment.gasUsed,
-      effectiveGasPrice: deployment.effectiveGasPrice,
-      submittedAt: deployment.submittedAt,
-      confirmedAt: deployment.confirmedAt,
-      failedAt: deployment.failedAt,
-      errorMessage: deployment.errorMessage,
-    };
-
-    if (deployment.status === 'confirmed' && deployment.collectionId) {
-      const collectionRows = await db
-        .select()
-        .from(collections)
-        .where(eq(collections.id, deployment.collectionId))
-        .limit(1);
-
-      if (collectionRows.length > 0) {
-        response.collectionId = collectionRows[0]!.id;
-        response.contractAddress = collectionRows[0]!.contractAddress;
-      }
-    }
-
-    return NextResponse.json(response);
+    return NextResponse.json({
+      deploymentId,
+      status: confirmed.status,
+      txHash: confirmed.txHash,
+      blockNumber: confirmed.blockNumber,
+      collectionId: confirmed.collectionId,
+      contractAddress: confirmed.contractAddress,
+    });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to get deployment status';
+    if (message === 'Deployment not found') {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
     console.error('[GET /api/collections/deploy/[id]/status] Error:', error);
     return NextResponse.json(
       { error: 'Failed to get deployment status' },

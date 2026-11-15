@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { HomeRedirect } from './HomeRedirect';
 
 const FEATURES = [
   {
@@ -52,6 +53,7 @@ function FeatureIcon({ icon }: { icon: string }) {
 export default function LandingPage() {
   return (
     <>
+      <HomeRedirect />
       <section className="flex h-[640px] flex-col items-center justify-center gap-12 bg-white px-16">
         <div className="flex max-w-[800px] flex-col items-center gap-5 text-center">
           <h1 className="text-[72px] font-extrabold leading-[1.1] tracking-tight text-foreground">

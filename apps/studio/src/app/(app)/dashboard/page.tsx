@@ -7,19 +7,23 @@ import { useDrafts } from '~/hooks/useDrafts';
 import { ChainBadge } from '~/components/ui/ChainBadge';
 import { ConnectWalletButton } from '~/components/ConnectWalletButton';
 
+function shortAddress(value: string) {
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
 export default function DashboardPage() {
   const { isConnected, address } = useActiveWallet();
   const { data: collectionsData, isLoading: collectionsLoading } = useCollections();
-  const { data: drafts, isLoading: draftsLoading } = useDrafts();
+  const { data: drafts } = useDrafts();
 
   if (!isConnected || !address) {
     return (
       <div className="mx-auto max-w-6xl px-20 py-16">
         <div className="flex flex-col gap-6">
           <div>
-            <h1 className="text-4xl font-extrabold">Your studio</h1>
+            <h1 className="text-4xl font-extrabold">My Collections</h1>
             <p className="mt-2 text-lg text-muted">
-              Connect your wallet to deploy collections and mint work.
+              Connect your wallet to browse contracts you own and deploy new ones.
             </p>
           </div>
           <ConnectWalletButton />
@@ -33,12 +37,12 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-[1440px] px-20 py-16">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-8">
         <div className="flex flex-col gap-3.5">
           <div>
-            <h1 className="text-4xl font-extrabold">Your studio</h1>
+            <h1 className="text-4xl font-extrabold">My Collections</h1>
             <p className="mt-2 text-lg text-muted">
-              Deploy collections, mint work, and manage contracts.
+              Browse by contract. Listings come later.
             </p>
           </div>
           <Link href="/collections/new" className="studio-btn w-fit gap-2">
@@ -64,16 +68,21 @@ export default function DashboardPage() {
       </div>
 
       <section className="mt-16">
-        <h2 className="text-2xl font-bold">Your collections</h2>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Contracts</h2>
+            <p className="mt-1 text-sm text-muted">Collections owned by {shortAddress(address)}</p>
+          </div>
+        </div>
 
         <div className="mt-6 overflow-hidden rounded-lg border border-border">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 font-medium text-muted">Collection Name</th>
+                <th className="px-6 py-3 font-medium text-muted">Name</th>
+                <th className="px-6 py-3 font-medium text-muted">Contract</th>
                 <th className="px-6 py-3 font-medium text-muted">Chain</th>
-                <th className="px-6 py-3 font-medium text-muted">Items</th>
-                <th className="px-6 py-3 font-medium text-muted">Volume</th>
+                <th className="px-6 py-3 font-medium text-muted">Supply</th>
                 <th className="px-6 py-3 font-medium text-muted">Actions</th>
               </tr>
             </thead>
@@ -85,18 +94,20 @@ export default function DashboardPage() {
               ) : collections.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-muted">
-                    No collections yet. Create your first collection to get started.
+                    No contracts yet. Create a collection to see it here.
                   </td>
                 </tr>
               ) : (
                 collections.map((c) => (
                   <tr key={c.id} className="h-16">
                     <td className="px-6 font-medium">{c.name}</td>
+                    <td className="px-6 font-mono text-xs text-muted" title={c.contractAddress}>
+                      {shortAddress(c.contractAddress)}
+                    </td>
                     <td className="px-6">
                       <ChainBadge chainName={chainName(c.chainId)} />
                     </td>
                     <td className="px-6 text-muted">{c.totalSupply}</td>
-                    <td className="px-6 text-muted">—</td>
                     <td className="px-6">
                       <div className="flex gap-2">
                         <Link href={`/collections/${c.id}`} className="studio-btn-outline px-3.5 py-1.5 text-sm">
