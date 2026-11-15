@@ -9,7 +9,8 @@
     "start": "next start -p 3001",
     "lint": "ESLINT_USE_FLAT_CONFIG=true eslint src",
     "clean": "rm -rf .next node_modules/.cache",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "smoke:turbo-x402": "tsx scripts/turbo-x402-smoke.ts"
   },
   "dependencies": {
     "@cryptoart/db": "file:../../packages/db",
@@ -42,6 +43,7 @@
     "eslint-config-next": "16.0.7",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

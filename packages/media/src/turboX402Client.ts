@@ -22,7 +22,25 @@ type WalletClientLike = {
   account?: { address?: string };
 };
 
-function parseTurboUploadResponse(body: unknown): TurboRawUploadResult {
+export function buildTurboRawX402Post(input: {
+  data: Uint8Array;
+  tags?: TurboRawUploadTag[];
+  uploadServiceUrl?: string;
+}) {
+  const baseUrl = (input.uploadServiceUrl ?? DEFAULT_TURBO_UPLOAD_URL).replace(/\/+$/, '');
+  const headers: Record<string, string> = {
+    'content-type': 'application/octet-stream',
+  };
+  if (input.tags?.length) headers['x-data-item-tags'] = JSON.stringify(input.tags);
+  return {
+    url: `${baseUrl}${TURBO_X402_UNSIGNED_PATH}`,
+    method: 'POST' as const,
+    headers,
+    bodyByteLength: input.data.byteLength,
+  };
+}
+
+export function parseTurboUploadResponse(body: unknown): TurboRawUploadResult {
   const record = body && typeof body === 'object' ? body as Record<string, unknown> : {};
   const receipt = record.receipt && typeof record.receipt === 'object'
     ? record.receipt as Record<string, unknown>
@@ -56,14 +74,13 @@ export async function uploadRawTurboX402FromBrowser(input: {
   if (typeof window === 'undefined') throw new Error('Turbo x402 upload is browser-only');
   const x402Network = turboX402NetworkFromEip155(input.network);
   const { wrapFetchWithPayment } = await import('x402-fetch');
-  const baseUrl = (input.uploadServiceUrl ?? DEFAULT_TURBO_UPLOAD_URL).replace(/\/+$/, '');
-  const url = `${baseUrl}${TURBO_X402_UNSIGNED_PATH}`;
-  const fetchWithPay = wrapFetchWithPayment(fetch, input.walletClient as never, input.maxUsdcAtomic);
   void x402Network;
-  const headers: Record<string, string> = {
-    'content-type': 'application/octet-stream',
-  };
-  if (input.tags?.length) headers['x-data-item-tags'] = JSON.stringify(input.tags);
+  const { url, headers } = buildTurboRawX402Post({
+    data: input.data,
+    tags: input.tags,
+    uploadServiceUrl: input.uploadServiceUrl,
+  });
+  const fetchWithPay = wrapFetchWithPayment(fetch, input.walletClient as never, input.maxUsdcAtomic);
   const response = await fetchWithPay(url, {
     method: 'POST',
     headers,
