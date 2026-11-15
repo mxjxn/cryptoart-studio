@@ -4,5 +4,11 @@
   "installCommand": "pnpm install",
   "buildCommand": "pnpm exec turbo run build --filter=studio",
   "outputDirectory": "apps/studio/.next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/studio packages/db packages/identity packages/marketplace packages/media package.json pnpm-lock.yaml turbo.json"
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/studio packages/db packages/identity packages/marketplace packages/media package.json pnpm-lock.yaml turbo.json",
+  "crons": [
+    {
+      "path": "/api/media/cleanup-temp",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

@@ -17,15 +17,23 @@ import {
   createPostgresMediaStore,
   createSimulatedArweave,
   createTurboArweave,
+  createDirectArweave,
 } from '@cryptoart/media';
 
 const postgresUrl = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
 const isProd = process.env.NODE_ENV === 'production';
+const isVercelProduction = process.env.VERCEL_ENV === 'production';
 
 function resolveAllowMockPayment(): boolean {
+  // Never allow mock payment in Vercel production
+  if (isVercelProduction) return false;
+  
+  // Explicit configuration takes precedence
   if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'true') return true;
   if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'false') return false;
-  return !isProd;
+  
+  // Default to false
+  return false;
 }
 
 const identity = createIdentityRouter({
@@ -40,17 +48,48 @@ async function mediaRouter() {
   if (mediaPromise) return mediaPromise;
   mediaPromise = (async () => {
     const allowMockPayment = resolveAllowMockPayment();
+    const uploaderType = process.env.ARWEAVE_UPLOADER || 'turbo';
 
-    if (isProd && !process.env.TURBO_PRIVATE_KEY) {
-      throw new Error('TURBO_PRIVATE_KEY is required in production for Arweave uploads');
-    }
-    if (isProd && !allowMockPayment && !process.env.X402_FACILITATOR_URL) {
-      throw new Error('X402_FACILITATOR_URL is required in production when mock payment is disabled');
+    // Validate production requirements
+    if (isVercelProduction) {
+      if (uploaderType === 'turbo' && !process.env.TURBO_PRIVATE_KEY) {
+        throw new Error('TURBO_PRIVATE_KEY is required in production for Turbo uploads');
+      }
+      if (uploaderType === 'direct' && !process.env.ARWEAVE_JWK) {
+        throw new Error('ARWEAVE_JWK is required in production for direct uploads');
+      }
+      if (!process.env.X402_FACILITATOR_URL) {
+        throw new Error('X402_FACILITATOR_URL is required in production');
+      }
     }
 
-    const arweave = process.env.TURBO_PRIVATE_KEY
-      ? await createTurboArweave(process.env.TURBO_PRIVATE_KEY)
-      : createSimulatedArweave();
+    // Select Arweave uploader: Turbo (paid service), Direct L1, or Simulated (dev/test)
+    const arweave = await (async () => {
+      // Explicit 'simulated' always simulates, regardless of keys
+      if (uploaderType === 'simulated') {
+        return createSimulatedArweave();
+      }
+
+      const isPreview = process.env.VERCEL_ENV === 'preview';
+      
+      // On preview, mock payment must never pair with real Turbo
+      if (isPreview && allowMockPayment) {
+        return createSimulatedArweave();
+      }
+
+      // On preview without keys, use simulated
+      if (isPreview && !process.env.TURBO_PRIVATE_KEY && !process.env.ARWEAVE_JWK) {
+        return createSimulatedArweave();
+      }
+
+      const key = process.env.TURBO_PRIVATE_KEY || process.env.ARWEAVE_JWK;
+      if (!key) return createSimulatedArweave();
+      
+      if (uploaderType === 'direct') {
+        return createDirectArweave(key);
+      }
+      return createTurboArweave(key);
+    })();
 
     const facilitator = process.env.X402_FACILITATOR_URL
       ? await createHttpFacilitator(process.env.X402_FACILITATOR_URL)
