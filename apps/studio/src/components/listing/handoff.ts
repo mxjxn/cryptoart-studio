@@ -1,4 +1,4 @@
-/** Query passed from the mint step into the listing form. Track B fills `metadataUri` with `ar://…`. */
+/** Query passed from a confirmed mint into the listing form. `metadataUri` is the token URI that was minted. */
 export type MintListingHandoff = {
   tokenId?: string | null;
   metadataUri?: string | null;
