@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { formatUsdc, METADATA_ALLOWANCE_BYTES, usdcAtomicFromUsd, withSafetyMargin, type UploadCost } from './quote';
 import type { FileQuoteInput, UploadJob, UploadQuote } from './types';
 
 export const BASE_SEPOLIA_USDC = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
@@ -6,28 +7,35 @@ export const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 export const BASE_SEPOLIA_NETWORK = 'eip155:84532';
 export const BASE_NETWORK = 'eip155:8453';
 
-const WINSTON_PER_BYTE = 100000n;
-
 export function quoteUpload(input: {
   files: FileQuoteInput[];
   payTo: string;
+  cost: UploadCost;
   network?: string;
   asset?: string;
   safetyMarginBps?: number;
   idempotencyKey?: string;
+  metadataAllowanceBytes?: number;
 }): UploadQuote {
   if (!input.files.length) throw new Error('At least one file is required');
+  if (input.files.some((file) => !Number.isInteger(file.size) || file.size <= 0)) {
+    throw new Error('Each file needs a positive size');
+  }
   const byteCount = input.files.reduce((sum, file) => sum + file.size, 0);
   const safetyMarginBps = input.safetyMarginBps ?? 500;
-  const winston = BigInt(byteCount) * WINSTON_PER_BYTE;
-  const withMargin = winston + (winston * BigInt(safetyMarginBps)) / 10000n;
-  const usdcAmount = winstonToUsdc(withMargin);
+  const usdcAmount = usdcAtomicFromUsd(input.cost.usd, safetyMarginBps);
+  const metadataAllowanceBytes = input.metadataAllowanceBytes ?? METADATA_ALLOWANCE_BYTES;
   return {
     idempotencyKey: input.idempotencyKey ?? randomBytes(16).toString('hex'),
     files: input.files,
     byteCount,
-    arweaveWinston: withMargin.toString(),
+    arweaveWinston: withSafetyMargin(BigInt(input.cost.winston), safetyMarginBps).toString(),
     usdcAmount,
+    usdcDisplay: formatUsdc(usdcAmount),
+    usd: input.cost.usd,
+    costSource: input.cost.source,
+    fileBytes: byteCount,
+    metadataAllowanceBytes,
     asset: input.asset ?? BASE_SEPOLIA_USDC,
     network: input.network ?? BASE_SEPOLIA_NETWORK,
     payTo: input.payTo,
@@ -36,17 +44,11 @@ export function quoteUpload(input: {
   };
 }
 
-function winstonToUsdc(winston: bigint) {
-  const ar = Number(winston) / 1e12;
-  const usd = Math.max(ar * 8, 0.01);
-  return BigInt(Math.ceil(usd * 1e6)).toString();
-}
-
 export function contentHash(bytes: Uint8Array) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export function x402PaymentRequired(quote: UploadQuote) {
+export function x402PaymentRequired(quote: UploadQuote, domain?: { name: string; version: string }) {
   return {
     x402Version: 2,
     error: 'Payment required',
@@ -57,7 +59,11 @@ export function x402PaymentRequired(quote: UploadQuote) {
       asset: quote.asset,
       payTo: quote.payTo,
       maxTimeoutSeconds: 90,
-      extra: { idempotencyKey: quote.idempotencyKey },
+      extra: {
+        idempotencyKey: quote.idempotencyKey,
+        name: domain?.name ?? 'USDC',
+        version: domain?.version ?? '2',
+      },
     }],
   };
 }
