@@ -6,10 +6,20 @@ export const ETHEREUM_MARKETPLACE_ADDRESS = '0x3CEE515879FFe4620a1F8aC9bf09B97e8
 
 export type MarketplaceChainId = typeof BASE_CHAIN_ID | typeof ETHEREUM_CHAIN_ID;
 
-export function marketplaceAddress(chainId: number) {
+export const BASE_SEPOLIA_CHAIN_ID = 84532;
+
+/**
+ * Known mainnet proxies live in this package. Other chains, including Base
+ * Sepolia (84532), need the address passed in from `CHAIN_<id>_MARKETPLACE_ADDRESS`.
+ */
+export function marketplaceAddress(chainId: number, configured?: string | null) {
+  const override = configured?.trim();
+  if (override) return override;
   if (chainId === ETHEREUM_CHAIN_ID) return ETHEREUM_MARKETPLACE_ADDRESS;
   if (chainId === BASE_CHAIN_ID) return BASE_MARKETPLACE_ADDRESS;
-  throw new Error(`Unsupported marketplace chain ${chainId}`);
+  throw new Error(
+    `Unsupported marketplace chain ${chainId}. Set CHAIN_${chainId}_MARKETPLACE_ADDRESS.`,
+  );
 }
 
 export function listingPath(chainId: number, listingId: string) {

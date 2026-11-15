@@ -1,13 +1,17 @@
 'use client';
 
-import { use, useState, useCallback } from 'react';
+import { use, useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { useSendTransaction, useWaitForTransactionReceipt, useSignMessage } from 'wagmi';
+import { useSendTransaction, useWaitForTransactionReceipt, useSignMessage, useSwitchChain } from 'wagmi';
+import { base, baseSepolia, mainnet } from 'wagmi/chains';
+import { describeTxFailure, tokenIdFromMintLogs } from '@cryptoart/marketplace';
+import { listingHandoffPath } from '~/components/listing/handoff';
 import { Stepper } from '~/components/ui/Stepper';
 import { DropZone } from '~/components/ui/DropZone';
 import { useCollection } from '~/hooks/useCollections';
 import { useActiveWallet } from '~/hooks/useActiveWallet';
 import { useStudioSession } from '~/hooks/useStudioSession';
+import { txExplorerUrl } from '~/lib/txExplorer';
 import { cn } from '~/lib/utils';
 
 const STEPS = ['Upload', 'Metadata', 'Pin', 'Mint'];
@@ -50,6 +54,7 @@ export default function MintWizardPage({
   const { signMessageAsync } = useSignMessage();
   const { sendTransactionAsync, data: txHash } = useSendTransaction();
   const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
+  const { switchChainAsync } = useSwitchChain();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
@@ -248,6 +253,14 @@ export default function MintWizardPage({
     setMintBusy(true);
     setMintError(null);
     try {
+      const collectionChainId = typeof collection?.chainId === 'number' ? collection.chainId : null;
+      if (
+        collectionChainId &&
+        chainId !== collectionChainId &&
+        (collectionChainId === base.id || collectionChainId === baseSepolia.id || collectionChainId === mainnet.id)
+      ) {
+        await switchChainAsync({ chainId: collectionChainId });
+      }
       const res = await fetch(`/api/collections/${collectionId}/mint`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -266,10 +279,25 @@ export default function MintWizardPage({
         data: data.txRequest.data as `0x${string}`,
       });
     } catch (error) {
-      setMintError(error instanceof Error ? error.message : 'Mint failed');
+      const described = describeTxFailure(error instanceof Error ? error.message : 'Mint failed');
+      setMintError(described.message);
       setMintBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!receipt || receipt.status === 'success') return;
+    setMintError('The mint transaction reverted.');
+    setMintBusy(false);
+  }, [receipt]);
+
+  const mintedTokenId = receipt?.status === 'success' ? tokenIdFromMintLogs(receipt.logs) : null;
+  const listHref = listingHandoffPath(collectionId, {
+    tokenId: mintedTokenId,
+    metadataUri,
+    mintTxHash: txHash,
+    quantity: is1155 ? String(amount) : null,
+  });
 
   if (!isConnected) {
     return (
@@ -337,7 +365,11 @@ export default function MintWizardPage({
             attributes={metadata.attributes}
             mintBusy={mintBusy}
             mintError={mintError}
-            receipt={Boolean(receipt)}
+            txHash={txHash}
+            mintedTokenId={mintedTokenId}
+            listHref={listHref}
+            chainId={collection?.chainId ?? chainId ?? baseSepolia.id}
+            receipt={receipt?.status === 'success'}
             onMint={() => void handleMint()}
             is1155={is1155}
             amount={amount}
@@ -621,6 +653,10 @@ function StepMint({
   attributes,
   mintBusy,
   mintError,
+  txHash,
+  mintedTokenId,
+  listHref,
+  chainId,
   receipt,
   onMint,
   is1155,
@@ -635,6 +671,10 @@ function StepMint({
   attributes: Attribute[];
   mintBusy: boolean;
   mintError: string | null;
+  txHash?: `0x${string}`;
+  mintedTokenId: string | null;
+  listHref: string;
+  chainId: number;
   receipt: boolean;
   onMint: () => void;
   is1155: boolean;
@@ -674,16 +714,45 @@ function StepMint({
         <button
           type="button"
           className="studio-btn w-fit disabled:opacity-40"
-          disabled={!metadataUri || mintBusy || receipt}
+          disabled={!metadataUri || receipt || (mintBusy && !mintError)}
           onClick={onMint}
         >
-          {receipt ? 'Mint submitted' : mintBusy ? 'Confirm in wallet…' : 'Mint'}
+          {receipt ? 'Minted' : mintError ? 'Mint' : txHash ? 'Waiting for confirmation…' : mintBusy ? 'Confirm in wallet…' : 'Mint'}
         </button>
         {mintError && <p className="text-sm text-error">{mintError}</p>}
-        {receipt && <p className="text-sm text-muted">Transaction confirmed. Indexer will pick up the token shortly.</p>}
+        {txHash && <TxHashLine chainId={chainId} hash={txHash} confirmed={receipt} />}
+        {receipt && (
+          <div className="rounded-lg border border-border p-4 text-sm">
+            <p>Mint confirmed on-chain{mintedTokenId ? ` as token ${mintedTokenId}` : ''}.</p>
+            <p className="mt-2 text-muted">
+              {mintedTokenId
+                ? 'List it on the auction house next. Studio will check approval and confirm the listing with a chain read.'
+                : 'The receipt did not include a token id. You can still open the listing form and enter the id.'}
+            </p>
+            <Link href={listHref} className="studio-btn mt-4">
+              List this token
+            </Link>
+          </div>
+        )}
       </div>
       <PreviewCard preview={preview} name={name} description={description} attributes={attributes} />
     </div>
+  );
+}
+
+function TxHashLine({ chainId, hash, confirmed }: { chainId: number; hash: string; confirmed: boolean }) {
+  const href = txExplorerUrl(chainId, hash);
+  return (
+    <p className="text-sm text-muted">
+      {confirmed ? 'Confirmed' : 'Submitted'}{' '}
+      {href ? (
+        <a className="break-all font-mono text-xs text-foreground underline" href={href} target="_blank" rel="noreferrer">
+          {hash}
+        </a>
+      ) : (
+        <span className="break-all font-mono text-xs text-foreground">{hash}</span>
+      )}
+    </p>
   );
 }
 

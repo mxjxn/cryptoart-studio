@@ -133,6 +133,25 @@ export const MARKETPLACE_ABI = [
     stateMutability: 'nonpayable',
   },
   {
+    type: 'event',
+    name: 'CreateListing',
+    inputs: [
+      { name: 'listingId', type: 'uint40', indexed: true },
+      { name: 'marketplaceBPS', type: 'uint16', indexed: false },
+      { name: 'referrerBPS', type: 'uint16', indexed: false },
+      { name: 'listingType', type: 'uint8', indexed: false },
+      { name: 'totalAvailable', type: 'uint24', indexed: false },
+      { name: 'totalPerSale', type: 'uint24', indexed: false },
+      { name: 'startTime', type: 'uint48', indexed: false },
+      { name: 'endTime', type: 'uint48', indexed: false },
+      { name: 'initialAmount', type: 'uint256', indexed: false },
+      { name: 'extensionInterval', type: 'uint16', indexed: false },
+      { name: 'minIncrementBPS', type: 'uint16', indexed: false },
+      { name: 'erc20', type: 'address', indexed: false },
+      { name: 'identityVerifier', type: 'address', indexed: false },
+    ],
+  },
+  {
     type: 'function',
     name: 'isAdmin',
     inputs: [{ name: 'admin', type: 'address' }],
@@ -151,4 +170,15 @@ export const ERC20_ABI = [
 export const NFT_APPROVAL_ABI = [
   { type: 'function', name: 'setApprovalForAll', inputs: [{ name: 'operator', type: 'address' }, { name: 'approved', type: 'bool' }], outputs: [], stateMutability: 'nonpayable' },
   { type: 'function', name: 'isApprovedForAll', inputs: [{ name: 'owner', type: 'address' }, { name: 'operator', type: 'address' }], outputs: [{ name: '', type: 'bool' }], stateMutability: 'view' },
+  { type: 'function', name: 'approve', inputs: [{ name: 'to', type: 'address' }, { name: 'tokenId', type: 'uint256' }], outputs: [], stateMutability: 'nonpayable' },
+  { type: 'function', name: 'getApproved', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ name: '', type: 'address' }], stateMutability: 'view' },
+] as const;
+
+export const TOKEN_BALANCE_ABI = [
+  { type: 'function', name: 'ownerOf', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ name: '', type: 'address' }], stateMutability: 'view' },
+  { type: 'function', name: 'balanceOf', inputs: [{ name: 'account', type: 'address' }, { name: 'id', type: 'uint256' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' },
+] as const;
+
+export const ERC165_ABI = [
+  { type: 'function', name: 'supportsInterface', inputs: [{ name: 'interfaceId', type: 'bytes4' }], outputs: [{ name: '', type: 'bool' }], stateMutability: 'view' },
 ] as const;
