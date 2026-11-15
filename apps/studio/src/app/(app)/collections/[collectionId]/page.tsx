@@ -8,6 +8,7 @@ import { ChainBadge } from '~/components/ui/ChainBadge';
 import { CopyAddress } from '~/components/ui/CopyAddress';
 import { TabNav } from '~/components/ui/TabNav';
 import { WalletMismatchBanner } from '~/components/WalletMismatchBanner';
+import { listingHandoffPath } from '~/components/listing/handoff';
 import { truncateAddress } from '~/lib/format';
 import { cn } from '~/lib/utils';
 
@@ -260,6 +261,12 @@ function TokensTab({
                     className="studio-btn-outline px-3.5 py-1.5 text-sm"
                   >
                     Manage
+                  </Link>
+                  <Link
+                    href={listingHandoffPath(collectionId, { tokenId: token.tokenId })}
+                    className="studio-btn-outline px-3.5 py-1.5 text-sm"
+                  >
+                    List
                   </Link>
                   <Link
                     href={`/c/${chainId}/${contractAddress}/${token.tokenId}`}

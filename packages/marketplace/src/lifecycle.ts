@@ -1,8 +1,10 @@
+/** MarketplaceLib.ListingType. Zero is invalid on the auction house. */
 export enum ListingType {
-  INDIVIDUAL_AUCTION = 0,
-  FIXED_PRICE = 1,
-  DYNAMIC_PRICE = 2,
-  OFFERS_ONLY = 3,
+  INVALID = 0,
+  INDIVIDUAL_AUCTION = 1,
+  FIXED_PRICE = 2,
+  DYNAMIC_PRICE = 3,
+  OFFERS_ONLY = 4,
 }
 
 export type ListingPhase =

@@ -7,7 +7,7 @@
     "dev": "node ./scripts/dev.mjs",
     "build": "next build --webpack",
     "start": "next start -p 3001",
-    "lint": "next lint",
+    "lint": "ESLINT_USE_FLAT_CONFIG=true eslint src",
     "clean": "rm -rf .next node_modules/.cache",
     "check-types": "tsc --noEmit"
   },

@@ -15,6 +15,14 @@ const auction = {
 };
 
 describe('marketplace lifecycle', () => {
+  it('uses the auction-house ListingType codes, including the invalid zero', () => {
+    expect(ListingType.INVALID).toBe(0);
+    expect(ListingType.INDIVIDUAL_AUCTION).toBe(1);
+    expect(ListingType.FIXED_PRICE).toBe(2);
+    expect(ListingType.DYNAMIC_PRICE).toBe(3);
+    expect(ListingType.OFFERS_ONLY).toBe(4);
+  });
+
   it('preserves canonical listing paths', () => {
     expect(listingPath(1, '5')).toBe('/listing/eth/5');
     expect(parseListingPath('/listing/base/146')).toEqual({ chainId: 8453, listingId: '146' });
