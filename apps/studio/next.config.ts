@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@cryptoart/db', '@cryptoart/identity', '@cryptoart/marketplace', '@cryptoart/media', '@pigment-css/react'],
+  serverExternalPackages: ['@ardrive/turbo-sdk', 'postgres'],
   // Preview/deploy unblock: packages/identity + packages/media still have strict TS debt.
   // Remove once those packages typecheck cleanly under Next 16.
   typescript: {
