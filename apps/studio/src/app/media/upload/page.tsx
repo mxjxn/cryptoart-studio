@@ -1,19 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAccount, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi';
-import type { X402Accepts } from '@cryptoart/media/client';
+import { useAccount, useSignMessage, useSwitchChain, useWalletClient } from 'wagmi';
+import {
+  contentHash,
+  metadataObject,
+  uploadRawTurboX402FromBrowser,
+} from '@cryptoart/media/client';
 import { ConnectWalletButton } from '~/components/ConnectWalletButton';
 import { useStudioSession } from '~/hooks/useStudioSession';
-import { chainIdFromNetwork, signExactUsdcPayment } from '../payForPin';
 import { usePinnedMedia } from '../usePinnedMedia';
 
 type MediaConfig = {
   allowMockPayment: boolean;
-  hasTurbo: boolean;
-  hasFacilitator: boolean;
   network: string | null;
-  uploadMode: 'turbo' | 'simulated' | 'unconfigured';
+  uploadMode: 'turbo-x402' | 'simulated';
+  turboUploadUrl?: string;
 };
 
 type UploadQuote = {
@@ -23,13 +25,13 @@ type UploadQuote = {
   usd: number;
   network: string;
   asset: string;
-  payTo: string;
   expiresAt: string;
   safetyMarginBps: number;
   byteCount: number;
   metadataAllowanceBytes: number;
   costSource: string;
-  arweaveWinston: string;
+  mediaUsdcAmount?: string;
+  metadataUsdcAmount?: string;
 };
 
 async function sha256Hex(bytes: ArrayBuffer) {
@@ -53,17 +55,23 @@ function networkLabel(network: string) {
   return network;
 }
 
+function chainIdFromNetwork(network: string) {
+  if (network === 'eip155:84532') return 84532;
+  if (network === 'eip155:8453') return 8453;
+  if (network === 'eip155:1') return 1;
+  return null;
+}
+
 export default function MediaUploadPage() {
   const { address, chain } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const { signMessageAsync } = useSignMessage();
-  const { signTypedDataAsync } = useSignTypedData();
   const { switchChainAsync } = useSwitchChain();
   const { session, verify } = useStudioSession();
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('Artwork');
   const [config, setConfig] = useState<MediaConfig | null>(null);
   const [quote, setQuote] = useState<UploadQuote | null>(null);
-  const [requirement, setRequirement] = useState<X402Accepts | null>(null);
   const [fileBytes, setFileBytes] = useState<ArrayBuffer | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +101,6 @@ export default function MediaUploadPage() {
 
   function resetQuote() {
     setQuote(null);
-    setRequirement(null);
     setFileBytes(null);
     setJobId(null);
   }
@@ -115,14 +122,13 @@ export default function MediaUploadPage() {
           files: [{ name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, sha256 }],
         }),
       });
-      const body = await quoted.json() as { quote?: UploadQuote; accepts?: X402Accepts[]; error?: string };
-      if ((!quoted.ok && quoted.status !== 402) || !body.quote || !body.accepts?.[0]) {
+      const body = await quoted.json() as { quote?: UploadQuote; error?: string };
+      if (!quoted.ok || !body.quote) {
         throw new Error(body.error || 'Quote failed');
       }
       setFileBytes(bytes);
       setQuote(body.quote);
-      setRequirement(body.accepts[0]);
-      note(`Turbo quote ${body.quote.usdcDisplay} USDC on ${networkLabel(body.quote.network)} (${body.quote.costSource}).`);
+      note(`Turbo x402 estimate ${body.quote.usdcDisplay} USDC on ${networkLabel(body.quote.network)}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Quote failed');
     } finally {
@@ -131,69 +137,135 @@ export default function MediaUploadPage() {
   }
 
   async function payAndPin() {
-    if (!file || !session.data || !quote || !requirement || !fileBytes || !address) return;
+    if (!file || !session.data || !quote || !fileBytes || !address) return;
     setBusy('pin');
     setError(null);
     try {
       const mediaConfig = config ?? await fetch('/api/media/config', { credentials: 'include' }).then((response) => response.json() as Promise<MediaConfig>);
       if (!mediaConfig) throw new Error('Media config is unavailable');
-      let paymentHeader: string;
-      if (mediaConfig.allowMockPayment === true) {
-        paymentHeader = 'mock:allow';
-        note('Mock payment is enabled in this environment.');
-      } else {
-        const chainId = chainIdFromNetwork(requirement.network);
-        if (chainId == null) throw new Error(`Unsupported payment network ${requirement.network}`);
-        if (chain?.id !== chainId) {
-          note(`Switching wallet to ${networkLabel(requirement.network)}.`);
-          await switchChainAsync({ chainId });
-        }
-        note(`Sign the USDC authorization for ${quote.usdcDisplay} USDC.`);
-        paymentHeader = await signExactUsdcPayment({
-          requirement,
-          from: address,
-          signTypedData: (args) => signTypedDataAsync(args),
-        });
+
+      const chainId = chainIdFromNetwork(quote.network);
+      if (chainId == null) throw new Error(`Unsupported payment network ${quote.network}`);
+      if (chain?.id !== chainId) {
+        note(`Switching wallet to ${networkLabel(quote.network)}.`);
+        await switchChainAsync({ chainId });
       }
+
+      const jobHeaders: Record<string, string> = { 'content-type': 'application/json' };
+      if (mediaConfig.allowMockPayment) {
+        jobHeaders['X-PAYMENT'] = 'mock:allow';
+        jobHeaders['PAYMENT-SIGNATURE'] = 'mock:allow';
+        note('Mock payment is enabled in this environment.');
+      }
+
       const paid = await fetch('/api/media/jobs', {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'content-type': 'application/json',
-          'X-PAYMENT': paymentHeader,
-          'PAYMENT-SIGNATURE': paymentHeader,
-        },
-        body: JSON.stringify({ idempotencyKey: quote.idempotencyKey, quote, paymentHeader }),
+        headers: jobHeaders,
+        body: JSON.stringify({ idempotencyKey: quote.idempotencyKey, quote }),
       });
       const paidBody = await paid.json() as { job?: { id: string; status: string }; error?: string; code?: string };
       if (!paid.ok || !paidBody.job) {
         if (paidBody.code === 'mock_payment_disabled') {
-          throw new Error('Mock payment is disabled. Sign the USDC authorization instead.');
+          throw new Error('Mock payment is disabled.');
         }
-        throw new Error(paidBody.error || 'Payment failed');
+        throw new Error(paidBody.error || 'Could not start pin job');
       }
-      note(`Paid job ${paidBody.job.id} (${paidBody.job.status}).`);
+      note(`Job ${paidBody.job.id} (${paidBody.job.status}).`);
       setJobId(paidBody.job.id);
 
-      const media = await fetch(`/api/media/jobs/${paidBody.job.id}/media`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bytes: toBase64(fileBytes) }),
-      });
-      const mediaBody = await media.json() as { job?: { media?: { id: string } }; error?: string; simulated?: boolean };
-      if (!media.ok || !mediaBody.job?.media) throw new Error(mediaBody.error || 'Media upload failed');
-      note(mediaBody.simulated ? `Media ${mediaBody.job.media.id} (simulated, not on Arweave).` : `Media pinned ${mediaBody.job.media.id}.`);
+      const mimeType = file.type || 'application/octet-stream';
+      const fileSha256 = await sha256Hex(fileBytes);
 
-      const metadata = await fetch(`/api/media/jobs/${paidBody.job.id}/metadata`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      const metadataBody = await metadata.json() as { job?: { metadata?: { id: string } }; error?: string };
-      if (!metadata.ok || !metadataBody.job?.metadata) throw new Error(metadataBody.error || 'Metadata upload failed');
-      note(`Metadata pinned ${metadataBody.job.metadata.id}.`);
+      if (mediaConfig.allowMockPayment && mediaConfig.uploadMode === 'simulated') {
+        const media = await fetch(`/api/media/jobs/${paidBody.job.id}/media`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ bytes: toBase64(fileBytes) }),
+        });
+        const mediaBody = await media.json() as { job?: { media?: { id: string } }; error?: string; simulated?: boolean };
+        if (!media.ok || !mediaBody.job?.media) throw new Error(mediaBody.error || 'Media upload failed');
+        note(mediaBody.simulated ? `Media ${mediaBody.job.media.id} (simulated).` : `Media pinned ${mediaBody.job.media.id}.`);
+
+        const metadata = await fetch(`/api/media/jobs/${paidBody.job.id}/metadata`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const metadataBody = await metadata.json() as { job?: { metadata?: { id: string } }; error?: string };
+        if (!metadata.ok || !metadataBody.job?.metadata) throw new Error(metadataBody.error || 'Metadata upload failed');
+        note(`Metadata pinned ${metadataBody.job.metadata.id}.`);
+      } else {
+        if (!walletClient) throw new Error('Connect a wallet that can sign USDC on Base.');
+        const mediaCap = BigInt(quote.mediaUsdcAmount ?? quote.usdcAmount);
+        note(`Pay Turbo ~${formatAtomic(mediaCap)} USDC for the artwork.`);
+        const mediaUpload = await uploadRawTurboX402FromBrowser({
+          data: new Uint8Array(fileBytes),
+          network: quote.network,
+          walletClient,
+          maxUsdcAtomic: mediaCap + 10_000n,
+          uploadServiceUrl: mediaConfig.turboUploadUrl,
+          tags: [
+            { name: 'Content-Type', value: mimeType },
+            { name: 'File-Hash', value: fileSha256 },
+          ],
+        });
+        note(`Media on Arweave ${mediaUpload.id}.`);
+
+        const media = await fetch(`/api/media/jobs/${paidBody.job.id}/media`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            record: {
+              id: mediaUpload.id,
+              sha256: fileSha256,
+              mimeType,
+              size: file.size,
+            },
+          }),
+        });
+        const mediaBody = await media.json() as { error?: string };
+        if (!media.ok) throw new Error(mediaBody.error || 'Could not register media pin');
+
+        const metadataPayload = metadataObject({
+          name,
+          mimeType,
+          mediaId: mediaUpload.id,
+          sha256: fileSha256,
+        });
+        const metadataBytes = new TextEncoder().encode(JSON.stringify(metadataPayload));
+        const metadataSha256 = await contentHash(metadataBytes);
+        const metadataCap = BigInt(quote.metadataUsdcAmount ?? '25000');
+        note(`Pay Turbo ~${formatAtomic(metadataCap)} USDC for metadata.`);
+        const metadataUpload = await uploadRawTurboX402FromBrowser({
+          data: metadataBytes,
+          network: quote.network,
+          walletClient,
+          maxUsdcAtomic: metadataCap + 10_000n,
+          uploadServiceUrl: mediaConfig.turboUploadUrl,
+          tags: [{ name: 'Content-Type', value: 'application/json' }],
+        });
+        note(`Metadata on Arweave ${metadataUpload.id}.`);
+
+        const metadata = await fetch(`/api/media/jobs/${paidBody.job.id}/metadata`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            record: {
+              id: metadataUpload.id,
+              sha256: metadataSha256,
+              mimeType: 'application/json',
+              size: metadataBytes.byteLength,
+            },
+          }),
+        });
+        const metadataBody = await metadata.json() as { error?: string };
+        if (!metadata.ok) throw new Error(metadataBody.error || 'Could not register metadata pin');
+      }
 
       const confirmed = await fetch(`/api/media/jobs/${paidBody.job.id}/confirm`, { method: 'POST', credentials: 'include' });
       const confirmedBody = await confirmed.json() as { mintEnabled?: boolean; job?: { status: string; errorMessage?: string }; error?: string };
@@ -207,8 +279,11 @@ export default function MediaUploadPage() {
     }
   }
 
-  const mockOff = config != null && config.allowMockPayment === false;
-  const payBlocked = mockOff && config?.hasFacilitator === false;
+  function formatAtomic(atomic: bigint) {
+    const whole = atomic / 1_000_000n;
+    const frac = (atomic % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
+    return frac ? `${whole}.${frac}` : whole.toString();
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
@@ -217,19 +292,16 @@ export default function MediaUploadPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Studio · paid media</p>
           <h1 className="mt-2 text-3xl font-bold">Pin to Arweave</h1>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Hash the file, review the Turbo price, pay in USDC, then pin the artwork and its metadata.
-            Mint stays locked until a gateway can read both.
+            Hash the file, review Turbo&apos;s x402 price, pay USDC per upload from your wallet, then confirm gateways.
+            Mint stays locked until a gateway can read both the artwork and metadata.
           </p>
         </div>
         {config?.uploadMode === 'simulated' && (
-          <p className="text-sm text-muted">No Turbo key is set here, so this pin is simulated and will not land on Arweave.</p>
+          <p className="text-sm text-muted">Mock payment is on, so pins are simulated locally and will not land on Arweave.</p>
         )}
-        {config?.uploadMode === 'unconfigured' && (
-          <p className="text-sm text-red-600">TURBO_PRIVATE_KEY is not set. A payment cannot be pinned until it is.</p>
-        )}
-        {mockOff && (
+        {config?.uploadMode === 'turbo-x402' && (
           <p className="text-sm text-muted">
-            Mock payment is off. You will sign a USDC authorization on {networkLabel(config.network ?? quote?.network ?? 'eip155:84532')}.
+            You will sign two USDC x402 payments (artwork, then metadata) to Turbo on {networkLabel(config.network ?? quote?.network ?? 'eip155:84532')}.
           </p>
         )}
         <ConnectWalletButton />
@@ -270,23 +342,20 @@ export default function MediaUploadPage() {
           <button
             type="button"
             className="studio-btn-outline disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={!quote || !session.data || busy != null || payBlocked}
+            disabled={!quote || !session.data || busy != null}
             onClick={() => void payAndPin()}
           >
-            {busy === 'pin' ? 'Pinning…' : 'Pay and pin'}
+            {busy === 'pin' ? 'Pinning…' : 'Pay Turbo and pin'}
           </button>
         </div>
-        {payBlocked && (
-          <p className="text-sm text-red-600">X402_FACILITATOR_URL is not set, and mock payment is disabled. Payment cannot settle.</p>
-        )}
         {quote && (
           <div className="rounded-lg border border-border p-4 text-sm">
             <p className="text-2xl font-semibold">{quote.usdcDisplay} USDC</p>
             <p className="mt-1 text-muted">
-              {networkLabel(quote.network)} · includes a {quote.safetyMarginBps / 100}% margin and {quote.metadataAllowanceBytes.toLocaleString()} bytes for metadata
+              {networkLabel(quote.network)} · two Turbo x402 uploads (media + metadata)
             </p>
             <p className="mt-2 font-mono text-xs text-muted">
-              Turbo USD {quote.usd} · winston {quote.arweaveWinston} · expires {new Date(quote.expiresAt).toLocaleString()}
+              Turbo USD ~{quote.usd} · expires {new Date(quote.expiresAt).toLocaleString()}
             </p>
           </div>
         )}

@@ -29,10 +29,9 @@ Runs at [http://localhost:3001](http://localhost:3001) (mvp uses 3000).
    - `NEXT_PUBLIC_APP_URL` — `https://cryptoart.studio`
    - `CHAIN_{chainId}_FACTORY_ADDRESS` — per-chain ERC-721 factory
    - `CHAIN_{chainId}_ERC1155_FACTORY_ADDRESS` — per-chain ERC-1155 factory
-   - `TURBO_PRIVATE_KEY` — required in production for Arweave uploads
-   - `X402_FACILITATOR_URL` — required in production when mock payment is off
-   - `CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT=false` — required for production
-   - `CRYPTOART_MEDIA_NETWORK` / `CRYPTOART_MEDIA_ASSET` / `CRYPTOART_MEDIA_PAY_TO` — x402 quote defaults
+   - `CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT=false` — required for production (artists pay Turbo via x402 in the browser)
+   - `CRYPTOART_MEDIA_NETWORK` / `CRYPTOART_MEDIA_ASSET` — Base (`eip155:8453`) + Base USDC in prod; Base Sepolia in preview
+   - `CRYPTOART_MEDIA_TURBO_UPLOAD_URL` — optional; defaults to `https://upload.ardrive.io` (use ar.io sandbox URL only for isolated tests)
 
 
 Build command: `pnpm build` (with filter) or default Next.js build from app root.

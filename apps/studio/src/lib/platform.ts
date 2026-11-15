@@ -10,14 +10,13 @@ import {
 import {
   BASE_NETWORK,
   BASE_USDC,
-  createHttpFacilitator,
+  BASE_SEPOLIA_NETWORK,
+  BASE_SEPOLIA_USDC,
   createMediaRouter,
   createMemoryMediaStore,
-  createMockFacilitator,
   createPostgresMediaStore,
+  createRetrieveOnlyArweave,
   createSimulatedArweave,
-  createTurboArweave,
-  createUnavailableArweave,
   resolveAllowMockPayment,
 } from '@cryptoart/media';
 
@@ -40,31 +39,17 @@ async function mediaRouter() {
       NODE_ENV: process.env.NODE_ENV,
     });
 
-    const arweave = process.env.TURBO_PRIVATE_KEY
-      ? await createTurboArweave(process.env.TURBO_PRIVATE_KEY)
-      : isProd
-        ? createUnavailableArweave('TURBO_PRIVATE_KEY is required in production for Arweave uploads')
-        : createSimulatedArweave();
-
-    const facilitator = process.env.X402_FACILITATOR_URL
-      ? await createHttpFacilitator(process.env.X402_FACILITATOR_URL, {
-          token: process.env.X402_FACILITATOR_TOKEN,
-        })
-      : createMockFacilitator();
+    const arweave = allowMockPayment && !isProd
+      ? createSimulatedArweave()
+      : createRetrieveOnlyArweave();
 
     return createMediaRouter({
       store: postgresUrl ? createPostgresMediaStore(postgresUrl) : createMemoryMediaStore(),
       arweave,
-      facilitator,
-      payTo:
-        process.env.CRYPTOART_MEDIA_PAY_TO ||
-        process.env.CRYPTOART_OWNER_ADDRESS ||
-        '0x0000000000000000000000000000000000000000',
       allowMockPayment,
-      network: process.env.CRYPTOART_MEDIA_NETWORK || (isProd ? BASE_NETWORK : undefined),
-      asset: process.env.CRYPTOART_MEDIA_ASSET || (isProd ? BASE_USDC : undefined),
-      usdcName: process.env.CRYPTOART_MEDIA_USDC_NAME,
-      usdcVersion: process.env.CRYPTOART_MEDIA_USDC_VERSION,
+      network: process.env.CRYPTOART_MEDIA_NETWORK || (isProd ? BASE_NETWORK : BASE_SEPOLIA_NETWORK),
+      asset: process.env.CRYPTOART_MEDIA_ASSET || (isProd ? BASE_USDC : BASE_SEPOLIA_USDC),
+      uploadServiceUrl: process.env.CRYPTOART_MEDIA_TURBO_UPLOAD_URL,
     });
   })();
   return mediaPromise;

@@ -29,7 +29,9 @@
     "react-dom": "^19.2.1",
     "tailwind-merge": "^2.6.0",
     "viem": "^2.23.6",
-    "wagmi": "^2.14.12"
+    "wagmi": "^2.14.12",
+    "@ardrive/turbo-sdk": "^2.2.0",
+    "x402-fetch": "^1.2.0"
   },
   "devDependencies": {
     "@types/node": "^20",

@@ -1,9 +1,9 @@
 import type { ArweaveAdapter } from './types';
 
 /**
- * Swappable uploader. Production uses {@link createTurboArweave}. Tests and
- * local dev without `TURBO_PRIVATE_KEY` use {@link createSimulatedArweave}.
- * Callers only see {@link ArweaveAdapter}.
+ * Swappable uploader seam. Production pins go through Turbo x402 in the browser;
+ * the server adapter is retrieve-only for gateway confirmation. Tests and mock
+ * payment mode use {@link createSimulatedArweave}.
  */
 
 const GATEWAYS = ['https://arweave.net', 'https://ar-io.net'];
@@ -41,65 +41,16 @@ export function createGatewayArweave(upload: ArweaveAdapter['upload']): ArweaveA
   };
 }
 
-export function createUnavailableArweave(reason: string): ArweaveAdapter {
-  return {
-    async upload() {
-      throw new Error(reason);
-    },
-    async retrieve() {
-      return { ok: false, gateways: [] };
-    },
-  };
-}
-
-function turboPrivateKey(privateKey: string): unknown {
-  const trimmed = privateKey.trim();
-  if (!trimmed) throw new Error('TURBO_PRIVATE_KEY is empty');
-  if (!trimmed.startsWith('{')) return trimmed;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    throw new Error('TURBO_PRIVATE_KEY is not valid JSON');
-  }
-  if (!parsed || typeof parsed !== 'object' || !('kty' in parsed)) {
-    throw new Error('TURBO_PRIVATE_KEY must be an Arweave JWK');
-  }
-  return parsed;
-}
-
-export async function createTurboArweave(privateKey: string): Promise<ArweaveAdapter> {
-  const loaded = await import('@ardrive/turbo-sdk').catch(() => null) as {
-    TurboFactory?: { authenticated: (input: { privateKey: unknown }) => {
-      uploadFile: (input: {
-        fileStreamFactory: () => import('node:stream').Readable;
-        fileSizeFactory: () => number;
-        dataItemOpts?: { tags?: Array<{ name: string; value: string }> };
-      }) => Promise<{ id: string }>;
-    } };
-  } | null;
-  if (!loaded?.TurboFactory) throw new Error('Install @ardrive/turbo-sdk to upload to Arweave');
-  const turbo = loaded.TurboFactory.authenticated({ privateKey: turboPrivateKey(privateKey) });
-  const { Readable } = await import('node:stream');
-  return createGatewayArweave(async ({ bytes, mimeType, tags }) => {
-    const itemTags = [
-      { name: 'Content-Type', value: mimeType },
-      ...Object.entries(tags ?? {})
-        .filter(([name]) => name !== 'Content-Type')
-        .map(([name, value]) => ({ name, value })),
-    ];
-    const result = await turbo.uploadFile({
-      fileStreamFactory: () => {
-        const stream = new Readable();
-        stream.push(Buffer.from(bytes));
-        stream.push(null);
-        return stream;
-      },
-      fileSizeFactory: () => bytes.byteLength,
-      dataItemOpts: { tags: itemTags },
-    });
-    return { id: result.id };
+/** Gateway HEAD checks only — used when uploads happen via Turbo x402 on the client. */
+export function createRetrieveOnlyArweave(): ArweaveAdapter {
+  return createGatewayArweave(async () => {
+    throw new Error('Server-side Arweave upload is disabled; use Turbo x402 from the browser');
   });
+}
+
+/** @deprecated Operator-funded Turbo credits upload; replaced by client x402. */
+export async function createTurboArweave(_privateKey: string): Promise<ArweaveAdapter> {
+  return createRetrieveOnlyArweave();
 }
 
 export function metadataObject(input: {

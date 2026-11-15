@@ -28,16 +28,19 @@ export type UploadQuote = {
   usdcAmount: string;
   asset: string;
   network: string;
+  /** Legacy field; treasury settlement removed. Empty on new quotes. */
   payTo: string;
   expiresAt: string;
   safetyMarginBps: number;
-  /** Pre-margin USD reported by Turbo for the artwork plus the metadata allowance. */
+  /** Combined USD estimate for both Turbo x402 uploads. */
   usd: number;
-  /** Atomic USDC the payer authorizes, after the safety margin and the 0.01 floor. */
   usdcDisplay: string;
   costSource: 'turbo';
   fileBytes: number;
   metadataAllowanceBytes: number;
+  /** Per-upload Turbo x402 estimates (atomic USDC). */
+  mediaUsdcAmount?: string;
+  metadataUsdcAmount?: string;
 };
 
 export type PaymentReceipt = {
@@ -47,8 +50,8 @@ export type PaymentReceipt = {
   payer: string;
   payTo: string;
   settlementTx?: string;
-  facilitator: string;
-  status: 'verified' | 'settled' | 'mock';
+  facilitator: 'turbo-x402' | 'mock' | 'http';
+  status: 'settled' | 'mock';
 };
 
 export type ArweaveRecord = {
@@ -73,23 +76,6 @@ export type UploadJob = {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
-};
-
-export type X402Accepts = {
-  scheme: 'exact';
-  network: string;
-  amount: string;
-  asset: string;
-  payTo: string;
-  maxTimeoutSeconds: number;
-  extra: { idempotencyKey: string; name?: string; version?: string };
-};
-
-export type Facilitator = {
-  /** `mock` facilitators must not run when mock payment is disabled. */
-  kind?: 'mock' | 'http';
-  verify(input: { paymentHeader: string; requirement: X402Accepts }): Promise<{ valid: boolean; payer?: string; error?: string }>;
-  settle(input: { paymentHeader: string; requirement: X402Accepts }): Promise<{ success: boolean; txHash?: string; error?: string }>;
 };
 
 export type ArweaveAdapter = {

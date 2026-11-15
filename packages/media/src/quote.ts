@@ -1,6 +1,4 @@
 export const METADATA_ALLOWANCE_BYTES = 8_192;
-/** 0.01 USDC. Below this, facilitators and wallets round the charge away. */
-export const MIN_USDC_ATOMIC = 10_000n;
 
 export type UploadCost = {
   winston: string;
@@ -47,8 +45,15 @@ export function usdToUsdcAtomic(usd: number): bigint {
 }
 
 export function usdcAtomicFromUsd(usd: number, safetyMarginBps: number): string {
-  const charged = withSafetyMargin(usdToUsdcAtomic(usd), safetyMarginBps);
-  return (charged < MIN_USDC_ATOMIC ? MIN_USDC_ATOMIC : charged).toString();
+  return withSafetyMargin(usdToUsdcAtomic(usd), safetyMarginBps).toString();
+}
+
+/** Sum integer USDC atomic amounts from Turbo x402 price responses. */
+export function sumUsdcAtomic(parts: string[]): string {
+  return parts.reduce((sum, part) => {
+    if (!/^[0-9]+$/.test(part)) throw new Error('Turbo x402 price must be an integer atomic USDC amount');
+    return sum + BigInt(part);
+  }, 0n).toString();
 }
 
 export function formatUsdc(atomic: string): string {
