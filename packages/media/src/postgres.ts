@@ -27,7 +27,9 @@ export function createPostgresMediaStore(connectionString: string): MediaStore {
       await db`
         INSERT INTO upload_jobs ${db(toRow(job))}
         ON CONFLICT (idempotency_key) DO UPDATE SET
+          payer_address = EXCLUDED.payer_address,
           status = EXCLUDED.status,
+          quote = EXCLUDED.quote,
           payment = EXCLUDED.payment,
           media = EXCLUDED.media,
           metadata = EXCLUDED.metadata,

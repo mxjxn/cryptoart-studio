@@ -14,8 +14,20 @@ export {
   quoteUpload,
   x402PaymentRequired,
 } from './jobs';
-export { createHttpFacilitator, createMockFacilitator, requirementFromQuote } from './x402';
-export { createGatewayArweave, createSimulatedArweave, createTurboArweave, metadataObject } from './arweave';
+export { costFromTurboEstimate, formatUsdc, METADATA_ALLOWANCE_BYTES, usdcAtomicFromUsd } from './quote';
+export { quoteTurboBundle, quoteTurboUploadCost } from './turboCost';
+export { isMockPaymentHeader, resolveAllowMockPayment } from './paymentPolicy';
+export { pinnedMediaForMint, type PinnedMedia } from './pin';
+export {
+  buildExactPaymentHeader,
+  createHttpFacilitator,
+  createMockFacilitator,
+  exactAuthorization,
+  facilitatorEndpoint,
+  requirementFromQuote,
+  usdcEip712Domain,
+} from './x402';
+export { createGatewayArweave, createSimulatedArweave, createTurboArweave, createUnavailableArweave, metadataObject } from './arweave';
 export { createMemoryMediaStore, type MediaStore } from './store';
 export { createPostgresMediaStore } from './postgres';
 export { createMediaRouter } from './router';

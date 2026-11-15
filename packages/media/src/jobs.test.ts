@@ -4,6 +4,13 @@ import { createMemoryMediaStore } from './store';
 import { createSimulatedArweave } from './arweave';
 import { createMockFacilitator } from './x402';
 import { createMediaRouter } from './router';
+import type { UploadCost } from './quote';
+
+const costSource = async (byteCount: number): Promise<UploadCost> => ({
+  winston: String(byteCount),
+  usd: 0.05,
+  source: 'turbo',
+});
 
 describe('paid upload job machine', () => {
   it('quotes, settles once, uploads media then metadata, and confirms retrieval', async () => {
@@ -15,6 +22,7 @@ describe('paid upload job machine', () => {
       arweave: createSimulatedArweave(),
       payTo: '0x1111111111111111111111111111111111111111',
       allowMockPayment: true,
+      costSource,
     });
     const quoted = await router.handle({
       method: 'POST', pathname: '/quote', headers: {},
@@ -61,6 +69,7 @@ describe('paid upload job machine', () => {
     const router = createMediaRouter({
       payTo: '0x1111111111111111111111111111111111111111',
       allowMockPayment: true,
+      costSource,
     });
     const quoted = await router.handle({
       method: 'POST', pathname: '/quote', headers: {},
@@ -82,12 +91,15 @@ describe('paid upload job machine', () => {
     expect(mintEnabled((failed.body as { job: Parameters<typeof mintEnabled>[0] }).job)).toBe(false);
   });
 
-  it('quotes a positive USDC amount from file size', () => {
+  it('quotes a positive USDC amount from a Turbo cost', () => {
     const quote = quoteUpload({
       files: [{ name: 'a', mimeType: 'image/png', size: 1_000_000, sha256: 'ab' }],
       payTo: '0x1111111111111111111111111111111111111111',
+      cost: { winston: '1000', usd: 0.5, source: 'turbo' },
     });
     expect(Number(quote.usdcAmount)).toBeGreaterThan(0);
+    expect(quote.costSource).toBe('turbo');
+    expect(quote.usdcDisplay).toBe('0.525');
   });
 
   it('rejects mock payment headers when mock payment is disabled', async () => {
@@ -95,6 +107,7 @@ describe('paid upload job machine', () => {
     const router = createMediaRouter({
       payTo: '0x1111111111111111111111111111111111111111',
       allowMockPayment: false,
+      costSource,
     });
     const quoted = await router.handle({
       method: 'POST', pathname: '/quote', headers: {},
@@ -106,7 +119,7 @@ describe('paid upload job machine', () => {
       payer: '0x2222222222222222222222222222222222222222',
       body: { idempotencyKey },
     });
-    expect(paid.status).toBe(402);
-    expect((paid.body as { error: string }).error).toMatch(/mock payment/i);
+    expect(paid.status).toBe(403);
+    expect((paid.body as { code: string }).code).toBe('mock_payment_disabled');
   });
 });

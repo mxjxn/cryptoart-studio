@@ -17,16 +17,12 @@ import {
   createPostgresMediaStore,
   createSimulatedArweave,
   createTurboArweave,
+  createUnavailableArweave,
+  resolveAllowMockPayment,
 } from '@cryptoart/media';
 
 const postgresUrl = process.env.STORAGE_POSTGRES_URL || process.env.POSTGRES_URL;
 const isProd = process.env.NODE_ENV === 'production';
-
-function resolveAllowMockPayment(): boolean {
-  if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'true') return true;
-  if (process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT === 'false') return false;
-  return !isProd;
-}
 
 const identity = createIdentityRouter({
   store: postgresUrl ? createPostgresIdentityStore(postgresUrl) : createMemoryIdentityStore(),
@@ -39,21 +35,21 @@ let mediaPromise: ReturnType<typeof createMediaRouter> | Promise<ReturnType<type
 async function mediaRouter() {
   if (mediaPromise) return mediaPromise;
   mediaPromise = (async () => {
-    const allowMockPayment = resolveAllowMockPayment();
-
-    if (isProd && !process.env.TURBO_PRIVATE_KEY) {
-      throw new Error('TURBO_PRIVATE_KEY is required in production for Arweave uploads');
-    }
-    if (isProd && !allowMockPayment && !process.env.X402_FACILITATOR_URL) {
-      throw new Error('X402_FACILITATOR_URL is required in production when mock payment is disabled');
-    }
+    const allowMockPayment = resolveAllowMockPayment({
+      CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT: process.env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT,
+      NODE_ENV: process.env.NODE_ENV,
+    });
 
     const arweave = process.env.TURBO_PRIVATE_KEY
       ? await createTurboArweave(process.env.TURBO_PRIVATE_KEY)
-      : createSimulatedArweave();
+      : isProd
+        ? createUnavailableArweave('TURBO_PRIVATE_KEY is required in production for Arweave uploads')
+        : createSimulatedArweave();
 
     const facilitator = process.env.X402_FACILITATOR_URL
-      ? await createHttpFacilitator(process.env.X402_FACILITATOR_URL)
+      ? await createHttpFacilitator(process.env.X402_FACILITATOR_URL, {
+          token: process.env.X402_FACILITATOR_TOKEN,
+        })
       : createMockFacilitator();
 
     return createMediaRouter({
@@ -67,6 +63,8 @@ async function mediaRouter() {
       allowMockPayment,
       network: process.env.CRYPTOART_MEDIA_NETWORK || (isProd ? BASE_NETWORK : undefined),
       asset: process.env.CRYPTOART_MEDIA_ASSET || (isProd ? BASE_USDC : undefined),
+      usdcName: process.env.CRYPTOART_MEDIA_USDC_NAME,
+      usdcVersion: process.env.CRYPTOART_MEDIA_USDC_VERSION,
     });
   })();
   return mediaPromise;

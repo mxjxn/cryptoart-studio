@@ -1,8 +1,12 @@
 import { contentHash, failAfterPayment, markConfirmed, markMediaUploaded, markMetadataUploaded, markPaid, mintEnabled, newJob, quoteUpload, x402PaymentRequired } from './jobs';
-import { createMockFacilitator, requirementFromQuote, type Facilitator } from './x402';
-import { createSimulatedArweave, metadataObject, type ArweaveAdapter } from './arweave';
+import { pinnedMediaForMint } from './pin';
+import { isMockPaymentHeader } from './paymentPolicy';
+import { METADATA_ALLOWANCE_BYTES } from './quote';
+import { quoteTurboBundle, quoteTurboUploadCost, type UploadCostSource } from './turboCost';
+import { createMockFacilitator, requirementFromQuote, usdcEip712Domain } from './x402';
+import { createSimulatedArweave, metadataObject } from './arweave';
 import { createMemoryMediaStore, type MediaStore } from './store';
-import type { FileQuoteInput, UploadJob } from './types';
+import type { ArweaveAdapter, Facilitator, FileQuoteInput, UploadJob, UploadQuote } from './types';
 
 type MediaRequest = {
   method: string;
@@ -14,7 +18,7 @@ type MediaRequest = {
 
 type MediaResponse = { status: number; body: unknown };
 
-const quotes = new Map<string, ReturnType<typeof quoteUpload>>();
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 function json(status: number, body: unknown): MediaResponse {
   return { status, body };
@@ -22,6 +26,52 @@ function json(status: number, body: unknown): MediaResponse {
 
 function record(body: unknown) {
   return body && typeof body === 'object' ? body as Record<string, unknown> : {};
+}
+
+function isZeroAddress(value: string) {
+  return value.toLowerCase() === ZERO_ADDRESS;
+}
+
+function paymentHeaderFrom(req: MediaRequest, body: Record<string, unknown>) {
+  const header = req.headers['payment-signature'] ?? req.headers['x-payment'];
+  if (typeof header === 'string' && header.trim()) return header.trim();
+  if (typeof body.paymentHeader === 'string') return body.paymentHeader.trim();
+  return '';
+}
+
+function sameFiles(left: FileQuoteInput[], right: FileQuoteInput[]) {
+  if (left.length !== right.length) return false;
+  return left.every((file, index) => {
+    const other = right[index];
+    if (!other) return false;
+    return file.name === other.name
+      && file.mimeType === other.mimeType
+      && file.size === other.size
+      && file.sha256 === other.sha256;
+  });
+}
+
+function isFileQuote(value: unknown): value is FileQuoteInput {
+  if (!value || typeof value !== 'object') return false;
+  const file = value as Partial<FileQuoteInput>;
+  return typeof file.name === 'string'
+    && typeof file.mimeType === 'string'
+    && typeof file.size === 'number'
+    && Number.isInteger(file.size)
+    && file.size > 0
+    && typeof file.sha256 === 'string'
+    && file.sha256.length > 0;
+}
+
+function readQuote(value: unknown): UploadQuote | null {
+  if (!value || typeof value !== 'object') return null;
+  const quote = value as Partial<UploadQuote>;
+  if (typeof quote.idempotencyKey !== 'string' || !quote.idempotencyKey) return null;
+  if (!Array.isArray(quote.files) || quote.files.length === 0 || !quote.files.every(isFileQuote)) return null;
+  if (typeof quote.usdcAmount !== 'string' || !/^[0-9]+$/.test(quote.usdcAmount)) return null;
+  if (typeof quote.payTo !== 'string' || typeof quote.network !== 'string' || typeof quote.asset !== 'string') return null;
+  if (typeof quote.expiresAt !== 'string') return null;
+  return quote as UploadQuote;
 }
 
 export function createMediaRouter(options: {
@@ -32,10 +82,64 @@ export function createMediaRouter(options: {
   allowMockPayment?: boolean;
   network?: string;
   asset?: string;
+  costSource?: UploadCostSource;
+  usdcName?: string;
+  usdcVersion?: string;
 }) {
   const store = options.store ?? createMemoryMediaStore();
   const facilitator = options.facilitator ?? createMockFacilitator();
   const arweave = options.arweave ?? createSimulatedArweave();
+  const allowMock = options.allowMockPayment === true;
+  const price = options.costSource ?? quoteTurboUploadCost;
+  const quotes = new Map<string, UploadQuote>();
+  const domainFor = (asset: string) => usdcEip712Domain(asset, { name: options.usdcName, version: options.usdcVersion });
+
+  async function buildQuote(files: FileQuoteInput[], idempotencyKey?: string) {
+    const fileBytes = files.reduce((sum, file) => sum + file.size, 0);
+    const cost = await quoteTurboBundle(fileBytes, price);
+    return quoteUpload({
+      files,
+      payTo: options.payTo,
+      cost,
+      network: options.network,
+      asset: options.asset,
+      idempotencyKey,
+      metadataAllowanceBytes: METADATA_ALLOWANCE_BYTES,
+    });
+  }
+
+  function clientQuoteCovers(submitted: UploadQuote, fresh: UploadQuote) {
+    if (submitted.payTo.toLowerCase() !== options.payTo.toLowerCase()) return 'Quote recipient does not match this studio';
+    if (submitted.network !== fresh.network || submitted.asset.toLowerCase() !== fresh.asset.toLowerCase()) {
+      return 'Quote network does not match this studio';
+    }
+    if (!sameFiles(submitted.files, fresh.files)) return 'Quote files do not match';
+    const expires = Date.parse(submitted.expiresAt);
+    if (!Number.isFinite(expires) || expires <= Date.now()) return 'Quote expired';
+    if (expires > Date.now() + 16 * 60 * 1000) return 'Quote expiry is too far in the future';
+    if (BigInt(submitted.usdcAmount) < BigInt(fresh.usdcAmount)) return 'Quote does not cover the current Turbo price';
+    return null;
+  }
+
+  async function resolveQuote(idempotencyKey: string, body: Record<string, unknown>, existing: UploadJob | null): Promise<{ quote: UploadQuote } | { error: string; status?: number }> {
+    const cached = quotes.get(idempotencyKey) ?? (existing?.quote.idempotencyKey === idempotencyKey ? existing.quote : undefined);
+    if (cached) {
+      if (Date.parse(cached.expiresAt) <= Date.now()) return { error: 'Quote expired' as const };
+      return { quote: cached };
+    }
+    const submitted = readQuote(body.quote);
+    if (!submitted || submitted.idempotencyKey !== idempotencyKey) return { error: 'Unknown or expired quote' as const };
+    let fresh: UploadQuote;
+    try {
+      fresh = await buildQuote(submitted.files);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Turbo price quote failed';
+      return { error: message, status: /turbo/i.test(message) ? 502 : 400 };
+    }
+    const mismatch = clientQuoteCovers(submitted, fresh);
+    if (mismatch) return { error: mismatch };
+    return { quote: submitted };
+  }
 
   return {
     store,
@@ -45,20 +149,22 @@ export function createMediaRouter(options: {
       const payer = req.payer?.toLowerCase();
 
       if (path === '/quote' && method === 'POST') {
+        if (!allowMock && isZeroAddress(options.payTo)) {
+          return json(400, { error: 'CRYPTOART_MEDIA_PAY_TO is required when mock payment is disabled' });
+        }
         const body = record(req.body);
         const files = (body.files as FileQuoteInput[] | undefined) ?? [];
         try {
-          const quote = quoteUpload({
-            files,
-            payTo: options.payTo,
-            network: options.network,
-            asset: options.asset,
-            idempotencyKey: body.idempotencyKey ? String(body.idempotencyKey) : undefined,
-          });
+          const quote = await buildQuote(files, body.idempotencyKey ? String(body.idempotencyKey) : undefined);
           quotes.set(quote.idempotencyKey, quote);
-          return { status: 402, body: { quote, ...x402PaymentRequired(quote) } };
+          if (payer) {
+            const prior = await store.getByIdempotencyKey(quote.idempotencyKey);
+            if (!prior) await store.save({ ...newJob(quote, payer), status: 'payment_required' });
+          }
+          return { status: 402, body: { quote, ...x402PaymentRequired(quote, domainFor(quote.asset)) } };
         } catch (error) {
-          return json(400, { error: error instanceof Error ? error.message : 'Invalid quote' });
+          const message = error instanceof Error ? error.message : 'Invalid quote';
+          return json(/turbo/i.test(message) ? 502 : 400, { error: message });
         }
       }
 
@@ -66,26 +172,39 @@ export function createMediaRouter(options: {
         if (!payer) return json(401, { error: 'Wallet session required' });
         const body = record(req.body);
         const idempotencyKey = String(body.idempotencyKey ?? '');
-        const existing = idempotencyKey ? await store.getByIdempotencyKey(idempotencyKey) : null;
-        if (existing) return json(200, { job: existing, replayed: true });
-        const quote = quotes.get(idempotencyKey);
-        if (!quote) return json(400, { error: 'Unknown or expired quote' });
-        if (Date.parse(quote.expiresAt) <= Date.now()) return json(400, { error: 'Quote expired' });
-        const paymentHeader = String(req.headers['x-payment'] ?? body.paymentHeader ?? '');
-        const requirement = requirementFromQuote(quote);
-        if (!options.allowMockPayment && paymentHeader.startsWith('mock:')) {
-          return json(402, { ...x402PaymentRequired(quote), error: 'Mock payment is disabled' });
+        if (!idempotencyKey) return json(400, { error: 'idempotencyKey is required' });
+        const existing = await store.getByIdempotencyKey(idempotencyKey);
+        if (existing?.payment) return json(200, { job: existing, replayed: true, pin: pinnedMediaForMint(existing) });
+        const resolved = await resolveQuote(idempotencyKey, body, existing);
+        if (!('quote' in resolved)) {
+          return json(resolved.status ?? 400, { error: resolved.error });
         }
+        const quote = resolved.quote;
+        if (!allowMock && isZeroAddress(options.payTo)) {
+          return json(400, { error: 'CRYPTOART_MEDIA_PAY_TO is required when mock payment is disabled' });
+        }
+        const paymentHeader = paymentHeaderFrom(req, body);
+        const challenge = x402PaymentRequired(quote, domainFor(quote.asset));
+        if (!paymentHeader) return json(402, challenge);
+        if (isMockPaymentHeader(paymentHeader) && !allowMock) {
+          return json(403, { ...challenge, error: 'Mock payment is disabled', code: 'mock_payment_disabled' });
+        }
+        if (!allowMock && facilitator.kind === 'mock') {
+          return json(503, {
+            error: 'A live x402 facilitator is required when mock payment is disabled',
+            code: 'facilitator_not_configured',
+          });
+        }
+        const requirement = requirementFromQuote(quote, domainFor(quote.asset));
         const verified = await facilitator.verify({ paymentHeader, requirement });
-        if (!verified.valid) return json(402, { error: verified.error ?? 'Payment invalid', ...x402PaymentRequired(quote) });
+        if (!verified.valid) return json(402, { ...challenge, error: verified.error ?? 'Payment invalid' });
         const settled = await facilitator.settle({ paymentHeader, requirement });
         if (!settled.success) {
-          const job = failAfterPayment(newJob(quote, payer), settled.error ?? 'Settlement failed');
-          await store.save(job);
-          return json(402, { error: job.errorMessage, job });
+          return json(402, { ...challenge, error: settled.error ?? 'Settlement failed' });
         }
-        const usedMock = paymentHeader.startsWith('mock:');
-        const job = markPaid(newJob(quote, payer), {
+        const usedMock = isMockPaymentHeader(paymentHeader);
+        const base = existing ?? newJob(quote, payer);
+        const job = markPaid({ ...base, payerAddress: payer, quote }, {
           network: quote.network,
           asset: quote.asset,
           amount: quote.usdcAmount,
@@ -96,22 +215,28 @@ export function createMediaRouter(options: {
           status: usedMock ? 'mock' : 'settled',
         });
         await store.save(job);
-        return json(201, { job });
+        return json(existing ? 200 : 201, { job, pin: pinnedMediaForMint(job) });
       }
 
       const jobMatch = /^\/jobs\/([^/]+)$/.exec(path);
       if (jobMatch && method === 'GET') {
         const job = await store.getById(jobMatch[1]!);
         if (!job) return json(404, { error: 'Job not found' });
-        return json(200, { job, mintEnabled: mintEnabled(job) });
+        return json(200, { job, mintEnabled: mintEnabled(job), pin: pinnedMediaForMint(job) });
       }
 
       const uploadMedia = /^\/jobs\/([^/]+)\/media$/.exec(path);
       if (uploadMedia && method === 'POST') {
-        const job = await requireJob(store, uploadMedia[1]!, payer);
-        if ('error' in job) return job;
+        const found = await requireJob(store, uploadMedia[1]!, payer);
+        if (!found.ok) return found.response;
+        const job = found.job;
         const body = record(req.body);
-        const bytes = decodeBytes(body.bytes);
+        let bytes: Uint8Array;
+        try {
+          bytes = decodeBytes(body.bytes);
+        } catch (error) {
+          return json(400, { error: error instanceof Error ? error.message : 'Invalid media bytes' });
+        }
         const sha256 = contentHash(bytes);
         const expected = job.quote.files[0];
         if (!expected || expected.sha256 !== sha256) return json(400, { error: 'File hash does not match the quote' });
@@ -127,7 +252,7 @@ export function createMediaRouter(options: {
             gateways: [],
           });
           await store.save(next);
-          return json(200, { job: next, simulated: uploaded.simulated ?? false });
+          return json(200, { job: next, simulated: uploaded.simulated ?? false, pin: pinnedMediaForMint(next) });
         } catch (error) {
           const failed = failAfterPayment(job, error instanceof Error ? error.message : 'Media upload failed');
           await store.save(failed);
@@ -137,14 +262,15 @@ export function createMediaRouter(options: {
 
       const uploadMetadata = /^\/jobs\/([^/]+)\/metadata$/.exec(path);
       if (uploadMetadata && method === 'POST') {
-        const job = await requireJob(store, uploadMetadata[1]!, payer);
-        if ('error' in job) return job;
+        const found = await requireJob(store, uploadMetadata[1]!, payer);
+        if (!found.ok) return found.response;
+        const job = found.job;
         if (!job.media) return json(400, { error: 'Upload media before metadata' });
         const body = record(req.body);
         const attributes = Array.isArray(body.attributes)
           ? (body.attributes as Array<{ trait_type?: string; value?: string | number }>)
-              .filter((a) => a && a.trait_type && a.value !== undefined && a.value !== '')
-              .map((a) => ({ trait_type: String(a.trait_type), value: a.value as string | number }))
+              .filter((attribute) => attribute && attribute.trait_type && attribute.value !== undefined && attribute.value !== '')
+              .map((attribute) => ({ trait_type: String(attribute.trait_type), value: attribute.value as string | number }))
           : undefined;
         const metadata = metadataObject({
           name: String(body.name ?? job.quote.files[0]?.name ?? 'Artwork'),
@@ -166,7 +292,7 @@ export function createMediaRouter(options: {
             gateways: [],
           });
           await store.save(next);
-          return json(200, { job: next, metadata, simulated: uploaded.simulated ?? false });
+          return json(200, { job: next, metadata, simulated: uploaded.simulated ?? false, pin: pinnedMediaForMint(next) });
         } catch (error) {
           const failed = failAfterPayment(job, error instanceof Error ? error.message : 'Metadata upload failed');
           await store.save(failed);
@@ -176,8 +302,9 @@ export function createMediaRouter(options: {
 
       const confirm = /^\/jobs\/([^/]+)\/confirm$/.exec(path);
       if (confirm && method === 'POST') {
-        const job = await requireJob(store, confirm[1]!, payer);
-        if ('error' in job) return job;
+        const found = await requireJob(store, confirm[1]!, payer);
+        if (!found.ok) return found.response;
+        const job = found.job;
         if (!job.media || !job.metadata) return json(400, { error: 'Media and metadata are required before confirmation' });
         const media = await arweave.retrieve(job.media.id);
         const metadata = await arweave.retrieve(job.metadata.id);
@@ -189,13 +316,15 @@ export function createMediaRouter(options: {
         if (next.media) next.media = { ...next.media, gateways: media.gateways };
         if (next.metadata) next.metadata = { ...next.metadata, gateways: metadata.gateways };
         await store.save(next);
-        return json(200, { job: next, mintEnabled: mintEnabled(next) });
+        return json(200, { job: next, mintEnabled: mintEnabled(next), pin: pinnedMediaForMint(next) });
       }
 
       const simulate = /^\/jobs\/([^/]+)\/simulate-failure$/.exec(path);
       if (simulate && method === 'POST') {
-        const job = await requireJob(store, simulate[1]!, payer);
-        if ('error' in job) return job;
+        if (!allowMock) return json(404, { error: 'Not found' });
+        const found = await requireJob(store, simulate[1]!, payer);
+        if (!found.ok) return found.response;
+        const job = found.job;
         const next = failAfterPayment(job, 'Simulated failure after payment');
         await store.save(next);
         return json(200, { job: next });
@@ -206,11 +335,11 @@ export function createMediaRouter(options: {
   };
 }
 
-async function requireJob(store: MediaStore, id: string, payer?: string) {
+async function requireJob(store: MediaStore, id: string, payer?: string): Promise<{ ok: true; job: UploadJob } | { ok: false; response: MediaResponse }> {
   const job = await store.getById(id);
-  if (!job) return json(404, { error: 'Job not found' });
-  if (payer && job.payerAddress !== payer) return json(403, { error: 'Forbidden' });
-  return job;
+  if (!job) return { ok: false, response: json(404, { error: 'Job not found' }) };
+  if (payer && job.payerAddress !== payer) return { ok: false, response: json(403, { error: 'Forbidden' }) };
+  return { ok: true, job };
 }
 
 function decodeBytes(value: unknown) {

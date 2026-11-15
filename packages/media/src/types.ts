@@ -31,6 +31,13 @@ export type UploadQuote = {
   payTo: string;
   expiresAt: string;
   safetyMarginBps: number;
+  /** Pre-margin USD reported by Turbo for the artwork plus the metadata allowance. */
+  usd: number;
+  /** Atomic USDC the payer authorizes, after the safety margin and the 0.01 floor. */
+  usdcDisplay: string;
+  costSource: 'turbo';
+  fileBytes: number;
+  metadataAllowanceBytes: number;
 };
 
 export type PaymentReceipt = {
@@ -75,10 +82,12 @@ export type X402Accepts = {
   asset: string;
   payTo: string;
   maxTimeoutSeconds: number;
-  extra: { idempotencyKey: string };
+  extra: { idempotencyKey: string; name?: string; version?: string };
 };
 
 export type Facilitator = {
+  /** `mock` facilitators must not run when mock payment is disabled. */
+  kind?: 'mock' | 'http';
   verify(input: { paymentHeader: string; requirement: X402Accepts }): Promise<{ valid: boolean; payer?: string; error?: string }>;
   settle(input: { paymentHeader: string; requirement: X402Accepts }): Promise<{ success: boolean; txHash?: string; error?: string }>;
 };
