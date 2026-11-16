@@ -16,7 +16,7 @@ import {
   type CreateListingCall,
   type TokenStandard,
 } from '@cryptoart/marketplace';
-import { useQuery } from '@tanstack/react-query';
+import { useMarketplaceAddress } from '~/hooks/useMarketplaceAddress';
 
 type ConfiguredChainId = typeof base.id | typeof baseSepolia.id | typeof mainnet.id;
 
@@ -51,16 +51,7 @@ export function useCreateListing(input: {
   const chain = configuredChain(input.chainId);
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient({ chainId: chain ?? undefined });
-  const marketplaceQuery = useQuery({
-    queryKey: ['marketplace-address', input.chainId],
-    queryFn: async () => {
-      const res = await fetch(`/api/marketplace?chainId=${input.chainId}`);
-      const body = (await res.json()) as { address?: string; error?: string };
-      if (!res.ok || !body.address) throw new Error(body.error || 'Marketplace address is not configured');
-      return body.address as `0x${string}`;
-    },
-    enabled: chain !== null,
-  });
+  const marketplaceQuery = useMarketplaceAddress(chain !== null ? input.chainId : null);
   const marketplace = marketplaceQuery.data;
 
   const approvedForAll = useReadContract({

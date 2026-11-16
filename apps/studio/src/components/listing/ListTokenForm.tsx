@@ -6,6 +6,7 @@ import {
   ListingType,
   buildCreateListingArgs,
   describeTxFailure,
+  listingPublicUrl,
   listingSchedule,
   parseEthToWei,
   type ListingKind,
@@ -179,6 +180,12 @@ export function ListTokenForm({
 
   const mintExplorer = mintTxHash ? txExplorerUrl(chainId, mintTxHash) : null;
   const statusHash = listing.txHash ? txExplorerUrl(chainId, listing.txHash) : null;
+  const tokenViewHref =
+    tokenId !== null ? `/c/${chainId}/${contractAddress}/${tokenId.toString()}` : null;
+  const socialListingUrl =
+    listing.confirmed && listingPublicUrl(chainId, listing.confirmed.listingId);
+  const listingUnavailable =
+    !listing.marketplaceLoading && Boolean(listing.marketplaceError || !listing.marketplace);
 
   return (
     <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-20 py-10">
@@ -227,7 +234,17 @@ export function ListTokenForm({
       </label>
 
       {listing.marketplaceLoading && <p className="text-sm text-muted">Looking up the auction house…</p>}
-      {listing.marketplaceError && <p className="text-sm text-error">{listing.marketplaceError}</p>}
+      {listingUnavailable && (
+        <div className="rounded-lg border border-border bg-neutral-50 p-4 text-sm">
+          <p className="font-medium text-foreground">Listing is not available on this chain</p>
+          <p className="mt-2 text-muted">
+            {listing.marketplaceError ??
+              'No auction house address is configured for this network. Set CHAIN_' +
+                chainId +
+                '_MARKETPLACE_ADDRESS on the Studio Vercel project.'}
+          </p>
+        </div>
+      )}
       {listing.marketplace && (
         <p className="text-sm text-muted">
           Auction house <span className="font-mono text-xs text-foreground">{listing.marketplace}</span>
@@ -243,7 +260,7 @@ export function ListTokenForm({
         </div>
       )}
 
-      <fieldset>
+      <fieldset disabled={listingUnavailable}>
         <legend className="text-sm font-medium">Listing type</legend>
         <div className="mt-3 flex flex-wrap gap-2">
           {KINDS.map((item) => (
@@ -379,14 +396,31 @@ export function ListTokenForm({
             {(listing.confirmed.marketplaceBps / 100).toFixed(2)}%).
           </p>
           <p className="mt-2 text-muted">Type code {kind === 'auction' ? ListingType.INDIVIDUAL_AUCTION : kind === 'fixed' ? ListingType.FIXED_PRICE : ListingType.OFFERS_ONLY}.</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {socialListingUrl ? (
+              <a href={socialListingUrl} target="_blank" rel="noreferrer" className="studio-btn inline-flex text-sm">
+                View on cryptoart.social
+              </a>
+            ) : (
+              <p className="text-muted">
+                cryptoart.social listing pages are available on Ethereum and Base mainnet. Use the transaction hash and
+                token page below on this network.
+              </p>
+            )}
+            {tokenViewHref && (
+              <Link href={tokenViewHref} className="studio-btn-outline inline-flex text-sm">
+                Open token page
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
       <div className="flex flex-wrap gap-3">
-        <button type="button" className="studio-btn-outline disabled:opacity-40" disabled={!canApprove || listing.phase === 'wallet' || listing.phase === 'confirming'} onClick={() => void onApprove()}>
+        <button type="button" className="studio-btn-outline disabled:opacity-40" disabled={listingUnavailable || !canApprove || listing.phase === 'wallet' || listing.phase === 'confirming'} onClick={() => void onApprove()}>
           {listing.approval && !listing.approval.needed ? 'Approval in place' : listing.approval?.method === 'setApprovalForAll' ? 'Approve operator' : 'Approve this token'}
         </button>
-        <button type="button" className="studio-btn disabled:opacity-40" disabled={!canCreate} onClick={() => void onCreate()}>
+        <button type="button" className="studio-btn disabled:opacity-40" disabled={listingUnavailable || !canCreate} onClick={() => void onCreate()}>
           {listing.phase === 'wallet' || listing.phase === 'confirming' ? 'Waiting…' : 'Create listing'}
         </button>
       </div>
