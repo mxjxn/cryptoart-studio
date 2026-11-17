@@ -52,35 +52,20 @@ if (!connectionString) {
   process.exit(1);
 }
 
-// Ordered list of migrations
-const MIGRATIONS = [
-  '0000_broad_blur.sql',
-  '0001_add_image_cache.sql',
-  '0002_add_follows_favorites.sql',
-  '0003_add_admin_tables.sql',
-  '0004_add_pending_allowlist_signatures.sql',
-  '0005_optimize_indexes.sql',
-  '0006_add_notification_tokens.sql',
-  '0007_add_listing_page_status.sql',
-  '0008_add_token_image_cache.sql',
-  '0009_add_featured_sections.sql',
-  '0010_add_curation_items.sql',
-  '0011_add_homepage_layout_sections.sql',
-  '0012_add_erc1155_token_supply_cache.sql',
-  '0013_add_ipfs_image_cache.sql',
-  '0016_add_thumbnail_cache.sql', // Added late - should have been 0002 but was skipped. Must run before 0014.
-  '0014_add_thumbnail_generation_status.sql', // Adds columns to thumbnail_cache (requires table from 0016)
-  '0015_add_membership_cache.sql',
-  '0017_listing_media_preview.sql',
-  '0018_add_listing_theme_tables.sql',
-  '0019_contract_cache_chain_id.sql',
-  '0020_market_surface_featured_chain.sql',
-  '0021_seed_market_layout.sql',
-  '0022_create_market_layout_snapshots.sql',
-  '0023_add_collection_tables.sql',
-  '0024_homepage_spotlight.sql',
-  '0025_homepage_spotlight_copy.sql',
-];
+// Dynamically discover all migration files
+import { readdirSync } from 'fs';
+
+const migrationsDir = resolve(__dirname, '../migrations');
+const MIGRATIONS = readdirSync(migrationsDir)
+  .filter((file) => file.endsWith('.sql'))
+  .sort((a, b) => {
+    // Extract numeric prefix (e.g., "0025" from "0025_homepage_spotlight.sql")
+    const getPrefix = (filename: string) => {
+      const match = filename.match(/^(\d+)_/);
+      return match ? parseInt(match[1], 10) : 0;
+    };
+    return getPrefix(a) - getPrefix(b);
+  });
 
 // Log which database we're connecting to (without exposing credentials)
 const url = new URL(connectionString);

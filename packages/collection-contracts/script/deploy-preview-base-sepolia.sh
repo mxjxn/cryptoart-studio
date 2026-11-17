@@ -63,6 +63,7 @@ echo "[preview] ok"
 echo "CHAIN_84532_FACTORY_ADDRESS=${FACTORY_721}"
 echo "CHAIN_84532_ERC1155_FACTORY_ADDRESS=${FACTORY_1155}"
 echo "CHAIN_84532_START_BLOCK=${BLOCK}"
+echo "CHAIN_84532_FACTORY_START_BLOCK=${BLOCK}   # apps/jobs project (chain indexer factory watch)"
 echo
 echo "Set those on the Studio preview host (Vercel project env for this branch)."
 echo "Artifact: packages/collection-contracts/deployments/base-sepolia.json"
