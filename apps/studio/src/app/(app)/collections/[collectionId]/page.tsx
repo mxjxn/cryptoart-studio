@@ -9,6 +9,7 @@ import { CopyAddress } from '~/components/ui/CopyAddress';
 import { TabNav } from '~/components/ui/TabNav';
 import { WalletMismatchBanner } from '~/components/WalletMismatchBanner';
 import { listingHandoffPath } from '~/components/listing/handoff';
+import { useMarketplaceAddress } from '~/hooks/useMarketplaceAddress';
 import { truncateAddress } from '~/lib/format';
 import { cn } from '~/lib/utils';
 
@@ -29,6 +30,8 @@ export default function CollectionPage({
   const { isConnected } = useActiveWallet();
   const { data: collection, isLoading, error } = useCollection(collectionId);
   const { data: tokensData, isLoading: tokensLoading } = useCollectionTokens(collectionId);
+  const marketplaceQuery = useMarketplaceAddress(collection?.chainId);
+  const listingEnabled = marketplaceQuery.isSuccess && Boolean(marketplaceQuery.data);
 
   if (!isConnected) {
     return (
@@ -125,6 +128,7 @@ export default function CollectionPage({
             collectionId={collectionId}
             chainId={collection.chainId}
             contractAddress={collection.contractAddress}
+            listingEnabled={listingEnabled}
           />
         ) : (
           <SettingsTab collection={collection} />
@@ -166,12 +170,14 @@ function TokensTab({
   collectionId,
   chainId,
   contractAddress,
+  listingEnabled,
 }: {
   tokens: Token[];
   tokensLoading: boolean;
   collectionId: string;
   chainId: number;
   contractAddress: string;
+  listingEnabled: boolean;
 }) {
   if (tokensLoading) {
     return (
@@ -262,12 +268,21 @@ function TokensTab({
                   >
                     Manage
                   </Link>
-                  <Link
-                    href={listingHandoffPath(collectionId, { tokenId: token.tokenId })}
-                    className="studio-btn-outline px-3.5 py-1.5 text-sm"
-                  >
-                    List
-                  </Link>
+                  {listingEnabled ? (
+                    <Link
+                      href={listingHandoffPath(collectionId, { tokenId: token.tokenId })}
+                      className="studio-btn-outline px-3.5 py-1.5 text-sm"
+                    >
+                      List
+                    </Link>
+                  ) : (
+                    <span
+                      className="cursor-not-allowed rounded-md border border-border px-3.5 py-1.5 text-sm text-muted opacity-60"
+                      title="No auction house configured for this chain"
+                    >
+                      List
+                    </span>
+                  )}
                   <Link
                     href={`/c/${chainId}/${contractAddress}/${token.tokenId}`}
                     className="studio-btn-outline px-3.5 py-1.5 text-sm"

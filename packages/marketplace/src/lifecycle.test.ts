@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listingPath, parseListingPath } from './addresses';
+import { listingPath, listingPublicUrl, parseListingPath } from './addresses';
 import { ListingType, canBid, canFinalize, listingPhase, minBid, recoveryState } from './lifecycle';
 
 const auction = {
@@ -27,6 +27,12 @@ describe('marketplace lifecycle', () => {
     expect(listingPath(1, '5')).toBe('/listing/eth/5');
     expect(parseListingPath('/listing/base/146')).toEqual({ chainId: 8453, listingId: '146' });
     expect(parseListingPath('/listing/99')).toEqual({ chainId: 8453, listingId: '99' });
+  });
+
+  it('builds cryptoart.social URLs only for mainnet marketplace chains', () => {
+    expect(listingPublicUrl(1, '42')).toBe('https://cryptoart.social/listing/eth/42');
+    expect(listingPublicUrl(8453, '7')).toBe('https://cryptoart.social/listing/base/7');
+    expect(listingPublicUrl(84532, '1')).toBeNull();
   });
 
   it('moves an ended auction into settlement-required until finalize', () => {

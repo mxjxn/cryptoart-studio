@@ -22,10 +22,21 @@ export function marketplaceAddress(chainId: number, configured?: string | null) 
   );
 }
 
+export const CRYPTOART_SOCIAL_ORIGIN = 'https://cryptoart.social' as const;
+
 export function listingPath(chainId: number, listingId: string) {
   if (chainId === ETHEREUM_CHAIN_ID) return `/listing/eth/${listingId}`;
   if (chainId === BASE_CHAIN_ID) return `/listing/base/${listingId}`;
   throw new Error(`Unsupported marketplace chain ${chainId}`);
+}
+
+/** Public listing page on cryptoart.social. Preview chains like Base Sepolia return null. */
+export function listingPublicUrl(chainId: number, listingId: string): string | null {
+  try {
+    return `${CRYPTOART_SOCIAL_ORIGIN}${listingPath(chainId, listingId)}`;
+  } catch {
+    return null;
+  }
 }
 
 export function parseListingPath(pathname: string): { chainId: MarketplaceChainId; listingId: string } | null {

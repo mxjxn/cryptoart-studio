@@ -5,7 +5,9 @@ export {
   BASE_SEPOLIA_CHAIN_ID,
   ETHEREUM_CHAIN_ID,
   ETHEREUM_MARKETPLACE_ADDRESS,
+  CRYPTOART_SOCIAL_ORIGIN,
   listingPath,
+  listingPublicUrl,
   marketplaceAddress,
   parseListingPath,
 } from './addresses';
