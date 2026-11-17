@@ -4,17 +4,50 @@ pragma solidity ^0.8.27;
 
 import {Ownable} from "openzeppelin/access/Ownable.sol";
 import {IERC721Enumerable} from "openzeppelin/token/ERC721/extensions/IERC721Enumerable.sol";
+import {IERC165} from "openzeppelin/utils/introspection/IERC165.sol";
+import {Strings} from "openzeppelin/utils/Strings.sol";
 import {ERC721Base} from "./token/ERC721/ERC721Base.sol";
 import {ERC721Enumerable} from "./token/ERC721/ERC721Enumerable.sol";
 import {ERC721CreatorCore} from "./core/ERC721CreatorCore.sol";
+import {ILazyDelivery} from "./interfaces/ILazyDelivery.sol";
+import {IMarketplaceCore} from "./interfaces/IMarketplaceCore.sol";
 
-contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
+contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable, ILazyDelivery {
+    using Strings for uint256;
+
     event Minted(address indexed to, uint256 indexed tokenId, string tokenURI);
     event RoyaltyUpdated(address receiver, uint16 bps);
     event BaseURIUpdated(string baseURI);
+    event MarketplaceApproved(address indexed marketplace, bool approved);
+    event ListingBaseURIUpdated(address indexed marketplace, uint40 indexed listingId, string baseURI);
+    event LazyDelivered(uint40 indexed listingId, address indexed to, uint256 indexed tokenId);
+    event Revealed(string revealedBaseURI, bytes32 metadataHash);
+
+    struct LazyListingOrigin {
+        address marketplace;
+        uint40 listingId;
+        uint24 index; // 0-based index within the listing
+        bool set;
+    }
 
     address payable private _royaltyReceiver;
     uint16 private _royaltyBPS;
+    
+    // Authorized marketplace/auction house addresses that can call deliver()
+    mapping(address => bool) private _approvedMarketplaces;
+
+    // Per-listing metadata: marketplace => listingId => base URI (must end with '/')
+    mapping(address => mapping(uint40 => string)) private _listingBaseURIs;
+    // Tokens delivered so far per marketplace listing (assigns 0-based indices)
+    mapping(address => mapping(uint40 => uint24)) private _listingDeliveredCount;
+    // Token => listing origin for URI resolution
+    mapping(uint256 => LazyListingOrigin) private _lazyListingOrigins;
+    
+    // Blind mint / reveal state
+    bool private _isRevealed;
+    string private _placeholderURI;
+    bytes32 private _metadataCommitment; // Hash of final metadata for verification
+    bool private _blindMintLocked; // Locked after first mint to prevent commitment swap
 
     constructor(
         string memory name_,
@@ -34,8 +67,10 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Enumerable) returns (bool) {
-        return interfaceId == type(IERC721Enumerable).interfaceId || interfaceId == _ROYALTY_INTERFACE_ID()
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Enumerable, IERC165) returns (bool) {
+        return interfaceId == type(IERC721Enumerable).interfaceId 
+            || interfaceId == type(ILazyDelivery).interfaceId
+            || interfaceId == _ROYALTY_INTERFACE_ID()
             || super.supportsInterface(interfaceId);
     }
 
@@ -105,6 +140,19 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         _setTokenURI(tokenId, uri);
     }
 
+    /**
+     * @notice Preset token URI for a future lazy mint
+     * @dev This allows setting the URI for a token before it exists, which is necessary for lazy listings.
+     *      The token will be minted with this URI when deliver() is called by the marketplace.
+     * @param tokenId The token ID to preset the URI for
+     * @param uri The token metadata URI
+     */
+    function setTokenURIForLazyMint(uint256 tokenId, string calldata uri) external onlyOwner {
+        require(bytes(uri).length > 0, "URI required");
+        require(!_exists(tokenId), "Token already minted");
+        _tokenURIs[tokenId] = uri;
+    }
+
     function setTokenURIPrefix(string calldata prefix) external onlyOwner {
         _setTokenURIPrefix(prefix);
     }
@@ -131,6 +179,21 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
 
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         _requireMinted(tokenId);
+        
+        // If blind mint is configured and not revealed, return placeholder
+        // This prevents per-token URIs / listing URIs from leaking before reveal
+        if (bytes(_placeholderURI).length > 0 && !_isRevealed) {
+            return _placeholderURI;
+        }
+
+        LazyListingOrigin memory origin = _lazyListingOrigins[tokenId];
+        if (origin.set) {
+            string memory listingBase = _listingBaseURIs[origin.marketplace][origin.listingId];
+            if (bytes(listingBase).length > 0) {
+                return string(abi.encodePacked(listingBase, uint256(origin.index).toString()));
+            }
+        }
+        
         return _tokenURI(tokenId);
     }
 
@@ -139,6 +202,239 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         address extension = _tokenExtension(tokenId);
         require(extension != address(0), "No extension for token");
         return extension;
+    }
+
+    // === Marketplace Management ===
+
+    /**
+     * @notice Approve or revoke a marketplace/auction house address to call deliver()
+     * @param marketplace The marketplace contract address
+     * @param approved True to approve, false to revoke
+     */
+    function setMarketplaceApproval(address marketplace, bool approved) external onlyOwner {
+        require(marketplace != address(0), "Invalid marketplace");
+        _approvedMarketplaces[marketplace] = approved;
+        emit MarketplaceApproved(marketplace, approved);
+    }
+
+    /**
+     * @notice Check if a marketplace is approved to call deliver()
+     * @param marketplace The marketplace contract address
+     * @return True if approved, false otherwise
+     */
+    function isMarketplaceApproved(address marketplace) external view returns (bool) {
+        return _approvedMarketplaces[marketplace];
+    }
+
+    /**
+     * @notice Set the metadata base URI for a lazy listing
+     * @dev Studio calls this after creating the marketplace listing. Tokens minted via
+     *      deliver() for this listing resolve to `baseURI + index` (0-based within listing).
+     * @param marketplace The marketplace that owns the listing ID namespace
+     * @param listingId The marketplace listing ID
+     * @param baseURI Base URI ending with '/'
+     */
+    function setListingBaseURI(address marketplace, uint40 listingId, string calldata baseURI)
+        external
+        onlyOwner
+    {
+        require(marketplace != address(0), "Invalid marketplace");
+        _requireTrailingSlash(baseURI);
+        _listingBaseURIs[marketplace][listingId] = baseURI;
+        emit ListingBaseURIUpdated(marketplace, listingId, baseURI);
+    }
+
+    /**
+     * @notice Get the base URI configured for a marketplace listing
+     */
+    function listingBaseURI(address marketplace, uint40 listingId) external view returns (string memory) {
+        return _listingBaseURIs[marketplace][listingId];
+    }
+
+    /**
+     * @notice Get the lazy-listing origin recorded for a token (if any)
+     */
+    function lazyListingOrigin(uint256 tokenId)
+        external
+        view
+        returns (address marketplace, uint40 listingId, uint24 index, bool set)
+    {
+        LazyListingOrigin memory origin = _lazyListingOrigins[tokenId];
+        return (origin.marketplace, origin.listingId, origin.index, origin.set);
+    }
+
+    // === Lazy Delivery ===
+
+    /**
+     * @notice Deliver (lazy mint) tokens to a buyer through an approved marketplace
+     * @dev Called by the marketplace during settlement. Mints `payableCount` sequential
+     *      token IDs. Verifies via getListing that the seller is this collection's owner
+     *      and the listing token address is this contract (prevents unauthorized / front-run listings).
+     * @param listingId The marketplace listing ID
+     * @param to The buyer's address
+     * @param assetId Unused — collection assigns sequential IDs
+     * @param payableCount Number of tokens to mint to the buyer
+     * @param payableAmount The sale price (unused in this implementation)
+     * @param payableERC20 The payment token address (unused in this implementation)
+     * @param index Optional index (unused in this implementation)
+     */
+    function deliver(
+        uint40 listingId,
+        address to,
+        uint256 assetId,
+        uint24 payableCount,
+        uint256 payableAmount,
+        address payableERC20,
+        uint256 index
+    ) external override nonReentrant {
+        require(_approvedMarketplaces[msg.sender], "Caller not approved marketplace");
+        require(payableCount > 0, "Amount must be > 0");
+        require(to != address(0), "Cannot deliver to zero address");
+
+        // Look up listing on the calling marketplace — seller must be collection owner
+        IMarketplaceCore.Listing memory listing = IMarketplaceCore(msg.sender).getListing(listingId);
+        require(listing.seller == owner(), "Listing seller is not collection owner");
+        require(listing.token.address_ == address(this), "Listing token is not this collection");
+
+        _lockBlindMintIfConfigured();
+
+        uint24 startIndex = _listingDeliveredCount[msg.sender][listingId];
+        _listingDeliveredCount[msg.sender][listingId] = startIndex + payableCount;
+
+        for (uint24 i = 0; i < payableCount;) {
+            ++_tokenCount;
+            uint256 tokenId = _tokenCount;
+            uint24 listingIndex = startIndex + i;
+
+            _lazyListingOrigins[tokenId] = LazyListingOrigin({
+                marketplace: msg.sender,
+                listingId: listingId,
+                index: listingIndex,
+                set: true
+            });
+
+            _preMintBase(to, tokenId);
+            _safeMint(to, tokenId, 0);
+
+            emit LazyDelivered(listingId, to, tokenId);
+            emit Minted(to, tokenId, _tokenURIs[tokenId]);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    // === Multi-Recipient Airdrop ===
+
+    /**
+     * @notice Airdrop tokens to multiple recipients in a single transaction
+     * @dev Mints one token per recipient. Gas-efficient for distributing to many addresses.
+     * @param recipients Array of addresses to receive tokens
+     * @param uris Array of token URIs corresponding to each recipient
+     * @return tokenIds Array of minted token IDs
+     *
+     * Gas considerations:
+     * - ~50k gas per recipient (approximation)
+     * - Recommended max batch size: 200-300 recipients per transaction
+     * - For larger airdrops, split into multiple transactions
+     */
+    function airdrop(address[] calldata recipients, string[] calldata uris)
+        external
+        onlyOwner
+        nonReentrant
+        returns (uint256[] memory tokenIds)
+    {
+        require(recipients.length > 0, "No recipients");
+        require(recipients.length == uris.length, "Length mismatch");
+        require(recipients.length <= 500, "Batch too large"); // Safety limit
+
+        _lockBlindMintIfConfigured();
+
+        tokenIds = new uint256[](recipients.length);
+        uint256 firstTokenId = _tokenCount + 1;
+        _tokenCount += recipients.length;
+
+        // During blind mint, suppress per-token URIs so they cannot leak before reveal
+        bool storeUris = bytes(_placeholderURI).length == 0 || _isRevealed;
+
+        for (uint256 i; i < recipients.length;) {
+            require(recipients[i] != address(0), "Invalid recipient");
+            uint256 tokenId = firstTokenId + i;
+            tokenIds[i] = tokenId;
+            
+            _preMintBase(recipients[i], tokenId);
+            _safeMint(recipients[i], tokenId, 0);
+            
+            if (storeUris && bytes(uris[i]).length > 0) {
+                _tokenURIs[tokenId] = uris[i];
+            }
+            
+            emit Minted(recipients[i], tokenId, uris[i]);
+            
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    // === Blind Mint / Reveal ===
+
+    /**
+     * @notice Set up blind minting with a placeholder URI and metadata commitment
+     * @dev Must be called before any minting if blind reveal is desired.
+     *      The metadata commitment is a hash of the final metadata to prove fairness.
+     * @param placeholder The URI to use for all tokens until reveal
+     * @param metadataHash keccak256 hash of the final metadata (e.g., hash of base URI + salt)
+     */
+    function setBlindMintConfig(string calldata placeholder, bytes32 metadataHash) external onlyOwner {
+        require(!_isRevealed, "Already revealed");
+        require(!_blindMintLocked, "Blind config locked after first mint");
+        require(bytes(placeholder).length > 0, "Placeholder required");
+        require(metadataHash != bytes32(0), "Metadata hash required");
+        _placeholderURI = placeholder;
+        _metadataCommitment = metadataHash;
+    }
+
+    /**
+     * @notice Reveal the collection by setting the real base URI
+     * @dev Can only be called once. The revealed base URI should hash to the commitment.
+     * @param revealedBaseURI The actual base URI for all tokens
+     * @param verificationSalt Optional salt used in the commitment hash for verification
+     */
+    function reveal(string calldata revealedBaseURI, bytes32 verificationSalt) external onlyOwner {
+        require(!_isRevealed, "Already revealed");
+        require(bytes(_placeholderURI).length > 0, "Blind mint not configured");
+        
+        // Verify the revealed URI matches the commitment
+        bytes32 computedHash = keccak256(abi.encodePacked(revealedBaseURI, verificationSalt));
+        require(computedHash == _metadataCommitment, "Metadata does not match commitment");
+        
+        _isRevealed = true;
+        _setBaseTokenURI(revealedBaseURI);
+        
+        emit Revealed(revealedBaseURI, _metadataCommitment);
+    }
+
+    /**
+     * @notice Check if the collection has been revealed
+     */
+    function isRevealed() external view returns (bool) {
+        return _isRevealed;
+    }
+
+    /**
+     * @notice Get the placeholder URI used for unrevealed tokens
+     */
+    function placeholderURI() external view returns (string memory) {
+        return _placeholderURI;
+    }
+
+    /**
+     * @notice Get the metadata commitment hash
+     */
+    function metadataCommitment() external view returns (bytes32) {
+        return _metadataCommitment;
     }
 
     function _mintBase(address to, string memory uri) internal returns (uint256) {
@@ -151,11 +447,17 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
             tokenId = _tokenCount;
         }
 
+        // Lock blind mint config on first mint to prevent commitment swap
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+
         _preMintBase(to, tokenId);
 
         _safeMint(to, tokenId, 0);
 
-        if (bytes(uri).length > 0) {
+        // Don't set per-token URI during blind mint period - it would leak before reveal
+        if (bytes(uri).length > 0 && (bytes(_placeholderURI).length == 0 || _isRevealed)) {
             _tokenURIs[tokenId] = uri;
         }
 
@@ -173,10 +475,17 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
             tokenId = _tokenCount;
         }
 
+        // Lock blind mint config on first mint to prevent commitment swap
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+
         _preMintExtension(to, tokenId);
 
         _safeMint(to, tokenId, uint96(_extensionToIndex[msg.sender]));
 
+        // Always store extension-provided URIs (e.g. burn-to-mint). The blind placeholder
+        // still hides them until reveal, then they resolve correctly.
         if (bytes(uri).length > 0) {
             _tokenURIs[tokenId] = uri;
         }
@@ -185,9 +494,23 @@ contract SuchCollection is ERC721Enumerable, ERC721CreatorCore, Ownable {
         return tokenId;
     }
 
+    function _lockBlindMintIfConfigured() internal {
+        if (bytes(_placeholderURI).length > 0 && !_blindMintLocked) {
+            _blindMintLocked = true;
+        }
+    }
+
+    function _requireTrailingSlash(string memory uri) internal pure {
+        bytes memory b = bytes(uri);
+        require(b.length > 0 && b[b.length - 1] == "/", "Base URI must end with /");
+    }
+
     function _postBurn(address, uint256 tokenId) internal {
         if (bytes(_tokenURIs[tokenId]).length != 0) {
             delete _tokenURIs[tokenId];
+        }
+        if (_lazyListingOrigins[tokenId].set) {
+            delete _lazyListingOrigins[tokenId];
         }
     }
 
