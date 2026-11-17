@@ -1,0 +1,27 @@
+{
+  "name": "@cryptoart/stp",
+  "version": "0.1.0",
+  "description": "STP v2 subscription NFT integration layer (parked: not for day-one relaunch)",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cryptoart/db": "workspace:*",
+    "viem": "^2.21.54",
+    "drizzle-orm": "^0.36.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "5.9.2",
+    "vitest": "^2.1.8",
+    "@vitest/coverage-v8": "^2.1.8"
+  }
+}
