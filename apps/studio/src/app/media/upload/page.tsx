@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { guessAudioMimeType, isAudioMimeType } from '@cryptoart/media/client';
+import { guessAudioMimeType, guessModelMimeType, isAudioMimeType, isModelUpload } from '@cryptoart/media/client';
 import { useAccount, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi';
 import type { X402Accepts } from '@cryptoart/media/client';
 import { ConnectWalletButton } from '~/components/ConnectWalletButton';
@@ -82,6 +82,18 @@ export default function MediaUploadPage() {
     () => (file ? isAudioMimeType(guessAudioMimeType(file.name, file.type || 'application/octet-stream')) : false),
     [file],
   );
+  const isModelUploadFlag = useMemo(
+    () => (file ? isModelUpload(file.name, file.type || 'application/octet-stream') : false),
+    [file],
+  );
+  const isRichMediaUpload = isAudioUpload || isModelUploadFlag;
+
+  function primaryQuoteMime(upload: File) {
+    const hint = upload.type || 'application/octet-stream';
+    if (isAudioMimeType(guessAudioMimeType(upload.name, hint))) return guessAudioMimeType(upload.name, hint);
+    if (isModelUpload(upload.name, hint)) return guessModelMimeType(upload.name, hint);
+    return hint;
+  }
 
   useEffect(() => {
     if (!file || !isAudioUpload) return;
@@ -132,7 +144,7 @@ export default function MediaUploadPage() {
       const sha256 = await sha256Hex(bytes);
       const files: Array<{ name: string; mimeType: string; size: number; sha256: string }> = [{
         name: file.name,
-        mimeType: guessAudioMimeType(file.name, file.type || 'application/octet-stream'),
+        mimeType: primaryQuoteMime(file),
         size: file.size,
         sha256,
       }];
@@ -265,8 +277,8 @@ export default function MediaUploadPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Studio · paid media</p>
           <h1 className="mt-2 text-3xl font-bold">Pin to Arweave</h1>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Hash the file, review the Turbo price, pay in USDC, then pin the media and its metadata. Audio uploads also
-            pin a minimal HTML player as the NFT animation URL. Mint stays locked until gateways can read everything.
+            Hash the file, review the Turbo price, pay in USDC, then pin the media and its metadata. Audio and 3D uploads also
+            pin a minimal HTML player/viewer as the NFT animation URL. Mint stays locked until gateways can read everything.
           </p>
         </div>
         {config?.uploadMode === 'simulated' && (
@@ -297,11 +309,11 @@ export default function MediaUploadPage() {
         )}
         {session.data && <p className="text-sm">Signed in as {session.data.address}</p>}
         <label className="block text-sm font-semibold">
-          {isAudioUpload ? 'Audio file' : 'Artwork file'}
+          {isAudioUpload ? 'Audio file' : isModelUploadFlag ? '3D model file' : 'Artwork file'}
           <input
             className="mt-2 block w-full text-sm"
             type="file"
-            accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,image/*,video/*"
+            accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.glb,.gltf,.obj,.fbx,image/*,video/*"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
               setDurationSeconds(undefined);
@@ -309,7 +321,7 @@ export default function MediaUploadPage() {
             }}
           />
         </label>
-        {isAudioUpload && (
+        {isRichMediaUpload && (
           <>
             <label className="block text-sm font-semibold">
               Cover image (optional)
@@ -324,7 +336,7 @@ export default function MediaUploadPage() {
               />
             </label>
             <label className="block text-sm font-semibold">
-              Artist
+              {isModelUploadFlag ? 'Creator' : 'Artist'}
               <input className="studio-input mt-2" value={artist} onChange={(event) => setArtist(event.target.value)} />
             </label>
           </>
@@ -333,7 +345,7 @@ export default function MediaUploadPage() {
           Title
           <input className="studio-input mt-2" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
-        {isAudioUpload && (
+        {isRichMediaUpload && (
           <label className="block text-sm font-semibold">
             Description (optional)
             <textarea className="studio-textarea mt-2" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />

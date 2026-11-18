@@ -1158,6 +1158,7 @@ export const collectionTokens = pgTable('collection_tokens', {
   animationUrl: text('animation_url'),
   mediaType: text('media_type'),
   audioUrl: text('audio_url'),
+  modelUrl: text('model_url'),
   attributes: jsonb('attributes'),
 
   ownerAddress: text('owner_address').notNull(),

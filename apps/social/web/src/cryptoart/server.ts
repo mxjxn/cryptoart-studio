@@ -7,7 +7,7 @@ import { fetchAuctionCard, fetchLatestListings, type AuctionCardData, type Marke
 import { fetchMarketPage } from './marketClient';
 import { createAssetDiscoveryService } from './assetDiscovery';
 import { fetchFarcasterAccountByAddress } from '../../../../../packages/identity/src/farcasterDirectory';
-import { fetchRecentAudioMints } from './mintTimeline';
+import { fetchRecentAudioMints, fetchRecentModelMints } from './mintTimeline';
 
 type Snapshot = { id: string; createdAt: number; mode: 'curated' | 'mixed'; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>;
   auctions: AuctionCardData[]; latestListings: MarketplaceListingData[]; warnings: string[] };
@@ -229,9 +229,13 @@ export function mintTimelineMiddleware() {
       return;
     }
     try {
-      const items = await fetchRecentAudioMints(Math.min(24, Math.max(1, Number(url.searchParams.get('limit')) || 12)));
+      const limit = Math.min(24, Math.max(1, Number(url.searchParams.get('limit')) || 12));
+      const type = url.searchParams.get('type') === 'model' ? 'model' : 'audio';
+      const items = type === 'model'
+        ? await fetchRecentModelMints(limit)
+        : await fetchRecentAudioMints(limit);
       res.statusCode = 200;
-      res.end(JSON.stringify({ items }));
+      res.end(JSON.stringify({ items, mediaType: type }));
     } catch {
       res.statusCode = 200;
       res.end(JSON.stringify({ items: [], degraded: true }));

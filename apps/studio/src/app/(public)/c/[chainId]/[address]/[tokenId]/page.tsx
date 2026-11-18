@@ -20,6 +20,7 @@ interface TokenDetail {
   animationUrl: string | null;
   mediaType: string | null;
   audioUrl: string | null;
+  modelUrl: string | null;
   attributes: { trait_type: string; value: string }[] | null;
   ownerAddress: string;
   mintTxHash: string;
@@ -119,6 +120,17 @@ export default function PublicTokenPage({
               <audio controls src={token.audioUrl} className="w-full max-w-md" preload="metadata" />
               {token.animationUrl && (
                 <a className="text-sm underline" href={token.animationUrl} target="_blank" rel="noreferrer">Open player page</a>
+              )}
+            </div>
+          ) : token.mediaType === 'model' && (token.animationUrl || token.modelUrl) ? (
+            <div className="flex size-full flex-col gap-3 p-4">
+              {token.animationUrl ? (
+                <iframe title={token.name ?? '3D model'} src={token.animationUrl} className="size-full min-h-[360px] rounded-lg border-0 bg-[#e8e8ea]" sandbox="allow-scripts allow-same-origin" />
+              ) : token.imageUrl ? (
+                <img src={token.imageUrl} alt={token.name ?? ''} className="size-full object-contain" />
+              ) : null}
+              {token.modelUrl && (
+                <a className="text-sm underline" href={token.modelUrl} target="_blank" rel="noreferrer">Download model file</a>
               )}
             </div>
           ) : token.imageUrl ? (

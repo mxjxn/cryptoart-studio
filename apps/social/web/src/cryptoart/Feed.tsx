@@ -9,6 +9,7 @@ import { CreatorRail } from './CreatorRail';
 import type { AuctionCardData, MarketplaceListingData } from './marketplace';
 import { useSiweSession } from './useSiweSession';
 import { InlineAudioCard } from './InlineAudioCard';
+import { InlineModelCard } from './InlineModelCard';
 import type { MintTimelineItem } from './mintTimeline';
 
 interface FeedPage {
@@ -98,7 +99,17 @@ export function CryptoartFeed() {
   const audioMints = useQuery({
     queryKey: ['cryptoart-audio-mints'],
     queryFn: async ({ signal }) => {
-      const response = await fetch('/api/cryptoart/mints/recent?limit=6', { signal });
+      const response = await fetch('/api/cryptoart/mints/recent?limit=6&type=audio', { signal });
+      const body = await response.json() as { items?: MintTimelineItem[] };
+      return body.items ?? [];
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+  const modelMints = useQuery({
+    queryKey: ['cryptoart-model-mints'],
+    queryFn: async ({ signal }) => {
+      const response = await fetch('/api/cryptoart/mints/recent?limit=6&type=model', { signal });
       const body = await response.json() as { items?: MintTimelineItem[] };
       return body.items ?? [];
     },
@@ -179,6 +190,26 @@ export function CryptoartFeed() {
         {warnings.length > 0 && <details className="border-b border-[#2a2a2a] px-4 py-2 text-xs text-[#888]"><summary>Some sources are incomplete</summary>
           <ul>{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
         </details>}
+
+        {(modelMints.data ?? []).length > 0 && (
+          <section className="border-b border-[#2a2a2a] px-3 py-4 sm:px-4" aria-label="New 3D mints">
+            <p className="cryptoart-mono mb-3 text-[10px] uppercase tracking-[0.14em] text-[#888]">New 3D</p>
+            <ul className="space-y-3">
+              {modelMints.data!.map((mint) => (
+                <li key={mint.id}>
+                  <InlineModelCard
+                    title={mint.name ?? `Token #${mint.tokenId}`}
+                    creator={mint.artist}
+                    coverUrl={mint.imageUrl}
+                    playerUrl={mint.playerUrl}
+                    modelUrl={mint.modelUrl}
+                    href={mint.href}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {(audioMints.data ?? []).length > 0 && (
           <section className="border-b border-[#2a2a2a] px-3 py-4 sm:px-4" aria-label="New audio mints">

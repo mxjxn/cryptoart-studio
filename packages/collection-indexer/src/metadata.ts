@@ -1,7 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq, and, lt, asc } from 'drizzle-orm';
 import { getDatabase, collectionTokens } from '@cryptoart/db';
-import { audioSourceFromMetadata, detectNftMediaType } from '@cryptoart/media';
+import { audioSourceFromMetadata, detectNftMediaType, modelSourceFromMetadata } from '@cryptoart/media';
 import type { IndexerConfig } from './config.js';
 
 interface TokenRow {
@@ -20,6 +20,7 @@ interface MetadataFields {
   animationUrl: string | null;
   mediaType: string | null;
   audioUrl: string | null;
+  modelUrl: string | null;
   attributes: unknown | null;
 }
 
@@ -87,6 +88,7 @@ export class MetadataResolver {
           animationUrl: metadata.animationUrl ?? null,
           mediaType: metadata.mediaType ?? null,
           audioUrl: metadata.audioUrl ?? null,
+          modelUrl: metadata.modelUrl ?? null,
           attributes: metadata.attributes ?? null,
           metadataStatus: 'resolved',
           updatedAt: new Date(),
@@ -172,6 +174,10 @@ export class MetadataResolver {
       const rawAudio = audioSourceFromMetadata(json);
       if (rawAudio) audioUrl = this.resolveUri(rawAudio);
 
+      let modelUrl: string | null = null;
+      const rawModel = modelSourceFromMetadata(json);
+      if (rawModel) modelUrl = this.resolveUri(rawModel);
+
       const properties = json['properties'] && typeof json['properties'] === 'object'
         ? json['properties'] as Record<string, unknown>
         : null;
@@ -183,6 +189,7 @@ export class MetadataResolver {
         animationUrl,
         mediaType: mediaType === 'unknown' ? null : mediaType,
         audioUrl,
+        modelUrl,
         attributes: Array.isArray(attributes) ? attributes : null,
       };
     } finally {

@@ -228,6 +228,31 @@ describe('quote handoff', () => {
   });
 });
 
+describe('model quote profile', () => {
+  it('uses a larger Turbo bundle when the primary file is a 3D model', async () => {
+    const calls: number[] = [];
+    const router = createMediaRouter({
+      payTo,
+      allowMockPayment: true,
+      costSource: async (bytes) => {
+        calls.push(bytes);
+        return { winston: String(bytes), usd: bytes / 1_000_000, source: 'turbo' };
+      },
+    });
+    const quoted = await router.handle({
+      method: 'POST',
+      pathname: '/quote',
+      headers: {},
+      body: {
+        files: [{ name: 'sculpt.glb', mimeType: 'model/gltf-binary', size: 3_000_000, sha256: 'bb' }],
+      },
+    });
+    expect(quoted.status).toBe(402);
+    expect(calls).toContain(3_000_000);
+    expect(calls.length).toBeGreaterThan(2);
+  });
+});
+
 describe('audio quote profile', () => {
   it('uses a larger Turbo bundle when the primary file is audio', async () => {
     const calls: number[] = [];

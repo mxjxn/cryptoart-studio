@@ -14,7 +14,7 @@ import { useCollection } from '~/hooks/useCollections';
 import { useActiveWallet } from '~/hooks/useActiveWallet';
 import { txExplorerUrl } from '~/lib/txExplorer';
 import { cn } from '~/lib/utils';
-import { guessAudioMimeType, isAudioMimeType } from '@cryptoart/media/client';
+import { guessAudioMimeType, isAudioMimeType, isModelUpload } from '@cryptoart/media/client';
 import { mintTokenUri } from './tokenUri';
 
 const STEPS = ['Upload', 'Metadata', 'Pin', 'Mint'];
@@ -98,6 +98,9 @@ function MintWizard({
 
   const isAudioFile = file
     ? isAudioMimeType(guessAudioMimeType(file.name, file.type || 'application/octet-stream'))
+    : false;
+  const isModelFile = file
+    ? isModelUpload(file.name, file.type || 'application/octet-stream')
     : false;
   const previewUrl = useMemo(() => {
     if (!file) return null;
@@ -235,7 +238,9 @@ function MintWizard({
       </div>
 
       <div className="mx-auto w-full max-w-[1280px] flex-1 px-20 py-10">
-        {currentStep === 1 && <StepUpload file={file} isAudioFile={isAudioFile} preview={previewUrl} onFiles={handleFiles} />}
+        {currentStep === 1 && (
+          <StepUpload file={file} isAudioFile={isAudioFile} isModelFile={isModelFile} preview={previewUrl} onFiles={handleFiles} />
+        )}
         {currentStep === 2 && (
           <StepMetadata
             metadata={metadata}
@@ -324,22 +329,29 @@ function StepUpload({
   file,
   preview,
   isAudioFile,
+  isModelFile,
   onFiles,
 }: {
   file: File | null;
   preview: string | null;
   isAudioFile: boolean;
+  isModelFile: boolean;
   onFiles: (files: File[]) => void;
 }) {
+  const dropAccept = isAudioFile || file?.type?.startsWith('audio/')
+    ? 'audio/*,.mp3,.wav,.flac,.ogg,.m4a'
+    : isModelFile
+      ? '.glb,.gltf,.obj,.fbx,model/*'
+      : 'image/*,video/*,audio/*,.glb,.gltf,.obj,.fbx';
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-3xl font-bold">{isAudioFile ? 'Upload audio' : 'Upload artwork'}</h2>
+        <h2 className="text-3xl font-bold">{isAudioFile ? 'Upload audio' : isModelFile ? 'Upload 3D model' : 'Upload artwork'}</h2>
         <p className="mt-3 text-muted">
-          Optional preview in this browser. The mint uses the confirmed Arweave pin. Audio uploads get a simple HTML player as animation URL.
+          Optional preview in this browser. The mint uses the confirmed Arweave pin. Audio and 3D uploads get a simple HTML viewer as animation URL.
         </p>
       </div>
-      <DropZone accept={file?.type?.startsWith('audio/') || isAudioFile ? 'audio/*,.mp3,.wav,.flac,.ogg,.m4a' : undefined} onFiles={onFiles} />
+      <DropZone accept={dropAccept} onFiles={onFiles} />
       {file && (
         <div className="flex items-center gap-4">
           {isAudioFile && preview

@@ -5,6 +5,10 @@ import { METADATA_ALLOWANCE_BYTES } from './quote';
 import { isAudioMimeType, guessAudioMimeType } from './audio/mime';
 import { quoteAudioPinBundle } from './audio/metadata';
 import { publishAudioPinMetadata, decodeBase64Bytes } from './audio/publish';
+import { guessModelMimeType, isModelUpload, modelExtensionFromName } from './model/mime';
+import { quoteModelPinBundle } from './model/metadata';
+import { publishModelPinMetadata } from './model/publish';
+import { assertSelfContainedGltf } from './model/validate';
 import { quoteTurboBundle, quoteTurboUploadCost, type UploadCostSource } from './turboCost';
 import { createMockFacilitator, requirementFromQuote, usdcEip712Domain } from './x402';
 import { createSimulatedArweave, metadataObject } from './arweave';
@@ -33,6 +37,13 @@ function record(body: unknown) {
 
 function isZeroAddress(value: string) {
   return value.toLowerCase() === ZERO_ADDRESS;
+}
+
+function primaryPinKind(fileName: string, mimeHint: string): 'audio' | 'model' | 'other' {
+  const audioMime = guessAudioMimeType(fileName, mimeHint);
+  if (isAudioMimeType(audioMime)) return 'audio';
+  if (isModelUpload(fileName, mimeHint)) return 'model';
+  return 'other';
 }
 
 function paymentHeaderFrom(req: MediaRequest, body: Record<string, unknown>) {
@@ -101,10 +112,12 @@ export function createMediaRouter(options: {
     const primary = files[0];
     if (!primary) throw new Error('At least one file is required');
     const cover = files[1];
-    const primaryMime = guessAudioMimeType(primary.name, primary.mimeType);
-    const cost = isAudioMimeType(primaryMime)
+    const kind = primaryPinKind(primary.name, primary.mimeType);
+    const cost = kind === 'audio'
       ? await quoteAudioPinBundle(primary.size, cover?.size ?? 0, price)
-      : await quoteTurboBundle(primary.size, price);
+      : kind === 'model'
+        ? await quoteModelPinBundle(primary.size, cover?.size ?? 0, price)
+        : await quoteTurboBundle(primary.size, price);
     const fileBytes = files.reduce((sum, file) => sum + file.size, 0);
     return quoteUpload({
       files,
@@ -249,6 +262,14 @@ export function createMediaRouter(options: {
         const sha256 = contentHash(bytes);
         const expected = job.quote.files[0];
         if (!expected || expected.sha256 !== sha256) return json(400, { error: 'File hash does not match the quote' });
+        const uploadKind = primaryPinKind(expected.name, expected.mimeType);
+        if (uploadKind === 'model' && modelExtensionFromName(expected.name) === 'gltf') {
+          try {
+            assertSelfContainedGltf(bytes, expected.name);
+          } catch (error) {
+            return json(400, { error: error instanceof Error ? error.message : 'Invalid glTF' });
+          }
+        }
         try {
           const uploading = { ...job, status: 'uploading_media' as const, updatedAt: new Date().toISOString() };
           await store.save(uploading);
@@ -281,10 +302,11 @@ export function createMediaRouter(options: {
               .filter((attribute) => attribute && attribute.trait_type && attribute.value !== undefined && attribute.value !== '')
               .map((attribute) => ({ trait_type: String(attribute.trait_type), value: attribute.value as string | number }))
           : undefined;
-        const primaryMime = guessAudioMimeType(job.quote.files[0]?.name ?? '', job.media.mimeType);
+        const primaryName = job.quote.files[0]?.name ?? '';
+        const pinKind = primaryPinKind(primaryName, job.media.mimeType);
         let metadata: Record<string, unknown>;
         let bytes: Uint8Array;
-        if (isAudioMimeType(primaryMime)) {
+        if (pinKind === 'audio') {
           const coverBytes = decodeBase64Bytes(body.coverBytes ?? body.cover_bytes);
           const coverQuote = job.quote.files[1];
           if (coverQuote) {
@@ -307,6 +329,30 @@ export function createMediaRouter(options: {
             description: body.description ? String(body.description) : undefined,
             artist: body.artist ? String(body.artist) : undefined,
             durationSeconds: duration,
+            coverBytes: coverBytes ?? undefined,
+            coverMime: typeof body.coverMime === 'string' ? body.coverMime : undefined,
+            attributes,
+          });
+          metadata = published.metadata as unknown as Record<string, unknown>;
+          bytes = published.metadataBytes;
+        } else if (pinKind === 'model') {
+          const coverBytes = decodeBase64Bytes(body.coverBytes ?? body.cover_bytes);
+          const coverQuote = job.quote.files[1];
+          if (coverQuote) {
+            if (!coverBytes?.byteLength) return json(400, { error: 'Cover image is required for this quote' });
+            if (contentHash(coverBytes) !== coverQuote.sha256) return json(400, { error: 'Cover hash does not match the quote' });
+          }
+          const published = await publishModelPinMetadata({
+            arweave,
+            mediaId: job.media.id,
+            mediaMime: guessModelMimeType(primaryName, job.media.mimeType),
+            mediaSha256: job.media.sha256,
+            mediaSize: job.media.size,
+            mediaFileName: primaryName,
+            mediaGateways: job.media.gateways,
+            name: String(body.name ?? primaryName ?? '3D work'),
+            description: body.description ? String(body.description) : undefined,
+            creator: body.creator ? String(body.creator) : body.artist ? String(body.artist) : undefined,
             coverBytes: coverBytes ?? undefined,
             coverMime: typeof body.coverMime === 'string' ? body.coverMime : undefined,
             attributes,
@@ -352,22 +398,22 @@ export function createMediaRouter(options: {
         if (!job.media || !job.metadata) return json(400, { error: 'Media and metadata are required before confirmation' });
         const media = await arweave.retrieve(job.media.id);
         const metadata = await arweave.retrieve(job.metadata.id);
-        let playerOk = true;
-        const primaryMime = guessAudioMimeType(job.quote.files[0]?.name ?? '', job.media.mimeType);
-        if (isAudioMimeType(primaryMime)) {
+        let viewerOk = true;
+        const confirmKind = primaryPinKind(job.quote.files[0]?.name ?? '', job.media.mimeType);
+        if (confirmKind === 'audio' || confirmKind === 'model') {
           const resolvedMetadata = await fetchMetadataJson(job.metadata, metadata.gateways);
           const animation = typeof resolvedMetadata?.animation_url === 'string' ? resolvedMetadata.animation_url : '';
-          const playerId = animation.startsWith('ar://') ? animation.slice(5) : '';
-          if (playerId) {
-            const player = await arweave.retrieve(playerId);
-            playerOk = player.ok;
+          const viewerId = animation.startsWith('ar://') ? animation.slice(5) : '';
+          if (viewerId) {
+            const viewer = await arweave.retrieve(viewerId);
+            viewerOk = viewer.ok;
           } else {
-            playerOk = false;
+            viewerOk = false;
           }
         }
         const next = markConfirmed(job, {
           mediaOk: media.ok,
-          metadataOk: metadata.ok && playerOk,
+          metadataOk: metadata.ok && viewerOk,
           checkedAt: new Date().toISOString(),
         });
         if (next.media) next.media = { ...next.media, gateways: media.gateways };
