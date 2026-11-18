@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   useAccount,
@@ -31,7 +31,9 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 
 export function ListingPage({ chainHint }: { chainHint?: 'eth' | 'base' }) {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const listingId = params.listingId ?? '';
+  const openAction = searchParams.get('action');
   const chainId = (chainHint === 'eth' ? 1 : 8453) as 1 | 8453;
   const { address, isConnected, chain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -199,9 +201,11 @@ export function ListingPage({ chainHint }: { chainHint?: 'eth' | 'base' }) {
             {isConnected && chain?.id !== chainId && <p className="mt-6 text-sm">This listing is on {chainId === 1 ? 'Ethereum' : 'Base'}. Switch networks before sending a transaction.</p>}
             {recovery.phase !== 'idle' && <p role="status" className="mt-6 border border-white p-4 text-sm">{recovery.message}{recovery.hash ? ` ${recovery.hash.slice(0, 10)}…` : ''}</p>}
             {recovery.phase === 'failed' && <p className="mt-3 text-sm">Retry the same action to replace a stuck request. Confirm or reject any pending wallet prompt first.</p>}
+            {openAction === 'bid' && canBid(snapshot) && <p className="mt-4 text-xs text-[#dcf54c]">Quick action: bidding opened from a feed embed.</p>}
+            {openAction === 'buy' && canBuy(snapshot) && <p className="mt-4 text-xs text-[#dcf54c]">Quick action: buy now opened from a feed embed.</p>}
             <div className="mt-8 space-y-3">
-              {canBid(snapshot) && <div className="flex gap-2">
-                <input aria-label="Bid amount in ETH" value={bidInput} onChange={(event) => setBidInput(event.target.value)} placeholder={formatEther(minBid(snapshot))} className="flex-1 border border-white bg-black px-3 py-3 text-sm" />
+              {canBid(snapshot) && <div className="flex gap-2" id="listing-bid">
+                <input aria-label="Bid amount in ETH" value={bidInput} onChange={(event) => setBidInput(event.target.value)} placeholder={formatEther(minBid(snapshot))} className="flex-1 border border-white bg-black px-3 py-3 text-sm" autoFocus={openAction === 'bid'} />
                 <button type="button" className="border border-white px-4 py-3 text-sm hover:bg-white hover:text-black" disabled={!isConnected || write.isPending} onClick={() => void submit('bid')}>Bid</button>
               </div>}
               {canBuy(snapshot) && <button type="button" className="w-full border border-white px-4 py-3 text-sm hover:bg-white hover:text-black" disabled={!isConnected || write.isPending} onClick={() => void submit('buy')}>Buy now</button>}
