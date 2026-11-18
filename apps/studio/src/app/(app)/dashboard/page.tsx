@@ -45,6 +45,9 @@ export default function DashboardPage() {
               Browse by contract. Listings come later.
             </p>
           </div>
+          <Link href="/generative" className="studio-btn-outline w-fit">
+            Generative HTML templates
+          </Link>
           <Link href="/collections/new" className="studio-btn w-fit gap-2">
             + Create Collection
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

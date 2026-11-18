@@ -92,7 +92,7 @@ const MODEL_FORMATS = ['glb', 'gltf', '3d', 'model'];
  * HTML file extensions and formats
  */
 const HTML_EXTENSIONS = ['html', 'htm'];
-const HTML_FORMATS = ['html', 'htm'];
+const HTML_FORMATS = ['html', 'htm', 'html/generative'];
 
 /**
  * Determine the media type from a format string (e.g., "MP4", "mp3", "glb")
