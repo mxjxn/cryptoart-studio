@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@cryptoart/db": "file:../db",
+    "@cryptoart/media": "file:../media",
     "drizzle-orm": "^0.36.4",
     "viem": "^2.0.0"
   },

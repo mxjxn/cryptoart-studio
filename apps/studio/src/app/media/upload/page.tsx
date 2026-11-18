@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { guessAudioMimeType, guessModelMimeType, isAudioMimeType, isModelUpload } from '@cryptoart/media/client';
 import { useAccount, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi';
 import type { X402Accepts } from '@cryptoart/media/client';
 import { ConnectWalletButton } from '~/components/ConnectWalletButton';
@@ -54,13 +56,18 @@ function networkLabel(network: string) {
 }
 
 export default function MediaUploadPage() {
+  const search = useSearchParams();
   const { address, chain } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
   const { switchChainAsync } = useSwitchChain();
   const { session, verify } = useStudioSession();
   const [file, setFile] = useState<File | null>(null);
-  const [name, setName] = useState('Artwork');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [name, setName] = useState(search.get('name')?.trim() || 'Artwork');
+  const [artist, setArtist] = useState(search.get('artist')?.trim() || '');
+  const [description, setDescription] = useState(search.get('description')?.trim() || '');
+  const [durationSeconds, setDurationSeconds] = useState<number | undefined>(undefined);
   const [config, setConfig] = useState<MediaConfig | null>(null);
   const [quote, setQuote] = useState<UploadQuote | null>(null);
   const [requirement, setRequirement] = useState<X402Accepts | null>(null);
@@ -71,6 +78,34 @@ export default function MediaUploadPage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const pinned = usePinnedMedia(jobId, refreshKey);
+  const isAudioUpload = useMemo(
+    () => (file ? isAudioMimeType(guessAudioMimeType(file.name, file.type || 'application/octet-stream')) : false),
+    [file],
+  );
+  const isModelUploadFlag = useMemo(
+    () => (file ? isModelUpload(file.name, file.type || 'application/octet-stream') : false),
+    [file],
+  );
+  const isRichMediaUpload = isAudioUpload || isModelUploadFlag;
+
+  function primaryQuoteMime(upload: File) {
+    const hint = upload.type || 'application/octet-stream';
+    if (isAudioMimeType(guessAudioMimeType(upload.name, hint))) return guessAudioMimeType(upload.name, hint);
+    if (isModelUpload(upload.name, hint)) return guessModelMimeType(upload.name, hint);
+    return hint;
+  }
+
+  useEffect(() => {
+    if (!file || !isAudioUpload) return;
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.src = url;
+    audio.addEventListener('loadedmetadata', () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) setDurationSeconds(Math.round(audio.duration));
+    });
+    return () => URL.revokeObjectURL(url);
+  }, [file, isAudioUpload]);
 
   useEffect(() => {
     let cancel = false;
@@ -107,13 +142,26 @@ export default function MediaUploadPage() {
     try {
       const bytes = await file.arrayBuffer();
       const sha256 = await sha256Hex(bytes);
+      const files: Array<{ name: string; mimeType: string; size: number; sha256: string }> = [{
+        name: file.name,
+        mimeType: primaryQuoteMime(file),
+        size: file.size,
+        sha256,
+      }];
+      if (coverFile) {
+        const coverBytes = await coverFile.arrayBuffer();
+        files.push({
+          name: coverFile.name,
+          mimeType: coverFile.type || 'image/png',
+          size: coverFile.size,
+          sha256: await sha256Hex(coverBytes),
+        });
+      }
       const quoted = await fetch('/api/media/quote', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          files: [{ name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, sha256 }],
-        }),
+        body: JSON.stringify({ files }),
       });
       const body = await quoted.json() as { quote?: UploadQuote; accepts?: X402Accepts[]; error?: string };
       if ((!quoted.ok && quoted.status !== 402) || !body.quote || !body.accepts?.[0]) {
@@ -185,11 +233,23 @@ export default function MediaUploadPage() {
       if (!media.ok || !mediaBody.job?.media) throw new Error(mediaBody.error || 'Media upload failed');
       note(mediaBody.simulated ? `Media ${mediaBody.job.media.id} (simulated, not on Arweave).` : `Media pinned ${mediaBody.job.media.id}.`);
 
+      let coverBytesBase64: string | undefined;
+      if (coverFile) {
+        const coverBytes = await coverFile.arrayBuffer();
+        coverBytesBase64 = toBase64(coverBytes);
+      }
       const metadata = await fetch(`/api/media/jobs/${paidBody.job.id}/metadata`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          description: description || undefined,
+          artist: artist || undefined,
+          durationSeconds,
+          coverBytes: coverBytesBase64,
+          coverMime: coverFile?.type || undefined,
+        }),
       });
       const metadataBody = await metadata.json() as { job?: { metadata?: { id: string } }; error?: string };
       if (!metadata.ok || !metadataBody.job?.metadata) throw new Error(metadataBody.error || 'Metadata upload failed');
@@ -217,8 +277,8 @@ export default function MediaUploadPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Studio · paid media</p>
           <h1 className="mt-2 text-3xl font-bold">Pin to Arweave</h1>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Hash the file, review the Turbo price, pay in USDC, then pin the artwork and its metadata.
-            Mint stays locked until a gateway can read both.
+            Hash the file, review the Turbo price, pay in USDC, then pin the media and its metadata. Audio and 3D uploads also
+            pin a minimal HTML player/viewer as the NFT animation URL. Mint stays locked until gateways can read everything.
           </p>
         </div>
         {config?.uploadMode === 'simulated' && (
@@ -249,20 +309,48 @@ export default function MediaUploadPage() {
         )}
         {session.data && <p className="text-sm">Signed in as {session.data.address}</p>}
         <label className="block text-sm font-semibold">
-          Artwork file
+          {isAudioUpload ? 'Audio file' : isModelUploadFlag ? '3D model file' : 'Artwork file'}
           <input
             className="mt-2 block w-full text-sm"
             type="file"
+            accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.glb,.gltf,.obj,.fbx,image/*,video/*"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
+              setDurationSeconds(undefined);
               resetQuote();
             }}
           />
         </label>
+        {isRichMediaUpload && (
+          <>
+            <label className="block text-sm font-semibold">
+              Cover image (optional)
+              <input
+                className="mt-2 block w-full text-sm"
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  setCoverFile(event.target.files?.[0] ?? null);
+                  resetQuote();
+                }}
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              {isModelUploadFlag ? 'Creator' : 'Artist'}
+              <input className="studio-input mt-2" value={artist} onChange={(event) => setArtist(event.target.value)} />
+            </label>
+          </>
+        )}
         <label className="block text-sm font-semibold">
           Title
           <input className="studio-input mt-2" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
+        {isRichMediaUpload && (
+          <label className="block text-sm font-semibold">
+            Description (optional)
+            <textarea className="studio-textarea mt-2" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
+          </label>
+        )}
         <div className="flex flex-wrap gap-3">
           <button type="button" className="studio-btn disabled:cursor-not-allowed disabled:opacity-40" disabled={!file || !session.data || busy != null} onClick={() => void requestQuote()}>
             {busy === 'quote' ? 'Quoting…' : 'Get quote'}

@@ -5,6 +5,7 @@ import {
   feedMiddleware,
   HYPERSNAP_BASE_URL,
   marketMiddleware,
+  mintTimelineMiddleware,
 } from './src/cryptoart/server';
 import { composeMiddleware } from './src/cryptoart/compose';
 import { platformMiddleware } from './src/cryptoart/platform';
@@ -32,6 +33,7 @@ function attachCryptoartMiddlewares(server, env) {
   server.middlewares.use(
     feedMiddleware({ baseUrl: env.HYPERSNAP_BASE_URL || HYPERSNAP_BASE_URL }),
   );
+  server.middlewares.use(mintTimelineMiddleware());
   server.middlewares.use(composeMiddleware(env));
 }
 

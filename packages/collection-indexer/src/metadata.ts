@@ -1,6 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq, and, lt, asc } from 'drizzle-orm';
 import { getDatabase, collectionTokens } from '@cryptoart/db';
+import { audioSourceFromMetadata, detectNftMediaType, modelSourceFromMetadata } from '@cryptoart/media';
 import type { IndexerConfig } from './config.js';
 
 interface TokenRow {
@@ -17,6 +18,9 @@ interface MetadataFields {
   description: string | null;
   imageUrl: string | null;
   animationUrl: string | null;
+  mediaType: string | null;
+  audioUrl: string | null;
+  modelUrl: string | null;
   attributes: unknown | null;
 }
 
@@ -82,6 +86,9 @@ export class MetadataResolver {
           description: metadata.description ?? null,
           imageUrl: metadata.imageUrl ?? null,
           animationUrl: metadata.animationUrl ?? null,
+          mediaType: metadata.mediaType ?? null,
+          audioUrl: metadata.audioUrl ?? null,
+          modelUrl: metadata.modelUrl ?? null,
           attributes: metadata.attributes ?? null,
           metadataStatus: 'resolved',
           updatedAt: new Date(),
@@ -149,6 +156,7 @@ export class MetadataResolver {
       if (!response.ok) return null;
 
       const json = await response.json() as Record<string, unknown>;
+      const mediaType = detectNftMediaType(json);
 
       let imageUrl: string | null = null;
       const rawImage = json['image'] ?? json['imageUrl'] ?? json['image_url'];
@@ -162,13 +170,26 @@ export class MetadataResolver {
         animationUrl = this.resolveUri(rawAnimation);
       }
 
-      const attributes = json['attributes'] ?? json['properties'] ?? null;
+      let audioUrl: string | null = null;
+      const rawAudio = audioSourceFromMetadata(json);
+      if (rawAudio) audioUrl = this.resolveUri(rawAudio);
 
+      let modelUrl: string | null = null;
+      const rawModel = modelSourceFromMetadata(json);
+      if (rawModel) modelUrl = this.resolveUri(rawModel);
+
+      const properties = json['properties'] && typeof json['properties'] === 'object'
+        ? json['properties'] as Record<string, unknown>
+        : null;
+      const attributes = json['attributes'] ?? properties ?? null;
       return {
         name: typeof json['name'] === 'string' ? json['name'] : null,
         description: typeof json['description'] === 'string' ? json['description'] : null,
         imageUrl,
         animationUrl,
+        mediaType: mediaType === 'unknown' ? null : mediaType,
+        audioUrl,
+        modelUrl,
         attributes: Array.isArray(attributes) ? attributes : null,
       };
     } finally {
