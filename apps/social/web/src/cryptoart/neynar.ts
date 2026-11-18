@@ -1,5 +1,7 @@
 import type { Candidate } from './ranking';
 import { listingReferences } from './listing-links';
+import type { DeskCastEmbeds, DeskQuoteEmbed, DeskVideoEmbed } from './embeds/types';
+import { parseTokenUrl } from './embeds/tokenUrls';
 
 export type CastAuthor = {
   fid: number;
@@ -22,27 +24,24 @@ export type CastCard = {
   recasts: { count: number };
   replies: { count: number };
   watches: { count: number };
-  embeds: {
-    images: { type: 'image'; url: string; sourceUrl: string; alt: string }[];
-    urls: {
-      type: 'url';
-      openGraph: {
-        url: string;
-        sourceUrl: string;
-        title?: string;
-        description?: string;
-        image?: string;
-        frameEmbedNext?: {
-          frameUrl: string;
-          frameEmbed: {
-            version: '1';
-            imageUrl?: string;
-            button: { title: string; action: { type: 'launch_miniapp'; name: string; url: string } };
-          };
-        };
-      };
-    }[];
-    unknowns: { type: 'unknown'; source: string }[];
+  embeds: DeskCastEmbeds;
+};
+
+type NeynarEmbed = {
+  url?: string;
+  cast_id?: { hash?: string; fid?: number };
+  cast?: {
+    hash?: string;
+    text?: string;
+    timestamp?: string;
+    author?: NeynarUser;
+  };
+  metadata?: {
+    content_type?: string;
+    image?: { width_px?: number; height_px?: number };
+    video?: { width_px?: number; height_px?: number; thumbnail_url?: string };
+    html?: { ogTitle?: string; ogDescription?: string; ogSiteName?: string; ogImage?: { url: string }[] };
+    frame?: { version?: string; title?: string; image?: string; frames_url?: string };
   };
 };
 
@@ -59,9 +58,7 @@ export interface NeynarCast {
   reactions?: { likes_count?: number; recasts_count?: number; likes?: { fid: number }[] };
   replies?: { count?: number };
   mentioned_profiles?: NeynarUser[];
-  embeds?: { url?: string; metadata?: { content_type?: string; image?: { width_px?: number; height_px?: number };
-    html?: { ogTitle?: string; ogDescription?: string; ogSiteName?: string; ogImage?: { url: string }[] };
-    frame?: { version?: string; title?: string; image?: string; frames_url?: string } } }[];
+  embeds?: NeynarEmbed[];
   viewer_context?: { liked?: boolean; recasted?: boolean };
 }
 
@@ -71,7 +68,7 @@ export interface SocialCandidate extends Candidate {
 }
 
 /** Some media remains PENDING in Neynar; recognize established image delivery URLs. */
-function isImage(embed: NonNullable<NeynarCast['embeds']>[number]) {
+function isImage(embed: NeynarEmbed) {
   if (!embed.url) return false;
   if (embed.metadata?.content_type) return embed.metadata.content_type.startsWith('image/');
   try {
@@ -80,6 +77,27 @@ function isImage(embed: NonNullable<NeynarCast['embeds']>[number]) {
       (url.hostname === 'res.cloudinary.com' && url.pathname.includes('/image/upload/')) ||
       /\.(png|jpe?g|gif|webp|avif)$/i.test(url.pathname));
   } catch { return false; }
+}
+
+function isVideo(embed: NeynarEmbed) {
+  if (!embed.url) return false;
+  if (embed.metadata?.content_type?.startsWith('video/')) return true;
+  return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(embed.url);
+}
+
+function quoteFromEmbed(embed: NeynarEmbed): DeskQuoteEmbed | null {
+  const hash = embed.cast?.hash ?? embed.cast_id?.hash;
+  if (!hash) return null;
+  const author = embed.cast?.author;
+  return {
+    hash,
+    text: embed.cast?.text,
+    author: author ? {
+      username: author.username,
+      displayName: author.display_name || author.username,
+      pfpUrl: author.pfp_url,
+    } : undefined,
+  };
 }
 
 function user(raw: NeynarUser): CastAuthor {
@@ -92,11 +110,26 @@ function user(raw: NeynarUser): CastAuthor {
 }
 
 export function normalizeCast(raw: NeynarCast, weightedLikerFids: number[] = []): SocialCandidate {
-  const urls = (raw.embeds ?? []).flatMap(embed => embed.url ? [embed.url] : []);
-  const images = (raw.embeds ?? []).filter(isImage)
+  const embeds = raw.embeds ?? [];
+  const urls = embeds.flatMap(embed => embed.url ? [embed.url] : []);
+  const images = embeds.filter(isImage)
     .map(embed => ({ type: 'image' as const, url: embed.url!, sourceUrl: embed.url!, alt: '' }));
   const imageUrls = new Set(images.map(image => image.url));
-  const links = (raw.embeds ?? []).filter(embed => embed.url && !imageUrls.has(embed.url) && (embed.metadata?.html || embed.metadata?.frame))
+  const videos: DeskVideoEmbed[] = embeds.filter(isVideo).map(embed => ({
+    url: embed.url!,
+    sourceUrl: embed.url!,
+    width: embed.metadata?.video?.width_px ?? embed.metadata?.image?.width_px,
+    height: embed.metadata?.video?.height_px,
+    thumbnailUrl: embed.metadata?.video?.thumbnail_url,
+  }));
+  const videoUrls = new Set(videos.map(video => video.url));
+  const quotes: DeskQuoteEmbed[] = embeds.map(quoteFromEmbed).filter((quote): quote is DeskQuoteEmbed => Boolean(quote));
+  const quoteHashes = new Set(quotes.map(quote => quote.hash));
+  const tokens = [...urls, ...raw.text.match(/chain:\/\/[^\s]+/g) ?? []]
+    .map(source => parseTokenUrl(source))
+    .filter((token, index, list) => token && list.findIndex(other => other?.raw === token.raw) === index) as NonNullable<ReturnType<typeof parseTokenUrl>>[];
+
+  const links = embeds.filter(embed => embed.url && !imageUrls.has(embed.url) && !videoUrls.has(embed.url) && (embed.metadata?.html || embed.metadata?.frame))
     .map(embed => {
       const html = embed.metadata?.html;
       const frame = embed.metadata?.frame;
@@ -108,6 +141,9 @@ export function normalizeCast(raw: NeynarCast, weightedLikerFids: number[] = [])
             action: { type: 'launch_miniapp' as const, name: html?.ogSiteName || html?.ogTitle || 'Mini App', url: frameUrl } } } } } : {}) } };
     });
   const linkUrls = new Set(links.map(link => link.openGraph.url));
+  const unknowns = urls.filter(url => !imageUrls.has(url) && !videoUrls.has(url) && !linkUrls.has(url)
+    && !quoteHashes.has(url) && !tokens.some(token => token.raw === url))
+    .map(source => ({ type: 'unknown' as const, source }));
   const timestamp = Date.parse(raw.timestamp);
   const likes = raw.reactions?.likes_count ?? 0;
   const recasts = raw.reactions?.recasts_count ?? 0;
@@ -122,8 +158,7 @@ export function normalizeCast(raw: NeynarCast, weightedLikerFids: number[] = [])
       mentions: (raw.mentioned_profiles ?? []).map(user),
       channel: raw.channel ? { key: raw.channel.id, name: raw.channel.name ?? raw.channel.id, imageUrl: raw.channel.image_url } : undefined,
       reactions: { count: likes }, recasts: { count: recasts }, replies: { count: replies }, watches: { count: 0 },
-      embeds: { images, urls: links, unknowns: urls.filter(url => !imageUrls.has(url) && !linkUrls.has(url)).map(source => ({ type: 'unknown', source })) },
-      // The ranking curator is NOT the browsing user. Never copy their viewer_context here.
+      embeds: { images, urls: links, unknowns, videos, quotes, tokens },
     },
   };
 }

@@ -18,6 +18,23 @@ export function parseListingUrl(raw: string): ListingReference | null {
   } catch { return null; }
 }
 
+/** Preserve referralAddress (or legacy ref) when linking from embed cards. */
+export function listingHrefWithReferral(path: string, originalUrl?: string, extra?: Record<string, string>) {
+  const params = new URLSearchParams();
+  if (originalUrl) {
+    try {
+      const from = new URL(originalUrl);
+      const referral = from.searchParams.get('referralAddress') || from.searchParams.get('ref');
+      if (referral) params.set('referralAddress', referral);
+    } catch { /* ignore */ }
+  }
+  for (const [key, value] of Object.entries(extra ?? {})) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 export function listingReferences(text: string, embeds: string[] = []): ListingReference[] {
   const urls = [...embeds, ...(text.match(/https?:\/\/[^\s<>]+/g) ?? []).map(url => url.replace(/[),.!?;]+$/, ''))];
   const references = new Map<string, ListingReference>();

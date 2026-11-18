@@ -8,6 +8,7 @@ import { composeExhibition, type RankedSocialItem } from './exhibition';
 import { CreatorRail } from './CreatorRail';
 import type { AuctionCardData, MarketplaceListingData } from './marketplace';
 import { useSiweSession } from './useSiweSession';
+import { DeskCastEmbeds } from './embeds/DeskCastEmbeds';
 
 interface FeedPage {
   mode: 'curated' | 'mixed';
@@ -48,7 +49,6 @@ function formatCount(n: number) {
 
 function PostCard({ item }: { item: RankedSocialItem }) {
   const cast = item.candidate.cast;
-  const image = cast.embeds?.images?.[0];
   const pfp = cast.author.pfp?.url;
   return <article className="border-b border-[#2a2a2a] px-3 py-3 sm:px-4">
     <div className="grid grid-cols-[36px_minmax(0,1fr)] gap-2.5">
@@ -62,13 +62,7 @@ function PostCard({ item }: { item: RankedSocialItem }) {
           {item.score.curation > 0 && <span className="cryptoart-mono text-[10px] uppercase tracking-[0.08em] text-[#dcf54c]">Selected</span>}
         </div>
         {cast.text && <p className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#e8e8e8]">{cast.text}</p>}
-        {image && <div className="mt-2 inline-block max-w-full overflow-hidden rounded-md border border-[#2a2a2a]">
-          <img
-            src={image.url}
-            alt={image.alt || cast.text || `Work shared by ${name(item)}`}
-            className="block max-h-[280px] max-w-full h-auto w-auto"
-          />
-        </div>}
+        <DeskCastEmbeds cast={cast} />
         <div className="mt-2 flex items-center gap-5 text-[#888]">
           <span className="inline-flex items-center gap-1.5 text-[12px]" title="Replies">
             <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={1.75} />

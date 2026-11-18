@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { rankFeed, scoreCast, type Candidate } from './ranking';
 import { composerChannel } from './policy';
-import { parseListingUrl, listingReferences } from './listing-links';
+import { listingHrefWithReferral, parseListingUrl, listingReferences } from './listing-links';
 import { normalizeCast } from './neynar';
 
 const now = 1800000000000;
@@ -51,6 +51,10 @@ describe('listing references', () => {
     expect(parseListingUrl('https://cryptoart.social/listing/eth/42?chainId=8453')).toBeNull();
     expect(parseListingUrl('https://cryptoart.social/listing/42?chainId=5')).toBeNull();
   });
+  it('preserves referralAddress when building listing links from embed cards', () => {
+    expect(listingHrefWithReferral('/listing/base/42', 'https://cryptoart.social/listing/base/42?referralAddress=0xabc', { action: 'bid' }))
+      .toBe('/listing/base/42?referralAddress=0xabc&action=bid');
+  });
   it('deduplicates embeds/text but keeps same listing number on different chains', () => {
     expect(listingReferences('https://cryptoart.social/listing/42. https://cryptoart.social/listing/eth/42', ['https://cryptoart.social/listing/42'])).toHaveLength(2);
   });
@@ -68,6 +72,17 @@ describe('listing references', () => {
     expect(candidate.cast.embeds?.images).toHaveLength(1);
     expect(candidate.cast.embeds?.urls[0].openGraph.title).toBe('Artwork');
     expect(candidate.cast.embeds?.unknowns).toHaveLength(0);
+  });
+  it('normalizes quote and video embeds for the desk dispatcher', () => {
+    const candidate = normalizeCast({
+      hash: 'rich', author: { fid: 1 }, timestamp: new Date(now).toISOString(), text: 'clip',
+      embeds: [
+        { url: 'https://cdn.example/clip.mp4', metadata: { content_type: 'video/mp4' } },
+        { cast: { hash: '0xquote', text: 'quoted text', author: { fid: 2, username: 'artist' } } },
+      ],
+    });
+    expect(candidate.cast.embeds.videos).toHaveLength(1);
+    expect(candidate.cast.embeds.quotes?.[0]?.hash).toBe('0xquote');
   });
   it('preserves Neynar mini-app metadata for the upstream interactive renderer', () => {
     const candidate = normalizeCast({ hash: 'mini', author: { fid: 1 }, timestamp: new Date(now).toISOString(), text: 'play',
