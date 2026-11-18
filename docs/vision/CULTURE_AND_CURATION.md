@@ -30,6 +30,12 @@ Curators share **gallery links**—the marketplace’s **referral-fee gallery** 
 
 When someone buys through that thread, the curator’s wallet is already wired as **`referralAddress`** on listings surfaced from their gallery, and the auction house contract pays **`referrerBPS`** on settlement.
 
+### Gallery channels (inexpensive galleries)
+
+Let users create **gallery channels**: a very inexpensive way to open a gallery where **conversation and works live in one place**. Each published gallery is backed by (or *is*) a channel. Casting **in** the gallery channel makes context obvious—you are in the gallery, seeing the works while reading and posting. Curator essays, visitor comments, and the gallery’s listings share one room instead of splitting across a static page and a disconnected timeline.
+
+This pairs with the marketplace **curation** record (listings, order, slug, referral wallet) and can later align with protocol-level channel registration if/when that is cheap enough for every curator.
+
 ### Ranking: community-weighted curation, not raw popularity
 
 A gallery-link cast should rank **higher for a bounded time window** when it is liked by **active channel members**. Engagement from people who participate in **our channel** matters more than drive-by global likes.
@@ -91,7 +97,8 @@ Start with **four** curators. Each is a **versioned document** (`docs/vision/cur
 | Channel gating | **Explicitly off** (`ranking.ts`, tests) | Admission filter, compose default parent URL, browse-outside toggle |
 | Ranking | Static `weightedLikes` FID map | **Channel-active FIDs** + selected **AI curator** recipe |
 | Transparency | No “why ranked” or curator choice | Curator registry, docs, feed UI |
-| Gallery + referral | MVP galleries + `referralAddress` | Feed does not parse/boost gallery casts |
+| Gallery + referral | MVP galleries + `referralAddress` | No **gallery channel** (`parent_url` feed + combined page) |
+| Gallery channels | — | Not implemented |
 | Likes / reactions | Display counts only | No channel-scoped member weighting |
 | Tags / points | — | Not started |
 | Collector browse | `YourItems.tsx` | Not in header; no quick list in Social |
@@ -149,6 +156,23 @@ Sizes are **engineering weeks for one focused builder**, order-of-magnitude only
 | Gallery strip on cards | `Feed.tsx` |
 | Referral preservation tests | MVP `PublicGalleryClient.tsx`, Social |
 
+### Phase 2c — Gallery channels (M–L)
+
+**Goal:** One gallery = one conversation scope on Hypersnap, cheap by default, commerce from existing MVP curation.
+
+| Task | Repo touchpoints |
+| --- | --- |
+| DB: `parent_url` (and optional `protocol_channel_key`) on `curation` / gallery publish | `packages/db`, MVP publish API |
+| Canonical parent URL pattern, e.g. `https://cryptoart.social/~/gallery/{username}/{slug}` | `gallery-url.ts`, Social route |
+| **Gallery page v2:** works grid + live conversation column (`GET /v2/farcaster/feed/parent_urls`) | Social page (new) or extend MVP `PublicGalleryClient` via embed |
+| Compose **in gallery:** default `parent_url` to gallery channel when viewing that gallery | `compose.ts`, gallery page CTA |
+| Create flow: on publish gallery → allocate `parent_url` (+ optional on-chain channel later) | MVP `api/curation` |
+| Promote to home: curator cross-post into `cryptoart` channel or gallery-link cast on home | Compose templates |
+| **Main feed rollup:** count likes/casts in registered gallery `parent_url`s toward active-member and AI curator signals when the liker is active in `cryptoart` (policy doc + weights) | `ranking.ts`, `channel_active_fids` job |
+| Moderation v1: curator FID = owner; hide via app UI until `ChannelModerate` write path exists | policy + admin |
+
+See **Hypersnap channel research** and **Gallery channel product model** below.
+
 ### Phase 3 — Participatory metadata and reputation (L)
 
 | Task | Repo touchpoints |
@@ -186,6 +210,83 @@ Recompute at least daily; store in Postgres; feed build reads a **frozen snapsho
 
 **Data sources today:** Hypersnap HTTP cast payloads (`channel.id` on `NeynarCast`), `packages/identity` directory for wallet↔FID, marketplace indexer for Collector Momentum curator only.
 
+**Gallery channels (extension):** Activity *inside* a gallery’s `parent_url` can increment per-gallery engagement and, when the actor is active in `cryptoart`, contribute to **home** curation weights (e.g. member-like boost on casts that also appear on home or that carry a gallery-link into `cryptoart`). Exact rollup is policy-tunable per AI curator recipe.
+
+---
+
+## Hypersnap channels — research (Nov 18, 2026)
+
+Sources: [Hypersnap introduction](https://hypersnap.org/docs/introduction), [Channels read API](https://hypersnap.org/docs/reference/reads/channels), [Feeds read API](https://hypersnap.org/docs/reference/reads/feeds), [Build a client guide](https://hypersnap.org/docs/guides/build-a-client), [FIP: Channels on Snapchain](https://github.com/farcasterxyz/protocol/discussions/276). Live checks against public node `https://haatz.quilibrium.com` (same host named in Hypersnap docs).
+
+### What works today on haatz (read path)
+
+| Capability | API | Notes |
+| --- | --- | --- |
+| Channel profile | `GET /v2/farcaster/channel?id={key}` | e.g. `cryptoart` returns `parent_url` `https://warpcast.com/~/channel/cryptoart` ([Channels doc](https://hypersnap.org/docs/reference/reads/channels)) |
+| Channel-scoped cast feed | `GET /v2/farcaster/feed/channels?channel_ids=...` | Comma-separated ids ([Feeds doc](https://hypersnap.org/docs/reference/reads/feeds)) |
+| **Parent URL feed** | `GET /v2/farcaster/feed/parent_urls?parent_urls=...` | Same casts as channel id when URL matches; **does not require** a named channel registry entry ([Feeds doc](https://hypersnap.org/docs/reference/reads/feeds)) |
+| Members / trending channels | `GET .../channel/members`, `.../channel/trending` | Read-only indexes on the node |
+
+Verified on haatz: `feed/channels?channel_ids=cryptoart` and `feed/parent_urls?parent_urls=https://warpcast.com/~/channel/cryptoart` return casts with matching `parent_url`.
+
+### What does *not* work on HTTP (write path)
+
+Hypersnap documents that **mutations go through signed protocol messages on gRPC `SubmitMessage`**, not the HTTP `/v2/farcaster/*` surface ([introduction](https://hypersnap.org/docs/introduction); same pattern as casts in [repo write-path note](../plans/2026-11-12-hypersnap-write-path.md)).
+
+Channel-related HTTP writes (`POST /v2/farcaster/channel/follow`, member invite, etc.) are **registered but return `501 Not Implemented`**—follow/unfollow and channel admin use signed `LinkAdd` / channel message types instead ([Channels doc](https://hypersnap.org/docs/reference/reads/channels)).
+
+### On-chain vs off-chain (two layers)
+
+| Layer | Today / near term | Protocol direction (FIP-276) |
+| --- | --- | --- |
+| **Casting into a “channel”** | Casts carry `parent_url` (and/or resolve to a channel id in indexes). Anyone can publish with a chosen parent URL via `CastAdd` + signer—**no channel owner required** to accept posts. | FIP: *“casting is not gated by channel state”*—expiry/ownership affects **administration**, not whether casts merge ([FIP §2–3](https://github.com/farcasterxyz/protocol/discussions/276)). |
+| **Channel ownership & config** | Legacy: host-centric (e.g. Warpcast) DB. Hypersnap: **local registry + membership index** rebuilt from ingested messages ([Channels doc](https://hypersnap.org/docs/reference/reads/channels)). | FIP: **on-chain** Basenames-style registrar (ERC-721) for the channel **key** + **signed messages** (`ChannelUpdate`, `ChannelMember`, `ChannelModerate`, …) for description, mods, pins, hide ([FIP §1, §3](https://github.com/farcasterxyz/protocol/discussions/276)). |
+| **Cost** | Posting to a `parent_url` we define: **no registry fee** (only normal cast signing). | FIP discussion cites **~$25** as today’s one-time Warpcast channel fee; proposes **renewable** registrar pricing (amount/term **open** in FIP; community feedback favors lower/default pricing) ([FIP Motivation & comments](https://github.com/farcasterxyz/protocol/discussions/276)). |
+| **Moderation** | Client/backend today; Hypersnap indexes `ChannelModerate` when present. | Owner + moderators (max 10); HIDE/UNHIDE on casts; membership OPEN vs APPROVAL on protocol ([FIP §3–4](https://github.com/farcasterxyz/protocol/discussions/276)). |
+
+### Can users create channels *right now*?
+
+- **On Hypersnap HTTP:** no create endpoint; **501** on channel writes.
+- **On Snapchain (FIP model):** creation = **pay registrar** + submit **`ChannelUpdate`** via `SubmitMessage` (not yet assumed live for every gallery on relaunch).
+- **For Cryptoart gallery channels v1 (recommended):** treat each gallery as a **stable `parent_url` under our domain** (e.g. `https://cryptoart.social/~/gallery/{username}/{slug}`). Curators and visitors cast with that parent; we read with `feed/parent_urls`. **No per-gallery on-chain name required** for conversation to work. Optionally register a protocol `channel_key` later when pricing and tooling are right (or sponsor keys for featured curators).
+- **Fallback if parent feeds lag:** index gallery casts ourselves from home-channel cross-posts + gallery-link detection until the node indexes our parent URLs reliably.
+
+---
+
+## Gallery channel product model
+
+### Objects (how pieces link)
+
+| Object | Role | Referral / commerce |
+| --- | --- | --- |
+| **MVP `curation` gallery** | Source of truth: listings, order, slug, `curatorAddress`, publish flag | Listing cards use **`referralAddress={curatorAddress}`** (`PublicGalleryClient.tsx`); on-chain **`referrerBPS`** on purchase |
+| **Gallery channel** | Hypersnap conversation scope: **`parent_url`** (+ optional protocol `channel_key`) | No separate fee; commerce still via listings inside the gallery record |
+| **Social `exhibitions`** | Editorial “on view” slots (Creator rail, `/exhibitions/:slug`) | Can mirror a gallery or a hand-picked set; **not** the default curator share object |
+
+**Primary share object:** publish **gallery channel** (conversation + works). Curators promote by **casting inside the gallery** and optionally **cross-posting** to `cryptoart` home. **Exhibitions** remain marketing/editorial layers, not the default gallery.
+
+### Gallery channel page (UX)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Gallery title · curator · referral-backed listings      │
+├──────────────────────────┬──────────────────────────────┤
+│  WORKS                   │  CONVERSATION               │
+│  (curation items grid)   │  parent_url feed (Hypersnap) │
+│  listing CTAs + ref      │  compose defaults to gallery  │
+└──────────────────────────┴──────────────────────────────┘
+```
+
+Mobile: tab or stack “Works | Talk”, same data.
+
+### Fit with home channel + AI curators
+
+| Surface | Scope | Curator |
+| --- | --- | --- |
+| **`/` home** | Default: casts in **`cryptoart`** channel (opt-in browse outside) | User-selected **AI curator** (v1 recipes) |
+| **`/user/.../gallery/...`** | Works from MVP curation + **conversation** for that gallery’s `parent_url` | Same picker optional; default **Conversation** scoped to parent |
+| **Promotion** | Gallery activity does not replace home; **rollup** policy decides whether member likes *in gallery channels* boost **home** ranking for linked posts | Documented per recipe in `docs/vision/curators/*` |
+
 ---
 
 ## Open questions for Max
@@ -202,21 +303,27 @@ Recompute at least daily; store in Postgres; feed build reads a **frozen snapsho
 
 6. **Downvotes:** Permanently off, or only after an exposure window?
 
-7. **Gallery limit vs culture:** Does MVP **3-gallery / membership** gating still fit many curators on the feed?
+7. **Gallery limit vs culture:** Does MVP **3-gallery / membership** gating still fit **gallery channels** (one channel per gallery)?
 
-8. **Exhibitions vs MVP galleries:** Primary object for curator shares—`exhibitions` (Social DB) or MVP `curation` galleries?
+8. **Compose identity:** App-held gasless signer vs user-signed casts?
 
-9. **Compose identity:** App-held gasless signer vs user-signed casts?
+9. **such.market timing:** When to show a disabled “Propose trade” CTA?
 
-10. **such.market timing:** When to show a disabled “Propose trade” CTA?
+10. **Price on feed cards:** Hide list price on conversation cards for all curators, or only for Community Activity / Conversation?
 
-11. **Price on feed cards:** Hide list price on conversation cards for all curators, or only for Community Activity / Conversation?
+11. **Cross-app deployment:** Single domain for Social desk + MVP galleries at relaunch?
 
-12. **Cross-app deployment:** Single domain for Social desk + MVP galleries at relaunch?
+12. **Curator default:** Is **Community Activity** the default for everyone, or do we run a short **opt-in A/B** once metrics exist (Phase 2+)?
 
-13. **Curator default:** Is **Community Activity** the default for everyone, or do we run a short **opt-in A/B** once metrics exist (Phase 2+)?
+13. **Gallery channel v1 mechanism:** **`parent_url` only** (no registry fee) vs require **FIP channel registration** per gallery when registrar pricing is known?
 
-14. **Hypersnap channel feed API:** Confirm exact HTTP path/parameters for channel-scoped reads on haatz (blocker for Phase 1 if undocumented).
+14. **Parent URL format:** Standardize on `cryptoart.social/~/gallery/...` vs `warpcast.com/~/channel/...` compatibility for indexes?
+
+15. **Protocol channel keys:** If on-chain keys are adopted, who pays registration (curator, app subsidy, membership perk)?
+
+16. **Gallery channel moderation:** Curator-only v1, or appoint moderators via future `ChannelMember` messages?
+
+17. **Home rollup detail:** Should **all** gallery-channel member likes count toward home boosts, or only when the cast is also cross-posted / linked on `cryptoart`?
 
 ---
 
@@ -229,3 +336,5 @@ Recompute at least daily; store in Postgres; feed build reads a **frozen snapsho
 - Prior global-feed decision: `docs/plans/2026-11-02-social-first-layout.md` (superseded on channel default per this doc)
 - Gallery referral (MVP): `ShareButton.tsx`, `PublicGalleryClient.tsx`
 - Marketplace referrer: `packages/marketplace/src/abi.ts`
+- Hypersnap channels: [reads/channels](https://hypersnap.org/docs/reference/reads/channels), [reads/feeds](https://hypersnap.org/docs/reference/reads/feeds), [FIP-276](https://github.com/farcasterxyz/protocol/discussions/276)
+- Channel feed (haatz): `GET /v2/farcaster/feed/channels`, `GET /v2/farcaster/feed/parent_urls`
