@@ -111,16 +111,23 @@ export function metadataObject(input: {
   width?: number;
   height?: number;
   animationUrl?: string;
+  /** When generative HTML is the primary artifact, set to `html/generative`. */
+  animationMimeType?: string;
   attributes?: Array<{ trait_type: string; value: string | number }>;
 }) {
   const mediaUri = `ar://${input.mediaId}`;
   const isImage = input.mimeType.startsWith('image/');
+  const isGenerativeHtml =
+    input.mimeType === 'text/html' || input.animationMimeType === 'html/generative';
   const animation_url = input.animationUrl || (isImage ? undefined : mediaUri);
+  const animation_mime_type =
+    input.animationMimeType ?? (isGenerativeHtml ? 'html/generative' : undefined);
   return {
     name: input.name,
     description: input.description ?? '',
     image: mediaUri,
     ...(animation_url ? { animation_url } : {}),
+    ...(animation_mime_type ? { animation_mime_type } : {}),
     ...(input.attributes && input.attributes.length > 0 ? { attributes: input.attributes } : {}),
     content: {
       uri: mediaUri,
