@@ -16,6 +16,10 @@ export {
 } from './jobs';
 export { costFromTurboEstimate, formatUsdc, METADATA_ALLOWANCE_BYTES, usdcAtomicFromUsd } from './quote';
 export { quoteTurboBundle, quoteTurboUploadCost } from './turboCost';
+export { isAudioMimeType, isAudioFileName, guessAudioMimeType, SUPPORTED_AUDIO_MIME_TYPES } from './audio/mime';
+export { buildAudioNftMetadata, quoteAudioPinBundle, AUDIO_PLAYER_ALLOWANCE_BYTES } from './audio/metadata';
+export { buildAudioPlayerHtml } from './audio/player';
+export { detectNftMediaType, audioSourceFromMetadata, type NftMediaType } from './audio/detect';
 export { isMockPaymentHeader, resolveAllowMockPayment } from './paymentPolicy';
 export { pinnedMediaForMint, type PinnedMedia } from './pin';
 export {

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, use, useState, useCallback, useEffect } from 'react';
+import { Suspense, use, useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useSendTransaction, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
@@ -14,6 +14,7 @@ import { useCollection } from '~/hooks/useCollections';
 import { useActiveWallet } from '~/hooks/useActiveWallet';
 import { txExplorerUrl } from '~/lib/txExplorer';
 import { cn } from '~/lib/utils';
+import { guessAudioMimeType, isAudioMimeType } from '@cryptoart/media/client';
 import { mintTokenUri } from './tokenUri';
 
 const STEPS = ['Upload', 'Metadata', 'Pin', 'Mint'];
@@ -62,7 +63,6 @@ function MintWizard({
   }));
   const [currentStep, setCurrentStep] = useState(opensOnPin ? 3 : 1);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<TokenMetadata>({
     name: '',
     description: '',
@@ -94,8 +94,15 @@ function MintWizard({
     const f = files[0];
     if (!f) return;
     setFile(f);
-    setPreview(URL.createObjectURL(f));
   }, []);
+
+  const isAudioFile = file
+    ? isAudioMimeType(guessAudioMimeType(file.name, file.type || 'application/octet-stream'))
+    : false;
+  const previewUrl = useMemo(() => {
+    if (!file) return null;
+    return URL.createObjectURL(file);
+  }, [file]);
 
   const addAttribute = useCallback(() => {
     setMetadata((m) => ({
@@ -198,7 +205,7 @@ function MintWizard({
     mintTxHash: txHash,
     quantity: is1155 ? String(amount) : null,
   });
-  const shownPreview = preview ?? (pinned.pin?.gatewayUrl?.startsWith('https://') ? pinned.pin.gatewayUrl : null);
+  const shownPreview = previewUrl ?? (pinned.pin?.gatewayUrl?.startsWith('https://') ? pinned.pin.gatewayUrl : null);
 
   if (!isConnected) {
     return (
@@ -228,7 +235,7 @@ function MintWizard({
       </div>
 
       <div className="mx-auto w-full max-w-[1280px] flex-1 px-20 py-10">
-        {currentStep === 1 && <StepUpload file={file} preview={preview} onFiles={handleFiles} />}
+        {currentStep === 1 && <StepUpload file={file} isAudioFile={isAudioFile} preview={previewUrl} onFiles={handleFiles} />}
         {currentStep === 2 && (
           <StepMetadata
             metadata={metadata}
@@ -316,26 +323,30 @@ function MintWizard({
 function StepUpload({
   file,
   preview,
+  isAudioFile,
   onFiles,
 }: {
   file: File | null;
   preview: string | null;
+  isAudioFile: boolean;
   onFiles: (files: File[]) => void;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-3xl font-bold">Upload artwork</h2>
+        <h2 className="text-3xl font-bold">{isAudioFile ? 'Upload audio' : 'Upload artwork'}</h2>
         <p className="mt-3 text-muted">
-          Optional preview in this browser. The artwork that gets minted is the confirmed Arweave pin.
+          Optional preview in this browser. The mint uses the confirmed Arweave pin. Audio uploads get a simple HTML player as animation URL.
         </p>
       </div>
-      <DropZone onFiles={onFiles} />
+      <DropZone accept={file?.type?.startsWith('audio/') || isAudioFile ? 'audio/*,.mp3,.wav,.flac,.ogg,.m4a' : undefined} onFiles={onFiles} />
       {file && (
         <div className="flex items-center gap-4">
-          {preview && (
-            <img src={preview} alt="" className="size-16 rounded-lg object-cover" />
-          )}
+          {isAudioFile && preview
+            ? <audio controls src={preview} className="h-10 max-w-xs" />
+            : preview
+              ? <img src={preview} alt="" className="size-16 rounded-lg object-cover" />
+              : null}
           <div>
             <p className="font-medium">{file.name}</p>
             <p className="text-sm text-muted">{(file.size / 1024).toFixed(1)} KB</p>
@@ -544,7 +555,10 @@ function StepPin({
           </p>
         </div>
         <p className="text-sm">
-          <Link href="/media/upload" className="underline">
+          <Link
+            href={`/media/upload?name=${encodeURIComponent(name || 'Artwork')}&artist=${encodeURIComponent(attributes.find((attribute) => attribute.trait_type.toLowerCase() === 'artist')?.value || '')}&description=${encodeURIComponent(description)}`}
+            className="underline"
+          >
             Open the paid pin page
           </Link>
         </p>

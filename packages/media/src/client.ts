@@ -11,4 +11,6 @@ export {
   type ExactAuthorization,
 } from './x402';
 export { isMockPaymentHeader } from './paymentPolicy';
+export { detectNftMediaType, audioSourceFromMetadata, type NftMediaType } from './audio/detect';
+export { isAudioMimeType, guessAudioMimeType } from './audio/mime';
 export type { FileQuoteInput, UploadJob, UploadQuote, X402Accepts } from './types';

@@ -7,6 +7,7 @@ import { fetchAuctionCard, fetchLatestListings, type AuctionCardData, type Marke
 import { fetchMarketPage } from './marketClient';
 import { createAssetDiscoveryService } from './assetDiscovery';
 import { fetchFarcasterAccountByAddress } from '../../../../../packages/identity/src/farcasterDirectory';
+import { fetchRecentAudioMints } from './mintTimeline';
 
 type Snapshot = { id: string; createdAt: number; mode: 'curated' | 'mixed'; items: ReturnType<typeof rankFeed<ReturnType<typeof normalizeCast>>>;
   auctions: AuctionCardData[]; latestListings: MarketplaceListingData[]; warnings: string[] };
@@ -212,6 +213,28 @@ export function marketMiddleware(request: Fetch = fetch) {
     } catch {
       res.statusCode = 502;
       res.end(JSON.stringify({ error: 'Marketplace data is temporarily unavailable.' }));
+    }
+  };
+}
+
+export function mintTimelineMiddleware() {
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (url.pathname !== '/api/cryptoart/mints/recent') return next();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+    if (req.method !== 'GET') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return;
+    }
+    try {
+      const items = await fetchRecentAudioMints(Math.min(24, Math.max(1, Number(url.searchParams.get('limit')) || 12)));
+      res.statusCode = 200;
+      res.end(JSON.stringify({ items }));
+    } catch {
+      res.statusCode = 200;
+      res.end(JSON.stringify({ items: [], degraded: true }));
     }
   };
 }

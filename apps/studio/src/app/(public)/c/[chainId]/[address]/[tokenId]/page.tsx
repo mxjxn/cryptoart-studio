@@ -18,6 +18,8 @@ interface TokenDetail {
   description: string | null;
   imageUrl: string | null;
   animationUrl: string | null;
+  mediaType: string | null;
+  audioUrl: string | null;
   attributes: { trait_type: string; value: string }[] | null;
   ownerAddress: string;
   mintTxHash: string;
@@ -111,7 +113,15 @@ export default function PublicTokenPage({
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
         {/* Artwork */}
         <div className="aspect-square overflow-hidden rounded-xl bg-neutral-100">
-          {token.imageUrl ? (
+          {token.mediaType === 'audio' && token.audioUrl ? (
+            <div className="flex size-full flex-col items-center justify-center gap-4 p-8">
+              {token.imageUrl && <img src={token.imageUrl} alt="" className="size-32 rounded-lg object-cover shadow-sm" />}
+              <audio controls src={token.audioUrl} className="w-full max-w-md" preload="metadata" />
+              {token.animationUrl && (
+                <a className="text-sm underline" href={token.animationUrl} target="_blank" rel="noreferrer">Open player page</a>
+              )}
+            </div>
+          ) : token.imageUrl ? (
             <img src={token.imageUrl} alt={token.name ?? ''} className="size-full object-contain" />
           ) : (
             <div className="flex size-full items-center justify-center text-muted">

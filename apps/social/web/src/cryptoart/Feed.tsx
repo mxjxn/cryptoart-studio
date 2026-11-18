@@ -8,6 +8,8 @@ import { composeExhibition, type RankedSocialItem } from './exhibition';
 import { CreatorRail } from './CreatorRail';
 import type { AuctionCardData, MarketplaceListingData } from './marketplace';
 import { useSiweSession } from './useSiweSession';
+import { InlineAudioCard } from './InlineAudioCard';
+import type { MintTimelineItem } from './mintTimeline';
 
 interface FeedPage {
   mode: 'curated' | 'mixed';
@@ -93,6 +95,16 @@ function PostCard({ item }: { item: RankedSocialItem }) {
 
 export function CryptoartFeed() {
   const viewerFid = useViewerFid();
+  const audioMints = useQuery({
+    queryKey: ['cryptoart-audio-mints'],
+    queryFn: async ({ signal }) => {
+      const response = await fetch('/api/cryptoart/mints/recent?limit=6', { signal });
+      const body = await response.json() as { items?: MintTimelineItem[] };
+      return body.items ?? [];
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
   const feed = useInfiniteQuery({
     queryKey: ['cryptoart-feed', viewerFid],
     initialPageParam: null as string | null,
@@ -167,6 +179,25 @@ export function CryptoartFeed() {
         {warnings.length > 0 && <details className="border-b border-[#2a2a2a] px-4 py-2 text-xs text-[#888]"><summary>Some sources are incomplete</summary>
           <ul>{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
         </details>}
+
+        {(audioMints.data ?? []).length > 0 && (
+          <section className="border-b border-[#2a2a2a] px-3 py-4 sm:px-4" aria-label="New audio mints">
+            <p className="cryptoart-mono mb-3 text-[10px] uppercase tracking-[0.14em] text-[#888]">New audio</p>
+            <ul className="space-y-3">
+              {audioMints.data!.map((mint) => (
+                <li key={mint.id}>
+                  <InlineAudioCard
+                    title={mint.name ?? `Token #${mint.tokenId}`}
+                    artist={mint.artist}
+                    coverUrl={mint.imageUrl}
+                    audioUrl={mint.audioUrl}
+                    href={mint.href}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {!feed.isPending && !feed.error && posts.length === 0 && (
           <div className="px-4 py-8 text-center">

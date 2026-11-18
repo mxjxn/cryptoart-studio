@@ -2,6 +2,9 @@ import { contentHash, failAfterPayment, markConfirmed, markMediaUploaded, markMe
 import { pinnedMediaForMint } from './pin';
 import { isMockPaymentHeader } from './paymentPolicy';
 import { METADATA_ALLOWANCE_BYTES } from './quote';
+import { isAudioMimeType, guessAudioMimeType } from './audio/mime';
+import { quoteAudioPinBundle } from './audio/metadata';
+import { publishAudioPinMetadata, decodeBase64Bytes } from './audio/publish';
 import { quoteTurboBundle, quoteTurboUploadCost, type UploadCostSource } from './turboCost';
 import { createMockFacilitator, requirementFromQuote, usdcEip712Domain } from './x402';
 import { createSimulatedArweave, metadataObject } from './arweave';
@@ -95,8 +98,14 @@ export function createMediaRouter(options: {
   const domainFor = (asset: string) => usdcEip712Domain(asset, { name: options.usdcName, version: options.usdcVersion });
 
   async function buildQuote(files: FileQuoteInput[], idempotencyKey?: string) {
+    const primary = files[0];
+    if (!primary) throw new Error('At least one file is required');
+    const cover = files[1];
+    const primaryMime = guessAudioMimeType(primary.name, primary.mimeType);
+    const cost = isAudioMimeType(primaryMime)
+      ? await quoteAudioPinBundle(primary.size, cover?.size ?? 0, price)
+      : await quoteTurboBundle(primary.size, price);
     const fileBytes = files.reduce((sum, file) => sum + file.size, 0);
-    const cost = await quoteTurboBundle(fileBytes, price);
     return quoteUpload({
       files,
       payTo: options.payTo,
@@ -272,16 +281,51 @@ export function createMediaRouter(options: {
               .filter((attribute) => attribute && attribute.trait_type && attribute.value !== undefined && attribute.value !== '')
               .map((attribute) => ({ trait_type: String(attribute.trait_type), value: attribute.value as string | number }))
           : undefined;
-        const metadata = metadataObject({
-          name: String(body.name ?? job.quote.files[0]?.name ?? 'Artwork'),
-          description: body.description ? String(body.description) : undefined,
-          mimeType: job.media.mimeType,
-          mediaId: job.media.id,
-          sha256: job.media.sha256,
-          animationUrl: body.animation_url || body.animationUrl ? String(body.animation_url ?? body.animationUrl) : undefined,
-          attributes,
-        });
-        const bytes = new TextEncoder().encode(JSON.stringify(metadata));
+        const primaryMime = guessAudioMimeType(job.quote.files[0]?.name ?? '', job.media.mimeType);
+        let metadata: Record<string, unknown>;
+        let bytes: Uint8Array;
+        if (isAudioMimeType(primaryMime)) {
+          const coverBytes = decodeBase64Bytes(body.coverBytes ?? body.cover_bytes);
+          const coverQuote = job.quote.files[1];
+          if (coverQuote) {
+            if (!coverBytes?.byteLength) return json(400, { error: 'Cover art is required for this quote' });
+            if (contentHash(coverBytes) !== coverQuote.sha256) return json(400, { error: 'Cover hash does not match the quote' });
+          }
+          const duration = typeof body.durationSeconds === 'number' && Number.isFinite(body.durationSeconds)
+            ? body.durationSeconds
+            : typeof body.duration_seconds === 'number' && Number.isFinite(body.duration_seconds)
+              ? body.duration_seconds
+              : undefined;
+          const published = await publishAudioPinMetadata({
+            arweave,
+            mediaId: job.media.id,
+            mediaMime: job.media.mimeType,
+            mediaSha256: job.media.sha256,
+            mediaSize: job.media.size,
+            mediaGateways: job.media.gateways,
+            name: String(body.name ?? job.quote.files[0]?.name ?? 'Track'),
+            description: body.description ? String(body.description) : undefined,
+            artist: body.artist ? String(body.artist) : undefined,
+            durationSeconds: duration,
+            coverBytes: coverBytes ?? undefined,
+            coverMime: typeof body.coverMime === 'string' ? body.coverMime : undefined,
+            attributes,
+          });
+          metadata = published.metadata as unknown as Record<string, unknown>;
+          bytes = published.metadataBytes;
+        } else {
+          const legacy = metadataObject({
+            name: String(body.name ?? job.quote.files[0]?.name ?? 'Artwork'),
+            description: body.description ? String(body.description) : undefined,
+            mimeType: job.media.mimeType,
+            mediaId: job.media.id,
+            sha256: job.media.sha256,
+            animationUrl: body.animation_url || body.animationUrl ? String(body.animation_url ?? body.animationUrl) : undefined,
+            attributes,
+          });
+          metadata = legacy;
+          bytes = new TextEncoder().encode(JSON.stringify(legacy));
+        }
         try {
           const uploaded = await arweave.upload({ bytes, mimeType: 'application/json', tags: { 'Content-Type': 'application/json' } });
           const next = markMetadataUploaded(job, {
@@ -308,9 +352,22 @@ export function createMediaRouter(options: {
         if (!job.media || !job.metadata) return json(400, { error: 'Media and metadata are required before confirmation' });
         const media = await arweave.retrieve(job.media.id);
         const metadata = await arweave.retrieve(job.metadata.id);
+        let playerOk = true;
+        const primaryMime = guessAudioMimeType(job.quote.files[0]?.name ?? '', job.media.mimeType);
+        if (isAudioMimeType(primaryMime)) {
+          const resolvedMetadata = await fetchMetadataJson(job.metadata, metadata.gateways);
+          const animation = typeof resolvedMetadata?.animation_url === 'string' ? resolvedMetadata.animation_url : '';
+          const playerId = animation.startsWith('ar://') ? animation.slice(5) : '';
+          if (playerId) {
+            const player = await arweave.retrieve(playerId);
+            playerOk = player.ok;
+          } else {
+            playerOk = false;
+          }
+        }
         const next = markConfirmed(job, {
           mediaOk: media.ok,
-          metadataOk: metadata.ok,
+          metadataOk: metadata.ok && playerOk,
           checkedAt: new Date().toISOString(),
         });
         if (next.media) next.media = { ...next.media, gateways: media.gateways };
@@ -345,6 +402,18 @@ async function requireJob(store: MediaStore, id: string, payer?: string): Promis
 function decodeBytes(value: unknown) {
   if (typeof value !== 'string') throw new Error('bytes must be base64');
   return new Uint8Array(Buffer.from(value, 'base64'));
+}
+
+async function fetchMetadataJson(record: NonNullable<UploadJob['metadata']>, gateways: string[]) {
+  const origin = gateways[0] ?? 'https://arweave.net';
+  const url = `${origin.replace(/\/$/, '')}/${record.id}`;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) return null;
+    return await response.json() as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 export type { UploadJob };
