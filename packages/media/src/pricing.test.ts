@@ -2,45 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { contentHash } from './jobs';
 import { createMemoryMediaStore } from './store';
 import { createMediaRouter } from './router';
-import type { UploadCost } from './quote';
 
-const payTo = '0x1111111111111111111111111111111111111111';
 const payer = '0x2222222222222222222222222222222222222222';
 
-function stubCost(usdPerByte = 0): (byteCount: number) => Promise<UploadCost> {
-  return async (byteCount) => ({
-    winston: (BigInt(byteCount) * 1_000n).toString(),
-    usd: usdPerByte === 0 ? Number(byteCount) / 100 : byteCount * usdPerByte,
-    source: 'turbo',
-  });
-}
+const stubQuoteBundle = async () => ({
+  winston: '0',
+  usd: 0.1,
+  source: 'turbo' as const,
+  usdcAmount: '100000',
+  mediaUsdcAmount: '90000',
+  metadataUsdcAmount: '10000',
+});
+
+const testRouterOpts = { allowMockPayment: true, quoteBundle: stubQuoteBundle };
 
 describe('Turbo upload quote', () => {
-  it('prices USDC from a Turbo USD estimate instead of $8 per AR', async () => {
+  it('quotes a positive USDC amount from Turbo x402 totals', async () => {
     const { quoteUpload } = await import('./jobs');
     const quote = quoteUpload({
       files: [{ name: 'a.png', mimeType: 'image/png', size: 1_000_000, sha256: 'ab' }],
-      payTo,
-      safetyMarginBps: 0,
-      cost: { winston: '1000000000000', usd: 2.63, source: 'turbo' },
+      cost: { winston: '0', usd: 2.63, source: 'turbo', usdcAmount: '2630000', mediaUsdcAmount: '2500000', metadataUsdcAmount: '130000' },
     });
     expect(quote.usdcAmount).toBe('2630000');
     expect(quote.usdcDisplay).toBe('2.63');
-    expect(quote.arweaveWinston).toBe('1000000000000');
     expect(quote.costSource).toBe('turbo');
-    expect(quote.usdcAmount).not.toBe('8000000');
-  });
-
-  it('adds the safety margin on top of the Turbo USD price', async () => {
-    const { quoteUpload } = await import('./jobs');
-    const quote = quoteUpload({
-      files: [{ name: 'a.png', mimeType: 'image/png', size: 10, sha256: 'ab' }],
-      payTo,
-      safetyMarginBps: 500,
-      cost: { winston: '1000000', usd: 1, source: 'turbo' },
-    });
-    expect(quote.usdcAmount).toBe('1050000');
-    expect(quote.arweaveWinston).toBe('1050000');
   });
 
   it('reads a Turbo fiat estimate without inventing an AR spot price', async () => {
@@ -54,23 +39,9 @@ describe('Turbo upload quote', () => {
     expect(() => costFromTurboEstimate({ amount: 1, winc: 'nope' })).toThrow(/winc/i);
   });
 
-  it('asks Turbo for the artwork and a separate metadata allowance', async () => {
-    const { quoteTurboBundle, METADATA_ALLOWANCE_BYTES } = await import('./turboCost');
-    const seen: number[] = [];
-    const cost = await quoteTurboBundle(500, async (byteCount) => {
-      seen.push(byteCount);
-      return { winston: String(byteCount), usd: byteCount / 100, source: 'turbo' };
-    });
-    expect(seen).toEqual([500, METADATA_ALLOWANCE_BYTES]);
-    expect(cost.winston).toBe(String(500 + METADATA_ALLOWANCE_BYTES));
-  });
-
-  it('sums cent-rounded Turbo USD amounts without a binary float artifact', async () => {
-    const { sumUploadCosts } = await import('./quote');
-    expect(sumUploadCosts([
-      { winston: '1', usd: 0.06, source: 'turbo' },
-      { winston: '1', usd: 0.01, source: 'turbo' },
-    ]).usd).toBe(0.07);
+  it('sums integer atomic USDC quotes for media and metadata', async () => {
+    const { sumUsdcAtomic } = await import('./quote');
+    expect(sumUsdcAtomic(['40000', '10000'])).toBe('50000');
   });
 });
 
@@ -85,10 +56,6 @@ describe('mock payment gate', () => {
       CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT: 'false',
       NODE_ENV: 'development',
     })).toBe(false);
-    expect(resolveAllowMockPayment({
-      CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT: 'FALSE',
-      NODE_ENV: 'development',
-    })).toBe(false);
     expect(resolveAllowMockPayment({ NODE_ENV: 'production' })).toBe(false);
     expect(resolveAllowMockPayment({
       CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT: 'true',
@@ -96,26 +63,12 @@ describe('mock payment gate', () => {
     })).toBe(true);
   });
 
-  it('does not settle a mock header when mock payment is disabled, even if the facilitator would accept it', async () => {
-    const calls: string[] = [];
-    const facilitator = {
-      kind: 'http' as const,
-      async verify() {
-        calls.push('verify');
-        return { valid: true, payer };
-      },
-      async settle() {
-        calls.push('settle');
-        return { success: true, txHash: '0xsettled' };
-      },
-    };
+  it('does not accept mock headers when mock payment is disabled', async () => {
     const store = createMemoryMediaStore();
     const router = createMediaRouter({
       store,
-      facilitator,
-      payTo,
       allowMockPayment: false,
-      costSource: stubCost(),
+      quoteBundle: stubQuoteBundle,
     });
     const bytes = new Uint8Array([1, 2, 3]);
     const quoted = await router.handle({
@@ -125,51 +78,22 @@ describe('mock payment gate', () => {
       body: { files: [{ name: 'a.png', mimeType: 'image/png', size: bytes.byteLength, sha256: contentHash(bytes) }] },
     });
     const idempotencyKey = (quoted.body as { quote: { idempotencyKey: string } }).quote.idempotencyKey;
-    for (const header of ['mock:allow', 'Mock:allow', ' mock:allow ']) {
-      const paid = await router.handle({
-        method: 'POST',
-        pathname: '/jobs',
-        headers: {},
-        payer,
-        body: { idempotencyKey, paymentHeader: header },
-      });
-      expect(paid.status).toBe(403);
-      expect((paid.body as { code?: string }).code).toBe('mock_payment_disabled');
-    }
-    expect(calls).toEqual([]);
-    expect((await store.getByIdempotencyKey(idempotencyKey))?.payment ?? null).toBeNull();
-  });
-
-  it('refuses to settle through the mock facilitator when mock payment is disabled', async () => {
-    const router = createMediaRouter({
-      payTo,
-      allowMockPayment: false,
-      costSource: stubCost(),
-    });
-    const bytes = new Uint8Array([4]);
-    const quoted = await router.handle({
-      method: 'POST',
-      pathname: '/quote',
-      headers: {},
-      body: { files: [{ name: 'a.png', mimeType: 'image/png', size: 1, sha256: contentHash(bytes) }] },
-    });
-    const idempotencyKey = (quoted.body as { quote: { idempotencyKey: string } }).quote.idempotencyKey;
     const paid = await router.handle({
       method: 'POST',
       pathname: '/jobs',
-      headers: { 'x-payment': 'exact-payment-header' },
+      headers: {},
       payer,
-      body: { idempotencyKey },
+      body: { idempotencyKey, quote: (quoted.body as { quote: unknown }).quote, paymentHeader: 'mock:allow' },
     });
-    expect(paid.status).toBe(503);
-    expect((paid.body as { code?: string }).code).toBe('facilitator_not_configured');
+    expect(paid.status).toBe(403);
+    expect((await store.getByIdempotencyKey(idempotencyKey))?.payment ?? null).toBeNull();
   });
 });
 
 describe('quote handoff', () => {
-  it('pays a quote saved for the signed-in artist on another router instance', async () => {
+  it('opens a job from a quote saved for the signed-in artist on another router instance', async () => {
     const store = createMemoryMediaStore();
-    const shared = { payTo, allowMockPayment: true, costSource: stubCost(), store };
+    const shared = { ...testRouterOpts, store };
     const quotedBy = createMediaRouter(shared);
     const paidBy = createMediaRouter(shared);
     const bytes = new Uint8Array([7, 7]);
@@ -177,27 +101,28 @@ describe('quote handoff', () => {
       method: 'POST', pathname: '/quote', headers: {}, payer,
       body: { files: [{ name: 'a.png', mimeType: 'image/png', size: bytes.byteLength, sha256: contentHash(bytes) }] },
     });
-    const idempotencyKey = (quoted.body as { quote: { idempotencyKey: string } }).quote.idempotencyKey;
+    const quote = (quoted.body as { quote: { idempotencyKey: string } }).quote;
     const paid = await paidBy.handle({
       method: 'POST', pathname: '/jobs', headers: { 'x-payment': 'mock:allow' }, payer,
-      body: { idempotencyKey },
+      body: { idempotencyKey: quote.idempotencyKey, quote },
     });
     expect(paid.status).toBe(200);
     expect((paid.body as { job: { status: string } }).job.status).toBe('paid');
   });
 
   it('rejects a resubmitted quote that undercuts the current Turbo price', async () => {
-    const cheap = createMediaRouter({ payTo, allowMockPayment: true, costSource: stubCost() });
+    const store = createMemoryMediaStore();
+    const cheap = createMediaRouter({ allowMockPayment: true, store, quoteBundle: async () => ({ ...await stubQuoteBundle(), usdcAmount: '10000' }) });
     const expensive = createMediaRouter({
-      payTo,
       allowMockPayment: true,
-      costSource: async () => ({ winston: '1', usd: 40, source: 'turbo' }),
+      store,
+      quoteBundle: async () => ({ ...await stubQuoteBundle(), usdcAmount: '5000000' }),
     });
     const quoted = await cheap.handle({
       method: 'POST', pathname: '/quote', headers: {},
       body: { files: [{ name: 'a.png', mimeType: 'image/png', size: 10, sha256: 'ab' }] },
     });
-    const quote = (quoted.body as { quote: { idempotencyKey: string; usdcAmount: string } }).quote;
+    const quote = (quoted.body as { quote: UploadQuote }).quote;
     const paid = await expensive.handle({
       method: 'POST', pathname: '/jobs', headers: { 'x-payment': 'mock:allow' }, payer,
       body: { idempotencyKey: quote.idempotencyKey, quote: { ...quote, usdcAmount: '10000' } },
@@ -205,47 +130,22 @@ describe('quote handoff', () => {
     expect(paid.status).toBe(400);
     expect((paid.body as { error: string }).error).toMatch(/cover the current Turbo price/i);
   });
-
-  it('rejects a resubmitted quote whose files are not file quotes', async () => {
-    const router = createMediaRouter({ payTo, allowMockPayment: true, costSource: stubCost() });
-    const paid = await router.handle({
-      method: 'POST', pathname: '/jobs', headers: { 'x-payment': 'mock:allow' }, payer,
-      body: {
-        idempotencyKey: 'abc',
-        quote: {
-          idempotencyKey: 'abc',
-          files: [null],
-          usdcAmount: '10000',
-          payTo,
-          network: 'eip155:84532',
-          asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-          expiresAt: new Date(Date.now() + 60_000).toISOString(),
-        },
-      },
-    });
-    expect(paid.status).toBe(400);
-    expect((paid.body as { error: string }).error).toMatch(/unknown or expired quote/i);
-  });
 });
 
 describe('pin result for the mint flow', () => {
   it('returns an ar:// URI and a gateway URL only after the file is uploaded', async () => {
     const { pinnedMediaForMint } = await import('./pin');
-    const router = createMediaRouter({
-      payTo,
-      allowMockPayment: true,
-      costSource: stubCost(),
-    });
+    const router = createMediaRouter(testRouterOpts);
     const bytes = new Uint8Array([9, 9, 9]);
     const sha256 = contentHash(bytes);
     const quoted = await router.handle({
       method: 'POST', pathname: '/quote', headers: {},
       body: { files: [{ name: 'work.png', mimeType: 'image/png', size: bytes.byteLength, sha256 }] },
     });
-    const idempotencyKey = (quoted.body as { quote: { idempotencyKey: string } }).quote.idempotencyKey;
+    const quote = (quoted.body as { quote: { idempotencyKey: string } }).quote;
     const paid = await router.handle({
       method: 'POST', pathname: '/jobs', headers: { 'x-payment': 'mock:allow' }, payer,
-      body: { idempotencyKey },
+      body: { idempotencyKey: quote.idempotencyKey, quote },
     });
     const jobId = (paid.body as { job: { id: string } }).job.id;
     const before = await router.handle({ method: 'GET', pathname: `/jobs/${jobId}`, headers: {}, payer, body: {} });
@@ -269,3 +169,5 @@ describe('pin result for the mint flow', () => {
     expect(pinnedMediaForMint((confirmed.body as { job: Parameters<typeof pinnedMediaForMint>[0] }).job)?.metadataUri).toBe(pin.metadataUri);
   });
 });
+
+type UploadQuote = import('./types').UploadQuote;

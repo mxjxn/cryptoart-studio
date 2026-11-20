@@ -43,7 +43,6 @@ export function createPlatformServices(env: Record<string, string | undefined>) 
   const media = createMediaRouter({
     store: postgresUrl ? createPostgresMediaStore(postgresUrl) : createMemoryMediaStore(),
     arweave: createSimulatedArweave(),
-    payTo: env.CRYPTOART_MEDIA_PAY_TO || env.CRYPTOART_OWNER_ADDRESS || '0x0000000000000000000000000000000000000000',
     allowMockPayment: env.CRYPTOART_MEDIA_ALLOW_MOCK_PAYMENT !== 'false',
     network: env.CRYPTOART_MEDIA_NETWORK,
     asset: env.CRYPTOART_MEDIA_ASSET,

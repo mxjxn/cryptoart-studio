@@ -17,6 +17,9 @@
     "@ardrive/turbo-sdk": "^2.2.0",
     "postgres": "^3.4.4"
   },
+  "optionalDependencies": {
+    "x402-fetch": "^1.2.0"
+  },
   "devDependencies": {
     "@cryptoart/typescript-config": "file:../typescript-config",
     "@types/node": "^22.15.3",
