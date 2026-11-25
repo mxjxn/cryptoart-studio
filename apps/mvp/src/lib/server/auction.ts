@@ -26,6 +26,11 @@ import {
 import { normalizeListingType } from "~/lib/listing-type";
 import { pickDisplayTitle } from "~/lib/metadata-display";
 import { enrichListingMediaAndSupplyCapped } from "~/lib/server/listing-enrichment-capped";
+import { getListingsSource } from "~/lib/server/listings-source";
+import {
+  fetchActiveListingsFromIndexer,
+  fetchIndexerListingsByListingId,
+} from "@cryptoart/chain-indexer";
 
 /**
  * Get headers for subgraph requests, including API key if available
@@ -244,7 +249,7 @@ export function normalizeTokenSpec(
  */
 const SUBGRAPH_RESOLVE_TIMEOUT_MS = 5000;
 
-export async function resolveListingFromSubgraph(
+async function resolveListingFromSubgraphOnly(
   listingId: string,
   chainIdFilter?: number
 ): Promise<any | null> {
@@ -307,6 +312,39 @@ export async function resolveListingFromSubgraph(
   }
 
   return matched[0];
+}
+
+/**
+ * Resolve listing from indexer tables or subgraph (LISTINGS_SOURCE, default indexer).
+ */
+export async function resolveListingFromSubgraph(
+  listingId: string,
+  chainIdFilter?: number
+): Promise<any | null> {
+  if (getListingsSource() === "indexer") {
+    try {
+      const matched = await fetchIndexerListingsByListingId(listingId, chainIdFilter);
+      if (matched.length === 0) {
+        return null;
+      }
+      if (matched.length > 1) {
+        throw new AmbiguousListingError(
+          listingId,
+          matched.map((row) => row.chainId)
+        );
+      }
+      return matched[0];
+    } catch (error) {
+      if (isAmbiguousListingError(error)) {
+        throw error;
+      }
+      console.warn(
+        `[Listings] Indexer resolve failed for listing ${listingId}, falling back to subgraph:`,
+        error
+      );
+    }
+  }
+  return resolveListingFromSubgraphOnly(listingId, chainIdFilter);
 }
 
 /**
@@ -386,6 +424,7 @@ export async function getAuctionServer(
       listingType: normalizedListingType,
       tokenSpec: normalizedTokenSpec,
       bidCount,
+      bids: listing.bids || [],
       highestBid: highestBid
         ? {
             amount: highestBid.amount,
@@ -502,11 +541,10 @@ export async function getHiddenUserAddresses(): Promise<Set<string>> {
  * Fetch and enrich auctions from subgraph
  * This function is cached for 60 seconds to reduce subgraph load
  */
-async function fetchActiveAuctions(
+async function fetchActiveAuctionsFromSubgraph(
   first: number,
-  skip: number,
-  enrich: boolean
-): Promise<EnrichedAuctionData[]> {
+  skip: number
+): Promise<any[]> {
   const endpoints = getConfiguredSubgraphEndpoints();
   const headers = getSubgraphHeaders();
 
@@ -514,8 +552,6 @@ async function fetchActiveAuctions(
     console.warn('[Active Listings] No subgraph auth headers - request may fail. Set GRAPH_STUDIO_API_KEY or NEXT_PUBLIC_GRAPH_STUDIO_API_KEY');
   }
 
-  // Dual-network query: request the same listing window from each subgraph deployment,
-  // then merge results at the application layer.
   const settled = await Promise.allSettled(
     endpoints.map((ep) => {
       return request<{ listings: any[] }>(
@@ -538,6 +574,33 @@ async function fetchActiveAuctions(
     for (const row of s.value.listings ?? []) {
       mergedListings.push(ensureListingChainId(row, ep.chainId));
     }
+  }
+  return mergedListings;
+}
+
+async function fetchActiveAuctions(
+  first: number,
+  skip: number,
+  enrich: boolean
+): Promise<EnrichedAuctionData[]> {
+  let mergedListings: any[] = [];
+
+  if (getListingsSource() === "indexer") {
+    try {
+      mergedListings = await fetchActiveListingsFromIndexer(first, skip);
+    } catch (error) {
+      console.warn(
+        "[Active Listings] Indexer query failed, falling back to subgraph:",
+        error
+      );
+      try {
+        mergedListings = await fetchActiveAuctionsFromSubgraph(first, skip);
+      } catch (subgraphError) {
+        console.warn("[Active Listings] Subgraph fallback failed:", subgraphError);
+      }
+    }
+  } else {
+    mergedListings = await fetchActiveAuctionsFromSubgraph(first, skip);
   }
 
   if (mergedListings.length === 0) {

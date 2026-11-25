@@ -152,6 +152,19 @@ export function getDatabase() {
   return globalForDb.db;
 }
 
+// Lazy singleton that does not throw at import time (used by apps/jobs build).
+let _dbCache: ReturnType<typeof drizzle> | null = null;
+
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_target, prop) {
+    if (!_dbCache) {
+      _dbCache = getDatabase();
+    }
+    const value = (_dbCache as unknown as Record<string, unknown>)[prop as string];
+    return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(_dbCache) : value;
+  },
+});
+
 // Export schema for use in other packages
 export { 
   userCache, 

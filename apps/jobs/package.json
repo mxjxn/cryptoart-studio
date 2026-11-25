@@ -1,0 +1,27 @@
+{
+  "name": "@cryptoart/jobs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3002",
+    "build": "next build",
+    "start": "next start --port 3002",
+    "lint": "next lint",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cryptoart/chain-indexer": "workspace:*",
+    "@cryptoart/db": "workspace:*",
+    "next": "^16.0.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@cryptoart/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "5.9.2"
+  }
+}
