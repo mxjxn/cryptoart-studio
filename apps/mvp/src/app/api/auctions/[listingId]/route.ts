@@ -9,11 +9,13 @@ import {
 } from "~/lib/server/subgraph-endpoints";
 import { enrichListingMediaAndSupplyCapped } from "~/lib/server/listing-enrichment-capped";
 import {
+  getAuctionServer,
   getHiddenUserAddresses,
   isListingBlockedFromProduct,
   normalizeListingType,
   normalizeTokenSpec,
 } from '~/lib/server/auction';
+import { isIndexerListingsSource } from "~/lib/server/listings-source";
 import { makeListingPreviewId, upsertListingPreview } from '~/lib/server/listing-preview-store';
 import { discoverAndCacheUserBackground } from '~/lib/server/user-discovery';
 import {
@@ -195,137 +197,7 @@ async function fetchAuctionData(
   listingId: string,
   chainId?: number
 ): Promise<EnrichedAuctionData | null> {
-  const headers = getSubgraphHeaders();
-
-  const configured = getConfiguredSubgraphEndpoints();
-  const endpoints =
-    chainId == null
-      ? configured
-      : configured.filter((e) => e.chainId === chainId);
-  if (chainId != null && endpoints.length === 0) {
-    return null;
-  }
-  const listingIdNum = parseInt(listingId, 10);
-  const isNumeric = !Number.isNaN(listingIdNum);
-
-  const settled = await Promise.allSettled(
-    endpoints.map((ep) =>
-      retryWithBackoff(
-        async () => {
-          if (isNumeric) {
-            return await request<{ listings: any[] }>(
-              ep.url,
-              LISTING_BY_LISTING_ID_QUERY,
-              { listingId: listingIdNum },
-              headers
-            );
-          }
-
-          const r = await request<{ listing: any | null }>(
-            ep.url,
-            LISTING_BY_ID_QUERY,
-            { id: listingId },
-            headers
-          );
-          return { listings: r.listing ? [r.listing] : [] };
-        },
-        3,
-        1000
-      )
-    )
-  );
-
-  const matched: any[] = [];
-  for (let i = 0; i < settled.length; i++) {
-    const s = settled[i];
-    if (s.status !== "fulfilled") continue;
-    const ep = endpoints[i];
-    for (const row of s.value.listings ?? []) {
-      matched.push(ensureListingChainId(row, ep.chainId));
-    }
-  }
-
-  if (matched.length === 0) return null;
-  if (matched.length > 1) {
-    throw new AmbiguousListingError(listingId, chainIdsFromSubgraphRows(matched));
-  }
-
-  const listing = matched[0];
-
-  const hiddenSellers = await getHiddenUserAddresses();
-  if (isListingBlockedFromProduct(listing, hiddenSellers)) {
-    console.warn(
-      `[fetchAuctionData] Blocked listing ${listingId} — hidden/blocked seller or BLOCKED_LISTING_IDS; skipping enrichment`
-    );
-    return null;
-  }
-
-  const bidCount = listing.bids?.length || 0;
-  const highestBid = listing.bids && listing.bids.length > 0 
-    ? listing.bids[0] // Already sorted by amount desc
-    : undefined;
-
-  const {
-    metadata,
-    erc1155TotalSupply,
-    erc721TotalSupply,
-    thumbnailUrl,
-    detailThumbnailUrl,
-  } = await enrichListingMediaAndSupplyCapped(listing, {
-    listingIdForLog: listingId,
-    requestChainId: chainId,
-  });
-
-  // Normalize listing type and token spec for consistent handling
-  const normalizedListingType = normalizeListingType(listing.listingType, listing);
-  const normalizedTokenSpec = normalizeTokenSpec(listing.tokenSpec);
-  
-  // Debug logging for listing type and token spec normalization
-  console.log(`[fetchAuctionData] Listing ${listingId} normalization:`, {
-    rawListingType: listing.listingType,
-    rawListingTypeType: typeof listing.listingType,
-    normalizedListingType,
-    rawTokenSpec: listing.tokenSpec,
-    rawTokenSpecType: typeof listing.tokenSpec,
-    normalizedTokenSpec,
-    lazy: listing.lazy,
-  });
-
-  const enriched: EnrichedAuctionData = {
-    ...listing,
-    listingType: normalizedListingType,
-    tokenSpec: normalizedTokenSpec,
-    bidCount,
-    highestBid: highestBid ? {
-      amount: highestBid.amount,
-      bidder: highestBid.bidder,
-      timestamp: highestBid.timestamp,
-    } : undefined,
-    // Include full bid history for auction detail pages
-    bids: listing.bids || [],
-    title: pickDisplayTitle(metadata) ?? metadata?.title ?? metadata?.name,
-    artist: metadata?.artist || metadata?.creator,
-    image: metadata?.image,
-    thumbnailUrl,
-    detailThumbnailUrl,
-    description: metadata?.description,
-    metadata,
-    erc1155TotalSupply,
-    erc721TotalSupply,
-  };
-
-  if (metadata?.image || enriched.title) {
-    void upsertListingPreview({
-      listingId: makeListingPreviewId(listing.chainId, String(listing.listingId)),
-      tokenAddress: String(listing.tokenAddress),
-      tokenId: String(listing.tokenId),
-      imageUrl: metadata?.image ?? null,
-      thumbnailSmallUrl: thumbnailUrl ?? null,
-      title: enriched.title ?? null,
-    });
-  }
-
-  return enriched;
+  return getAuctionServer(listingId, chainId != null ? { chainId } : undefined);
 }
 
 /** Bust Data Cache when gateway / access token env changes (avoids stale "no image" payloads). */
@@ -390,7 +262,11 @@ export async function GET(
 
     // Scoped chain lookups need that network's Studio URL; otherwise fetchAuctionData returns null
     // and clients misread it as "listing not found".
-    if (chainId != null && getSubgraphEndpointOrNull(chainId) == null) {
+    if (
+      chainId != null &&
+      getSubgraphEndpointOrNull(chainId) == null &&
+      !isIndexerListingsSource()
+    ) {
       return NextResponse.json(
         {
           success: false,
